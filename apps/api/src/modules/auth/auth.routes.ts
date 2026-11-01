@@ -5,7 +5,7 @@ import { unauthorized } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { PasswordSchema } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
-import { authLimiter } from '../../middleware/rate-limit.js';
+import { authLimiter, refreshLimiter } from '../../middleware/rate-limit.js';
 import * as auth from './auth.service.js';
 
 export const REFRESH_COOKIE = 'pacient_rt';
@@ -14,7 +14,7 @@ const cookieOptions = (expires?: Date): CookieOptions => ({
   httpOnly: true, // not readable by JavaScript -> immune to token theft via XSS
   secure: isProd,
   sameSite: 'strict', // never sent on cross-site requests -> CSRF protection
-  path: '/api/auth',
+  path: '/api/v1/auth',
   ...(expires ? { expires } : {}),
 });
 
@@ -45,7 +45,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   sendSession(res, await auth.login(email, password, requestMeta(req)));
 });
 
-authRouter.post('/refresh', authLimiter, async (req, res) => {
+authRouter.post('/refresh', refreshLimiter, async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
   if (!token) throw unauthorized('No session');
   try {

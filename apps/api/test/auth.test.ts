@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import { users } from '../src/db/schema.js';
 import { MAX_FAILED_ATTEMPTS } from '../src/modules/auth/auth.service.js';
-import { api, bearer, createFacility, createUser, login, PASSWORD } from './helpers.js';
+import request from 'supertest';
+import { api, app, bearer, createFacility, createUser, login, PASSWORD } from './helpers.js';
 
 function refreshCookie(res: { headers: Record<string, unknown> }) {
   const cookies = res.headers['set-cookie'] as string[] | undefined;
@@ -23,12 +24,27 @@ describe('authentication', () => {
     const cookie = (res.headers['set-cookie'] as unknown as string[])[0]!;
     expect(cookie).toMatch(/HttpOnly/);
     expect(cookie).toMatch(/SameSite=Strict/);
-    expect(cookie).toMatch(/Path=\/api\/auth/);
+    // Must match the mount point, or browsers will never send the cookie to /refresh.
+    expect(cookie).toMatch(/Path=\/api\/v1\/auth(;|$)/);
 
     const me = await api().get('/api/v1/auth/me').set(bearer(res.body.accessToken));
     expect(me.status).toBe(200);
     expect(me.body).toMatchObject({ email: user.email, role: 'MINISTRY' });
     expect(me.body).not.toHaveProperty('passwordHash');
+  });
+
+  it('restores a session through the cookie jar, as a browser would', async () => {
+    // A cookie agent applies Path/SameSite rules like a browser: this fails if the cookie path
+    // does not cover the refresh endpoint (users would be signed out on every page reload).
+    const user = await createUser('MINISTRY');
+    const agent = request.agent(app);
+    await agent
+      .post('/api/v1/auth/login')
+      .send({ email: user.email, password: PASSWORD })
+      .expect(200);
+    const res = await agent.post('/api/v1/auth/refresh');
+    expect(res.status).toBe(200);
+    expect(res.body.accessToken).toBeTypeOf('string');
   });
 
   it('is case-insensitive on email', async () => {

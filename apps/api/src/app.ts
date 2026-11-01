@@ -19,6 +19,12 @@ import { portalRouter } from './modules/portal/portal.routes.js';
 import { staffRouter } from './modules/staff/staff.routes.js';
 import { statsRouter } from './modules/stats/stats.routes.js';
 import { worklistRouter } from './modules/worklist/worklist.routes.js';
+import { announcementsRouter } from './modules/announcements/announcements.routes.js';
+import { emergencyRouter } from './modules/emergency/emergency.routes.js';
+import { messagingRouter } from './modules/messaging/messaging.routes.js';
+import { notificationsRouter } from './modules/notifications/notifications.routes.js';
+import { referralsRouter } from './modules/referrals/referrals.routes.js';
+import { reportsRouter } from './modules/reports/reports.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -90,6 +96,12 @@ export function createApp(): Express {
   api.use('/stats', statsRouter);
   api.use('/audit-logs', auditRouter);
   api.use('/worklist', worklistRouter);
+  api.use('/notifications', notificationsRouter);
+  api.use('/messages', messagingRouter);
+  api.use('/referrals', referralsRouter);
+  api.use('/emergency-access', emergencyRouter);
+  api.use('/announcements', announcementsRouter);
+  api.use('/reports', reportsRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler);

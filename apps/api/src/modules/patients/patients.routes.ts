@@ -21,6 +21,7 @@ import {
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
+import { notifyFacilityRole } from '../notifications/notifications.service.js';
 
 export const EMERGENCY_ACCESS_HOURS = 4;
 
@@ -485,6 +486,17 @@ patientsRouter.post('/:id/emergency-access', requireRole('DOCTOR'), async (req, 
         patientId: id,
         meta: requestMeta(req),
         metadata: { reason, expiresAt: expiresAt.toISOString() },
+      },
+      tx,
+    );
+    // Directors are alerted so every break-glass event gets a retrospective review.
+    await notifyFacilityRole(
+      ctx.facilityId!,
+      ['DIRECTOR'],
+      {
+        type: 'emergency_access',
+        title: 'Emergency access used – review required',
+        link: '/director/emergency-access',
       },
       tx,
     );

@@ -14,6 +14,7 @@ import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/htt
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { hasActiveCareAssignment, resolveClinicalReadAccess } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
 
 type Status = (typeof appointmentStatusEnum.enumValues)[number];
 
@@ -176,6 +177,23 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
       },
       tx,
     );
+    if (ctx.role === 'PATIENT') {
+      await notifyUsers(
+        [doctorId],
+        { type: 'appointment', title: 'New appointment request', link: '/doctor/schedule' },
+        tx,
+      );
+    } else {
+      await notifyPatient(
+        patientId,
+        {
+          type: 'appointment',
+          title: 'An appointment was booked for you',
+          link: '/portal/appointments',
+        },
+        tx,
+      );
+    }
     return created!;
   });
   res.status(201).json(row);
@@ -218,6 +236,28 @@ appointmentsRouter.patch('/:id/status', requireRole('PATIENT', 'DOCTOR'), async 
       },
       tx,
     );
+    const label = status.toLowerCase().replace('_', '-');
+    if (ctx.role === 'DOCTOR') {
+      await notifyPatient(
+        appt.patientId,
+        {
+          type: 'appointment',
+          title: `Your appointment was ${label}`,
+          link: '/portal/appointments',
+        },
+        tx,
+      );
+    } else {
+      await notifyUsers(
+        [appt.doctorId],
+        {
+          type: 'appointment',
+          title: `A patient ${label} an appointment`,
+          link: '/doctor/schedule',
+        },
+        tx,
+      );
+    }
     return updated!;
   });
   res.json(row);

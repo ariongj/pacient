@@ -12,6 +12,7 @@ import {
   encounters,
   encounterTypeEnum,
   labFlagEnum,
+  immunizations,
   labResults,
   patients,
   prescriptions,
@@ -31,6 +32,7 @@ import {
   type ClinicalAccessBasis,
 } from '../access/policy.js';
 import { audit, AuditAction, type AuditActionValue } from '../audit/audit.service.js';
+import { notifyCareTeam, notifyPatient } from '../notifications/notifications.service.js';
 import * as clinical from './clinical.service.js';
 
 const PatientParam = z.object({ patientId: z.string().uuid() });
@@ -232,6 +234,7 @@ const listEndpoints: Record<
   allergies: (id) => clinical.listAllergies(id),
   vitals: (id) => clinical.listVitals(id, 200),
   'lab-results': (id, view) => clinical.listLabResults(id, view),
+  immunizations: (id) => clinical.listImmunizations(id),
 };
 
 for (const [section, loader] of Object.entries(listEndpoints)) {
@@ -611,6 +614,39 @@ clinicalRouter.post('/vitals', async (req, res) => {
   res.status(201).json(row);
 });
 
+const ImmunizationInput = z.object({
+  ...OptionalEncounter,
+  vaccine: z.string().trim().min(2).max(200),
+  doseNumber: z.number().int().min(1).max(20).optional().nullable(),
+  lotNumber: z.string().trim().max(60).optional().nullable(),
+  site: z.string().trim().max(60).optional().nullable(),
+  administeredAt: isoDateTime
+    .optional()
+    .refine((d) => !d || new Date(d) <= new Date(), 'Cannot be in the future'),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+clinicalRouter.post('/immunizations', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req);
+  const input = parse(ImmunizationInput, req.body);
+  await ensureEncounter(input.encounterId, patientId);
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(immunizations)
+      .values({
+        ...input,
+        administeredAt: input.administeredAt ? new Date(input.administeredAt) : new Date(),
+        patientId,
+        administeredById: ctx.userId,
+        facilityId: ctx.facilityId!,
+      })
+      .returning();
+    await auditChange(req, ctx, patientId, 'immunization', created!.id, tx);
+    return created!;
+  });
+  res.status(201).json(row);
+});
+
 clinicalRouter.post('/lab-results', async (req, res) => {
   const { ctx, patientId } = await writeContext(req);
   const input = parse(LabInput, req.body);
@@ -683,6 +719,11 @@ clinicalRouter.post('/lab-results/:entryId/release', async (req, res) => {
       .where(eq(labResults.id, entryId))
       .returning();
     await auditChange(req, ctx, patientId, 'lab_result', entryId, tx, AuditAction.RESULT_RELEASED);
+    await notifyPatient(
+      patientId,
+      { type: 'result', title: 'A new test result is available', link: '/portal/results' },
+      tx,
+    );
     return updated!;
   });
   res.json(row);
@@ -737,6 +778,15 @@ clinicalRouter.post('/correction-requests', async (req, res) => {
         section: input.section,
       },
     );
+    await notifyCareTeam(
+      patientId,
+      {
+        type: 'correction',
+        title: 'A patient requested a record correction',
+        link: `/doctor/patients/${patientId}`,
+      },
+      tx,
+    );
     return created!;
   });
   res.status(201).json(row);
@@ -770,6 +820,15 @@ clinicalRouter.patch('/correction-requests/:entryId', async (req, res) => {
       {
         status: input.status,
       },
+    );
+    await notifyPatient(
+      patientId,
+      {
+        type: 'correction',
+        title: 'Your correction request was answered',
+        link: '/portal/account',
+      },
+      tx,
     );
     return updated;
   });

@@ -1,21 +1,43 @@
-import { isProd } from '../../config/env.js';
+import { isProd, isTest } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 
 /**
- * Outbound notifications. In production, plug in an email/SMS provider here. The development
- * implementation only logs that a message would be sent (never the secret link itself in prod).
+ * Outbound email/SMS. In production, plug in a provider here. The development implementation only
+ * logs (never in production, where links are secrets). Tests read the in-memory outbox.
  */
-export interface Notifier {
-  sendActivationLink(to: { email: string; fullName: string }, url: string): Promise<void>;
+export interface OutboundMessage {
+  to: string;
+  kind: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+  url: string;
 }
 
+export interface Notifier {
+  sendActivationLink(to: { email: string; fullName: string }, url: string): Promise<void>;
+  sendPasswordReset(to: { email: string; fullName: string }, url: string): Promise<void>;
+}
+
+export const testOutbox: OutboundMessage[] = [];
+
 class LogNotifier implements Notifier {
-  async sendActivationLink(to: { email: string; fullName: string }, url: string) {
-    if (isProd) {
-      logger.warn({ to: to.email }, 'No notifier configured: activation link was not delivered');
+  private async send(message: OutboundMessage) {
+    if (isTest) {
+      testOutbox.push(message);
       return;
     }
-    logger.info({ to: to.email, url }, 'Activation link (development only)');
+    if (isProd) {
+      logger.warn(
+        { to: message.to, kind: message.kind },
+        'No notifier configured: message not delivered',
+      );
+      return;
+    }
+    logger.info(message, 'Outbound message (development only)');
+  }
+  sendActivationLink(to: { email: string }, url: string) {
+    return this.send({ to: to.email, kind: 'ACCOUNT_ACTIVATION', url });
+  }
+  sendPasswordReset(to: { email: string }, url: string) {
+    return this.send({ to: to.email, kind: 'PASSWORD_RESET', url });
   }
 }
 

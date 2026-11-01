@@ -7,6 +7,7 @@ import {
   encounterAddenda,
   encounters,
   facilities,
+  immunizations,
   labResults,
   patients,
   prescriptions,
@@ -253,18 +254,48 @@ export async function listEncounters(
   return paginated(items, total?.total ?? 0, page);
 }
 
+export function listImmunizations(patientId: string) {
+  return db
+    .select({
+      id: immunizations.id,
+      encounterId: immunizations.encounterId,
+      vaccine: immunizations.vaccine,
+      doseNumber: immunizations.doseNumber,
+      lotNumber: immunizations.lotNumber,
+      site: immunizations.site,
+      administeredAt: immunizations.administeredAt,
+      notes: immunizations.notes,
+      administeredBy: doctorName,
+      facilityName: facilities.name,
+    })
+    .from(immunizations)
+    .innerJoin(users, eq(users.id, immunizations.administeredById))
+    .innerJoin(facilities, eq(facilities.id, immunizations.facilityId))
+    .where(eq(immunizations.patientId, patientId))
+    .orderBy(desc(immunizations.administeredAt));
+}
+
 /** The patient summary ("chart"): everything a clinician needs at a glance. */
 export async function getClinicalSummary(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
-  const [demographics, allergyList, diagnosisList, prescriptionList, vitals, labs, recent] =
-    await Promise.all([
-      getDemographics(patientId),
-      listAllergies(patientId),
-      listDiagnoses(patientId),
-      listPrescriptions(patientId),
-      listVitals(patientId, 10),
-      listLabResults(patientId, view),
-      listEncounters(patientId, { page: 1, pageSize: 5 }, view),
-    ]);
+  const [
+    demographics,
+    allergyList,
+    diagnosisList,
+    prescriptionList,
+    vitals,
+    labs,
+    recent,
+    vaccines,
+  ] = await Promise.all([
+    getDemographics(patientId),
+    listAllergies(patientId),
+    listDiagnoses(patientId),
+    listPrescriptions(patientId),
+    listVitals(patientId, 10),
+    listLabResults(patientId, view),
+    listEncounters(patientId, { page: 1, pageSize: 5 }, view),
+    listImmunizations(patientId),
+  ]);
   const [openCorrections] = await db
     .select({ total: count() })
     .from(correctionRequests)
@@ -277,6 +308,7 @@ export async function getClinicalSummary(patientId: string, view: ViewOptions = 
     latestVitals: vitals[0] ?? null,
     recentLabResults: labs.slice(0, 10),
     recentEncounters: recent.items,
+    immunizations: vaccines,
     counts: {
       encounters: recent.total,
       diagnoses: diagnosisList.length,
@@ -289,16 +321,25 @@ export async function getClinicalSummary(patientId: string, view: ViewOptions = 
 
 /** Complete record for patient data portability (right of access / GDPR Art. 15 & 20). */
 export async function exportFullRecord(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
-  const [demographics, allergyList, diagnosisList, prescriptionList, vitals, labs, allEncounters] =
-    await Promise.all([
-      getDemographics(patientId),
-      listAllergies(patientId),
-      listDiagnoses(patientId),
-      listPrescriptions(patientId),
-      listVitals(patientId, 10_000),
-      listLabResults(patientId, view),
-      listEncounters(patientId, { page: 1, pageSize: 10_000 }, view),
-    ]);
+  const [
+    demographics,
+    allergyList,
+    diagnosisList,
+    prescriptionList,
+    vitals,
+    labs,
+    allEncounters,
+    vaccines,
+  ] = await Promise.all([
+    getDemographics(patientId),
+    listAllergies(patientId),
+    listDiagnoses(patientId),
+    listPrescriptions(patientId),
+    listVitals(patientId, 10_000),
+    listLabResults(patientId, view),
+    listEncounters(patientId, { page: 1, pageSize: 10_000 }, view),
+    listImmunizations(patientId),
+  ]);
   return {
     exportedAt: new Date().toISOString(),
     format: 'pacient-record/v1',
@@ -309,6 +350,7 @@ export async function exportFullRecord(patientId: string, view: ViewOptions = CL
     vitalSigns: vitals,
     labResults: labs,
     encounters: allEncounters.items,
+    immunizations: vaccines,
   };
 }
 

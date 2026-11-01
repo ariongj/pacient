@@ -8,15 +8,22 @@ import { hashPassword } from '../lib/password.js';
 import { db, pool } from './client.js';
 import {
   allergies,
+  announcements,
   appointments,
   auditLogs,
   careAssignments,
   diagnoses,
+  emergencyAccessGrants,
   encounters,
   facilities,
+  immunizations,
   labResults,
+  messages,
+  messageThreads,
+  notifications,
   patients,
   prescriptions,
+  referrals,
   users,
   vitalSigns,
 } from './schema.js';
@@ -254,25 +261,35 @@ async function main() {
     .values([...FACILITIES])
     .returning();
 
-  await db.insert(users).values({
-    email: 'minister@pacient.local',
-    fullName: 'Dr. Albana Hyseni',
-    role: 'MINISTRY',
-    facilityId: null,
-    ...activeAccount,
-  });
+  const [minister] = await db
+    .insert(users)
+    .values({
+      email: 'minister@pacient.local',
+      fullName: 'Dr. Albana Hyseni',
+      role: 'MINISTRY',
+      facilityId: null,
+      ...activeAccount,
+    })
+    .returning();
 
+  const directorsByFacility = new Map<string, string>();
+  let demoPatientId = '';
+  const patientsByFacility = new Map<string, string[]>();
   const doctorsByFacility = new Map<string, { id: string; fullName: string }[]>();
   let doctorIndex = 0;
   for (const [i, f] of facilityRows.entries()) {
     const slug = f.code.toLowerCase();
-    await db.insert(users).values({
-      email: i === 0 ? 'director@pacient.local' : `director.${slug}@pacient.local`,
-      fullName: `Dr. ${pick(FIRST_M)} ${pick(LAST)}`,
-      role: 'DIRECTOR',
-      facilityId: f.id,
-      ...activeAccount,
-    });
+    const [director] = await db
+      .insert(users)
+      .values({
+        email: i === 0 ? 'director@pacient.local' : `director.${slug}@pacient.local`,
+        fullName: `Dr. ${pick(FIRST_M)} ${pick(LAST)}`,
+        role: 'DIRECTOR',
+        facilityId: f.id,
+        ...activeAccount,
+      })
+      .returning();
+    directorsByFacility.set(f.id, director!.id);
     const count = i === 0 ? 4 : 2;
     const docs = await db
       .insert(users)
@@ -336,7 +353,37 @@ async function main() {
         })
         .returning();
       const patientId = patient!.id;
+      if (isDemo) demoPatientId = patientId;
+      patientsByFacility.set(f.id, [...(patientsByFacility.get(f.id) ?? []), patientId]);
       const doctor = isDemo ? docs[0]! : pick(docs);
+      if (isDemo || rand() < 0.4) {
+        await db.insert(immunizations).values([
+          {
+            patientId,
+            vaccine: 'Influenza (seasonal)',
+            doseNumber: 1,
+            lotNumber: `FLU-${int(100, 999)}`,
+            site: 'Left deltoid',
+            administeredAt: daysAgo(int(20, 300)),
+            administeredById: doctor.id,
+            facilityId: f.id,
+          },
+          ...(isDemo
+            ? [
+                {
+                  patientId,
+                  vaccine: 'Tetanus-diphtheria (Td) booster',
+                  doseNumber: 1,
+                  lotNumber: 'TD-2219',
+                  site: 'Right deltoid',
+                  administeredAt: daysAgo(700),
+                  administeredById: doctor.id,
+                  facilityId: f.id,
+                },
+              ]
+            : []),
+        ]);
+      }
       await db.insert(careAssignments).values({
         patientId,
         doctorId: doctor.id,
@@ -499,6 +546,158 @@ async function main() {
       }
     }
   }
+
+  /* ---------------------------------------------------------- collaboration & oversight demo */
+  const [ucc, rhpz] = facilityRows;
+  const uccDocs = doctorsByFacility.get(ucc!.id)!;
+  const rhDocs = doctorsByFacility.get(rhpz!.id)!;
+  const demoDoctor = uccDocs[0]!;
+
+  // A conversation between the demo patient and their family doctor.
+  const [thread] = await db
+    .insert(messageThreads)
+    .values({
+      patientId: demoPatientId,
+      doctorId: demoDoctor.id,
+      subject: 'Blood pressure readings at home',
+      lastMessageAt: daysAgo(1),
+      createdAt: daysAgo(2),
+    })
+    .returning();
+  await db.insert(messages).values([
+    {
+      threadId: thread!.id,
+      senderId: portalUser!.id,
+      body: 'Good morning doctor, my home readings this week were around 145/90 in the mornings. Should I change anything before our appointment?',
+      createdAt: daysAgo(2),
+      readAt: daysAgo(1),
+    },
+    {
+      threadId: thread!.id,
+      senderId: demoDoctor.id,
+      body: 'Thank you for tracking them. Keep taking amlodipine as prescribed and bring your log to the visit. If you get a severe headache or chest pain, call 112.',
+      createdAt: daysAgo(1),
+    },
+  ]);
+
+  // An outgoing referral from the demo patient's doctor, accepted at Prizren.
+  await db.insert(referrals).values({
+    patientId: demoPatientId,
+    fromDoctorId: demoDoctor.id,
+    fromFacilityId: ucc!.id,
+    toFacilityId: rhpz!.id,
+    toDoctorId: rhDocs[0]!.id,
+    specialty: 'Cardiology',
+    priority: 'ROUTINE',
+    reason: 'Hypertension not at target on monotherapy',
+    clinicalSummary:
+      '42-year-old woman with essential hypertension (I10) and hyperlipidaemia. Home BP ~145/90 on amlodipine 5 mg. Requesting cardiology review and echocardiogram.',
+    status: 'ACCEPTED',
+    respondedById: directorsByFacility.get(rhpz!.id)!,
+    respondedAt: daysAgo(3),
+    createdAt: daysAgo(5),
+  });
+  await db.insert(careAssignments).values({
+    patientId: demoPatientId,
+    doctorId: rhDocs[0]!.id,
+    assignedById: directorsByFacility.get(rhpz!.id)!,
+    startedAt: daysAgo(3),
+  });
+
+  // An incoming referral waiting for the UCC director / doctors.
+  const pzPatient = patientsByFacility.get(rhpz!.id)![0]!;
+  await db
+    .insert(careAssignments)
+    .values({ patientId: pzPatient, doctorId: rhDocs[1]!.id, assignedById: rhDocs[1]!.id })
+    .onConflictDoNothing();
+  await db.insert(referrals).values({
+    patientId: pzPatient,
+    fromDoctorId: rhDocs[1]!.id,
+    fromFacilityId: rhpz!.id,
+    toFacilityId: ucc!.id,
+    specialty: 'Endocrinology',
+    priority: 'URGENT',
+    reason: 'Poorly controlled type 2 diabetes',
+    clinicalSummary:
+      'HbA1c 9.1% despite metformin 850 mg twice daily. Weight loss and polyuria over the last 2 months. Please assess for insulin initiation.',
+    createdAt: daysAgo(1),
+  });
+
+  // An emergency access at UCC awaiting the director's review.
+  const uccPatients = patientsByFacility.get(ucc!.id)!;
+  await db.insert(emergencyAccessGrants).values({
+    patientId: uccPatients[5]!,
+    doctorId: uccDocs[2]!.id,
+    reason: 'Patient brought in unconscious after a fall; treating doctor off duty.',
+    createdAt: daysAgo(2),
+    expiresAt: new Date(daysAgo(2).getTime() + 4 * 3_600_000),
+  });
+
+  await db.insert(announcements).values([
+    {
+      authorId: minister!.id,
+      scope: 'NATIONAL',
+      audience: 'EVERYONE',
+      title: 'Seasonal flu vaccination campaign',
+      body: 'Free seasonal influenza vaccination is available at every family medicine centre until 31 January. Priority: people over 65, pregnant women and people with chronic conditions.',
+      publishedAt: daysAgo(4),
+    },
+    {
+      authorId: minister!.id,
+      scope: 'NATIONAL',
+      audience: 'STAFF',
+      title: 'Two-step sign-in becomes mandatory for all staff',
+      body: 'From next month every doctor, director and Ministry account must use two-step sign-in. Set it up under Account → Two-step sign-in.',
+      publishedAt: daysAgo(2),
+    },
+    {
+      authorId: directorsByFacility.get(ucc!.id)!,
+      scope: 'FACILITY',
+      facilityId: ucc!.id,
+      audience: 'PATIENTS',
+      title: 'New evening clinic hours',
+      body: 'The outpatient clinic is now open until 19:00 on Tuesdays and Thursdays.',
+      publishedAt: daysAgo(1),
+    },
+  ]);
+
+  await db.insert(notifications).values([
+    {
+      userId: portalUser!.id,
+      type: 'message',
+      title: 'New message from your doctor',
+      link: `/portal/messages?thread=${thread!.id}`,
+      createdAt: daysAgo(1),
+    },
+    {
+      userId: portalUser!.id,
+      type: 'referral',
+      title: 'Your referral was accepted',
+      link: '/portal/referrals',
+      createdAt: daysAgo(3),
+    },
+    {
+      userId: demoDoctor.id,
+      type: 'referral',
+      title: 'Your referral was accepted',
+      link: '/doctor/referrals',
+      createdAt: daysAgo(3),
+    },
+    {
+      userId: directorsByFacility.get(ucc!.id)!,
+      type: 'referral',
+      title: 'New URGENT referral received',
+      link: '/director/referrals',
+      createdAt: daysAgo(1),
+    },
+    {
+      userId: directorsByFacility.get(ucc!.id)!,
+      type: 'emergency_access',
+      title: 'Emergency access used – review required',
+      link: '/director/emergency-access',
+      createdAt: daysAgo(2),
+    },
+  ]);
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

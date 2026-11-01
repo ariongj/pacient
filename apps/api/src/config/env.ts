@@ -20,9 +20,22 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** Number of proxies in front of the API (for correct client IPs in audit logs / rate limits). */
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  /** Key for encrypting MFA secrets at rest. Required in production; keep it out of the database. */
+  MFA_ENCRYPTION_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(32).optional(),
+  ),
+  /** Require staff (doctors, directors, Ministry) to use two-step sign-in. Defaults to on in production. */
+  REQUIRE_STAFF_MFA: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['true', 'false']).optional(),
+  ),
 });
 
-export type Env = z.infer<typeof EnvSchema>;
+export type Env = Omit<z.infer<typeof EnvSchema>, 'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA'> & {
+  MFA_ENCRYPTION_KEY: string;
+  REQUIRE_STAFF_MFA: boolean;
+};
 
 function loadEnv(): Env {
   const parsed = EnvSchema.safeParse(process.env);
@@ -31,7 +44,20 @@ function loadEnv(): Env {
     // Fail fast: never boot with an invalid security configuration.
     throw new Error(`Invalid environment configuration:\n${issues.join('\n')}`);
   }
-  return parsed.data;
+  const data = parsed.data;
+  if (data.NODE_ENV === 'production' && !data.MFA_ENCRYPTION_KEY) {
+    throw new Error(
+      'Invalid environment configuration:\n  - MFA_ENCRYPTION_KEY is required in production',
+    );
+  }
+  return {
+    ...data,
+    // Development fallback only: a key derived from (but distinct from) the JWT secret.
+    MFA_ENCRYPTION_KEY: data.MFA_ENCRYPTION_KEY ?? `dev-mfa-key:${data.JWT_ACCESS_SECRET}`,
+    REQUIRE_STAFF_MFA: data.REQUIRE_STAFF_MFA
+      ? data.REQUIRE_STAFF_MFA === 'true'
+      : data.NODE_ENV === 'production',
+  };
 }
 
 export const env = loadEnv();

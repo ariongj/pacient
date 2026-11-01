@@ -13,6 +13,13 @@ export const AuditAction = {
   REFRESH_REUSE_DETECTED: 'auth.refresh.reuse_detected',
   ACCOUNT_ACTIVATED: 'auth.account.activated',
   PASSWORD_CHANGED: 'auth.password.changed',
+  PASSWORD_RESET_REQUESTED: 'auth.password.reset_requested',
+  PASSWORD_RESET_COMPLETED: 'auth.password.reset_completed',
+  MFA_ENABLED: 'auth.mfa.enabled',
+  MFA_DISABLED: 'auth.mfa.disabled',
+  MFA_CHALLENGE_FAILED: 'auth.mfa.challenge_failed',
+  MFA_RECOVERY_CODE_USED: 'auth.mfa.recovery_code_used',
+  MFA_RECOVERY_CODES_REGENERATED: 'auth.mfa.recovery_codes_regenerated',
 
   USER_INVITED: 'user.invited',
   USER_DEACTIVATED: 'user.deactivated',
@@ -42,6 +49,16 @@ export const AuditAction = {
 
   APPOINTMENT_CREATED: 'appointment.created',
   APPOINTMENT_UPDATED: 'appointment.updated',
+
+  MESSAGE_SENT: 'message.sent',
+  REFERRAL_CREATED: 'referral.created',
+  REFERRAL_ACCEPTED: 'referral.accepted',
+  REFERRAL_DECLINED: 'referral.declined',
+  REFERRAL_COMPLETED: 'referral.completed',
+  REFERRAL_CANCELLED: 'referral.cancelled',
+  EMERGENCY_ACCESS_REVIEWED: 'care.emergency_access.reviewed',
+  ANNOUNCEMENT_PUBLISHED: 'announcement.published',
+  REPORT_EXPORTED: 'report.exported',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

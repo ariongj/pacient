@@ -93,6 +93,26 @@ export const allergyAssessmentEnum = pgEnum('allergy_assessment', [
 ]);
 export const resultStatusEnum = pgEnum('result_status', ['PRELIMINARY', 'FINAL', 'CORRECTED']);
 export const correctionStatusEnum = pgEnum('correction_status', ['OPEN', 'ACCEPTED', 'REJECTED']);
+export const reviewOutcomeEnum = pgEnum('review_outcome', [
+  'APPROPRIATE',
+  'INAPPROPRIATE',
+  'NEEDS_FOLLOW_UP',
+]);
+export const referralPriorityEnum = pgEnum('referral_priority', ['ROUTINE', 'URGENT']);
+export const referralStatusEnum = pgEnum('referral_status', [
+  'PENDING',
+  'ACCEPTED',
+  'DECLINED',
+  'COMPLETED',
+  'CANCELLED',
+]);
+export const threadStatusEnum = pgEnum('thread_status', ['OPEN', 'CLOSED']);
+export const announcementScopeEnum = pgEnum('announcement_scope', ['NATIONAL', 'FACILITY']);
+export const announcementAudienceEnum = pgEnum('announcement_audience', [
+  'EVERYONE',
+  'STAFF',
+  'PATIENTS',
+]);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -148,6 +168,12 @@ export const users = pgTable(
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
+    /** TOTP secret, encrypted with AES-256-GCM (never stored in clear). */
+    mfaSecretEncrypted: text('mfa_secret_encrypted'),
+    /** Set once enrollment is confirmed with a valid code; MFA is enforced from then on. */
+    mfaEnabledAt: timestamp('mfa_enabled_at', { withTimezone: true }),
+    /** Last accepted TOTP time-step, so a code cannot be replayed within its window. */
+    mfaLastUsedStep: integer('mfa_last_used_step'),
     ...timestamps,
   },
   (t) => [
@@ -277,8 +303,18 @@ export const emergencyAccessGrants = pgTable(
     reason: text('reason').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Retrospective review by the facility director (blueprint §3: break-glass review). */
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    reviewOutcome: reviewOutcomeEnum('review_outcome'),
+    reviewNotes: text('review_notes'),
   },
-  (t) => [index('emergency_access_doctor_patient_idx').on(t.doctorId, t.patientId)],
+  (t) => [
+    index('emergency_access_doctor_patient_idx').on(t.doctorId, t.patientId),
+    index('emergency_access_unreviewed_idx')
+      .on(t.createdAt)
+      .where(sql`${t.reviewedAt} IS NULL`),
+  ],
 );
 
 /* ------------------------------------------------------------------------------------------------
@@ -520,6 +556,162 @@ export const correctionRequests = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('correction_requests_patient_idx').on(t.patientId, t.status)],
+);
+
+export const mfaRecoveryCodes = pgTable(
+  'mfa_recovery_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mfa_recovery_codes_user_idx').on(t.userId)],
+);
+
+export const immunizations = pgTable(
+  'immunizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    vaccine: varchar('vaccine', { length: 200 }).notNull(),
+    doseNumber: integer('dose_number'),
+    lotNumber: varchar('lot_number', { length: 60 }),
+    site: varchar('site', { length: 60 }),
+    administeredAt: timestamp('administered_at', { withTimezone: true }).notNull(),
+    administeredById: uuid('administered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('immunizations_patient_idx').on(t.patientId, t.administeredAt)],
+);
+
+/**
+ * Referrals are the governed way to share a patient across institutions: the referring doctor
+ * writes a summary for the receiving facility, and only an *accepted* referral grants the receiving
+ * doctor access (through a care assignment). Nothing is shared implicitly.
+ */
+export const referrals = pgTable(
+  'referrals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    fromDoctorId: uuid('from_doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    fromFacilityId: uuid('from_facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    toFacilityId: uuid('to_facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    toDoctorId: uuid('to_doctor_id').references(() => users.id, { onDelete: 'restrict' }),
+    specialty: varchar('specialty', { length: 120 }).notNull(),
+    priority: referralPriorityEnum('priority').notNull().default('ROUTINE'),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    clinicalSummary: text('clinical_summary').notNull(),
+    status: referralStatusEnum('status').notNull().default('PENDING'),
+    responseNote: text('response_note'),
+    respondedById: uuid('responded_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index('referrals_patient_idx').on(t.patientId),
+    index('referrals_to_facility_idx').on(t.toFacilityId, t.status),
+    index('referrals_from_doctor_idx').on(t.fromDoctorId),
+  ],
+);
+
+/** Non-urgent secure messaging between a patient and a doctor in their care team. */
+export const messageThreads = pgTable(
+  'message_threads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    subject: varchar('subject', { length: 200 }).notNull(),
+    status: threadStatusEnum('status').notNull().default('OPEN'),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('message_threads_patient_idx').on(t.patientId, t.lastMessageAt),
+    index('message_threads_doctor_idx').on(t.doctorId, t.lastMessageAt),
+  ],
+);
+
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => messageThreads.id, { onDelete: 'cascade' }),
+    senderId: uuid('sender_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    body: text('body').notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('messages_thread_idx').on(t.threadId, t.createdAt)],
+);
+
+/**
+ * In-app notifications. Titles and bodies are deliberately generic ("A new result is available")
+ * so they reveal no clinical detail if shown on a lock screen or forwarded to email/SMS later.
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: varchar('type', { length: 60 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    body: varchar('body', { length: 500 }),
+    link: varchar('link', { length: 300 }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
+);
+
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    scope: announcementScopeEnum('scope').notNull(),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+    audience: announcementAudienceEnum('audience').notNull().default('EVERYONE'),
+    title: varchar('title', { length: 200 }).notNull(),
+    body: text('body').notNull(),
+    publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (t) => [index('announcements_published_idx').on(t.publishedAt)],
 );
 
 /* ------------------------------------------------------------------------------------------------

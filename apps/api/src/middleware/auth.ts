@@ -2,7 +2,8 @@ import type { RequestHandler } from 'express';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { patients, users, type Role } from '../db/schema.js';
-import { forbidden, unauthorized } from '../lib/errors.js';
+import { forbidden, HttpError, unauthorized } from '../lib/errors.js';
+import { mfaRequiredFor } from '../modules/auth/auth.service.js';
 import { verifyAccessToken } from '../lib/tokens.js';
 
 /**
@@ -27,12 +28,26 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
       role: users.role,
       facilityId: users.facilityId,
       isActive: users.isActive,
+      mfaEnabledAt: users.mfaEnabledAt,
       patientId: patients.id,
     })
     .from(users)
     .leftJoin(patients, eq(patients.userId, users.id))
     .where(eq(users.id, userId));
   if (!user?.isActive) throw unauthorized('Account is disabled');
+
+  // Staff without two-step sign-in may only reach the auth endpoints needed to enrol.
+  if (
+    mfaRequiredFor(user.role) &&
+    !user.mfaEnabledAt &&
+    !req.originalUrl.startsWith('/api/v1/auth/')
+  ) {
+    throw new HttpError(
+      403,
+      'MFA_ENROLLMENT_REQUIRED',
+      'Set up two-step sign-in before using this workspace',
+    );
+  }
 
   req.auth = {
     userId: user.id,

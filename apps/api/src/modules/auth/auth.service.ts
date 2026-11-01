@@ -6,10 +6,19 @@ import { facilities, oneTimeTokens, patients, refreshTokens, users } from '../..
 import { badRequest, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { getDummyHash, hashPassword, verifyPassword } from '../../lib/password.js';
-import { generateOpaqueToken, hashToken, signAccessToken } from '../../lib/tokens.js';
+import {
+  generateOpaqueToken,
+  hashToken,
+  signAccessToken,
+  signMfaChallenge,
+} from '../../lib/tokens.js';
 import { audit, AuditAction, auditSafe } from '../audit/audit.service.js';
 
 export const MAX_FAILED_ATTEMPTS = 5;
+
+/** Staff accounts must use two-step sign-in when REQUIRE_STAFF_MFA is on (default in production). */
+export const mfaRequiredFor = (role: AuthContext['role']) =>
+  env.REQUIRE_STAFF_MFA && role !== 'PATIENT';
 export const LOCKOUT_MINUTES = 15;
 
 const GENERIC_LOGIN_ERROR = 'Invalid email or password, or the account is temporarily locked';
@@ -68,7 +77,46 @@ async function issueSession(
   };
 }
 
-export async function login(email: string, password: string, meta: RequestMeta): Promise<Session> {
+export type LoginResult =
+  | { kind: 'session'; session: Session }
+  /** Password accepted; a second factor is required before any session is issued. */
+  | { kind: 'mfa'; mfaToken: string };
+
+/** Counts a failed credential (password or second factor) and locks the account if needed. */
+export async function recordFailedAttempt(user: {
+  id: string;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
+}) {
+  const attempts = user.failedLoginAttempts + 1;
+  const lock = attempts >= MAX_FAILED_ATTEMPTS;
+  await db
+    .update(users)
+    .set({
+      failedLoginAttempts: lock ? 0 : attempts,
+      lockedUntil: lock ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
+    })
+    .where(eq(users.id, user.id));
+  return lock;
+}
+
+/** Final step of any successful sign-in: reset counters, issue the session, audit. */
+export async function completeLogin(userId: string, meta: RequestMeta, factors: string[]) {
+  await db
+    .update(users)
+    .set({ failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() })
+    .where(eq(users.id, userId));
+  const ctx = await buildContext(userId);
+  const session = await issueSession(ctx, meta);
+  await auditSafe({ action: AuditAction.LOGIN_SUCCESS, actor: ctx, meta, metadata: { factors } });
+  return session;
+}
+
+export async function login(
+  email: string,
+  password: string,
+  meta: RequestMeta,
+): Promise<LoginResult> {
   const [user] = await db
     .select()
     .from(users)
@@ -94,34 +142,21 @@ export async function login(email: string, password: string, meta: RequestMeta):
 
   const valid = await verifyPassword(user.passwordHash, password);
   if (!valid || !user.isActive) {
-    const attempts = user.failedLoginAttempts + 1;
-    const lock = attempts >= MAX_FAILED_ATTEMPTS;
-    await db
-      .update(users)
-      .set({
-        failedLoginAttempts: lock ? 0 : attempts,
-        lockedUntil: lock ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
-      })
-      .where(eq(users.id, user.id));
+    const locked = await recordFailedAttempt(user);
     await auditSafe({
       action: AuditAction.LOGIN_FAILURE,
       actor,
       outcome: 'FAILURE',
       meta,
-      metadata: { reason: valid ? 'inactive_account' : 'bad_password', locked: lock },
+      metadata: { reason: valid ? 'inactive_account' : 'bad_password', locked },
     });
     throw unauthorized(GENERIC_LOGIN_ERROR);
   }
 
-  await db
-    .update(users)
-    .set({ failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() })
-    .where(eq(users.id, user.id));
-
-  const ctx = await buildContext(user.id);
-  const session = await issueSession(ctx, meta);
-  await auditSafe({ action: AuditAction.LOGIN_SUCCESS, actor, meta });
-  return session;
+  if (user.mfaEnabledAt) {
+    return { kind: 'mfa', mfaToken: signMfaChallenge(user.id) };
+  }
+  return { kind: 'session', session: await completeLogin(user.id, meta, ['password']) };
 }
 
 /**
@@ -281,6 +316,7 @@ export async function getProfile(ctx: AuthContext) {
       role: users.role,
       specialty: users.specialty,
       lastLoginAt: users.lastLoginAt,
+      mfaEnabledAt: users.mfaEnabledAt,
       facility: {
         id: facilities.id,
         name: facilities.name,
@@ -296,5 +332,7 @@ export async function getProfile(ctx: AuthContext) {
     ...row,
     facility: row.facility?.id ? row.facility : null,
     patientId: ctx.patientId,
+    mfaEnabled: Boolean(row.mfaEnabledAt),
+    mfaRequired: mfaRequiredFor(ctx.role),
   };
 }

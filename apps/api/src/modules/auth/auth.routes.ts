@@ -7,6 +7,7 @@ import { PasswordSchema } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authLimiter, refreshLimiter } from '../../middleware/rate-limit.js';
 import * as auth from './auth.service.js';
+import * as mfa from './mfa.service.js';
 
 export const REFRESH_COOKIE = 'pacient_rt';
 
@@ -33,6 +34,29 @@ const ActivateSchema = z.object({
   password: PasswordSchema,
 });
 
+const CodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
+});
+const DisableSchema = CodeSchema.extend({ password: z.string().min(1).max(128) });
+const ForgotSchema = z.object({ email: z.string().trim().email().max(254) });
+const MfaVerifySchema = z
+  .object({
+    mfaToken: z.string().min(20).max(2000),
+    code: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/)
+      .optional(),
+    recoveryCode: z.string().trim().min(8).max(20).optional(),
+  })
+  .refine(
+    (v) => Boolean(v.code) !== Boolean(v.recoveryCode),
+    'Provide either a code or a recovery code',
+  );
+
 const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: PasswordSchema,
@@ -42,7 +66,52 @@ export const authRouter = Router();
 
 authRouter.post('/login', authLimiter, async (req, res) => {
   const { email, password } = parse(LoginSchema, req.body);
-  sendSession(res, await auth.login(email, password, requestMeta(req)));
+  const result = await auth.login(email, password, requestMeta(req));
+  if (result.kind === 'mfa') {
+    res.json({ mfaRequired: true, mfaToken: result.mfaToken });
+    return;
+  }
+  sendSession(res, result.session);
+});
+
+/** Second step of sign-in for accounts with two-step verification. */
+authRouter.post('/mfa/verify', authLimiter, async (req, res) => {
+  const input = parse(MfaVerifySchema, req.body);
+  sendSession(res, await mfa.completeMfaChallenge(input.mfaToken, input, requestMeta(req)));
+});
+
+authRouter.post('/forgot-password', authLimiter, async (req, res) => {
+  const { email } = parse(ForgotSchema, req.body);
+  await mfa.requestPasswordReset(email, requestMeta(req));
+  res.status(202).json({
+    message: 'If an account exists for this address, a reset link has been sent.',
+  });
+});
+
+authRouter.post('/reset-password', authLimiter, async (req, res) => {
+  const { token, password } = parse(ActivateSchema, req.body);
+  await mfa.resetPassword(token, password, requestMeta(req));
+  res.status(204).end();
+});
+
+authRouter.post('/mfa/setup', authenticate, async (req, res) => {
+  res.json(await mfa.beginEnrollment(requireAuth(req)));
+});
+
+authRouter.post('/mfa/enable', authenticate, authLimiter, async (req, res) => {
+  const { code } = parse(CodeSchema, req.body);
+  res.json(await mfa.confirmEnrollment(requireAuth(req), code, requestMeta(req)));
+});
+
+authRouter.post('/mfa/disable', authenticate, authLimiter, async (req, res) => {
+  const { code, password } = parse(DisableSchema, req.body);
+  await mfa.disableMfa(requireAuth(req), password, code, requestMeta(req));
+  res.status(204).end();
+});
+
+authRouter.post('/mfa/recovery-codes', authenticate, authLimiter, async (req, res) => {
+  const { code } = parse(CodeSchema, req.body);
+  res.json(await mfa.regenerateRecoveryCodes(requireAuth(req), code, requestMeta(req)));
 });
 
 authRouter.post('/refresh', refreshLimiter, async (req, res) => {

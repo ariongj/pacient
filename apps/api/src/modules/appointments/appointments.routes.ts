@@ -138,7 +138,7 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
     if (!input.patientId) throw badRequest('patientId is required');
     patientId = input.patientId;
     doctorId = ctx.userId;
-    await resolveClinicalReadAccess(ctx, patientId);
+    await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
     status = 'CONFIRMED';
   }
 

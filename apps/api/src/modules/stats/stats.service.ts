@@ -46,7 +46,14 @@ export async function facilityStats(facilityId: string) {
       (SELECT count(*) FROM appointments WHERE facility_id = ${facilityId} AND scheduled_at >= now() AND status IN ('REQUESTED','CONFIRMED')) AS upcoming_appointments,
       (SELECT count(*) FROM appointments WHERE facility_id = ${facilityId} AND status = 'REQUESTED' AND scheduled_at >= now()) AS pending_requests,
       (SELECT count(*) FROM emergency_access_grants g JOIN users u ON u.id = g.doctor_id
-         WHERE u.facility_id = ${facilityId} AND g.created_at >= now() - interval '30 days') AS emergency_access_30d
+         WHERE u.facility_id = ${facilityId} AND g.created_at >= now() - interval '30 days') AS emergency_access_30d,
+      (SELECT count(*) FROM lab_results r JOIN users u ON u.id = r.ordered_by_id
+         WHERE u.facility_id = ${facilityId} AND r.acknowledged_at IS NULL
+           AND r.collected_at < now() - interval '48 hours') AS overdue_results,
+      (SELECT count(*) FROM encounters WHERE facility_id = ${facilityId} AND note_status = 'DRAFT'
+           AND started_at < now() - interval '72 hours') AS unsigned_notes,
+      (SELECT count(*) FROM correction_requests c JOIN patients p ON p.id = c.patient_id
+         WHERE p.primary_facility_id = ${facilityId} AND c.status = 'OPEN') AS open_corrections
   `);
 
   const [byMonth, byType, topDiagnoses, doctorWorkload, appointmentStatus] = await Promise.all([
@@ -92,6 +99,12 @@ export async function facilityStats(facilityId: string) {
       upcomingAppointments: n(totals?.upcoming_appointments),
       pendingAppointmentRequests: n(totals?.pending_requests),
       emergencyAccess30d: n(totals?.emergency_access_30d),
+    },
+    /** Operational exceptions: follow-up that has not been closed within expected time. */
+    exceptions: {
+      resultsUnacknowledgedOver48h: n(totals?.overdue_results),
+      notesUnsignedOver72h: n(totals?.unsigned_notes),
+      openCorrectionRequests: n(totals?.open_corrections),
     },
     encountersByMonth: monthSeries(byMonth),
     encountersByType: byType.map((r) => ({ type: r.type, count: n(r.count) })),

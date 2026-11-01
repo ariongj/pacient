@@ -18,6 +18,7 @@ import { patientsRouter } from './modules/patients/patients.routes.js';
 import { portalRouter } from './modules/portal/portal.routes.js';
 import { staffRouter } from './modules/staff/staff.routes.js';
 import { statsRouter } from './modules/stats/stats.routes.js';
+import { worklistRouter } from './modules/worklist/worklist.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -88,6 +89,7 @@ export function createApp(): Express {
   api.use('/portal', portalRouter);
   api.use('/stats', statsRouter);
   api.use('/audit-logs', auditRouter);
+  api.use('/worklist', worklistRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler);

@@ -71,6 +71,28 @@ export const appointmentStatusEnum = pgEnum('appointment_status', [
   'NO_SHOW',
 ]);
 export const tokenPurposeEnum = pgEnum('token_purpose', ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET']);
+/** Clinical notes are drafted, then signed; signed notes change only through addenda. */
+export const noteStatusEnum = pgEnum('note_status', ['DRAFT', 'SIGNED']);
+export const verificationStatusEnum = pgEnum('verification_status', [
+  'UNCONFIRMED',
+  'CONFIRMED',
+  'REFUTED',
+  'ENTERED_IN_ERROR',
+]);
+export const recordSourceEnum = pgEnum('record_source', [
+  'CLINICIAN',
+  'PATIENT_REPORTED',
+  'IMPORTED',
+]);
+/** Distinguishes "no known allergies" from "never asked" – absence of data is not a negative. */
+export const allergyAssessmentEnum = pgEnum('allergy_assessment', [
+  'NOT_RECORDED',
+  'NO_KNOWN_ALLERGIES',
+  'ALLERGIES_RECORDED',
+  'UNKNOWN',
+]);
+export const resultStatusEnum = pgEnum('result_status', ['PRELIMINARY', 'FINAL', 'CORRECTED']);
+export const correctionStatusEnum = pgEnum('correction_status', ['OPEN', 'ACCEPTED', 'REJECTED']);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -199,6 +221,9 @@ export const patients = pgTable(
     municipality: varchar('municipality', { length: 100 }),
     emergencyContactName: varchar('emergency_contact_name', { length: 200 }),
     emergencyContactPhone: varchar('emergency_contact_phone', { length: 40 }),
+    allergyAssessment: allergyAssessmentEnum('allergy_assessment')
+      .notNull()
+      .default('NOT_RECORDED'),
     /** Facility where the patient is registered (family medicine centre / primary hospital). */
     primaryFacilityId: uuid('primary_facility_id')
       .notNull()
@@ -278,12 +303,38 @@ export const encounters = pgTable(
     notes: text('notes'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
+    noteStatus: noteStatusEnum('note_status').notNull().default('DRAFT'),
+    signedAt: timestamp('signed_at', { withTimezone: true }),
+    signedById: uuid('signed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    /** Optimistic concurrency: every edit must present the version it was based on. */
+    version: integer('version').notNull().default(1),
     ...timestamps,
   },
   (t) => [
     index('encounters_patient_idx').on(t.patientId, t.startedAt),
     index('encounters_facility_idx').on(t.facilityId, t.startedAt),
   ],
+);
+
+/** Attributable amendments to a signed note. The original note is never overwritten. */
+export const encounterAddenda = pgTable(
+  'encounter_addenda',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    encounterId: uuid('encounter_id')
+      .notNull()
+      .references(() => encounters.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: varchar('reason', { length: 300 }).notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('encounter_addenda_encounter_idx').on(t.encounterId)],
 );
 
 export const diagnoses = pgTable(
@@ -346,6 +397,10 @@ export const allergies = pgTable(
     substance: varchar('substance', { length: 200 }).notNull(),
     reaction: varchar('reaction', { length: 300 }),
     severity: allergySeverityEnum('severity').notNull(),
+    verificationStatus: verificationStatusEnum('verification_status')
+      .notNull()
+      .default('UNCONFIRMED'),
+    source: recordSourceEnum('source').notNull().default('CLINICIAN'),
     recordedById: uuid('recorded_by_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
@@ -395,9 +450,23 @@ export const labResults = pgTable(
     referenceRange: varchar('reference_range', { length: 100 }),
     flag: labFlagEnum('flag').notNull().default('NORMAL'),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
+    status: resultStatusEnum('status').notNull().default('FINAL'),
+    /** Closed-loop follow-up: the ordering clinician owns the result until acknowledged. */
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgedById: uuid('acknowledged_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    /** Results become visible in the patient portal only once a clinician releases them. */
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedById: uuid('released_by_id').references(() => users.id, { onDelete: 'restrict' }),
     ...timestamps,
   },
-  (t) => [index('lab_results_patient_idx').on(t.patientId, t.collectedAt)],
+  (t) => [
+    index('lab_results_patient_idx').on(t.patientId, t.collectedAt),
+    index('lab_results_unacknowledged_idx')
+      .on(t.orderedById)
+      .where(sql`${t.acknowledgedAt} IS NULL`),
+  ],
 );
 
 export const appointments = pgTable(
@@ -425,6 +494,32 @@ export const appointments = pgTable(
     index('appointments_patient_idx').on(t.patientId, t.scheduledAt),
     index('appointments_facility_idx').on(t.facilityId, t.scheduledAt),
   ],
+);
+
+/**
+ * Patients request corrections; they never edit clinician records directly. A clinician reviews
+ * and responds, and any change to the record is made (and attributed) by that clinician.
+ */
+export const correctionRequests = pgTable(
+  'correction_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    requestedById: uuid('requested_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    section: varchar('section', { length: 40 }).notNull(),
+    entryId: uuid('entry_id'),
+    description: text('description').notNull(),
+    status: correctionStatusEnum('status').notNull().default('OPEN'),
+    response: text('response'),
+    resolvedById: uuid('resolved_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('correction_requests_patient_idx').on(t.patientId, t.status)],
 );
 
 /* ------------------------------------------------------------------------------------------------

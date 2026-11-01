@@ -10,7 +10,7 @@ import {
   sexEnum,
   users,
 } from '../../db/schema.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
@@ -52,6 +52,8 @@ const RegisterSchema = z.object({
   bloodType: z.enum(bloodTypeEnum.enumValues).optional(),
   ...ContactFields,
   createPortalAccount: z.boolean().default(false),
+  /** Set after a registrar has reviewed possible duplicates and confirmed this is a new person. */
+  confirmedNotDuplicate: z.boolean().default(false),
 });
 
 const DemographicsPatch = z
@@ -122,11 +124,9 @@ patientsRouter.get('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
   if (ctx.role === 'DOCTOR' && q.scope === 'mine') {
     filters.push(inCareOf(ctx.userId));
     if (searchFilter) filters.push(searchFilter);
-  } else if (ctx.role === 'DOCTOR' && q.search && NationalId.safeParse(q.search).success) {
-    // An exact national ID lookup works across facilities so a doctor can find a visiting patient
-    // (e.g. to request emergency access). Name searches stay within the doctor's facility.
-    filters.push(eq(patients.nationalId, q.search));
   } else {
+    // Search never crosses the facility boundary: an identity match elsewhere must not disclose
+    // that a person is a patient of another institution.
     filters.push(eq(patients.primaryFacilityId, ctx.facilityId!));
     if (searchFilter) filters.push(searchFilter);
   }
@@ -160,7 +160,7 @@ patientsRouter.get('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
 
 patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
   const ctx = requireAuth(req);
-  const { createPortalAccount, ...input } = parse(RegisterSchema, req.body);
+  const { createPortalAccount, confirmedNotDuplicate, ...input } = parse(RegisterSchema, req.body);
   if (createPortalAccount && !input.email) {
     throw badRequest('An email address is required to create a portal account');
   }
@@ -170,6 +170,33 @@ patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => 
     .from(patients)
     .where(eq(patients.nationalId, input.nationalId));
   if (existing) throw conflict('A patient with this national ID is already registered');
+
+  // Similar records are flagged for human review, never merged automatically.
+  const possibleDuplicates = await db
+    .select({
+      id: patients.id,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+      dateOfBirth: patients.dateOfBirth,
+    })
+    .from(patients)
+    .where(
+      and(
+        eq(patients.primaryFacilityId, ctx.facilityId!),
+        eq(patients.dateOfBirth, input.dateOfBirth),
+        sql`lower(${patients.lastName}) = ${input.lastName.toLowerCase()}`,
+        sql`lower(${patients.firstName}) = ${input.firstName.toLowerCase()}`,
+      ),
+    )
+    .limit(5);
+  if (possibleDuplicates.length && !confirmedNotDuplicate) {
+    throw new HttpError(
+      409,
+      'POSSIBLE_DUPLICATE',
+      'A patient with the same name and date of birth exists. Review before registering.',
+      possibleDuplicates,
+    );
+  }
 
   const result = await db.transaction(async (tx) => {
     let userId: string | null = null;
@@ -211,6 +238,20 @@ patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => 
       },
       tx,
     );
+    if (possibleDuplicates.length) {
+      await audit(
+        {
+          action: AuditAction.POSSIBLE_DUPLICATE_OVERRIDDEN,
+          actor: ctx,
+          resourceType: 'patient',
+          resourceId: patient!.id,
+          patientId: patient!.id,
+          meta: requestMeta(req),
+          metadata: { candidates: possibleDuplicates.map((d) => d.id) },
+        },
+        tx,
+      );
+    }
     return { patient: patient!, activationUrl };
   });
 
@@ -424,7 +465,11 @@ patientsRouter.post('/:id/emergency-access', requireRole('DOCTOR'), async (req, 
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(EmergencyBody, req.body);
-  await getPatientOrThrow(id);
+  const patient = await getPatientOrThrow(id);
+  // Break-glass is for urgent care inside the institution. It never crosses tenant boundaries.
+  if (patient.primaryFacilityId !== ctx.facilityId) {
+    throw forbidden('Emergency access is limited to patients of your facility');
+  }
   const expiresAt = new Date(Date.now() + EMERGENCY_ACCESS_HOURS * 3_600_000);
   const grant = await db.transaction(async (tx) => {
     const [row] = await tx

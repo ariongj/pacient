@@ -1,8 +1,10 @@
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   allergies,
+  correctionRequests,
   diagnoses,
+  encounterAddenda,
   encounters,
   facilities,
   labResults,
@@ -13,6 +15,19 @@ import {
 } from '../../db/schema.js';
 import { notFound } from '../../lib/errors.js';
 import { paginated, toOffset, type Pagination } from '../../lib/pagination.js';
+import type { ClinicalAccessBasis } from '../access/policy.js';
+
+/**
+ * What the reader may see depends on *why* they have access. Patients see released results and
+ * signed notes only; clinicians see the working record, including drafts and unreleased results.
+ */
+export interface ViewOptions {
+  patientView: boolean;
+}
+export const viewFor = (basis: ClinicalAccessBasis): ViewOptions => ({
+  patientView: basis === 'SELF',
+});
+const CLINICIAN_VIEW: ViewOptions = { patientView: false };
 
 const doctorName = users.fullName;
 
@@ -32,6 +47,7 @@ export async function getDemographics(patientId: string) {
       municipality: patients.municipality,
       emergencyContactName: patients.emergencyContactName,
       emergencyContactPhone: patients.emergencyContactPhone,
+      allergyAssessment: patients.allergyAssessment,
       primaryFacilityId: patients.primaryFacilityId,
       primaryFacilityName: facilities.name,
     })
@@ -49,6 +65,8 @@ export function listAllergies(patientId: string) {
       substance: allergies.substance,
       reaction: allergies.reaction,
       severity: allergies.severity,
+      verificationStatus: allergies.verificationStatus,
+      source: allergies.source,
       recordedAt: allergies.recordedAt,
       recordedBy: doctorName,
     })
@@ -124,7 +142,9 @@ export function listVitals(patientId: string, limit = 50) {
     .limit(limit);
 }
 
-export function listLabResults(patientId: string) {
+export function listLabResults(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
+  const filters: SQL[] = [eq(labResults.patientId, patientId)];
+  if (view.patientView) filters.push(isNotNull(labResults.releasedAt));
   return db
     .select({
       id: labResults.id,
@@ -134,17 +154,25 @@ export function listLabResults(patientId: string) {
       unit: labResults.unit,
       referenceRange: labResults.referenceRange,
       flag: labResults.flag,
+      status: labResults.status,
       collectedAt: labResults.collectedAt,
+      acknowledgedAt: labResults.acknowledgedAt,
+      releasedAt: labResults.releasedAt,
+      orderedById: labResults.orderedById,
       orderedBy: doctorName,
     })
     .from(labResults)
     .innerJoin(users, eq(users.id, labResults.orderedById))
-    .where(eq(labResults.patientId, patientId))
+    .where(and(...filters))
     .orderBy(desc(labResults.collectedAt));
 }
 
 /** Encounters, newest first, each with the diagnoses and prescriptions recorded during it. */
-export async function listEncounters(patientId: string, page: Pagination) {
+export async function listEncounters(
+  patientId: string,
+  page: Pagination,
+  view: ViewOptions = CLINICIAN_VIEW,
+) {
   const where = eq(encounters.patientId, patientId);
   const [rows, [total]] = await Promise.all([
     db
@@ -153,6 +181,9 @@ export async function listEncounters(patientId: string, page: Pagination) {
         type: encounters.type,
         reason: encounters.reason,
         notes: encounters.notes,
+        noteStatus: encounters.noteStatus,
+        signedAt: encounters.signedAt,
+        version: encounters.version,
         startedAt: encounters.startedAt,
         endedAt: encounters.endedAt,
         doctorId: encounters.doctorId,
@@ -172,7 +203,7 @@ export async function listEncounters(patientId: string, page: Pagination) {
   ]);
 
   const ids = rows.map((r) => r.id);
-  const [dx, rx] = ids.length
+  const [dx, rx, addenda] = ids.length
     ? await Promise.all([
         db
           .select({
@@ -195,19 +226,35 @@ export async function listEncounters(patientId: string, page: Pagination) {
           })
           .from(prescriptions)
           .where(inArray(prescriptions.encounterId, ids)),
+        db
+          .select({
+            id: encounterAddenda.id,
+            encounterId: encounterAddenda.encounterId,
+            reason: encounterAddenda.reason,
+            content: encounterAddenda.content,
+            createdAt: encounterAddenda.createdAt,
+            authorName: users.fullName,
+          })
+          .from(encounterAddenda)
+          .innerJoin(users, eq(users.id, encounterAddenda.authorId))
+          .where(inArray(encounterAddenda.encounterId, ids))
+          .orderBy(encounterAddenda.createdAt),
       ])
-    : [[], []];
+    : [[], [], []];
 
   const items = rows.map((e) => ({
     ...e,
+    // Unsigned drafts are working documents and are not shown to patients.
+    notes: view.patientView && e.noteStatus !== 'SIGNED' ? null : e.notes,
     diagnoses: dx.filter((d) => d.encounterId === e.id),
     prescriptions: rx.filter((p) => p.encounterId === e.id),
+    addenda: addenda.filter((a) => a.encounterId === e.id),
   }));
   return paginated(items, total?.total ?? 0, page);
 }
 
 /** The patient summary ("chart"): everything a clinician needs at a glance. */
-export async function getClinicalSummary(patientId: string) {
+export async function getClinicalSummary(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   const [demographics, allergyList, diagnosisList, prescriptionList, vitals, labs, recent] =
     await Promise.all([
       getDemographics(patientId),
@@ -215,9 +262,13 @@ export async function getClinicalSummary(patientId: string) {
       listDiagnoses(patientId),
       listPrescriptions(patientId),
       listVitals(patientId, 10),
-      listLabResults(patientId),
-      listEncounters(patientId, { page: 1, pageSize: 5 }),
+      listLabResults(patientId, view),
+      listEncounters(patientId, { page: 1, pageSize: 5 }, view),
     ]);
+  const [openCorrections] = await db
+    .select({ total: count() })
+    .from(correctionRequests)
+    .where(and(eq(correctionRequests.patientId, patientId), eq(correctionRequests.status, 'OPEN')));
   return {
     patient: demographics,
     allergies: allergyList,
@@ -231,12 +282,13 @@ export async function getClinicalSummary(patientId: string) {
       diagnoses: diagnosisList.length,
       prescriptions: prescriptionList.length,
       labResults: labs.length,
+      openCorrectionRequests: openCorrections?.total ?? 0,
     },
   };
 }
 
 /** Complete record for patient data portability (right of access / GDPR Art. 15 & 20). */
-export async function exportFullRecord(patientId: string) {
+export async function exportFullRecord(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   const [demographics, allergyList, diagnosisList, prescriptionList, vitals, labs, allEncounters] =
     await Promise.all([
       getDemographics(patientId),
@@ -244,8 +296,8 @@ export async function exportFullRecord(patientId: string) {
       listDiagnoses(patientId),
       listPrescriptions(patientId),
       listVitals(patientId, 10_000),
-      listLabResults(patientId),
-      listEncounters(patientId, { page: 1, pageSize: 10_000 }),
+      listLabResults(patientId, view),
+      listEncounters(patientId, { page: 1, pageSize: 10_000 }, view),
     ]);
   return {
     exportedAt: new Date().toISOString(),

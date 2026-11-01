@@ -1,4 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { db } from '../src/db/client.js';
+import { encounters } from '../src/db/schema.js';
 import { api, bearer, createWorld } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -18,15 +21,12 @@ describe('clinical documentation', () => {
     expect(enc.body.facilityId).toBe(w.facility.id);
     const encounterId = enc.body.id;
 
-    const dx = await api()
-      .post(`${base()}/diagnoses`)
-      .set(bearer(w.tokens.doctor))
-      .send({
-        encounterId,
-        icd10Code: 'i10',
-        description: 'Essential hypertension',
-        status: 'CHRONIC',
-      });
+    const dx = await api().post(`${base()}/diagnoses`).set(bearer(w.tokens.doctor)).send({
+      encounterId,
+      icd10Code: 'i10',
+      description: 'Essential hypertension',
+      status: 'CHRONIC',
+    });
     expect(dx.status).toBe(201);
     expect(dx.body.icd10Code).toBe('I10');
 
@@ -49,16 +49,13 @@ describe('clinical documentation', () => {
     ).toBe(201);
     expect(
       (
-        await api()
-          .post(`${base()}/lab-results`)
-          .set(bearer(w.tokens.doctor))
-          .send({
-            encounterId,
-            testName: 'Creatinine',
-            value: '88',
-            unit: 'µmol/L',
-            flag: 'NORMAL',
-          })
+        await api().post(`${base()}/lab-results`).set(bearer(w.tokens.doctor)).send({
+          encounterId,
+          testName: 'Creatinine',
+          value: '88',
+          unit: 'µmol/L',
+          flag: 'NORMAL',
+        })
       ).status,
     ).toBe(201);
     expect(
@@ -99,16 +96,13 @@ describe('clinical documentation', () => {
     const empty = await api().post(`${base()}/vitals`).set(bearer(w.tokens.doctor)).send({});
     expect(empty.status).toBe(400);
 
-    const badDates = await api()
-      .post(`${base()}/prescriptions`)
-      .set(bearer(w.tokens.doctor))
-      .send({
-        medication: 'X',
-        dosage: '1',
-        frequency: 'd',
-        startDate: '2026-02-01',
-        endDate: '2026-01-01',
-      });
+    const badDates = await api().post(`${base()}/prescriptions`).set(bearer(w.tokens.doctor)).send({
+      medication: 'X',
+      dosage: '1',
+      frequency: 'd',
+      startDate: '2026-02-01',
+      endDate: '2026-01-01',
+    });
     expect(badDates.status).toBe(400);
   });
 
@@ -128,25 +122,87 @@ describe('clinical documentation', () => {
     expect(res.status).toBe(404);
   });
 
-  it('only the authoring doctor can amend encounter notes', async () => {
+  it('only the authoring doctor can edit a draft, and stale edits are rejected', async () => {
     const enc = await api()
       .post(`${base()}/encounters`)
       .set(bearer(w.tokens.doctor))
       .send({ type: 'TELEHEALTH', reason: 'Follow-up call' });
+    expect(enc.body).toMatchObject({ noteStatus: 'DRAFT', version: 1 });
     await api().post(`${base()}/care-team`).set(bearer(w.tokens.colleague)).send({});
     const other = await api()
       .patch(`${base()}/encounters/${enc.body.id}`)
       .set(bearer(w.tokens.colleague))
-      .send({ notes: 'tampered' });
+      .send({ version: 1, notes: 'tampered' });
     expect(other.status).toBe(403);
+
     const own = await api()
       .patch(`${base()}/encounters/${enc.body.id}`)
       .set(bearer(w.tokens.doctor))
-      .send({ notes: 'Patient doing well', endedAt: new Date().toISOString() });
+      .send({ version: 1, notes: 'Patient doing well' });
     expect(own.status).toBe(200);
-    expect(own.body.notes).toBe('Patient doing well');
+    expect(own.body).toMatchObject({ notes: 'Patient doing well', version: 2 });
+
+    const stale = await api()
+      .patch(`${base()}/encounters/${enc.body.id}`)
+      .set(bearer(w.tokens.doctor))
+      .send({ version: 1, notes: 'Overwrites the previous edit' });
+    expect(stale.status).toBe(409);
   });
 
+  it('signed notes are immutable and amended only through attributable addenda', async () => {
+    const enc = await api()
+      .post(`${base()}/encounters`)
+      .set(bearer(w.tokens.doctor))
+      .send({ type: 'OUTPATIENT', reason: 'Review', notes: 'Original note text' });
+
+    const addendumOnDraft = await api()
+      .post(`${base()}/encounters/${enc.body.id}/addenda`)
+      .set(bearer(w.tokens.doctor))
+      .send({ reason: 'Clarification', content: 'Extra info' });
+    expect(addendumOnDraft.status).toBe(409);
+
+    const signed = await api()
+      .post(`${base()}/encounters/${enc.body.id}/sign`)
+      .set(bearer(w.tokens.doctor))
+      .send({ version: 1 });
+    expect(signed.status).toBe(200);
+    expect(signed.body.noteStatus).toBe('SIGNED');
+
+    const edit = await api()
+      .patch(`${base()}/encounters/${enc.body.id}`)
+      .set(bearer(w.tokens.doctor))
+      .send({ version: signed.body.version, notes: 'Rewritten' });
+    expect(edit.status).toBe(409);
+
+    // The database itself refuses to rewrite a signed note.
+    await expect(
+      db.update(encounters).set({ notes: 'direct tamper' }).where(eq(encounters.id, enc.body.id)),
+    ).rejects.toThrow();
+
+    const addendum = await api()
+      .post(`${base()}/encounters/${enc.body.id}/addenda`)
+      .set(bearer(w.tokens.doctor))
+      .send({ reason: 'Correction of dosage', content: 'Dose discussed was 5 mg, not 10 mg.' });
+    expect(addendum.status).toBe(201);
+
+    const list = await api().get(`${base()}/encounters`).set(bearer(w.tokens.patient));
+    const shown = list.body.items.find((e: { id: string }) => e.id === enc.body.id);
+    expect(shown.notes).toBe('Original note text');
+    expect(shown.addenda[0]).toMatchObject({ reason: 'Correction of dosage' });
+  });
+
+  it('hides unsigned draft notes from the patient', async () => {
+    const enc = await api()
+      .post(`${base()}/encounters`)
+      .set(bearer(w.tokens.doctor))
+      .send({ type: 'OUTPATIENT', reason: 'Draft visit', notes: 'Working hypothesis' });
+    const list = await api().get(`${base()}/encounters`).set(bearer(w.tokens.patient));
+    expect(list.body.items.find((e: { id: string }) => e.id === enc.body.id).notes).toBeNull();
+    const asDoctor = await api().get(`${base()}/encounters`).set(bearer(w.tokens.doctor));
+    expect(asDoctor.body.items.find((e: { id: string }) => e.id === enc.body.id).notes).toBe(
+      'Working hypothesis',
+    );
+  });
   it('lets patients export their complete record and audits the export', async () => {
     const res = await api().get(`${base()}/export`).set(bearer(w.tokens.patient));
     expect(res.status).toBe(200);
@@ -181,16 +237,13 @@ describe('patient registration', () => {
       .set(bearer(w.tokens.doctor));
     expect(sum.status).toBe(200);
 
-    const dup = await api()
-      .post('/api/v1/patients')
-      .set(bearer(w.tokens.doctor))
-      .send({
-        nationalId: '1234500001',
-        firstName: 'A',
-        lastName: 'B',
-        dateOfBirth: '1979-03-04',
-        sex: 'MALE',
-      });
+    const dup = await api().post('/api/v1/patients').set(bearer(w.tokens.doctor)).send({
+      nationalId: '1234500001',
+      firstName: 'A',
+      lastName: 'B',
+      dateOfBirth: '1979-03-04',
+      sex: 'MALE',
+    });
     expect(dup.status).toBe(409);
   });
 

@@ -15,6 +15,13 @@
       "when": 1793569067787,
       "tag": "0001_security_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793569822320,
+      "tag": "0002_clinical_integrity",
+      "breakpoints": true
     }
   ]
 }

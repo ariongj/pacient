@@ -126,16 +126,17 @@ describe('demographics & search', () => {
     expect(res.body.items.every((p: { inMyCare: boolean }) => p.inMyCare)).toBe(true);
   });
 
-  it('a doctor can find a patient from another facility by exact national ID only', async () => {
+  it('search never crosses the facility boundary, not even by exact national ID', async () => {
     const byId = await api()
       .get(`/api/v1/patients?scope=facility&search=${w.patient.nationalId}`)
       .set(bearer(w.tokens.outsideDoctor));
-    expect(byId.body.items.map((p: { id: string }) => p.id)).toEqual([w.patient.id]);
+    expect(byId.status).toBe(200);
+    expect(byId.body.items).toHaveLength(0);
 
-    const byName = await api()
-      .get(`/api/v1/patients?scope=facility&search=${w.patient.lastName}`)
-      .set(bearer(w.tokens.outsideDoctor));
-    expect(byName.body.items).toHaveLength(0);
+    const sameFacility = await api()
+      .get(`/api/v1/patients?scope=facility&search=${w.patient.nationalId}`)
+      .set(bearer(w.tokens.colleague));
+    expect(sameFacility.body.items.map((p: { id: string }) => p.id)).toEqual([w.patient.id]);
   });
 });
 
@@ -143,18 +144,18 @@ describe('emergency (break-glass) access', () => {
   it('requires a reason, grants time-limited access and is visible to the patient', async () => {
     const noReason = await api()
       .post(`/api/v1/patients/${w.patient.id}/emergency-access`)
-      .set(bearer(w.tokens.outsideDoctor))
+      .set(bearer(w.tokens.colleague))
       .send({ reason: 'x' });
     expect(noReason.status).toBe(400);
 
     const grant = await api()
       .post(`/api/v1/patients/${w.patient.id}/emergency-access`)
-      .set(bearer(w.tokens.outsideDoctor))
-      .send({ reason: 'Unconscious patient admitted to emergency department' });
+      .set(bearer(w.tokens.colleague))
+      .send({ reason: 'Patient collapsed in the waiting room, treating doctor unavailable' });
     expect(grant.status).toBe(201);
     expect(new Date(grant.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
 
-    const read = await summary(w.patient.id, w.tokens.outsideDoctor);
+    const read = await summary(w.patient.id, w.tokens.colleague);
     expect(read.status).toBe(200);
     expect(read.body.accessBasis).toBe('EMERGENCY');
 
@@ -166,8 +167,17 @@ describe('emergency (break-glass) access', () => {
     const emergency = log.body.items.find(
       (i: { action: string }) => i.action === 'care.emergency_access.granted',
     );
-    expect(emergency.emergencyReason).toMatch(/Unconscious/);
+    expect(emergency.emergencyReason).toMatch(/collapsed/);
     expect(emergency).not.toHaveProperty('ipAddress');
+  });
+
+  it('never crosses institution boundaries', async () => {
+    const res = await api()
+      .post(`/api/v1/patients/${w.patient.id}/emergency-access`)
+      .set(bearer(w.tokens.outsideDoctor))
+      .send({ reason: 'Unconscious patient admitted to emergency department' });
+    expect(res.status).toBe(403);
+    expect((await summary(w.patient.id, w.tokens.outsideDoctor)).status).toBe(403);
   });
 
   it('only doctors can break the glass', async () => {
@@ -176,5 +186,19 @@ describe('emergency (break-glass) access', () => {
       .set(bearer(w.tokens.director))
       .send({ reason: 'I would like to look at this record please' });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('denied access is audited', () => {
+  it('records the denial so directors and the ministry can review it', async () => {
+    await summary(w.patient.id, w.tokens.outsideDoctor);
+    const res = await api()
+      .get(
+        `/api/v1/audit-logs?action=patient.record.access_denied&actorUserId=${w.users.outsideDoctor.id}`,
+      )
+      .set(bearer(w.tokens.ministry));
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items[0]).toMatchObject({ outcome: 'DENIED', patientId: w.patient.id });
   });
 });

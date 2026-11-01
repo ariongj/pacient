@@ -2,7 +2,7 @@
  * Development / demo seed. Creates a small national health network with every access tier.
  * Refuses to run in production. All demo accounts share the password printed at the end.
  */
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { isProd } from '../config/env.js';
 import { hashPassword } from '../lib/password.js';
 import { db, pool } from './client.js';
@@ -337,30 +337,39 @@ async function main() {
         .returning();
       const patientId = patient!.id;
       const doctor = isDemo ? docs[0]! : pick(docs);
-      await db
-        .insert(careAssignments)
-        .values({
-          patientId,
-          doctorId: doctor.id,
-          assignedById: doctor.id,
-          startedAt: daysAgo(400),
-        });
+      await db.insert(careAssignments).values({
+        patientId,
+        doctorId: doctor.id,
+        assignedById: doctor.id,
+        startedAt: daysAgo(400),
+      });
       if (isDemo && docs[1]) {
-        await db
-          .insert(careAssignments)
-          .values({
-            patientId,
-            doctorId: docs[1].id,
-            assignedById: doctor.id,
-            startedAt: daysAgo(200),
-          });
+        await db.insert(careAssignments).values({
+          patientId,
+          doctorId: docs[1].id,
+          assignedById: doctor.id,
+          startedAt: daysAgo(200),
+        });
       }
 
       if (isDemo || rand() < 0.2) {
         const a = isDemo ? ALLERGENS[0] : pick(ALLERGENS);
+        await db.insert(allergies).values({
+          patientId,
+          ...a,
+          verificationStatus: 'CONFIRMED',
+          recordedById: doctor.id,
+          recordedAt: daysAgo(380),
+        });
         await db
-          .insert(allergies)
-          .values({ patientId, ...a, recordedById: doctor.id, recordedAt: daysAgo(380) });
+          .update(patients)
+          .set({ allergyAssessment: 'ALLERGIES_RECORDED' })
+          .where(eq(patients.id, patientId));
+      } else if (rand() < 0.6) {
+        await db
+          .update(patients)
+          .set({ allergyAssessment: 'NO_KNOWN_ALLERGIES' })
+          .where(eq(patients.id, patientId));
       }
 
       const conditions = isDemo
@@ -370,7 +379,10 @@ async function main() {
       for (const c of conditions) {
         if (seen.has(c.code)) continue;
         seen.add(c.code);
-        const when = daysAgo(int(5, 360));
+        const ageDays = int(1, 360);
+        const when = daysAgo(ageDays);
+        const recent = ageDays <= 14;
+        const signed = !recent || rand() < 0.5;
         const [enc] = await db
           .insert(encounters)
           .values({
@@ -382,6 +394,9 @@ async function main() {
             notes: `History taken and examination performed. Assessment consistent with ${c.description.toLowerCase()}. Plan discussed with the patient.`,
             startedAt: when,
             endedAt: new Date(when.getTime() + 25 * 60_000),
+            noteStatus: signed ? 'SIGNED' : 'DRAFT',
+            signedAt: signed ? new Date(when.getTime() + 30 * 60_000) : null,
+            signedById: signed ? doctor.id : null,
           })
           .returning();
         await db.insert(diagnoses).values({
@@ -432,6 +447,11 @@ async function main() {
             referenceRange: lab.referenceRange,
             flag: lab.flag(Number(value)) as 'NORMAL' | 'HIGH' | 'LOW',
             collectedAt: when,
+            // Older results have completed the follow-up loop; recent ones await review.
+            acknowledgedAt: recent ? null : new Date(when.getTime() + 86_400_000),
+            acknowledgedById: recent ? null : doctor.id,
+            releasedAt: recent ? null : new Date(when.getTime() + 86_400_000),
+            releasedById: recent ? null : doctor.id,
           });
         }
       }

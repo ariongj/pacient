@@ -136,15 +136,12 @@ describe('account activation', () => {
     const facility = await createFacility();
     const director = await createUser('DIRECTOR', facility.id);
     const token = await login(director.email);
-    const invite = await api()
-      .post('/api/v1/staff/invitations')
-      .set(bearer(token))
-      .send({
-        email: 'new.doctor@test.local',
-        fullName: 'Dr. New',
-        role: 'DOCTOR',
-        licenseNumber: 'L-9',
-      });
+    const invite = await api().post('/api/v1/staff/invitations').set(bearer(token)).send({
+      email: 'new.doctor@test.local',
+      fullName: 'Dr. New',
+      role: 'DOCTOR',
+      licenseNumber: 'L-9',
+    });
     expect(invite.status).toBe(201);
     const activationToken = new URL(invite.body.activationUrl).searchParams.get('token')!;
 

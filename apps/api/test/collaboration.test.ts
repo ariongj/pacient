@@ -132,15 +132,12 @@ describe('secure messaging', () => {
 
 describe('immunizations', () => {
   it('are recorded by the care team and visible to the patient', async () => {
-    const created = await api()
-      .post(`${base()}/immunizations`)
-      .set(bearer(w.tokens.doctor))
-      .send({
-        vaccine: 'Influenza (seasonal)',
-        doseNumber: 1,
-        lotNumber: 'FLU-24-A',
-        site: 'Left deltoid',
-      });
+    const created = await api().post(`${base()}/immunizations`).set(bearer(w.tokens.doctor)).send({
+      vaccine: 'Influenza (seasonal)',
+      doseNumber: 1,
+      lotNumber: 'FLU-24-A',
+      site: 'Left deltoid',
+    });
     expect(created.status).toBe(201);
     const list = await api().get(`${base()}/immunizations`).set(bearer(w.tokens.patient));
     expect(list.body.items[0]).toMatchObject({
@@ -259,16 +256,13 @@ describe('patients without portal accounts', () => {
   it('do not break notification fan-out', async () => {
     const doc = await createUser('DOCTOR', w.facility.id);
     const token = await login(doc.email);
-    const p = await api()
-      .post('/api/v1/patients')
-      .set(bearer(token))
-      .send({
-        nationalId: '7000000001',
-        firstName: 'No',
-        lastName: 'Portal',
-        dateOfBirth: '1980-01-01',
-        sex: 'MALE',
-      });
+    const p = await api().post('/api/v1/patients').set(bearer(token)).send({
+      nationalId: '7000000001',
+      firstName: 'No',
+      lastName: 'Portal',
+      dateOfBirth: '1980-01-01',
+      sex: 'MALE',
+    });
     const r = await api()
       .post(`/api/v1/patients/${p.body.patient.id}/lab-results`)
       .set(bearer(token))

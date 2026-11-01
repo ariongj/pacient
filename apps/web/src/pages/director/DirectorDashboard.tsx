@@ -30,7 +30,10 @@ function ActionAlerts() {
   return (
     <>
       {unreviewed > 0 && (
-        <Alert tone="danger" title={`${unreviewed} emergency access event(s) awaiting your review`}>
+        <Alert
+          tone="warning"
+          title={`${unreviewed} emergency access event(s) awaiting your review`}
+        >
           <Link to="/director/emergency-access">Review emergency access</Link>
         </Alert>
       )}

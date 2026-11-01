@@ -1,5 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { api, refreshSession, setAccessToken, setSessionExpiredHandler } from '../api/client';
 import type { Profile } from '../api/types';
 
@@ -15,7 +23,10 @@ interface AuthValue {
   user: Profile | null;
   /** Returns the profile, or a challenge when two-step sign-in is enabled for the account. */
   login: (email: string, password: string) => Promise<Profile | MfaChallenge>;
-  verifyMfa: (mfaToken: string, input: { code?: string; recoveryCode?: string }) => Promise<Profile>;
+  verifyMfa: (
+    mfaToken: string,
+    input: { code?: string; recoveryCode?: string },
+  ) => Promise<Profile>;
   logout: () => Promise<void>;
   /** Re-reads the profile (e.g. after enabling two-step sign-in). */
   reloadProfile: () => Promise<Profile>;
@@ -131,4 +142,5 @@ export const HOME_BY_ROLE: Record<Profile['role'], string> = {
 
 /** Staff who must enrol in two-step sign-in are sent here before anything else. */
 export const MFA_SETUP_PATH = '/setup-two-step';
-export const needsMfaEnrollment = (u: Profile | null) => Boolean(u && u.mfaRequired && !u.mfaEnabled);
+export const needsMfaEnrollment = (u: Profile | null) =>
+  Boolean(u && u.mfaRequired && !u.mfaEnabled);

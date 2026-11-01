@@ -13,7 +13,12 @@ function QrImage({ value }: { value: string }) {
       .catch(() => setSrc(null));
   }, [value]);
   return src ? (
-    <img src={src} width={200} height={200} alt="QR code to add Pacient to your authenticator app" />
+    <img
+      src={src}
+      width={200}
+      height={200}
+      alt="QR code to add Pacient to your authenticator app"
+    />
   ) : null;
 }
 
@@ -213,7 +218,13 @@ export function TwoStepCard() {
           ) : (
             <form onSubmit={onSubmit} className="form-narrow">
               {mode === 'disable' && (
-                <TextField label="Password" name="password" type="password" autoComplete="current-password" required />
+                <TextField
+                  label="Password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
               )}
               <TextField
                 label="Current authentication code"
@@ -226,7 +237,11 @@ export function TwoStepCard() {
               />
               <ErrorAlert error={error} />
               <div className="row">
-                <Button type="submit" loading={busy} variant={mode === 'disable' ? 'danger' : 'primary'}>
+                <Button
+                  type="submit"
+                  loading={busy}
+                  variant={mode === 'disable' ? 'danger' : 'primary'}
+                >
                   {mode === 'disable' ? 'Turn off two-step sign-in' : 'Generate new codes'}
                 </Button>
                 <Button variant="secondary" onClick={() => setMode('idle')}>

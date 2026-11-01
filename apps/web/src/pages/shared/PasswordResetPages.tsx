@@ -87,7 +87,8 @@ export function ResetPasswordPage() {
       {!token && <Alert tone="danger" title="This reset link is incomplete." />}
       {done ? (
         <Alert tone="success" title="Your password was changed.">
-          You have been signed out everywhere. <Link to="/login">Sign in with your new password</Link>
+          You have been signed out everywhere.{' '}
+          <Link to="/login">Sign in with your new password</Link>
         </Alert>
       ) : (
         <form onSubmit={onSubmit}>

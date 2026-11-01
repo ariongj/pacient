@@ -9,35 +9,35 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Roles and permission model (§3)
 
-| Requirement                                                                          | Status | Where                                      |
-| ------------------------------------------------------------------------------------ | :----: | ------------------------------------------ |
-| Default deny; contextual authorization enforced on the server                        |   ✅   | `modules/access/policy.ts`                 |
-| Roles are responsibilities, not a ladder; director/ministry get no record access     |   ✅   | policy + `test/access-control.test.ts`     |
-| Doctor access limited to assigned care                                               |   ✅   | `care_assignments`                         |
-| Institution (tenant) isolation incl. search and break-glass                          |   ✅   | patients routes, policy                    |
-| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant | ✅ | emergency access + director review queue + Ministry compliance view |
-| Audit of reads, searches, changes, exports, denials, role changes, emergency access  |   ✅   | `modules/audit`                            |
-| Prompt leaver revocation (blocks active sessions)                                    |   ✅   | staff status + per-request account check   |
-| Patient, Doctor, Director (operations/clinical), Ministry roles                      |   ✅   |                                            |
-| Nurse, pharmacist, lab/radiology, reception, billing, IT support, proxy/guardian     |   ⏳   | add roles + policy rules per workflow      |
-| Purpose/consent and data-sensitivity in policy decisions                             |   ⏳   |                                            |
-| Periodic access review | 🟡 | audit review UI and emergency-access reviews; formal recertification ⏳ |
-| Cross-institution sharing only through an explicit arrangement | ✅ | referrals: acceptance creates the care relationship |
+| Requirement                                                                          | Status | Where                                                                   |
+| ------------------------------------------------------------------------------------ | :----: | ----------------------------------------------------------------------- |
+| Default deny; contextual authorization enforced on the server                        |   ✅   | `modules/access/policy.ts`                                              |
+| Roles are responsibilities, not a ladder; director/ministry get no record access     |   ✅   | policy + `test/access-control.test.ts`                                  |
+| Doctor access limited to assigned care                                               |   ✅   | `care_assignments`                                                      |
+| Institution (tenant) isolation incl. search and break-glass                          |   ✅   | patients routes, policy                                                 |
+| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant |   ✅   | emergency access + director review queue + Ministry compliance view     |
+| Audit of reads, searches, changes, exports, denials, role changes, emergency access  |   ✅   | `modules/audit`                                                         |
+| Prompt leaver revocation (blocks active sessions)                                    |   ✅   | staff status + per-request account check                                |
+| Patient, Doctor, Director (operations/clinical), Ministry roles                      |   ✅   |                                                                         |
+| Nurse, pharmacist, lab/radiology, reception, billing, IT support, proxy/guardian     |   ⏳   | add roles + policy rules per workflow                                   |
+| Purpose/consent and data-sensitivity in policy decisions                             |   ⏳   |                                                                         |
+| Periodic access review                                                               |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
+| Cross-institution sharing only through an explicit arrangement                       |   ✅   | referrals: acceptance creates the care relationship                     |
 
 ## Patient portal (§2, §4)
 
-| Requirement                                                            |  Status   |
-| ---------------------------------------------------------------------- | :-------: |
-| Timeline of visits, medications, allergies (with verification status)  |    ✅     |
-| Released results only; source facility and dates shown                 |    ✅     |
-| Appointments (request / cancel)                                        |    ✅     |
-| Correction requests that never silently overwrite clinician records    |    ✅     |
-| "Who viewed my record" transparency                                    |    ✅     |
-| Export of own record                                                   | ✅ (JSON) |
-| Not an emergency channel (stated in UI)                                |    ✅     |
-| Secure non-urgent messaging (not an emergency channel) | ✅ |
-| Vaccination history, referrals, notifications, announcements | ✅ |
-| Proxy / guardian access, consent settings, documents | ⏳ |
+| Requirement                                                           |  Status   |
+| --------------------------------------------------------------------- | :-------: |
+| Timeline of visits, medications, allergies (with verification status) |    ✅     |
+| Released results only; source facility and dates shown                |    ✅     |
+| Appointments (request / cancel)                                       |    ✅     |
+| Correction requests that never silently overwrite clinician records   |    ✅     |
+| "Who viewed my record" transparency                                   |    ✅     |
+| Export of own record                                                  | ✅ (JSON) |
+| Not an emergency channel (stated in UI)                               |    ✅     |
+| Secure non-urgent messaging (not an emergency channel)                |    ✅     |
+| Vaccination history, referrals, notifications, announcements          |    ✅     |
+| Proxy / guardian access, consent settings, documents                  |    ⏳     |
 
 ## Clinical record integrity (§5)
 
@@ -71,8 +71,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | -------------------------------------------------------------------------- | :----: |
 | Modular monolith with explicit domain modules                              |   ✅   |
 | Relational transactional store; transactions around record changes + audit |   ✅   |
-| MFA (TOTP + recovery codes), mandatory for staff | ✅ |
-| Managed identity provider / OIDC, passkeys | ⏳ |
+| MFA (TOTP + recovery codes), mandatory for staff                           |   ✅   |
+| Managed identity provider / OIDC, passkeys                                 |   ⏳   |
 | Transactional outbox + durable queue for integrations                      |   ⏳   |
 | FHIR R4 mapping / export profiles                                          |   ⏳   |
 | Private object store for documents, upload scanning                        |   ⏳   |
@@ -86,9 +86,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Identifiable drill-down for the Ministry disabled                 | ✅ (does not exist) |
 | Protected audit logs; minimal clinical content in diagnostic logs |         ✅          |
 | Transport security headers, no-store caching                      |         ✅          |
-| Staff MFA; protected recovery (single-use codes, reset links) | ✅ |
-| Purpose-specific reports with suppression and export controls | ✅ (audited CSV) |
-| Encryption at rest, KMS, environment separation | ⏳ (deployment) |
+| Staff MFA; protected recovery (single-use codes, reset links)     |         ✅          |
+| Purpose-specific reports with suppression and export controls     |  ✅ (audited CSV)   |
+| Encryption at rest, KMS, environment separation                   |   ⏳ (deployment)   |
 
 ## Reliability and governance (§8)
 

@@ -49,7 +49,9 @@ export function LoginPage() {
 
   if (status === 'loading') return <Loading label="Restoring your session…" />;
   if (user) {
-    return <Navigate to={needsMfaEnrollment(user) ? MFA_SETUP_PATH : HOME_BY_ROLE[user.role]} replace />;
+    return (
+      <Navigate to={needsMfaEnrollment(user) ? MFA_SETUP_PATH : HOME_BY_ROLE[user.role]} replace />
+    );
   }
 
   function goHome(me: Profile) {
@@ -89,7 +91,10 @@ export function LoginPage() {
     } catch (err) {
       setError(err);
       setCode('');
-      if ((err as { status?: number }).status === 401 && /expired/i.test(String((err as Error).message))) {
+      if (
+        (err as { status?: number }).status === 401 &&
+        /expired/i.test(String((err as Error).message))
+      ) {
         setChallenge(null);
       }
     } finally {

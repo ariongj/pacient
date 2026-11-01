@@ -41,6 +41,10 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   it must be delivered through the notifier (`modules/notifications/notifier.ts`).
 - Login: generic error for unknown user / wrong password / locked account; timing equalised with a
   dummy hash; lockout for 15 minutes after 5 failures; per-IP rate limit on credential endpoints.
+- Rate limits are **per user** for authenticated traffic (600 requests/min) because hospital
+  networks usually share one public IP; anonymous and credential endpoints fall back to per-IP
+  limits sized for a facility behind NAT (100 failed sign-ins / 15 min), with per-account lockout
+  stopping targeted guessing.
 - **Two-step sign-in (TOTP, RFC 6238)** with any standard authenticator app. Secrets are stored
   encrypted with AES-256-GCM using `MFA_ENCRYPTION_KEY` (kept outside the database); codes cannot be
   replayed (last accepted time-step is recorded); 10 single-use recovery codes are stored as hashes.

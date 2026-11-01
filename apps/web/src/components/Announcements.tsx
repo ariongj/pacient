@@ -20,7 +20,9 @@ export function AnnouncementsCard({ limit = 3 }: { limit?: number }) {
               <li key={a.id} className="announcement">
                 <div className="row-between">
                   <strong>{a.title}</strong>
-                  <Badge tone="info">{a.scope === 'NATIONAL' ? 'Ministry of Health' : a.facilityName}</Badge>
+                  <Badge tone="info">
+                    {a.scope === 'NATIONAL' ? 'Ministry of Health' : a.facilityName}
+                  </Badge>
                 </div>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{a.body}</p>
                 <div className="muted" style={{ fontSize: '0.8rem' }}>

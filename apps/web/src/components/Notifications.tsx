@@ -12,7 +12,9 @@ function useMarkRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string | 'all') =>
-      api(id === 'all' ? '/notifications/read-all' : `/notifications/${id}/read`, { method: 'POST' }),
+      api(id === 'all' ? '/notifications/read-all' : `/notifications/${id}/read`, {
+        method: 'POST',
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 }
@@ -36,7 +38,9 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) {
+      if (
+        e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -126,7 +130,11 @@ export function NotificationsPage() {
       <PageHeader
         title="Notifications"
         actions={
-          <Button variant="secondary" onClick={() => markRead.mutate('all')} loading={markRead.isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => markRead.mutate('all')}
+            loading={markRead.isPending}
+          >
             Mark all as read
           </Button>
         }

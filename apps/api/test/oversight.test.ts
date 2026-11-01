@@ -68,14 +68,11 @@ describe('emergency access review', () => {
 
 describe('announcements', () => {
   it('reach the right audience and facility', async () => {
-    const national = await api()
-      .post('/api/v1/announcements')
-      .set(bearer(w.tokens.ministry))
-      .send({
-        title: 'Flu vaccination campaign',
-        body: 'Free flu vaccines at all centres.',
-        audience: 'EVERYONE',
-      });
+    const national = await api().post('/api/v1/announcements').set(bearer(w.tokens.ministry)).send({
+      title: 'Flu vaccination campaign',
+      body: 'Free flu vaccines at all centres.',
+      audience: 'EVERYONE',
+    });
     expect(national.status).toBe(201);
     expect(national.body).toMatchObject({ scope: 'NATIONAL', facilityId: null });
 

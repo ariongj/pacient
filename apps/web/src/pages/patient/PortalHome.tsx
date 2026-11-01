@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { Appointment } from '../../api/types';
+import type { Appointment, MessageThreadSummary } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
+import { AnnouncementsCard } from '../../components/Announcements';
 import {
   Alert,
   Badge,
@@ -21,6 +22,11 @@ export function PortalHome() {
   const user = useUser();
   const summary = useSummary();
   const careTeam = useCareTeam();
+  const threads = useQuery({
+    queryKey: ['messages', 'threads'],
+    queryFn: () => api<{ items: MessageThreadSummary[] }>('/messages/threads'),
+  });
+  const unreadMessages = threads.data?.items.reduce((n, t) => n + t.unreadCount, 0) ?? 0;
   const upcoming = useQuery({
     queryKey: ['appointments', 'upcoming'],
     queryFn: () =>
@@ -37,6 +43,9 @@ export function PortalHome() {
         This portal is not for emergencies. If you need urgent help, call <strong>112</strong> or go
         to the nearest emergency department.
       </Alert>
+      <div className="stack" style={{ marginBottom: '1rem' }}>
+        <AnnouncementsCard />
+      </div>
       <QueryView query={summary}>
         {(s) => (
           <div className="stack">
@@ -54,6 +63,25 @@ export function PortalHome() {
                 tone={
                   s.allergies.some((a) => a.severity === 'LIFE_THREATENING') ? 'danger' : undefined
                 }
+              />
+              <Stat
+                label="Vaccinations"
+                value={s.immunizations.length}
+                hint={
+                  s.immunizations[0] ? (
+                    <>
+                      Latest: {s.immunizations[0].vaccine} (
+                      {formatDate(s.immunizations[0].administeredAt)}) ·{' '}
+                      <Link to="/portal/history">View</Link>
+                    </>
+                  ) : undefined
+                }
+              />
+              <Stat
+                label="Unread messages"
+                value={unreadMessages}
+                tone={unreadMessages > 0 ? 'info' : undefined}
+                hint={<Link to="/portal/messages">Open messages</Link>}
               />
             </Grid>
 

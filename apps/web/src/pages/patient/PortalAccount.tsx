@@ -18,6 +18,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { formatDate, humanize } from '../../format';
+import { TwoStepCard } from '../../components/TwoStep';
 import { ChangePasswordCard } from '../shared/AccountPage';
 import { usePatientId, useSummary } from './shared';
 
@@ -288,6 +289,7 @@ export function PortalAccount() {
           </Button>
         </Card>
 
+        <TwoStepCard />
         <ChangePasswordCard />
         <Alert tone="neutral">
           Signing in on a shared computer? Always sign out when you finish.

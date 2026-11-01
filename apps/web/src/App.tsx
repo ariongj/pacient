@@ -24,6 +24,16 @@ import { AccountPage } from './pages/shared/AccountPage';
 import { ActivatePage } from './pages/shared/ActivatePage';
 import { AuditLogPage } from './pages/shared/AuditLogPage';
 import { LoginPage } from './pages/shared/LoginPage';
+import { NotificationsPage } from './components/Notifications';
+import { EmergencyReviewPage } from './pages/director/EmergencyReviewPage';
+import { EmergencyOversightPage } from './pages/ministry/EmergencyOversightPage';
+import { PortalReferrals } from './pages/patient/PortalReferrals';
+import { AnnouncementsManagePage } from './pages/shared/AnnouncementsManagePage';
+import { MessagesPage } from './pages/shared/MessagesPage';
+import { MfaSetupPage } from './pages/shared/MfaSetupPage';
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/shared/PasswordResetPages';
+import { ReferralsPage } from './pages/shared/ReferralsPage';
+import { ReportsPage } from './pages/shared/ReportsPage';
 
 function HomeRedirect() {
   const { status, user } = useAuth();
@@ -36,6 +46,9 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/activate" element={<ActivatePage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/setup-two-step" element={<MfaSetupPage />} />
       <Route path="/" element={<HomeRedirect />} />
 
       <Route
@@ -46,6 +59,7 @@ export function App() {
         }
       >
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         <Route
           path="/portal"
@@ -84,6 +98,22 @@ export function App() {
           element={
             <RequireRole roles={['PATIENT']}>
               <PortalAccessLog />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/portal/messages"
+          element={
+            <RequireRole roles={['PATIENT']}>
+              <MessagesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/portal/referrals"
+          element={
+            <RequireRole roles={['PATIENT']}>
+              <PortalReferrals />
             </RequireRole>
           }
         />
@@ -129,6 +159,22 @@ export function App() {
           }
         />
         <Route
+          path="/doctor/messages"
+          element={
+            <RequireRole roles={['DOCTOR']}>
+              <MessagesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/doctor/referrals"
+          element={
+            <RequireRole roles={['DOCTOR']}>
+              <ReferralsPage />
+            </RequireRole>
+          }
+        />
+        <Route
           path="/doctor/schedule"
           element={
             <RequireRole roles={['DOCTOR']}>
@@ -158,6 +204,38 @@ export function App() {
           element={
             <RequireRole roles={['DIRECTOR']}>
               <DirectorPatients />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/director/referrals"
+          element={
+            <RequireRole roles={['DIRECTOR']}>
+              <ReferralsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/director/emergency-access"
+          element={
+            <RequireRole roles={['DIRECTOR']}>
+              <EmergencyReviewPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/director/reports"
+          element={
+            <RequireRole roles={['DIRECTOR']}>
+              <ReportsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/director/announcements"
+          element={
+            <RequireRole roles={['DIRECTOR']}>
+              <AnnouncementsManagePage />
             </RequireRole>
           }
         />
@@ -199,6 +277,30 @@ export function App() {
           element={
             <RequireRole roles={['MINISTRY']}>
               <StaffPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/ministry/reports"
+          element={
+            <RequireRole roles={['MINISTRY']}>
+              <ReportsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/ministry/emergency-access"
+          element={
+            <RequireRole roles={['MINISTRY']}>
+              <EmergencyOversightPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/ministry/announcements"
+          element={
+            <RequireRole roles={['MINISTRY']}>
+              <AnnouncementsManagePage />
             </RequireRole>
           }
         />

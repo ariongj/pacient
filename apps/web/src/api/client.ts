@@ -108,9 +108,9 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   return (await res.json()) as T;
 }
 
-/** Download an authenticated JSON response as a file (used for record export). */
-export async function downloadJson(path: string, filename: string) {
-  const res = await apiRaw(path);
+/** Download an authenticated response as a file (record export, CSV reports). */
+export async function downloadFile(path: string, filename: string, query?: Query) {
+  const res = await apiRaw(path, { query });
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -119,3 +119,6 @@ export async function downloadJson(path: string, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** @deprecated use downloadFile */
+export const downloadJson = (path: string, filename: string) => downloadFile(path, filename);

@@ -22,8 +22,10 @@ import { ALLERGY_ASSESSMENT_TEXT, AllergiesTab } from './chart/AllergiesTab';
 import { BookAppointmentDialog } from './chart/BookAppointmentDialog';
 import { CareTeamTab } from './chart/CareTeamTab';
 import { CorrectionsTab } from './chart/CorrectionsTab';
+import { ImmunizationsTab } from './chart/ImmunizationsTab';
 import { MedicationsTab } from './chart/MedicationsTab';
 import { ProblemsTab } from './chart/ProblemsTab';
+import { ReferDialog } from './chart/ReferDialog';
 import { ResultsTab } from './chart/ResultsTab';
 import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
@@ -51,6 +53,7 @@ const TAB_IDS = [
   'allergies',
   'vitals',
   'results',
+  'vaccinations',
   'corrections',
   'care-team',
 ] as const;
@@ -61,6 +64,7 @@ export function PatientChart() {
   const user = useUser();
   const [params, setParams] = useSearchParams();
   const [booking, setBooking] = useState(false);
+  const [referring, setReferring] = useState(false);
   const requested = params.get('tab') as TabId | null;
   const tab: TabId = requested && TAB_IDS.includes(requested) ? requested : 'summary';
 
@@ -166,6 +170,17 @@ export function PatientChart() {
             <Button variant="secondary" size="sm" onClick={() => setBooking(true)}>
               Book appointment
             </Button>
+            <Button variant="secondary" size="sm" onClick={() => setReferring(true)}>
+              Refer
+            </Button>
+            {p.hasPortalAccount && (
+              <Link
+                className="btn btn-secondary btn-sm"
+                to={`/doctor/messages?patientId=${encodeURIComponent(patientId)}`}
+              >
+                Message patient
+              </Link>
+            )}
           </div>
         )}
       </section>
@@ -195,6 +210,7 @@ export function PatientChart() {
               { id: 'allergies', label: 'Allergies', count: allergies.length },
               { id: 'vitals', label: 'Vitals' },
               { id: 'results', label: 'Results', count: s.counts.labResults },
+              { id: 'vaccinations', label: 'Vaccinations', count: s.immunizations.length },
               { id: 'corrections', label: 'Corrections', count: s.counts.openCorrectionRequests },
               { id: 'care-team', label: 'Care team' },
             ]}
@@ -221,6 +237,9 @@ export function PatientChart() {
             {tab === 'results' && (
               <ResultsTab patientId={patientId} encounters={s.recentEncounters} />
             )}
+            {tab === 'vaccinations' && (
+              <ImmunizationsTab patientId={patientId} encounters={s.recentEncounters} />
+            )}
             {tab === 'corrections' && <CorrectionsTab patientId={patientId} />}
             {tab === 'care-team' && <CareTeamTab patientId={patientId} />}
           </TabPanel>
@@ -228,6 +247,12 @@ export function PatientChart() {
             patientId={patientId}
             open={booking}
             onClose={() => setBooking(false)}
+          />
+          <ReferDialog
+            patientId={patientId}
+            summary={s}
+            open={referring}
+            onClose={() => setReferring(false)}
           />
         </>
       )}

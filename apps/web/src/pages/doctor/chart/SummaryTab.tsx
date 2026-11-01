@@ -11,6 +11,7 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
         <Stat label="Visits" value={summary.counts.encounters} />
         <Stat label="Active problems" value={summary.activeProblems.length} />
         <Stat label="Active medications" value={summary.activeMedications.length} />
+        <Stat label="Vaccinations" value={summary.immunizations?.length ?? 0} />
         <Stat
           label="Open correction requests"
           value={summary.counts.openCorrectionRequests}

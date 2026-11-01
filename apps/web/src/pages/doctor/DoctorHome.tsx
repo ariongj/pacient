@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { Appointment, Worklist } from '../../api/types';
+import type { Appointment, MessageThreadSummary, Referral, Worklist } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
+import { AnnouncementsCard } from '../../components/Announcements';
 import {
   Button,
   Card,
@@ -32,6 +33,21 @@ export function DoctorHome() {
     queryKey: ['appointments', 'upcoming', from],
     queryFn: () => api<{ items: Appointment[] }>('/appointments', { query: { from } }),
   });
+
+  const pendingReferrals = useQuery({
+    queryKey: ['referrals', 'incoming', 'PENDING'],
+    queryFn: () =>
+      api<{ items: Referral[] }>('/referrals', {
+        query: { direction: 'incoming', status: 'PENDING' },
+      }),
+  });
+  const threads = useQuery({
+    queryKey: ['messages', 'threads'],
+    queryFn: () => api<{ items: MessageThreadSummary[] }>('/messages/threads'),
+  });
+  const referralItems = pendingReferrals.data?.items ?? [];
+  const urgentReferrals = referralItems.filter((r) => r.priority === 'URGENT').length;
+  const unreadMessages = (threads.data?.items ?? []).reduce((n, t) => n + t.unreadCount, 0);
 
   const acknowledge = useMutation({
     mutationFn: ({ patientId, id }: { patientId: string; id: string }) =>
@@ -85,7 +101,25 @@ export function DoctorHome() {
                 tone={w.draftNotes.length ? 'warning' : 'success'}
               />
               <Stat label="Appointments today" value={today.length} tone="info" />
+              <Stat
+                label="Pending referrals"
+                value={pendingReferrals.data ? referralItems.length : '…'}
+                tone={urgentReferrals ? 'danger' : referralItems.length ? 'warning' : 'success'}
+                hint={
+                  <Link to="/doctor/referrals">
+                    {urgentReferrals ? `${urgentReferrals} urgent · review` : 'Open referrals'}
+                  </Link>
+                }
+              />
+              <Stat
+                label="Unread messages"
+                value={threads.data ? unreadMessages : '…'}
+                tone={unreadMessages ? 'warning' : 'success'}
+                hint={<Link to="/doctor/messages">Open messages</Link>}
+              />
             </Grid>
+
+            <AnnouncementsCard />
 
             <Card title="Results awaiting review">
               <ErrorAlert error={acknowledge.error} />

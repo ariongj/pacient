@@ -21,6 +21,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://pacient:${POSTGRES_PASSWORD:-pacient}@db:5432/pacient
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (at least 32 random characters)}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set MFA_ENCRYPTION_KEY (at least 32 random characters)}
       CORS_ORIGINS: http://localhost:8080
       WEB_APP_URL: http://localhost:8080
       TRUST_PROXY: 1

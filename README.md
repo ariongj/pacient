@@ -7,12 +7,15 @@ Roles are distinct responsibilities, **not a seniority ladder**: a director or m
 inherit access to medical records. Access to identifiable clinical data follows the care
 relationship, is limited to one institution, and every access is audited and visible to the patient.
 
-| Workspace          | Can do                                                                                                                                                                                                            | Cannot do                                                                            |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **Patient portal** | See own history, released results, medications, allergies; request/cancel appointments; update contact details; request corrections; download record; see **who viewed the record**                               | Edit clinical content; see anyone else                                               |
-| **Doctor**         | Worklist (unreviewed results, corrections, unsigned notes); register patients; document visits, diagnoses (ICD-10), prescriptions, allergies, vitals, lab results; sign notes; addenda; release results; schedule | Open records outside their care team without audited, same-facility emergency access |
-| **Director**       | Facility dashboard and operational exceptions; onboard/deactivate doctors; assign care teams; review the facility audit trail (incl. emergency access)                                                            | Read clinical records                                                                |
-| **Ministry**       | National aggregates with small-cell suppression; manage facilities; appoint directors; national audit review                                                                                                      | Read clinical records or identifiable patient data                                   |
+| Workspace          | Can do                                                                                                                                                                                                                                 | Cannot do                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Patient portal** | Own history, vaccinations, released results, medications, allergies; request/cancel appointments; **secure messages** with their doctors; follow **referrals**; update contact details; request corrections; download the record; see **who viewed the record**; notifications and announcements; optional two-step sign-in | Edit clinical content; see anyone else                                             |
+| **Doctor**         | Worklist (unreviewed results, corrections, unsigned notes); register patients; document visits, diagnoses (ICD-10), prescriptions, allergies, vitals, lab results, **vaccinations**; sign notes and add addenda; release results; schedule; **message patients**; **refer to other facilities** and accept incoming referrals | Open records outside their care team without audited, same-facility emergency access |
+| **Director**       | Facility dashboard and operational exceptions; onboard/deactivate doctors; assign care teams; **accept and route incoming referrals**; **review every emergency access**; **facility reports with CSV export**; **facility announcements**; audit review | Read clinical records                                                              |
+| **Ministry**       | National aggregates with small-cell suppression; **period/region reports with CSV export**; **emergency-access review compliance per facility**; manage facilities; appoint directors; **national announcements**; national audit review | Read clinical records or identifiable patient data                                 |
+
+All staff accounts use **two-step sign-in** (authenticator app with recovery codes) — mandatory in
+production. Every account can reset a forgotten password through a single-use emailed link.
 
 The design follows the project's _Hospital Information System Blueprint_; see
 [docs/BLUEPRINT-ALIGNMENT.md](docs/BLUEPRINT-ALIGNMENT.md) for what is implemented and what is
@@ -66,7 +69,7 @@ All seed data is synthetic. **Never load real patient data into development or t
 ### With Docker
 
 ```bash
-JWT_ACCESS_SECRET=$(openssl rand -base64 48) docker compose up --build
+JWT_ACCESS_SECRET=$(openssl rand -base64 48) MFA_ENCRYPTION_KEY=$(openssl rand -base64 48) docker compose up --build
 ```
 
 Then open http://localhost:8080 (no demo data is seeded in this mode; create the first Ministry

@@ -15,13 +15,14 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Roles are responsibilities, not a ladder; director/ministry get no record access     |   ✅   | policy + `test/access-control.test.ts`     |
 | Doctor access limited to assigned care                                               |   ✅   | `care_assignments`                         |
 | Institution (tenant) isolation incl. search and break-glass                          |   ✅   | patients routes, policy                    |
-| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant |   ✅   | `POST /patients/:id/emergency-access`      |
+| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant | ✅ | emergency access + director review queue + Ministry compliance view |
 | Audit of reads, searches, changes, exports, denials, role changes, emergency access  |   ✅   | `modules/audit`                            |
 | Prompt leaver revocation (blocks active sessions)                                    |   ✅   | staff status + per-request account check   |
 | Patient, Doctor, Director (operations/clinical), Ministry roles                      |   ✅   |                                            |
 | Nurse, pharmacist, lab/radiology, reception, billing, IT support, proxy/guardian     |   ⏳   | add roles + policy rules per workflow      |
 | Purpose/consent and data-sensitivity in policy decisions                             |   ⏳   |                                            |
-| Periodic access review                                                               |   🟡   | audit review UI; formal recertification ⏳ |
+| Periodic access review | 🟡 | audit review UI and emergency-access reviews; formal recertification ⏳ |
+| Cross-institution sharing only through an explicit arrangement | ✅ | referrals: acceptance creates the care relationship |
 
 ## Patient portal (§2, §4)
 
@@ -34,7 +35,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | "Who viewed my record" transparency                                    |    ✅     |
 | Export of own record                                                   | ✅ (JSON) |
 | Not an emergency channel (stated in UI)                                |    ✅     |
-| Proxy / guardian access, consent settings, secure messaging, documents |    ⏳     |
+| Secure non-urgent messaging (not an emergency channel) | ✅ |
+| Vaccination history, referrals, notifications, announcements | ✅ |
+| Proxy / guardian access, consent settings, documents | ⏳ |
 
 ## Clinical record integrity (§5)
 
@@ -68,7 +71,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | -------------------------------------------------------------------------- | :----: |
 | Modular monolith with explicit domain modules                              |   ✅   |
 | Relational transactional store; transactions around record changes + audit |   ✅   |
-| Managed identity provider / OIDC, MFA                                      |   ⏳   |
+| MFA (TOTP + recovery codes), mandatory for staff | ✅ |
+| Managed identity provider / OIDC, passkeys | ⏳ |
 | Transactional outbox + durable queue for integrations                      |   ⏳   |
 | FHIR R4 mapping / export profiles                                          |   ⏳   |
 | Private object store for documents, upload scanning                        |   ⏳   |
@@ -82,7 +86,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Identifiable drill-down for the Ministry disabled                 | ✅ (does not exist) |
 | Protected audit logs; minimal clinical content in diagnostic logs |         ✅          |
 | Transport security headers, no-store caching                      |         ✅          |
-| MFA, encryption at rest, KMS, environment separation              |   ⏳ (deployment)   |
+| Staff MFA; protected recovery (single-use codes, reset links) | ✅ |
+| Purpose-specific reports with suppression and export controls | ✅ (audited CSV) |
+| Encryption at rest, KMS, environment separation | ⏳ (deployment) |
 
 ## Reliability and governance (§8)
 
@@ -96,8 +102,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Suggested next backlog (in order)
 
-1. **Staff MFA via OIDC** (B03/§7) — blocker for any real deployment.
-2. **Nurse and reception roles** with policy tests (B03).
+1. **Nurse and reception roles** with policy tests (B03).
+2. **Email/SMS provider** for activation, reset and notification delivery; passkeys or OIDC (§7).
 3. **Structured orders and critical-result escalation** with backup owners (B05).
 4. **Proxy/guardian access** and consent records (B06).
 5. **Identity merge/unmerge** with lineage (B02).

@@ -21,6 +21,15 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   directors onboard doctors for their own facility only (a facility in the request body is
   ignored). Nobody can grant themselves a role, and nobody can deactivate their own account.
 - **Patients never edit clinical content.** They submit correction requests that a clinician reviews.
+- **Referrals are the only cross-institution path.** A pending referral shares only the written
+  summary and minimal demographics with the receiving facility; accepting it creates a care
+  relationship for one named doctor. Creation, acceptance, decline and completion are audited and
+  visible to the patient.
+- **Emergency access is reviewed.** Directors are notified and must record an outcome
+  (appropriate / inappropriate / needs follow-up) for every event, seeing how many reads and changes
+  the doctor made during the access window. The Ministry sees review compliance per facility, never
+  the patients involved.
+- **Messaging** is only possible within an active care relationship and is part of the audit trail.
 
 ## Authentication
 
@@ -32,6 +41,15 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   it must be delivered through the notifier (`modules/notifications/notifier.ts`).
 - Login: generic error for unknown user / wrong password / locked account; timing equalised with a
   dummy hash; lockout for 15 minutes after 5 failures; per-IP rate limit on credential endpoints.
+- **Two-step sign-in (TOTP, RFC 6238)** with any standard authenticator app. Secrets are stored
+  encrypted with AES-256-GCM using `MFA_ENCRYPTION_KEY` (kept outside the database); codes cannot be
+  replayed (last accepted time-step is recorded); 10 single-use recovery codes are stored as hashes.
+  Wrong codes count toward account lockout. With `REQUIRE_STAFF_MFA=true` (the production default)
+  staff cannot reach any workspace endpoint until they enrol, and cannot switch it off. The
+  password step returns only a 5-minute challenge token; no session exists until the second factor
+  succeeds.
+- **Password reset** via a single-use, hashed, 1-hour token; the response never reveals whether an
+  account exists; completing a reset ends every session.
 - Sessions: short-lived access JWT (15 min, HS256, issuer/audience checked) held **in memory** by
   the web app; opaque refresh token in an `httpOnly`, `SameSite=Strict`, `Secure` (production)
   cookie scoped to `/api/v1/auth`, stored server-side as a SHA-256 hash.
@@ -61,7 +79,10 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   only (never query strings, which can contain names). Clinical content is never logged.
 - Aggregate statistics suppress counts below 5 for diagnoses to reduce re-identification risk.
 - The web app clears all cached data on sign-out.
-- Record export (right of access / portability) is audited.
+- Record export (right of access / portability) and every report CSV export are audited. CSV cells
+  are protected against spreadsheet formula injection.
+- Notifications are deliberately generic ("A new test result is available") so they reveal no
+  clinical detail on lock screens or if later forwarded by email/SMS.
 - Input validation on every endpoint (Zod), size limits on bodies and fields, parameterised SQL only.
 - Dependencies are audited in CI (`npm audit --omit=dev --audit-level=high`).
 
@@ -69,9 +90,10 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 
 These are tracked in [BLUEPRINT-ALIGNMENT.md](BLUEPRINT-ALIGNMENT.md):
 
-1. **MFA for all staff** (phishing-resistant where practical) — ideally via a managed identity
-   provider (OIDC). Step-up authentication for emergency access and exports.
-2. Email/SMS delivery of activation links; password-reset flow; patient identity proofing.
+1. **Phishing-resistant MFA** (WebAuthn/passkeys) or a managed identity provider (OIDC); step-up
+   authentication for emergency access and exports. (TOTP two-step sign-in is implemented.)
+2. A real email/SMS provider for activation and reset links (`modules/notifications/notifier.ts`);
+   patient identity proofing.
 3. Encryption at rest (managed PostgreSQL with KMS), secrets from a secrets manager, key rotation.
 4. Separate database roles (migrations vs. runtime; runtime without UPDATE/DELETE on audit tables).
 5. Distributed rate limiting (Redis) when running more than one API instance.

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { NationalStats } from '../../api/types';
+import { AnnouncementsCard } from '../../components/Announcements';
 import { BarChart, monthlyBars, RankedBars } from '../../components/charts';
 import {
   Alert,
@@ -168,6 +169,27 @@ export function NationalDashboard() {
           );
         }}
       </QueryView>
+      <div className="stack" style={{ marginTop: '1rem' }}>
+        <Grid min={260}>
+          <Card title="Emergency access oversight">
+            <p className="muted">
+              Break-glass use and how promptly facilities review it, without identifiable data.
+            </p>
+            <Link to="/ministry/emergency-access">Open oversight</Link>
+          </Card>
+          <Card title="Reports">
+            <p className="muted">
+              Activity and diagnoses by period, region and facility, with CSV export.
+            </p>
+            <Link to="/ministry/reports">Open reports</Link>
+          </Card>
+          <Card title="Announcements">
+            <p className="muted">Publish national notices to staff and patients.</p>
+            <Link to="/ministry/announcements">Manage announcements</Link>
+          </Card>
+        </Grid>
+        <AnnouncementsCard />
+      </div>
     </>
   );
 }

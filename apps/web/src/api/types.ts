@@ -9,6 +9,9 @@ export interface Profile {
   lastLoginAt: string | null;
   facility: { id: string; name: string; code: string; region: string } | null;
   patientId: string | null;
+  mfaEnabled: boolean;
+  /** Staff must enrol in two-step sign-in before using their workspace. */
+  mfaRequired: boolean;
 }
 
 export interface Page<T> {
@@ -169,6 +172,7 @@ export interface ClinicalSummary {
   latestVitals: Vitals | null;
   recentLabResults: LabResult[];
   recentEncounters: Encounter[];
+  immunizations: Immunization[];
   counts: {
     encounters: number;
     diagnoses: number;
@@ -356,4 +360,163 @@ export interface NationalStats {
   encountersByMonth: MonthCount[];
   topDiagnoses: DiagnosisCount[];
   smallCellThreshold: number;
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface MessageThreadSummary {
+  id: string;
+  subject: string;
+  status: 'OPEN' | 'CLOSED';
+  lastMessageAt: string;
+  createdAt: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string | null;
+  unreadCount: number;
+}
+
+export interface ThreadMessage {
+  id: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  senderId: string;
+  senderName: string;
+  senderRole: Role;
+}
+
+export interface MessageThreadDetail {
+  id: string;
+  subject: string;
+  status: 'OPEN' | 'CLOSED';
+  patientId: string;
+  doctorId: string;
+  patientName: string;
+  doctorName: string;
+  canReply: boolean;
+  messages: ThreadMessage[];
+}
+
+export type ReferralStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'COMPLETED' | 'CANCELLED';
+
+export interface Referral {
+  id: string;
+  status: ReferralStatus;
+  priority: 'ROUTINE' | 'URGENT';
+  specialty: string;
+  reason: string;
+  clinicalSummary: string;
+  responseNote: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+  patientId: string;
+  patientName: string;
+  patientDateOfBirth: string;
+  patientSex: string;
+  fromDoctorId: string;
+  fromDoctorName: string;
+  fromFacilityId: string;
+  fromFacilityName: string;
+  toFacilityId: string;
+  toFacilityName: string;
+  toDoctorId: string | null;
+  toDoctorName: string | null;
+}
+
+export interface Immunization {
+  id: string;
+  encounterId: string | null;
+  vaccine: string;
+  doseNumber: number | null;
+  lotNumber: string | null;
+  site: string | null;
+  administeredAt: string;
+  notes: string | null;
+  administeredBy: string;
+  facilityName: string;
+}
+
+export type ReviewOutcome = 'APPROPRIATE' | 'INAPPROPRIATE' | 'NEEDS_FOLLOW_UP';
+
+export interface EmergencyAccessEvent {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  reason: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string | null;
+  patientId: string;
+  patientName: string;
+  reviewedAt: string | null;
+  reviewOutcome: ReviewOutcome | null;
+  reviewNotes: string | null;
+  reviewedBy: string | null;
+  recordViews: number;
+  recordChanges: number;
+}
+
+export interface EmergencyOversightRow {
+  facilityId: string;
+  facilityName: string;
+  region: string;
+  total: number;
+  unreviewed: number;
+  overdueReviews: number;
+  inappropriate: number;
+  needsFollowUp: number;
+}
+
+export interface Announcement {
+  id: string;
+  scope: 'NATIONAL' | 'FACILITY';
+  audience: 'EVERYONE' | 'STAFF' | 'PATIENTS';
+  title: string;
+  body: string;
+  publishedAt: string;
+  expiresAt: string | null;
+  facilityId: string | null;
+  facilityName: string | null;
+  authorName: string;
+}
+
+export interface DiagnosesReportRow {
+  region: string;
+  icd10Code: string;
+  description: string;
+  patients: number | null;
+  suppressed: boolean;
+}
+
+export interface ActivityReportRow {
+  code: string;
+  name: string;
+  region: string;
+  encounters: number;
+  uniquePatients: number | null;
+  appointmentsCompleted: number;
+  noShows: number;
+  referralsSent: number;
+  referralsReceived: number;
+  vaccinations: number;
+  emergencyAccess: number;
+}
+
+export interface Report<Row> {
+  from: string;
+  to: string;
+  smallCellThreshold: number;
+  columns: string[];
+  rows: Row[];
 }

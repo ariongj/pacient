@@ -26,7 +26,13 @@ apps/
         appointments/       booking with role-specific state transitions and overlap checks
         portal/             patient-only features (access log, contact details)
         worklist/           doctor's outstanding follow-up
-        stats/              aggregate facility and national reporting (small-cell suppression)
+        stats/              aggregate facility and national dashboards (small-cell suppression)
+        reports/            period/region reports + audited CSV export
+        referrals/          cross-facility referrals (the governed sharing path)
+        messaging/          patient ↔ doctor secure messages
+        notifications/      in-app notifications + outbound notifier (email/SMS adapter)
+        emergency/          director review of break-glass events, Ministry compliance view
+        announcements/      national and facility announcements
     test/                   integration tests against a real PostgreSQL database
   web/                      React 19 + Vite
     src/

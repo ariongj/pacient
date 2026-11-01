@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../api/client';
-import type { Diagnosis, Encounter, Page, Prescription, Vitals } from '../../api/types';
+import type {
+  Diagnosis,
+  Encounter,
+  Immunization,
+  Page,
+  Prescription,
+  Vitals,
+} from '../../api/types';
 import {
   Card,
   EmptyState,
@@ -16,7 +23,7 @@ import {
 import { formatDate, formatDateTime, humanize } from '../../format';
 import { usePatientId } from './shared';
 
-type Tab = 'visits' | 'conditions' | 'medications' | 'vitals';
+type Tab = 'visits' | 'conditions' | 'medications' | 'vaccinations' | 'vitals';
 
 function Visits() {
   const id = usePatientId();
@@ -186,6 +193,53 @@ function Medications() {
   );
 }
 
+function Vaccinations() {
+  const id = usePatientId();
+  const q = useQuery({
+    queryKey: ['patient', id, 'immunizations'],
+    queryFn: () => api<{ items: Immunization[] }>(`/patients/${id}/immunizations`),
+  });
+  return (
+    <QueryView query={q}>
+      {(d) =>
+        d.items.length ? (
+          <Table caption="Vaccinations">
+            <thead>
+              <tr>
+                <th>Vaccine</th>
+                <th className="num">Dose</th>
+                <th>Date</th>
+                <th>Facility</th>
+                <th>Given by</th>
+                <th>Lot</th>
+                <th>Site</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.items.map((v) => (
+                <tr key={v.id}>
+                  <td>
+                    <strong>{v.vaccine}</strong>
+                    {v.notes && <div className="muted">{v.notes}</div>}
+                  </td>
+                  <td className="num">{v.doseNumber ?? '—'}</td>
+                  <td>{formatDate(v.administeredAt)}</td>
+                  <td>{v.facilityName}</td>
+                  <td>{v.administeredBy}</td>
+                  <td>{v.lotNumber ?? '—'}</td>
+                  <td>{v.site ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : (
+          <EmptyState title="No vaccinations recorded" />
+        )
+      }
+    </QueryView>
+  );
+}
+
 function VitalsTab() {
   const id = usePatientId();
   const q = useQuery({
@@ -245,6 +299,7 @@ export function PortalHistory() {
             { id: 'visits', label: 'Visits' },
             { id: 'conditions', label: 'Conditions' },
             { id: 'medications', label: 'Medications' },
+            { id: 'vaccinations', label: 'Vaccinations' },
             { id: 'vitals', label: 'Measurements' },
           ]}
         />
@@ -252,6 +307,7 @@ export function PortalHistory() {
           {tab === 'visits' && <Visits />}
           {tab === 'conditions' && <Conditions />}
           {tab === 'medications' && <Medications />}
+          {tab === 'vaccinations' && <Vaccinations />}
           {tab === 'vitals' && <VitalsTab />}
         </TabPanel>
       </Card>

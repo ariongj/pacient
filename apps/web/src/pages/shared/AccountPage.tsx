@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth, useUser } from '../../auth/AuthContext';
+import { TwoStepCard } from '../../components/TwoStep';
 import {
   Button,
   Card,
@@ -97,6 +98,7 @@ export function AccountPage() {
             ]}
           />
         </Card>
+        <TwoStepCard />
         <ChangePasswordCard />
       </div>
     </>

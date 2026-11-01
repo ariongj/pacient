@@ -1,0 +1,46 @@
+# Local full-stack environment: `docker compose up --build`, then open http://localhost:8080
+# For production, supply real secrets via your orchestrator and terminate TLS in front of `web`.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pacient
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pacient}
+      POSTGRES_DB: pacient
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pacient']
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ['node', 'dist/db/migrate.js']
+    environment: &api-env
+      NODE_ENV: production
+      DATABASE_URL: postgres://pacient:${POSTGRES_PASSWORD:-pacient}@db:5432/pacient
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (at least 32 random characters)}
+      CORS_ORIGINS: http://localhost:8080
+      WEB_APP_URL: http://localhost:8080
+      TRUST_PROXY: 1
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports:
+      - '8080:8080'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db-data:

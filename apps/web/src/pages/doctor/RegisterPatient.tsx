@@ -1,0 +1,245 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
+import { api, ApiError } from '../../api/client';
+import type { Demographics } from '../../api/types';
+import {
+  Alert,
+  Button,
+  Card,
+  compact,
+  enumOptions,
+  ErrorAlert,
+  formValues,
+  PageHeader,
+  SelectField,
+  Table,
+  TextField,
+} from '../../components/ui';
+import { formatDate } from '../../format';
+
+const SEX = ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN'] as const;
+const BLOOD = ['UNKNOWN', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+
+interface Candidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+}
+
+interface RegisterResult {
+  patient: Demographics;
+  activationUrl?: string;
+}
+
+export function RegisterPatient() {
+  const qc = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<RegisterResult | null>(null);
+
+  const register = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<RegisterResult>('/patients', { method: 'POST', body }),
+    onSuccess: (data) => {
+      setResult(data);
+      setCandidates(null);
+      void qc.invalidateQueries({ queryKey: ['patients'] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === 'POSSIBLE_DUPLICATE') {
+        setCandidates((err.details as Candidate[]) ?? []);
+        setConfirmed(false);
+      }
+    },
+  });
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const { createPortalAccount, ...v } = formValues(e.currentTarget);
+    register.mutate({
+      ...compact(v),
+      createPortalAccount: createPortalAccount === 'on',
+      confirmedNotDuplicate: candidates !== null && confirmed,
+    });
+  }
+
+  if (result) {
+    return (
+      <>
+        <PageHeader title="Patient registered" />
+        <Card>
+          <Alert
+            tone="success"
+            title={`${result.patient.firstName} ${result.patient.lastName} has been registered.`}
+          >
+            You have been added to the patient’s care team.
+          </Alert>
+          {result.activationUrl && (
+            <Alert tone="info" title="Portal activation link">
+              <p>
+                Give this single-use link to the patient so they can choose their own password. In
+                production it is delivered by email and is not shown here.
+              </p>
+              <code style={{ wordBreak: 'break-all' }}>{result.activationUrl}</code>
+            </Alert>
+          )}
+          <div className="row">
+            <Link to={`/doctor/patients/${result.patient.id}`} className="btn btn-primary btn-md">
+              Open chart
+            </Link>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setResult(null);
+                setConfirmed(false);
+              }}
+            >
+              Register another patient
+            </Button>
+          </div>
+        </Card>
+      </>
+    );
+  }
+
+  const isDuplicateError =
+    register.error instanceof ApiError && register.error.code === 'POSSIBLE_DUPLICATE';
+
+  return (
+    <>
+      <PageHeader
+        title="Register patient"
+        subtitle="The patient is registered at your facility and you join their care team."
+      />
+      <Card>
+        <form ref={formRef} onSubmit={onSubmit}>
+          <fieldset>
+            <legend>Identity</legend>
+            <div className="form-grid">
+              <TextField
+                label="National ID"
+                name="nationalId"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{10}"
+                maxLength={10}
+                hint="10 digits"
+                autoComplete="off"
+              />
+              <TextField label="First name" name="firstName" required maxLength={100} />
+              <TextField label="Last name" name="lastName" required maxLength={100} />
+              <TextField
+                label="Date of birth"
+                name="dateOfBirth"
+                type="date"
+                required
+                max={new Date().toISOString().slice(0, 10)}
+              />
+              <SelectField
+                label="Sex"
+                name="sex"
+                required
+                options={enumOptions(SEX)}
+                placeholder="Select…"
+              />
+              <SelectField
+                label="Blood type"
+                name="bloodType"
+                options={BLOOD.map((b) => ({ value: b, label: b === 'UNKNOWN' ? 'Unknown' : b }))}
+              />
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Contact</legend>
+            <div className="form-grid">
+              <TextField label="Phone" name="phone" type="tel" autoComplete="off" maxLength={40} />
+              <TextField
+                label="Email"
+                name="email"
+                type="email"
+                autoComplete="off"
+                maxLength={254}
+              />
+              <TextField label="Address" name="address" maxLength={300} />
+              <TextField label="Municipality" name="municipality" maxLength={100} />
+              <TextField
+                label="Emergency contact name"
+                name="emergencyContactName"
+                maxLength={200}
+              />
+              <TextField
+                label="Emergency contact phone"
+                name="emergencyContactPhone"
+                type="tel"
+                maxLength={40}
+              />
+            </div>
+            <label className="checkbox" style={{ marginTop: '0.75rem' }}>
+              <input type="checkbox" name="createPortalAccount" /> Invite the patient to the portal
+              (requires an email address)
+            </label>
+          </fieldset>
+
+          {candidates && (
+            <Alert tone="warning" title="Possible duplicate record">
+              <p>
+                A patient with the same name and date of birth is already registered at your
+                facility. Records are never merged automatically. Check the existing record before
+                creating a new one.
+              </p>
+              <Table caption="Possible duplicate patients">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Date of birth</th>
+                    <th>
+                      <span className="sr-only">Open</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {candidates.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        {c.firstName} {c.lastName}
+                      </td>
+                      <td>{formatDate(c.dateOfBirth)}</td>
+                      <td>
+                        <Link to={`/doctor/patients/${c.id}`}>Open existing record</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                />
+                I have reviewed these records and this is a different person
+              </label>
+            </Alert>
+          )}
+
+          {!isDuplicateError && <ErrorAlert error={register.error} />}
+          <div className="form-actions">
+            <Link to="/doctor/patients" className="btn btn-secondary btn-md">
+              Cancel
+            </Link>
+            <Button
+              type="submit"
+              loading={register.isPending}
+              disabled={candidates !== null && !confirmed}
+            >
+              {candidates ? 'Register as a new patient' : 'Register patient'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </>
+  );
+}

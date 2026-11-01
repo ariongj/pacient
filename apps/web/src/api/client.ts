@@ -1,0 +1,121 @@
+/**
+ * Minimal API client.
+ *
+ * - The access token lives only in memory (never localStorage), so XSS cannot read a persisted token.
+ * - The refresh token is an httpOnly cookie scoped to /api/v1/auth; the browser sends it automatically.
+ * - On a 401 the client refreshes once (single-flight, so parallel requests share one refresh) and
+ *   retries. Concurrent refreshes would otherwise trip the server's token-reuse detection.
+ */
+const BASE = '/api/v1';
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+let accessToken: string | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
+let onSessionExpired: (() => void) | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+export function setSessionExpiredHandler(handler: () => void) {
+  onSessionExpired = handler;
+}
+
+export function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin' })
+    .then(async (res) => {
+      if (!res.ok) {
+        accessToken = null;
+        return false;
+      }
+      accessToken = ((await res.json()) as { accessToken: string }).accessToken;
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+type Query = Record<string, string | number | boolean | undefined | null>;
+
+export interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  query?: Query;
+}
+
+function buildUrl(path: string, query?: Query) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+  }
+  const qs = params.toString();
+  return `${BASE}${path}${qs ? `?${qs}` : ''}`;
+}
+
+async function send(path: string, opts: RequestOptions): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  return fetch(buildUrl(path, opts.query), {
+    method: opts.method ?? 'GET',
+    headers,
+    credentials: 'same-origin',
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+}
+
+export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<Response> {
+  let res = await send(path, opts);
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    if (await refreshSession()) {
+      res = await send(path, opts);
+    } else {
+      onSessionExpired?.();
+    }
+  }
+  if (!res.ok) {
+    let payload: { error?: { code?: string; message?: string; details?: unknown } } = {};
+    try {
+      payload = await res.json();
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(
+      res.status,
+      payload.error?.code ?? 'ERROR',
+      payload.error?.message ?? `Request failed (${res.status})`,
+      payload.error?.details,
+    );
+  }
+  return res;
+}
+
+export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const res = await apiRaw(path, opts);
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** Download an authenticated JSON response as a file (used for record export). */
+export async function downloadJson(path: string, filename: string) {
+  const res = await apiRaw(path);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

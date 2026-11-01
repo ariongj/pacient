@@ -1,0 +1,155 @@
+import { useState, type FormEvent } from 'react';
+import type { Diagnosis, Encounter } from '../../../api/types';
+import {
+  Button,
+  Card,
+  compact,
+  Dialog,
+  EmptyState,
+  enumOptions,
+  ErrorAlert,
+  formValues,
+  QueryView,
+  SelectField,
+  StatusBadge,
+  Table,
+  TextAreaField,
+  TextField,
+} from '../../../components/ui';
+import { formatDate, humanize } from '../../../format';
+import { EncounterSelect, useChartMutation } from './shared';
+import { useSection } from './useSection';
+
+const STATUSES = ['ACTIVE', 'CHRONIC', 'RESOLVED'] as const;
+
+export function ProblemsTab({
+  patientId,
+  encounters,
+}: {
+  patientId: string;
+  encounters: Encounter[];
+}) {
+  const list = useSection<Diagnosis>(patientId, 'diagnoses');
+  const [open, setOpen] = useState(false);
+  const create = useChartMutation(
+    patientId,
+    (body: Record<string, unknown>) => ({ path: '/diagnoses', method: 'POST', body }),
+    () => setOpen(false),
+  );
+  const update = useChartMutation(patientId, ({ id, status }: { id: string; status: string }) => ({
+    path: `/diagnoses/${id}`,
+    method: 'PATCH',
+    body: { status },
+  }));
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    create.mutate(compact(formValues(e.currentTarget)));
+  }
+
+  return (
+    <Card
+      title="Problems & diagnoses"
+      actions={
+        <Button size="sm" onClick={() => setOpen(true)}>
+          Add diagnosis
+        </Button>
+      }
+    >
+      <ErrorAlert error={update.error} />
+      <QueryView query={list}>
+        {(items) =>
+          items.length === 0 ? (
+            <EmptyState title="No diagnoses recorded" />
+          ) : (
+            <Table caption="Diagnoses">
+              <thead>
+                <tr>
+                  <th>ICD-10</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Diagnosed</th>
+                  <th>By</th>
+                  <th>Change status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <code>{d.icd10Code}</code>
+                    </td>
+                    <td>
+                      {d.description}
+                      {d.notes && <div className="muted">{d.notes}</div>}
+                    </td>
+                    <td>
+                      <StatusBadge value={d.status} />
+                    </td>
+                    <td>
+                      {formatDate(d.diagnosedAt)}
+                      {d.resolvedAt && (
+                        <div className="muted">Resolved {formatDate(d.resolvedAt)}</div>
+                      )}
+                    </td>
+                    <td>{d.doctorName}</td>
+                    <td>
+                      <label className="sr-only" htmlFor={`dx-${d.id}`}>
+                        Status of {d.description}
+                      </label>
+                      <select
+                        id={`dx-${d.id}`}
+                        value={d.status}
+                        disabled={update.isPending}
+                        onChange={(e) => update.mutate({ id: d.id, status: e.target.value })}
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {humanize(s)}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )
+        }
+      </QueryView>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Add diagnosis">
+        <form onSubmit={onSubmit}>
+          <div className="form-grid">
+            <TextField
+              label="ICD-10 code"
+              name="icd10Code"
+              required
+              pattern="[A-Za-z][0-9]{2}(\.[0-9A-Za-z]{1,4})?"
+              hint="e.g. E11.9"
+              maxLength={10}
+            />
+            <SelectField label="Status" name="status" options={enumOptions(STATUSES)} />
+          </div>
+          <TextField
+            label="Description"
+            name="description"
+            required
+            minLength={2}
+            maxLength={300}
+          />
+          <EncounterSelect encounters={encounters} />
+          <TextAreaField label="Notes" name="notes" maxLength={5000} rows={3} />
+          <ErrorAlert error={create.error} />
+          <div className="form-actions">
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={create.isPending}>
+              Add diagnosis
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    </Card>
+  );
+}

@@ -1,0 +1,464 @@
+import { sql } from 'drizzle-orm';
+import {
+  boolean,
+  date,
+  index,
+  inet,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+
+/* ------------------------------------------------------------------------------------------------
+ * Enums
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Access tiers, from widest (national, aggregate-only) to narrowest (a single patient's own data).
+ * MINISTRY -> DIRECTOR (one facility) -> DOCTOR (patients in their care) -> PATIENT (self).
+ */
+export const roleEnum = pgEnum('role', ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'PATIENT']);
+export const facilityTypeEnum = pgEnum('facility_type', [
+  'UNIVERSITY_CLINICAL_CENTER',
+  'REGIONAL_HOSPITAL',
+  'FAMILY_MEDICINE_CENTER',
+  'SPECIALIZED_CLINIC',
+]);
+export const sexEnum = pgEnum('sex', ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN']);
+export const bloodTypeEnum = pgEnum('blood_type', [
+  'A+',
+  'A-',
+  'B+',
+  'B-',
+  'AB+',
+  'AB-',
+  'O+',
+  'O-',
+  'UNKNOWN',
+]);
+export const encounterTypeEnum = pgEnum('encounter_type', [
+  'OUTPATIENT',
+  'INPATIENT',
+  'EMERGENCY',
+  'TELEHEALTH',
+  'HOME_VISIT',
+]);
+export const diagnosisStatusEnum = pgEnum('diagnosis_status', ['ACTIVE', 'RESOLVED', 'CHRONIC']);
+export const prescriptionStatusEnum = pgEnum('prescription_status', [
+  'ACTIVE',
+  'COMPLETED',
+  'CANCELLED',
+]);
+export const allergySeverityEnum = pgEnum('allergy_severity', [
+  'MILD',
+  'MODERATE',
+  'SEVERE',
+  'LIFE_THREATENING',
+]);
+export const labFlagEnum = pgEnum('lab_flag', ['NORMAL', 'LOW', 'HIGH', 'CRITICAL']);
+export const appointmentStatusEnum = pgEnum('appointment_status', [
+  'REQUESTED',
+  'CONFIRMED',
+  'CANCELLED',
+  'COMPLETED',
+  'NO_SHOW',
+]);
+export const tokenPurposeEnum = pgEnum('token_purpose', ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET']);
+
+const timestamps = {
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+};
+
+/* ------------------------------------------------------------------------------------------------
+ * Organisation
+ * ---------------------------------------------------------------------------------------------- */
+
+export const facilities = pgTable(
+  'facilities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 32 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    type: facilityTypeEnum('type').notNull(),
+    region: varchar('region', { length: 100 }).notNull(),
+    municipality: varchar('municipality', { length: 100 }).notNull(),
+    address: varchar('address', { length: 300 }),
+    phone: varchar('phone', { length: 40 }),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('facilities_code_uq').on(t.code),
+    index('facilities_region_idx').on(t.region),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Identity & access
+ * ---------------------------------------------------------------------------------------------- */
+
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 254 }).notNull(),
+    /** Null until the account is activated through a one-time activation link. */
+    passwordHash: text('password_hash'),
+    fullName: varchar('full_name', { length: 200 }).notNull(),
+    role: roleEnum('role').notNull(),
+    /** Required for DIRECTOR and DOCTOR, null for MINISTRY and PATIENT. */
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'restrict' }),
+    specialty: varchar('specialty', { length: 120 }),
+    licenseNumber: varchar('license_number', { length: 60 }),
+    isActive: boolean('is_active').notNull().default(true),
+    failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('users_email_uq').on(sql`lower(${t.email})`),
+    index('users_facility_role_idx').on(t.facilityId, t.role),
+  ],
+);
+
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** SHA-256 of the opaque token; the raw token is only ever held by the client. */
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    /** All tokens issued from one login share a family; reuse of a rotated token revokes it. */
+    familyId: uuid('family_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    replacedById: uuid('replaced_by_id'),
+    ipAddress: inet('ip_address'),
+    userAgent: varchar('user_agent', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('refresh_tokens_hash_uq').on(t.tokenHash),
+    index('refresh_tokens_family_idx').on(t.familyId),
+    index('refresh_tokens_user_idx').on(t.userId),
+  ],
+);
+
+export const oneTimeTokens = pgTable(
+  'one_time_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: tokenPurposeEnum('purpose').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('one_time_tokens_hash_uq').on(t.tokenHash)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Patients & care relationships
+ * ---------------------------------------------------------------------------------------------- */
+
+export const patients = pgTable(
+  'patients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Portal account (role PATIENT). Optional: not every patient uses the portal. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** National personal number. Unique across the country. */
+    nationalId: varchar('national_id', { length: 20 }).notNull(),
+    firstName: varchar('first_name', { length: 100 }).notNull(),
+    lastName: varchar('last_name', { length: 100 }).notNull(),
+    dateOfBirth: date('date_of_birth', { mode: 'string' }).notNull(),
+    sex: sexEnum('sex').notNull(),
+    bloodType: bloodTypeEnum('blood_type').notNull().default('UNKNOWN'),
+    phone: varchar('phone', { length: 40 }),
+    email: varchar('email', { length: 254 }),
+    address: varchar('address', { length: 300 }),
+    municipality: varchar('municipality', { length: 100 }),
+    emergencyContactName: varchar('emergency_contact_name', { length: 200 }),
+    emergencyContactPhone: varchar('emergency_contact_phone', { length: 40 }),
+    /** Facility where the patient is registered (family medicine centre / primary hospital). */
+    primaryFacilityId: uuid('primary_facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('patients_national_id_uq').on(t.nationalId),
+    uniqueIndex('patients_user_uq').on(t.userId),
+    index('patients_facility_idx').on(t.primaryFacilityId),
+    index('patients_name_idx').on(t.lastName, t.firstName),
+  ],
+);
+
+/**
+ * A doctor may only access a patient's clinical record while an active care relationship exists
+ * (or through audited emergency "break-glass" access). This is the core of least-privilege access.
+ */
+export const careAssignments = pgTable(
+  'care_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    assignedById: uuid('assigned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('care_assignments_active_uq')
+      .on(t.patientId, t.doctorId)
+      .where(sql`${t.endedAt} IS NULL`),
+    index('care_assignments_doctor_idx').on(t.doctorId),
+  ],
+);
+
+export const emergencyAccessGrants = pgTable(
+  'emergency_access_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('emergency_access_doctor_patient_idx').on(t.doctorId, t.patientId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Clinical record
+ * ---------------------------------------------------------------------------------------------- */
+
+export const encounters = pgTable(
+  'encounters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    type: encounterTypeEnum('type').notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    notes: text('notes'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index('encounters_patient_idx').on(t.patientId, t.startedAt),
+    index('encounters_facility_idx').on(t.facilityId, t.startedAt),
+  ],
+);
+
+export const diagnoses = pgTable(
+  'diagnoses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** ICD-10 code, e.g. "E11.9". */
+    icd10Code: varchar('icd10_code', { length: 10 }).notNull(),
+    description: varchar('description', { length: 300 }).notNull(),
+    status: diagnosisStatusEnum('status').notNull().default('ACTIVE'),
+    diagnosedAt: timestamp('diagnosed_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    notes: text('notes'),
+    ...timestamps,
+  },
+  (t) => [
+    index('diagnoses_patient_idx').on(t.patientId),
+    index('diagnoses_icd10_idx').on(t.icd10Code),
+  ],
+);
+
+export const prescriptions = pgTable(
+  'prescriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    medication: varchar('medication', { length: 200 }).notNull(),
+    dosage: varchar('dosage', { length: 100 }).notNull(),
+    frequency: varchar('frequency', { length: 100 }).notNull(),
+    route: varchar('route', { length: 50 }).notNull().default('oral'),
+    instructions: text('instructions'),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }),
+    status: prescriptionStatusEnum('status').notNull().default('ACTIVE'),
+    ...timestamps,
+  },
+  (t) => [index('prescriptions_patient_idx').on(t.patientId, t.status)],
+);
+
+export const allergies = pgTable(
+  'allergies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    substance: varchar('substance', { length: 200 }).notNull(),
+    reaction: varchar('reaction', { length: 300 }),
+    severity: allergySeverityEnum('severity').notNull(),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('allergies_patient_idx').on(t.patientId)],
+);
+
+export const vitalSigns = pgTable(
+  'vital_signs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    systolic: integer('systolic'),
+    diastolic: integer('diastolic'),
+    heartRate: integer('heart_rate'),
+    temperatureC: numeric('temperature_c', { precision: 4, scale: 1 }),
+    respiratoryRate: integer('respiratory_rate'),
+    oxygenSaturation: integer('oxygen_saturation'),
+    weightKg: numeric('weight_kg', { precision: 5, scale: 1 }),
+    heightCm: numeric('height_cm', { precision: 5, scale: 1 }),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('vital_signs_patient_idx').on(t.patientId, t.recordedAt)],
+);
+
+export const labResults = pgTable(
+  'lab_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    testName: varchar('test_name', { length: 200 }).notNull(),
+    value: varchar('value', { length: 100 }).notNull(),
+    unit: varchar('unit', { length: 40 }),
+    referenceRange: varchar('reference_range', { length: 100 }),
+    flag: labFlagEnum('flag').notNull().default('NORMAL'),
+    collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
+    ...timestamps,
+  },
+  (t) => [index('lab_results_patient_idx').on(t.patientId, t.collectedAt)],
+);
+
+export const appointments = pgTable(
+  'appointments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+    durationMinutes: integer('duration_minutes').notNull().default(20),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    status: appointmentStatusEnum('status').notNull().default('REQUESTED'),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('appointments_doctor_idx').on(t.doctorId, t.scheduledAt),
+    index('appointments_patient_idx').on(t.patientId, t.scheduledAt),
+    index('appointments_facility_idx').on(t.facilityId, t.scheduledAt),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Audit trail (append-only; UPDATE/DELETE are blocked by a database trigger, see migrations)
+ * ---------------------------------------------------------------------------------------------- */
+
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id'),
+    actorRole: roleEnum('actor_role'),
+    actorFacilityId: uuid('actor_facility_id'),
+    action: varchar('action', { length: 80 }).notNull(),
+    resourceType: varchar('resource_type', { length: 60 }),
+    resourceId: uuid('resource_id'),
+    /** Set whenever the event touches a patient's record, so patients can see who accessed it. */
+    patientId: uuid('patient_id'),
+    outcome: varchar('outcome', { length: 20 }).notNull().default('SUCCESS'),
+    ipAddress: inet('ip_address'),
+    userAgent: varchar('user_agent', { length: 500 }),
+    requestId: varchar('request_id', { length: 64 }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  },
+  (t) => [
+    index('audit_logs_occurred_idx').on(t.occurredAt),
+    index('audit_logs_patient_idx').on(t.patientId, t.occurredAt),
+    index('audit_logs_actor_idx').on(t.actorUserId, t.occurredAt),
+    index('audit_logs_facility_idx').on(t.actorFacilityId, t.occurredAt),
+  ],
+);
+
+export type Role = (typeof roleEnum.enumValues)[number];
+export type User = typeof users.$inferSelect;
+export type Patient = typeof patients.$inferSelect;
+export type Facility = typeof facilities.$inferSelect;

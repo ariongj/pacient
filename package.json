@@ -1,0 +1,33 @@
+{
+  "name": "pacient",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pacient \u2013 national electronic health record platform with Ministry, Director, Doctor and Patient portals",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:seed": "npm run db:seed -w apps/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.40.0"
+  },
+  "type": "module"
+}

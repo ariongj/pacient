@@ -11,6 +11,7 @@ import {
   SelectField,
   TextAreaField,
 } from '../../../components/ui';
+import { t } from '../../../i18n';
 
 /** Director: choose the receiving doctor before accepting. */
 export function AcceptAssignDialog({
@@ -40,21 +41,27 @@ export function AcceptAssignDialog({
     });
   }
   return (
-    <Dialog open={Boolean(referral)} onClose={onClose} title="Accept referral and assign a doctor">
+    <Dialog
+      open={Boolean(referral)}
+      onClose={onClose}
+      title={t('Accept referral and assign a doctor')}
+    >
       {referral && (
         <form onSubmit={submit}>
           <p className="muted">
-            The doctor you assign joins {referral.patientName}’s care team and gains access to the
-            record. This is audited and visible to the patient.
+            {t(
+              'The doctor you assign joins {patient}’s care team and gains access to the record. This is audited and visible to the patient.',
+              { patient: referral.patientName },
+            )}
           </p>
           <QueryView query={doctors}>
             {(d) => (
               <SelectField
-                label="Receiving doctor"
+                label={t('Receiving doctor')}
                 name="doctorId"
                 required
                 defaultValue={referral.toDoctorId ?? ''}
-                placeholder="Choose a doctor"
+                placeholder={t('Choose a doctor')}
                 options={d.items
                   .filter((s) => s.isActive)
                   .map((s) => ({
@@ -65,7 +72,7 @@ export function AcceptAssignDialog({
             )}
           </QueryView>
           <TextAreaField
-            label="Note to the referring doctor (optional)"
+            label={t('Note to the referring doctor (optional)')}
             name="responseNote"
             maxLength={2000}
             rows={2}
@@ -73,10 +80,10 @@ export function AcceptAssignDialog({
           <ErrorAlert error={error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={busy}>
-              Accept and assign
+              {t('Accept and assign')}
             </Button>
           </div>
         </form>
@@ -105,7 +112,7 @@ export function ResponseNoteDialog({
     <Dialog
       open={Boolean(referral)}
       onClose={onClose}
-      title={kind === 'decline' ? 'Decline referral' : 'Complete referral'}
+      title={kind === 'decline' ? t('Decline referral') : t('Complete referral')}
     >
       {referral && (
         <form
@@ -115,28 +122,30 @@ export function ResponseNoteDialog({
           }}
         >
           <TextAreaField
-            label={kind === 'decline' ? 'Reason for declining' : 'Outcome for the referring doctor'}
+            label={
+              kind === 'decline' ? t('Reason for declining') : t('Outcome for the referring doctor')
+            }
             name="responseNote"
             required
             minLength={3}
             maxLength={2000}
             hint={
               kind === 'decline'
-                ? 'Suggest where the patient could be referred instead, if possible.'
-                : 'Summarise findings and the follow-up plan.'
+                ? t('Suggest where the patient could be referred instead, if possible.')
+                : t('Summarise findings and the follow-up plan.')
             }
           />
           <ErrorAlert error={error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               type="submit"
               loading={busy}
               variant={kind === 'decline' ? 'danger' : 'primary'}
             >
-              {kind === 'decline' ? 'Decline referral' : 'Mark completed'}
+              {kind === 'decline' ? t('Decline referral') : t('Mark completed')}
             </Button>
           </div>
         </form>

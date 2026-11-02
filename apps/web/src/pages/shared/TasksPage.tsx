@@ -14,8 +14,9 @@ import {
   Table,
   Tabs,
 } from '../../components/ui';
-import { formatDateTime, humanize } from '../../format';
+import { formatDateTime } from '../../format';
 import { DueText, TaskActions, TaskFlags } from './tasks/TaskActions';
+import { t } from '../../i18n';
 
 type Scope = 'mine' | 'team';
 type Status = CareTask['status'];
@@ -35,29 +36,31 @@ export function TasksPage() {
   return (
     <>
       <PageHeader
-        title="Care tasks"
-        subtitle="Every task has an owner and stays open until someone explicitly completes or cancels it."
+        title={t('Care tasks')}
+        subtitle={t(
+          'Every task has an owner and stays open until someone explicitly completes or cancels it.',
+        )}
       />
       <Card>
         <div className="row-between">
           <Tabs<Scope>
-            label="Task scope"
+            label={t('Task scope')}
             active={scope}
             onChange={setScope}
             tabs={[
-              { id: 'mine', label: 'Assigned to me' },
-              { id: 'team', label: 'My patients’ tasks' },
+              { id: 'mine', label: t('Assigned to me') },
+              { id: 'team', label: t('My patients’ tasks') },
             ]}
           />
           <div style={{ minWidth: 180 }}>
             <SelectField
-              label="Status"
+              label={t('Status')}
               value={status}
               onChange={(e) => setStatus(e.target.value as Status)}
               options={[
-                { value: 'OPEN', label: 'Open' },
-                { value: 'DONE', label: 'Done' },
-                { value: 'CANCELLED', label: 'Cancelled' },
+                { value: 'OPEN', label: t('Open') },
+                { value: 'DONE', label: t('Done') },
+                { value: 'CANCELLED', label: t('Cancelled') },
               ]}
             />
           </div>
@@ -66,53 +69,56 @@ export function TasksPage() {
           <QueryView query={list}>
             {(d) =>
               d.items.length === 0 ? (
-                <EmptyState title={status === 'OPEN' ? 'Nothing outstanding' : 'No tasks'}>
+                <EmptyState title={status === 'OPEN' ? t('Nothing outstanding') : t('No tasks')}>
                   {scope === 'mine'
-                    ? 'Tasks assigned to you, or to your role in your patients’ care teams, appear here.'
-                    : 'Tasks for patients in your care teams appear here.'}
+                    ? t(
+                        'Tasks assigned to you, or to your role in your patients’ care teams, appear here.',
+                      )
+                    : t('Tasks for patients in your care teams appear here.')}
                 </EmptyState>
               ) : (
-                <Table caption="Care tasks">
+                <Table caption={t('Care tasks')}>
                   <thead>
                     <tr>
-                      <th>Task</th>
-                      <th>Patient</th>
-                      <th>Flags</th>
-                      <th>Due</th>
-                      <th>Assigned to</th>
-                      <th>Created by</th>
+                      <th>{t('Task')}</th>
+                      <th>{t('Patient')}</th>
+                      <th>{t('Flags')}</th>
+                      <th>{t('Due')}</th>
+                      <th>{t('Assigned to')}</th>
+                      <th>{t('Created by')}</th>
                       <th>
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {d.items.map((t) => (
-                      <tr key={t.id}>
+                    {d.items.map((task) => (
+                      <tr key={task.id}>
                         <td>
-                          <strong>{t.title}</strong>
-                          {t.details && <div className="muted">{t.details}</div>}
+                          <strong>{task.title}</strong>
+                          {task.details && <div className="muted">{task.details}</div>}
                         </td>
                         <td>
-                          <Link to={`${base}/patients/${t.patientId}?tab=tasks`}>
-                            {t.patientName}
+                          <Link to={`${base}/patients/${task.patientId}?tab=tasks`}>
+                            {task.patientName}
                           </Link>
                         </td>
                         <td>
-                          <TaskFlags task={t} />
+                          <TaskFlags task={task} />
                         </td>
                         <td>
-                          <DueText task={t} />
+                          <DueText task={task} />
                         </td>
                         <td>
-                          {t.assignedToName ?? `Any ${humanize(t.assignedRole).toLowerCase()}`}
+                          {task.assignedToName ??
+                            (task.assignedRole === 'NURSE' ? t('Any nurse') : t('Any doctor'))}
                         </td>
                         <td>
-                          {t.createdByName}
-                          <div className="muted">{formatDateTime(t.createdAt)}</div>
+                          {task.createdByName}
+                          <div className="muted">{formatDateTime(task.createdAt)}</div>
                         </td>
                         <td>
-                          <TaskActions task={t} />
+                          <TaskActions task={task} />
                         </td>
                       </tr>
                     ))}

@@ -1,4 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { env, isProd } from '../../config/env.js';
+import { toLocale, type Locale } from '../../i18n/index.js';
 import type { Executor } from '../../db/client.js';
 import { oneTimeTokens, users, type Role } from '../../db/schema.js';
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
@@ -13,6 +15,8 @@ export interface NewAccount {
   facilityId: string | null;
   specialty?: string | null;
   licenseNumber?: string | null;
+  /** Language for the account; defaults to the language of the person sending the invitation. */
+  locale?: Locale;
 }
 
 /**
@@ -20,6 +24,11 @@ export interface NewAccount {
  * chooses their own password, so administrators never know user credentials.
  */
 export async function createInvitedUser(tx: Executor, account: NewAccount, invitedById: string) {
+  const [inviter] = await tx
+    .select({ locale: users.locale })
+    .from(users)
+    .where(eq(users.id, invitedById));
+  const locale = account.locale ?? toLocale(inviter?.locale);
   const [user] = await tx
     .insert(users)
     .values({
@@ -31,6 +40,7 @@ export async function createInvitedUser(tx: Executor, account: NewAccount, invit
       licenseNumber: account.licenseNumber ?? null,
       // Patients (and guardians) get every notification by email by default; staff the important ones.
       emailNotifications: account.role === 'PATIENT' ? 'ALL' : 'IMPORTANT',
+      locale,
     })
     .returning();
   if (!user) throw new Error('Failed to create user');
@@ -50,6 +60,7 @@ export async function createInvitedUser(tx: Executor, account: NewAccount, invit
     to: user.email,
     userId: user.id,
     template: 'activation',
+    locale: toLocale(user.locale),
     name: user.fullName,
     url: activationUrl,
   });

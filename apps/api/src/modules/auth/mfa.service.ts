@@ -17,6 +17,7 @@ import {
   recordFailedAttempt,
   revokeAllSessions,
 } from './auth.service.js';
+import { toLocale } from '../../i18n/index.js';
 
 const RECOVERY_CODE_COUNT = 10;
 const RESET_TTL_MINUTES = 60;
@@ -226,6 +227,7 @@ export async function requestPasswordReset(email: string, meta: RequestMeta) {
       to: user.email,
       userId: user.id,
       template: 'password_reset',
+      locale: toLocale(user.locale),
       name: user.fullName,
       url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
     });

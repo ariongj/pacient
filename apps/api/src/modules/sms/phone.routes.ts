@@ -11,6 +11,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { authLimiter } from '../../middleware/rate-limit.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { enqueueSms } from './outbox.js';
+import { toLocale, tr } from '../../i18n/index.js';
 
 /**
  * Mobile number registration for SMS notifications. A number is only used after its owner proves
@@ -45,6 +46,10 @@ phoneRouter.post('/', authLimiter, async (req, res) => {
     throw tooManyRequests('Too many codes requested. Try again later.');
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const [me] = await db
+    .select({ locale: users.locale })
+    .from(users)
+    .where(eq(users.id, ctx.userId));
   await db.transaction(async (tx) => {
     await tx.insert(phoneVerifications).values({
       userId: ctx.userId,
@@ -56,7 +61,11 @@ phoneRouter.post('/', authLimiter, async (req, res) => {
       to: phone,
       userId: ctx.userId,
       template: 'phone_verification',
-      body: `Pacient verification code: ${code}. It expires in ${CODE_TTL_MINUTES} minutes. Never share this code.`,
+      body: tr(
+        toLocale(me?.locale),
+        'Pacient verification code: {code}. It expires in {minutes} minutes. Never share this code.',
+        { code, minutes: CODE_TTL_MINUTES },
+      ),
       urgent: true,
     });
   });

@@ -299,7 +299,7 @@ appointmentsRouter.patch(
           appt.patientId,
           {
             type: 'appointment',
-            title: `Your appointment was ${label}`,
+            title: `Your appointment was ${label}`, // translated per status in src/i18n/sq.ts
             important: true,
             link: '/portal/appointments',
           },
@@ -310,7 +310,7 @@ appointmentsRouter.patch(
           [appt.doctorId],
           {
             type: 'appointment',
-            title: `A patient ${label} an appointment`,
+            title: `A patient ${label} an appointment`, // translated per status in src/i18n/sq.ts
             link: '/doctor/schedule',
           },
           tx,

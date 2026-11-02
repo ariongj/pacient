@@ -12,6 +12,7 @@ import {
   TextAreaField,
 } from '../../../components/ui';
 import { formatDateTime } from '../../../format';
+import { t } from '../../../i18n';
 
 /** Refreshes every view that may show care tasks (lists, chart tabs, home tiles). */
 export function useTaskMutation(onDone?: () => void) {
@@ -43,14 +44,14 @@ export function TaskFlags({ task }: { task: CareTask }) {
   return (
     <span className="row" style={{ gap: '0.3rem' }}>
       {task.priority === 'URGENT' && <StatusBadge value="URGENT" />}
-      {isOverdue(task) && <Badge tone="danger">Overdue</Badge>}
+      {isOverdue(task) && <Badge tone="danger">{t('Overdue')}</Badge>}
       {task.status !== 'OPEN' && <StatusBadge value={task.status} />}
     </span>
   );
 }
 
 export function DueText({ task }: { task: CareTask }) {
-  if (!task.dueAt) return <span className="muted">No due time</span>;
+  if (!task.dueAt) return <span className="muted">{t('No due time')}</span>;
   return (
     <span className={isOverdue(task) ? 'error-text' : undefined}>{formatDateTime(task.dueAt)}</span>
   );
@@ -77,18 +78,18 @@ export function TaskActions({ task }: { task: CareTask }) {
     <>
       <div className="row" style={{ gap: '0.35rem' }}>
         <Button size="sm" onClick={() => setMode('complete')}>
-          Complete
+          {t('Complete')}
         </Button>
         {mayCancel && (
           <Button size="sm" variant="ghost" onClick={() => setMode('cancel')}>
-            Cancel
+            {t('Cancel')}
           </Button>
         )}
       </div>
       <Dialog
         open={mode !== null}
         onClose={() => setMode(null)}
-        title={mode === 'cancel' ? 'Cancel task' : 'Complete task'}
+        title={mode === 'cancel' ? t('Cancel task') : t('Complete task')}
       >
         <form onSubmit={onSubmit}>
           <p>
@@ -97,7 +98,7 @@ export function TaskActions({ task }: { task: CareTask }) {
           </p>
           {task.details && <p className="muted">{task.details}</p>}
           <TextAreaField
-            label={mode === 'cancel' ? 'Reason for cancelling' : 'Completion note (optional)'}
+            label={mode === 'cancel' ? t('Reason for cancelling') : t('Completion note (optional)')}
             name="note"
             required={mode === 'cancel'}
             minLength={mode === 'cancel' ? 3 : undefined}
@@ -107,14 +108,14 @@ export function TaskActions({ task }: { task: CareTask }) {
           <ErrorAlert error={mutation.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setMode(null)}>
-              Back
+              {t('Back')}
             </Button>
             <Button
               type="submit"
               variant={mode === 'cancel' ? 'danger' : 'primary'}
               loading={mutation.isPending}
             >
-              {mode === 'cancel' ? 'Cancel task' : 'Mark complete'}
+              {mode === 'cancel' ? t('Cancel task') : t('Mark complete')}
             </Button>
           </div>
         </form>

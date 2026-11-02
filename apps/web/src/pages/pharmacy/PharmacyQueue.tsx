@@ -30,6 +30,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { age, formatDate, formatDateTime, humanize } from '../../format';
+import { t } from '../../i18n';
 
 const STATUSES: PharmacyStatus[] = ['PENDING', 'VERIFIED', 'RETURNED', 'DISPENSED'];
 const TAB_LABEL: Record<PharmacyStatus, string> = {
@@ -38,13 +39,14 @@ const TAB_LABEL: Record<PharmacyStatus, string> = {
   RETURNED: 'Returned',
   DISPENSED: 'Dispensed',
 };
+const tabLabel = (s: PharmacyStatus) => t(TAB_LABEL[s]);
 
 function waiting(since: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 60_000));
-  if (mins < 60) return `${mins} min`;
+  if (mins < 60) return t('{minutes} min', { minutes: mins });
   const h = Math.floor(mins / 60);
-  if (h < 48) return `${h} h ${mins % 60} min`;
-  return `${Math.floor(h / 24)} days`;
+  if (h < 48) return t('{hours} h {minutes} min', { hours: h, minutes: mins % 60 });
+  return t('{count} days', { count: Math.floor(h / 24) });
 }
 
 function AlertBadges({ alerts }: { alerts?: SafetyAlert[] }) {
@@ -54,10 +56,10 @@ function AlertBadges({ alerts }: { alerts?: SafetyAlert[] }) {
       {alerts.map((a, i) => (
         <Badge key={i} tone={a.severity === 'HIGH' ? 'danger' : 'warning'}>
           {a.kind === 'ALLERGY'
-            ? 'Allergy'
+            ? t('Allergy')
             : a.kind === 'CROSS_REACTIVITY'
-              ? 'Cross-reactivity'
-              : 'Duplicate therapy'}
+              ? t('Cross-reactivity')
+              : t('Duplicate therapy')}
         </Badge>
       ))}
     </span>
@@ -110,10 +112,10 @@ function ActionDialog({
 
   const title =
     action === 'verify'
-      ? 'Verify prescription'
+      ? t('Verify prescription')
       : action === 'return'
-        ? 'Return to prescriber'
-        : 'Dispense medication';
+        ? t('Return to prescriber')
+        : t('Dispense medication');
   const hasAlerts = alerts.length > 0;
 
   return (
@@ -124,7 +126,7 @@ function ActionDialog({
         </p>
         {action === 'verify' && hasAlerts && (
           <>
-            <Alert tone="danger" title="Safety alerts must be reviewed">
+            <Alert tone="danger" title={t('Safety alerts must be reviewed')}>
               <ul className="alert-list">
                 {alerts.map((a, i) => (
                   <li key={i}>{a.message}</li>
@@ -138,26 +140,26 @@ function ActionDialog({
                 onChange={(e) => setReviewed(e.target.checked)}
                 required
               />
-              I have reviewed the alerts and it is safe to proceed
+              {t('I have reviewed the alerts and it is safe to proceed')}
             </label>
           </>
         )}
         {action === 'dispense' && (
           <TextField
-            label="Quantity dispensed"
+            label={t('Quantity dispensed')}
             name="quantity"
             required
             maxLength={100}
-            placeholder="e.g. 28 tablets"
+            placeholder={t('e.g. 28 tablets')}
           />
         )}
         <TextAreaField
           label={
             action === 'return'
-              ? 'Reason for returning'
+              ? t('Reason for returning')
               : action === 'verify' && hasAlerts
-                ? 'Clinical justification'
-                : 'Note (optional)'
+                ? t('Clinical justification')
+                : t('Note (optional)')
           }
           name="note"
           required={action === 'return' || (action === 'verify' && hasAlerts)}
@@ -165,16 +167,16 @@ function ActionDialog({
           maxLength={2000}
           hint={
             action === 'return'
-              ? 'The prescriber is notified and sees this note.'
+              ? t('The prescriber is notified and sees this note.')
               : action === 'verify' && hasAlerts
-                ? 'Explain why it is safe to proceed (at least 5 characters).'
+                ? t('Explain why it is safe to proceed (at least 5 characters).')
                 : undefined
           }
         />
         <ErrorAlert error={mutation.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             type="submit"
@@ -182,7 +184,7 @@ function ActionDialog({
             loading={mutation.isPending}
             disabled={action === 'verify' && hasAlerts && !reviewed}
           >
-            {action === 'verify' ? 'Verify' : action === 'return' ? 'Return' : 'Dispense'}
+            {action === 'verify' ? t('Verify') : action === 'return' ? t('Return') : t('Dispense')}
           </Button>
         </div>
       </form>
@@ -211,14 +213,14 @@ function Detail({ id }: { id: string }) {
         actions={
           <div className="row">
             {rx.pharmacyStatus === 'PENDING' && (
-              <Button onClick={() => setAction('verify')}>Verify</Button>
+              <Button onClick={() => setAction('verify')}>{t('Verify')}</Button>
             )}
             {rx.pharmacyStatus === 'VERIFIED' && (
-              <Button onClick={() => setAction('dispense')}>Dispense</Button>
+              <Button onClick={() => setAction('dispense')}>{t('Dispense')}</Button>
             )}
             {(rx.pharmacyStatus === 'PENDING' || rx.pharmacyStatus === 'VERIFIED') && (
               <Button variant="secondary" onClick={() => setAction('return')}>
-                Return to prescriber
+                {t('Return to prescriber')}
               </Button>
             )}
           </div>
@@ -226,58 +228,68 @@ function Detail({ id }: { id: string }) {
       >
         <dl className="dl">
           <div>
-            <dt>Patient</dt>
+            <dt>{t('Patient')}</dt>
             <dd>
-              {rx.patientName} · {age(rx.patientDateOfBirth)} y · {humanize(rx.patientSex)}
+              {rx.patientName} · {t('{age} y', { age: age(rx.patientDateOfBirth) })} ·{' '}
+              {humanize(rx.patientSex)}
             </dd>
           </div>
           <div>
-            <dt>Dose</dt>
+            <dt>{t('Dose')}</dt>
             <dd>
               {rx.dosage}, {rx.frequency} ({rx.route})
             </dd>
           </div>
           <div>
-            <dt>Period</dt>
+            <dt>{t('Period')}</dt>
             <dd>
-              {formatDate(rx.startDate)} – {rx.endDate ? formatDate(rx.endDate) : 'ongoing'}
+              {formatDate(rx.startDate)} – {rx.endDate ? formatDate(rx.endDate) : t('ongoing')}
             </dd>
           </div>
           <div>
-            <dt>Prescriber</dt>
+            <dt>{t('Prescriber')}</dt>
             <dd>{rx.prescriberName}</dd>
           </div>
           <div>
-            <dt>Prescribed</dt>
+            <dt>{t('Prescribed')}</dt>
             <dd>
-              {formatDateTime(rx.createdAt)} ({waiting(rx.createdAt)} ago)
+              {formatDateTime(rx.createdAt)} ({t('{time} ago', { time: waiting(rx.createdAt) })})
             </dd>
           </div>
           <div>
-            <dt>Latest weight</dt>
+            <dt>{t('Latest weight')}</dt>
             <dd>
               {c.latestWeight
                 ? `${c.latestWeight.weightKg} kg (${formatDate(c.latestWeight.recordedAt)})`
-                : 'Not recorded'}
+                : t('Not recorded')}
             </dd>
           </div>
         </dl>
-        {rx.instructions && <p style={{ marginTop: '0.75rem' }}>Instructions: {rx.instructions}</p>}
+        {rx.instructions && (
+          <p style={{ marginTop: '0.75rem' }}>
+            {t('Instructions:')} {rx.instructions}
+          </p>
+        )}
         {rx.pharmacistNote && (
           <div className="addendum">
-            <strong>Pharmacist note:</strong> {rx.pharmacistNote}
+            <strong>{t('Pharmacist note:')}</strong> {rx.pharmacistNote}
           </div>
         )}
         {rx.dispensedQuantity && (
           <p className="muted">
-            Dispensed {rx.dispensedQuantity} on {formatDateTime(rx.dispensedAt)}
+            {t('Dispensed {quantity} on {date}', {
+              quantity: rx.dispensedQuantity,
+              date: formatDateTime(rx.dispensedAt),
+            })}
           </p>
         )}
       </Card>
 
-      <Card title="Safety checks">
+      <Card title={t('Safety checks')}>
         <p className="muted">
-          Decision support – does not replace professional judgement or a full interaction database.
+          {t(
+            'Decision support – does not replace professional judgement or a full interaction database.',
+          )}
         </p>
         {c.alerts.length ? (
           <ul className="alert-list">
@@ -290,13 +302,13 @@ function Detail({ id }: { id: string }) {
             ))}
           </ul>
         ) : (
-          <Alert tone="success" title="No alerts found by the automated checks" />
+          <Alert tone="success" title={t('No alerts found by the automated checks')} />
         )}
       </Card>
 
       <div className="two-col">
         <div className="stack">
-          <Card title="Allergies">
+          <Card title={t('Allergies')}>
             {c.allergies.length ? (
               <ul className="list">
                 {c.allergies.map((a, i) => (
@@ -313,10 +325,14 @@ function Detail({ id }: { id: string }) {
                 ))}
               </ul>
             ) : (
-              <p className="muted">{ASSESSMENT_TEXT[c.allergyAssessment] || 'None recorded'}</p>
+              <p className="muted">
+                {ASSESSMENT_TEXT[c.allergyAssessment]
+                  ? t(ASSESSMENT_TEXT[c.allergyAssessment]!)
+                  : t('None recorded')}
+              </p>
             )}
           </Card>
-          <Card title="Other active medications">
+          <Card title={t('Other active medications')}>
             {c.otherActiveMedications.length ? (
               <ul className="list">
                 {c.otherActiveMedications.map((m) => (
@@ -329,12 +345,12 @@ function Detail({ id }: { id: string }) {
                 ))}
               </ul>
             ) : (
-              <EmptyState title="No other active medications" />
+              <EmptyState title={t('No other active medications')} />
             )}
           </Card>
         </div>
         <div className="stack">
-          <Card title="Active problems">
+          <Card title={t('Active problems')}>
             {c.activeProblems.length ? (
               <ul className="list">
                 {c.activeProblems.map((p) => (
@@ -344,10 +360,10 @@ function Detail({ id }: { id: string }) {
                 ))}
               </ul>
             ) : (
-              <EmptyState title="None recorded" />
+              <EmptyState title={t('None recorded')} />
             )}
           </Card>
-          <Card title="Renal function & electrolytes">
+          <Card title={t('Renal function & electrolytes')}>
             {c.renalAndElectrolytes.length ? (
               <ul className="list">
                 {c.renalAndElectrolytes.map((l, i) => (
@@ -361,7 +377,7 @@ function Detail({ id }: { id: string }) {
                 ))}
               </ul>
             ) : (
-              <EmptyState title="No recent results" />
+              <EmptyState title={t('No recent results')} />
             )}
           </Card>
         </div>
@@ -402,48 +418,49 @@ export function PharmacyQueue() {
   return (
     <>
       <PageHeader
-        title="Pharmacy verification queue"
-        subtitle="Verify, dispense or return prescriptions written at your facility."
+        title={t('Pharmacy verification queue')}
+        subtitle={t('Verify, dispense or return prescriptions written at your facility.')}
       />
       <Alert tone="info">
-        You see only the medication context needed to check each prescription — not the full record.
-        Every context view is logged and visible to the patient.
+        {t(
+          'You see only the medication context needed to check each prescription — not the full record. Every context view is logged and visible to the patient.',
+        )}
       </Alert>
       <div className="stack">
         <div className="kpi-grid">
           <Stat
-            label="Awaiting verification"
+            label={t('Awaiting verification')}
             value={counts.PENDING ?? 0}
             tone={(counts.PENDING ?? 0) > 0 ? 'warning' : undefined}
           />
-          <Stat label="Ready to dispense" value={counts.VERIFIED ?? 0} tone="info" />
+          <Stat label={t('Ready to dispense')} value={counts.VERIFIED ?? 0} tone="info" />
           <Stat
-            label="Returned to prescriber"
+            label={t('Returned to prescriber')}
             value={counts.RETURNED ?? 0}
             tone={(counts.RETURNED ?? 0) > 0 ? 'danger' : undefined}
           />
-          <Stat label="Dispensed" value={counts.DISPENSED ?? 0} tone="success" />
+          <Stat label={t('Dispensed')} value={counts.DISPENSED ?? 0} tone="success" />
         </div>
 
         <Card>
           <Tabs
-            label="Queue status"
+            label={t('Queue status')}
             active={status}
             onChange={(s) => select({ status: s, rx: null })}
-            tabs={STATUSES.map((s) => ({ id: s, label: TAB_LABEL[s], count: counts[s] ?? 0 }))}
+            tabs={STATUSES.map((s) => ({ id: s, label: tabLabel(s), count: counts[s] ?? 0 }))}
           />
           <TabPanel id={status}>
             <QueryView query={q}>
               {(d) =>
                 d.items.length === 0 ? (
-                  <EmptyState title="Nothing in this queue" />
+                  <EmptyState title={t('Nothing in this queue')} />
                 ) : (
                   <div className="split">
-                    <Table caption={TAB_LABEL[status]}>
+                    <Table caption={tabLabel(status)}>
                       <thead>
                         <tr>
-                          <th>Prescription</th>
-                          <th>Waiting</th>
+                          <th>{t('Prescription')}</th>
+                          <th>{t('Waiting')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -465,7 +482,8 @@ export function PharmacyQueue() {
                                 {it.patientName}
                               </button>
                               <div className="muted">
-                                {age(it.patientDateOfBirth)} y · {humanize(it.patientSex)}
+                                {t('{age} y', { age: age(it.patientDateOfBirth) })} ·{' '}
+                                {humanize(it.patientSex)}
                               </div>
                               <div>
                                 <strong>{it.medication}</strong> {it.dosage}
@@ -483,8 +501,8 @@ export function PharmacyQueue() {
                         <Detail id={selected} />
                       ) : (
                         <Card>
-                          <EmptyState title="Select a prescription">
-                            Choose an item on the left to see its medication context.
+                          <EmptyState title={t('Select a prescription')}>
+                            {t('Choose an item on the left to see its medication context.')}
                           </EmptyState>
                         </Card>
                       )}

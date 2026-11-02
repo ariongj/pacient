@@ -21,6 +21,7 @@ import {
 import { age, formatDate, humanize } from '../../format';
 import { GuardiansPanel } from '../shared/GuardiansPanel';
 import { BookAppointmentDialog, type PatientRef } from './BookAppointmentDialog';
+import { t } from '../../i18n';
 
 interface PatientDetail {
   id: string;
@@ -85,7 +86,7 @@ function ContactDialog({ patientId, onClose }: { patientId: string; onClose: () 
         {CONTACT_FIELDS.map((f) => (
           <TextField
             key={f.name}
-            label={f.label}
+            label={t(f.label)}
             name={f.name}
             type={f.type ?? 'text'}
             defaultValue={(p[f.name] as string | null) ?? ''}
@@ -95,10 +96,10 @@ function ContactDialog({ patientId, onClose }: { patientId: string; onClose: () 
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Save
+          {t('Save')}
         </Button>
       </div>
     </form>
@@ -117,35 +118,37 @@ function InviteDialog({ patientId, onClose }: { patientId: string; onClose: () =
   return (
     <div className="stack">
       {mutation.isSuccess ? (
-        <Alert tone="success" title="Portal invitation created">
+        <Alert tone="success" title={t('Portal invitation created')}>
           {mutation.data.activationUrl ? (
             <>
               <p>
-                Activation link (development only – in production it is sent to the patient by
-                email):
+                {t(
+                  'Activation link (development only – in production it is sent to the patient by email):',
+                )}
               </p>
               <code style={{ wordBreak: 'break-all' }}>{mutation.data.activationUrl}</code>
             </>
           ) : (
-            <p>The patient will receive an email with a link to activate the account.</p>
+            <p>{t('The patient will receive an email with a link to activate the account.')}</p>
           )}
         </Alert>
       ) : (
         <>
           <p>
-            The patient receives a single-use link to set their own password. An email address must
-            be on file.
+            {t(
+              'The patient receives a single-use link to set their own password. An email address must be on file.',
+            )}
           </p>
           <ErrorAlert error={mutation.error} />
         </>
       )}
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose}>
-          {mutation.isSuccess ? 'Close' : 'Cancel'}
+          {mutation.isSuccess ? t('Close') : t('Cancel')}
         </Button>
         {!mutation.isSuccess && (
           <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
-            Send invitation
+            {t('Send invitation')}
           </Button>
         )}
       </div>
@@ -173,17 +176,18 @@ export function ReceptionPatients() {
   return (
     <>
       <PageHeader
-        title="Patients"
-        subtitle="Registration and contact details for patients of your facility"
+        title={t('Patients')}
+        subtitle={t('Registration and contact details for patients of your facility')}
         actions={
           <Link to="/reception/patients/new" className="btn btn-primary btn-md">
-            Register patient
+            {t('Register patient')}
           </Link>
         }
       />
       <Alert tone="info">
-        Reception works with identity, contact details and scheduling only. Clinical information is
-        not available in this workspace.
+        {t(
+          'Reception works with identity, contact details and scheduling only. Clinical information is not available in this workspace.',
+        )}
       </Alert>
       <Card>
         <form
@@ -195,29 +199,29 @@ export function ReceptionPatients() {
           }}
         >
           <TextField
-            label="Search"
-            hint="Name or national ID"
+            label={t('Search')}
+            hint={t('Name or national ID')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <Button type="submit" variant="secondary">
-            Search
+            {t('Search')}
           </Button>
         </form>
         <QueryView query={q}>
           {(d) =>
             d.items.length ? (
               <>
-                <Table caption="Registered patients">
+                <Table caption={t('Registered patients')}>
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>National ID</th>
-                      <th>Date of birth</th>
-                      <th>Sex</th>
-                      <th>Portal</th>
+                      <th>{t('Name')}</th>
+                      <th>{t('National ID')}</th>
+                      <th>{t('Date of birth')}</th>
+                      <th>{t('Sex')}</th>
+                      <th>{t('Portal')}</th>
                       <th>
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -232,14 +236,16 @@ export function ReceptionPatients() {
                         <td className="mono">{p.nationalId}</td>
                         <td>
                           {formatDate(p.dateOfBirth)}{' '}
-                          <span className="muted">({age(p.dateOfBirth)} y)</span>
+                          <span className="muted">
+                            ({t('{age} y', { age: age(p.dateOfBirth) })})
+                          </span>
                         </td>
                         <td>{humanize(p.sex)}</td>
                         <td>
                           {p.hasPortalAccount ? (
-                            <Badge tone="success">Active</Badge>
+                            <Badge tone="success">{t('Active')}</Badge>
                           ) : (
-                            <Badge tone="neutral">None</Badge>
+                            <Badge tone="neutral">{t('None')}</Badge>
                           )}
                         </td>
                         <td>
@@ -250,21 +256,21 @@ export function ReceptionPatients() {
                                 setBooking({ id: p.id, name: `${p.firstName} ${p.lastName}` })
                               }
                             >
-                              Book
+                              {t('Book')}
                             </Button>
                             <Button size="sm" variant="secondary" onClick={() => setEditing(p.id)}>
-                              Edit contact
+                              {t('Edit contact')}
                             </Button>
                             <Button
                               size="sm"
                               variant="secondary"
                               onClick={() => setGuardiansFor(p)}
                             >
-                              Guardians
+                              {t('Guardians')}
                             </Button>
                             {!p.hasPortalAccount && (
                               <Button size="sm" variant="ghost" onClick={() => setInviting(p.id)}>
-                                Invite to portal
+                                {t('Invite to portal')}
                               </Button>
                             )}
                           </div>
@@ -276,8 +282,8 @@ export function ReceptionPatients() {
                 <Pagination page={d.page} totalPages={d.totalPages} onChange={setPage} />
               </>
             ) : (
-              <EmptyState title="No patients found">
-                <Link to="/reception/patients/new">Register a new patient</Link>
+              <EmptyState title={t('No patients found')}>
+                <Link to="/reception/patients/new">{t('Register a new patient')}</Link>
               </EmptyState>
             )
           }
@@ -287,7 +293,7 @@ export function ReceptionPatients() {
       <Dialog
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title="Edit contact details"
+        title={t('Edit contact details')}
         wide
       >
         {editing && <ContactDialog patientId={editing} onClose={() => setEditing(null)} />}
@@ -295,7 +301,7 @@ export function ReceptionPatients() {
       <Dialog
         open={inviting !== null}
         onClose={() => setInviting(null)}
-        title="Invite to patient portal"
+        title={t('Invite to patient portal')}
       >
         {inviting && <InviteDialog patientId={inviting} onClose={() => setInviting(null)} />}
       </Dialog>
@@ -304,8 +310,10 @@ export function ReceptionPatients() {
         onClose={() => setGuardiansFor(null)}
         title={
           guardiansFor
-            ? `Guardians – ${guardiansFor.firstName} ${guardiansFor.lastName}`
-            : 'Guardians'
+            ? t('Guardians – {name}', {
+                name: `${guardiansFor.firstName} ${guardiansFor.lastName}`,
+              })
+            : t('Guardians')
         }
         wide
       >

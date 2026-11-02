@@ -296,7 +296,8 @@ channelsRouter.post('/:id/messages', async (req, res) => {
         recipients.filter((u) => u !== ctx.userId),
         {
           type: 'channel',
-          title: `Urgent message in #${channel.name}`,
+          title: 'Urgent message in #{channel}',
+          vars: { channel: channel.name },
           important: true,
           link: `/channels?c=${id}`,
         },

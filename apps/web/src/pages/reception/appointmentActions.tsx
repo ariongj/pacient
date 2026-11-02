@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import type { Appointment, AppointmentStatus } from '../../api/types';
 import { Button, ErrorAlert } from '../../components/ui';
+import { t } from '../../i18n';
 
 /** Front-desk status changes allowed by the server for reception. */
 const ACTIONS: Partial<
@@ -68,11 +69,11 @@ export function AppointmentActions({
             mutation.variables?.status === a.to
           }
           onClick={() => {
-            if (a.confirm && !window.confirm(a.confirm)) return;
+            if (a.confirm && !window.confirm(t(a.confirm))) return;
             mutation.mutate({ id: appointment.id, status: a.to });
           }}
         >
-          {a.label}
+          {t(a.label)}
         </Button>
       ))}
     </div>

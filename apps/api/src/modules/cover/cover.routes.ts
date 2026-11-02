@@ -29,15 +29,6 @@ const CreateSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 
-const fmt = (d: Date) =>
-  d.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Belgrade',
-  });
-
 const arrangementColumns = {
   id: coverArrangements.id,
   doctorId: coverArrangements.doctorId,
@@ -194,7 +185,8 @@ coverRouter.post('/', async (req, res) => {
       [input.coverDoctorId],
       {
         type: 'cover',
-        title: `You are covering results for ${away.fullName} from ${fmt(input.startsAt)} to ${fmt(input.endsAt)}`,
+        title: 'You are covering results for {doctor} from {from} to {to}',
+        vars: { doctor: away.fullName, from: input.startsAt, to: input.endsAt },
         link: '/doctor/cover',
         important: true,
       },
@@ -205,7 +197,8 @@ coverRouter.post('/', async (req, res) => {
         [doctorId],
         {
           type: 'cover',
-          title: `${coverer.fullName} will cover your results from ${fmt(input.startsAt)} to ${fmt(input.endsAt)}`,
+          title: '{doctor} will cover your results from {from} to {to}',
+          vars: { doctor: coverer.fullName, from: input.startsAt, to: input.endsAt },
           link: '/doctor/cover',
         },
         tx,

@@ -40,6 +40,8 @@ export async function createUser(role: Role, facilityId: string | null = null, e
       facilityId,
       passwordHash: await passwordHash,
       passwordChangedAt: new Date(),
+      // Tests assert English texts unless they opt into Albanian explicitly.
+      locale: 'en',
       ...(role === 'DOCTOR' ? { licenseNumber: 'LIC-1', specialty: 'Family Medicine' } : {}),
       ...(role === 'NURSE' || role === 'PHARMACIST' ? { licenseNumber: 'LIC-2' } : {}),
       ...extra,

@@ -125,6 +125,7 @@ async function escalate(
       clinicians,
       {
         type: 'result',
+        // One fixed text per level (translated in src/i18n/sq.ts).
         title: `Critical result still not reviewed (${step.label})`,
         link: `/doctor/patients/${r.patientId}?tab=results`,
         important: true,
@@ -136,7 +137,8 @@ async function escalate(
         directors,
         {
           type: 'escalation',
-          title: `A critical result has waited ${step.label} for review – contact ${r.orderingDoctor}`,
+          title: `A critical result has waited ${step.label} for review – contact {doctor}`,
+          vars: { doctor: r.orderingDoctor },
           link: '/director',
           important: true,
         },

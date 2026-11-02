@@ -11,6 +11,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { age, formatDate } from '../../format';
+import { t } from '../../i18n';
 
 const DURATIONS = [10, 15, 20, 30, 45, 60];
 
@@ -78,11 +79,11 @@ function BookingForm({
       {patient ? (
         <div className="row-between">
           <span>
-            Patient: <strong>{patient.name}</strong>
+            {t('Patient:')} <strong>{patient.name}</strong>
           </span>
           {!initialPatient && (
             <Button variant="ghost" size="sm" onClick={() => setPatient(null)}>
-              Change
+              {t('Change')}
             </Button>
           )}
         </div>
@@ -96,14 +97,14 @@ function BookingForm({
             }}
           >
             <TextField
-              label="Find patient"
-              hint="Name or national ID (at least 2 characters)"
+              label={t('Find patient')}
+              hint={t('Name or national ID (at least 2 characters)')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               minLength={2}
             />
             <Button type="submit" variant="secondary">
-              Search
+              {t('Search')}
             </Button>
           </form>
           {results.error ? <ErrorAlert error={results.error} /> : null}
@@ -118,20 +119,20 @@ function BookingForm({
                       </strong>
                       <div className="muted">
                         <span className="mono">{p.nationalId}</span> · {formatDate(p.dateOfBirth)} (
-                        {age(p.dateOfBirth)} y)
+                        {t('{age} y', { age: age(p.dateOfBirth) })})
                       </div>
                     </span>
                     <Button
                       size="sm"
                       onClick={() => setPatient({ id: p.id, name: `${p.firstName} ${p.lastName}` })}
                     >
-                      Select
+                      {t('Select')}
                     </Button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="muted">No patients found at your facility.</p>
+              <p className="muted">{t('No patients found at your facility.')}</p>
             ))}
         </div>
       )}
@@ -139,17 +140,17 @@ function BookingForm({
       <form onSubmit={onSubmit}>
         <div className="form-grid">
           <SelectField
-            label="Doctor"
+            label={t('Doctor')}
             name="doctorId"
             required
-            placeholder={doctors.isPending ? 'Loading…' : 'Choose a doctor'}
+            placeholder={doctors.isPending ? t('Loading…') : t('Choose a doctor')}
             options={(doctors.data?.items ?? []).map((d) => ({
               value: d.id,
               label: `${d.fullName}${d.specialty ? ` — ${d.specialty}` : ''}`,
             }))}
           />
           <TextField
-            label="Date and time"
+            label={t('Date and time')}
             name="scheduledAt"
             type="datetime-local"
             min={min}
@@ -157,14 +158,17 @@ function BookingForm({
             required
           />
           <SelectField
-            label="Duration"
+            label={t('Duration')}
             name="durationMinutes"
             defaultValue="20"
-            options={DURATIONS.map((d) => ({ value: String(d), label: `${d} minutes` }))}
+            options={DURATIONS.map((d) => ({
+              value: String(d),
+              label: t('{count} minutes', { count: d }),
+            }))}
           />
         </div>
         <TextAreaField
-          label="Reason for the visit"
+          label={t('Reason for the visit')}
           name="reason"
           required
           minLength={2}
@@ -174,10 +178,10 @@ function BookingForm({
         <ErrorAlert error={mutation.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onDone}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" loading={mutation.isPending} disabled={!patient}>
-            Book appointment
+            {t('Book appointment')}
           </Button>
         </div>
       </form>
@@ -195,7 +199,7 @@ export function BookAppointmentDialog({
   patient?: PatientRef;
 }) {
   return (
-    <Dialog open={open} onClose={onClose} title="Book appointment" wide>
+    <Dialog open={open} onClose={onClose} title={t('Book appointment')} wide>
       <BookingForm key={patient?.id ?? 'any'} initialPatient={patient} onDone={onClose} />
     </Dialog>
   );

@@ -17,6 +17,7 @@ import {
 import { humanize } from '../../format';
 import { AcceptAssignDialog, ResponseNoteDialog } from './referrals/ReferralDialogs';
 import { availableActions, ReferralItem, type ReferralAction } from './referrals/ReferralItem';
+import { t } from '../../i18n';
 
 type Direction = 'incoming' | 'outgoing';
 const STATUSES: ReferralStatus[] = ['PENDING', 'ACCEPTED', 'DECLINED', 'COMPLETED', 'CANCELLED'];
@@ -71,7 +72,14 @@ export function ReferralsPage() {
         act.mutate({ id: r.id, verb: 'accept' });
         break;
       case 'cancel':
-        if (window.confirm(`Cancel the referral of ${r.patientName} to ${r.toFacilityName}?`)) {
+        if (
+          window.confirm(
+            t('Cancel the referral of {patient} to {facility}?', {
+              patient: r.patientName,
+              facility: r.toFacilityName,
+            }),
+          )
+        ) {
           act.mutate({ id: r.id, verb: 'cancel' });
         }
         break;
@@ -88,35 +96,37 @@ export function ReferralsPage() {
   return (
     <>
       <PageHeader
-        title="Referrals"
+        title={t('Referrals')}
         subtitle={
           user.role === 'DIRECTOR'
-            ? `Referrals to and from ${user.facility?.name ?? 'your facility'}`
-            : 'Referrals you sent and referrals to your facility'
+            ? user.facility
+              ? t('Referrals to and from {facility}', { facility: user.facility.name })
+              : t('Referrals to and from your facility')
+            : t('Referrals you sent and referrals to your facility')
         }
       />
       <Alert tone="info">
-        A pending referral shares only the referring doctor’s written summary. Accepting it gives
-        the assigned doctor access to the patient’s record through the care team. Every step is
-        audited and visible to the patient.
+        {t(
+          'A pending referral shares only the referring doctor’s written summary. Accepting it gives the assigned doctor access to the patient’s record through the care team. Every step is audited and visible to the patient.',
+        )}
       </Alert>
       <Card>
         <div className="row-between">
           <Tabs<Direction>
-            label="Referral direction"
+            label={t('Referral direction')}
             active={direction}
             onChange={setDirection}
             tabs={[
-              { id: 'incoming', label: 'Incoming' },
-              { id: 'outgoing', label: 'Outgoing' },
+              { id: 'incoming', label: t('Incoming') },
+              { id: 'outgoing', label: t('Outgoing') },
             ]}
           />
           <div style={{ minWidth: 200 }}>
             <SelectField
-              label="Status"
+              label={t('Status')}
               value={status}
               onChange={(e) => setStatus(e.target.value as ReferralStatus | '')}
-              placeholder="All statuses"
+              placeholder={t('All statuses')}
               options={STATUSES.map((s) => ({ value: s, label: humanize(s) }))}
             />
           </div>
@@ -126,9 +136,15 @@ export function ReferralsPage() {
           <QueryView query={list}>
             {(d) =>
               d.items.length === 0 ? (
-                <EmptyState title={`No ${direction} referrals`}>
+                <EmptyState
+                  title={
+                    direction === 'incoming'
+                      ? t('No incoming referrals')
+                      : t('No outgoing referrals')
+                  }
+                >
                   {direction === 'outgoing' && user.role === 'DOCTOR'
-                    ? 'Refer a patient from their chart using the “Refer” button.'
+                    ? t('Refer a patient from their chart using the “Refer” button.')
                     : undefined}
                 </EmptyState>
               ) : (

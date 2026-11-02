@@ -18,6 +18,7 @@ import { formatDateTime } from '../../format';
 import { AppointmentActions, useAppointmentStatus } from './appointmentActions';
 import { AppointmentTable } from './AppointmentTable';
 import { BookAppointmentDialog } from './BookAppointmentDialog';
+import { intlLocale, t } from '../../i18n';
 
 const byTime = (a: Appointment, b: Appointment) => a.scheduledAt.localeCompare(b.scheduledAt);
 
@@ -51,26 +52,26 @@ export function ReceptionToday() {
   return (
     <>
       <PageHeader
-        title="Front desk – today"
-        subtitle={new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(new Date())}
-        actions={<Button onClick={() => setBooking(true)}>Book appointment</Button>}
+        title={t('Front desk – today')}
+        subtitle={new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'full' }).format(new Date())}
+        actions={<Button onClick={() => setBooking(true)}>{t('Book appointment')}</Button>}
       />
       <div className="stack">
         <div className="kpi-grid">
-          <Stat label="Booked today" value={active.length} />
+          <Stat label={t('Booked today')} value={active.length} />
           <Stat
-            label="Checked in / waiting"
+            label={t('Checked in / waiting')}
             value={count('CHECKED_IN')}
             tone={count('CHECKED_IN') > 0 ? 'info' : undefined}
           />
-          <Stat label="Completed" value={count('COMPLETED')} tone="success" />
+          <Stat label={t('Completed')} value={count('COMPLETED')} tone="success" />
           <Stat
-            label="No-shows"
+            label={t('No-shows')}
             value={count('NO_SHOW')}
             tone={count('NO_SHOW') > 0 ? 'danger' : undefined}
           />
           <Stat
-            label="Requests to confirm"
+            label={t('Requests to confirm')}
             value={pending.data?.items.length ?? 0}
             tone={(pending.data?.items.length ?? 0) > 0 ? 'warning' : undefined}
           />
@@ -78,36 +79,39 @@ export function ReceptionToday() {
 
         <ErrorAlert error={mutation.error} />
 
-        <Card title="Today's queue" actions={<span className="muted">Refreshes every minute</span>}>
+        <Card
+          title={t("Today's queue")}
+          actions={<span className="muted">{t('Refreshes every minute')}</span>}
+        >
           <QueryView query={today}>
             {() =>
               active.length ? (
                 <AppointmentTable
-                  caption="Today's appointments"
+                  caption={t("Today's appointments")}
                   items={active}
                   mutation={mutation}
                 />
               ) : (
-                <EmptyState title="No appointments today" />
+                <EmptyState title={t('No appointments today')} />
               )
             }
           </QueryView>
         </Card>
 
-        <Card title="Appointment requests awaiting confirmation">
+        <Card title={t('Appointment requests awaiting confirmation')}>
           <QueryView query={pending}>
             {(d) =>
               d.items.length ? (
-                <Table caption="Pending appointment requests">
+                <Table caption={t('Pending appointment requests')}>
                   <thead>
                     <tr>
-                      <th>When</th>
-                      <th>Patient</th>
-                      <th>Doctor</th>
-                      <th>Reason</th>
-                      <th>Status</th>
+                      <th>{t('When')}</th>
+                      <th>{t('Patient')}</th>
+                      <th>{t('Doctor')}</th>
+                      <th>{t('Reason')}</th>
+                      <th>{t('Status')}</th>
                       <th>
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -131,7 +135,7 @@ export function ReceptionToday() {
                   </tbody>
                 </Table>
               ) : (
-                <EmptyState title="No requests waiting" />
+                <EmptyState title={t('No requests waiting')} />
               )
             }
           </QueryView>

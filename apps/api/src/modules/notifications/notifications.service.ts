@@ -3,6 +3,7 @@ import { db, type Executor } from '../../db/client.js';
 import { publish } from '../../lib/events.js';
 import { enqueueEmail } from '../email/outbox.js';
 import { enqueueSms } from '../sms/outbox.js';
+import { DEFAULT_LOCALE, toLocale, tr, type Locale, type TrVars } from '../../i18n/index.js';
 import {
   careAssignments,
   guardianships,
@@ -14,12 +15,30 @@ import {
 
 export interface NotificationInput {
   type: string;
-  /** Keep generic: never include diagnoses, results or other clinical detail. */
+  /**
+   * English source text, translated into each recipient's language (see src/i18n). Put values in
+   * {placeholders} and pass them in `vars`. Keep generic: never include diagnoses, results or other
+   * clinical detail.
+   */
   title: string;
   body?: string;
+  /** Values for {placeholders} in title/body; Dates are formatted for the recipient's language. */
+  vars?: TrVars;
+  /**
+   * Templates wrapped around the translated title, innermost first, e.g.
+   * `{ text: '{title} (covering for {doctor})', vars: { doctor } }`.
+   */
+  wrap?: { text: string; vars?: TrVars }[];
   link?: string;
   /** Important notifications are also emailed to users whose preference is "important only". */
   important?: boolean;
+}
+
+/** The notification title in one language. */
+export function renderTitle(n: NotificationInput, locale: Locale): string {
+  let title = tr(locale, n.title, n.vars);
+  for (const w of n.wrap ?? []) title = tr(locale, w.text, { ...w.vars, title });
+  return title.slice(0, 200);
 }
 
 export async function notifyUsers(
@@ -29,12 +48,22 @@ export async function notifyUsers(
 ) {
   const ids = [...new Set(userIds.filter((x): x is string => Boolean(x)))];
   if (!ids.length) return;
+  // Every recipient gets the notification in their own language.
+  const locales = new Map(
+    (
+      await executor
+        .select({ id: users.id, locale: users.locale })
+        .from(users)
+        .where(inArray(users.id, ids))
+    ).map((u) => [u.id, toLocale(u.locale)]),
+  );
+  const localeOf = (id: string) => locales.get(id) ?? DEFAULT_LOCALE;
   await executor.insert(notifications).values(
     ids.map((userId) => ({
       userId,
       type: n.type,
-      title: n.title,
-      body: n.body ?? null,
+      title: renderTitle(n, localeOf(userId)),
+      body: n.body ? tr(localeOf(userId), n.body, n.vars) : null,
       link: n.link ?? null,
     })),
   );
@@ -55,13 +84,15 @@ export async function notifyUsers(
     .from(users)
     .where(and(inArray(users.id, ids), eq(users.isActive, true), isNotNull(users.passwordHash)));
   for (const r of recipients) {
+    const locale = localeOf(r.id);
+    const title = renderTitle(n, locale);
     // SMS: opt-in, verified numbers only, important notifications only, generic text.
     if (n.important && r.smsPref === 'IMPORTANT' && r.phone && r.phoneVerifiedAt) {
       await enqueueSms(executor, {
         to: r.phone,
         userId: r.id,
         template: 'notification',
-        body: `Pacient: ${n.title}. Sign in to view.`,
+        body: tr(locale, 'Pacient: {title}. Sign in to view.', { title }),
       });
     }
     if (r.pref === 'ALL' || (r.pref === 'IMPORTANT' && n.important)) {
@@ -69,8 +100,9 @@ export async function notifyUsers(
         to: r.email,
         userId: r.id,
         template: 'notification',
+        locale,
         name: r.fullName,
-        title: n.title,
+        title,
         link: n.link ?? null,
       });
     }
@@ -121,7 +153,7 @@ export async function notifyPatient(
       : undefined;
     await notifyUsers(
       guardians.map((g) => g.userId).filter((id) => id !== row?.userId),
-      { ...n, title: `${n.title} (family member)`, link },
+      { ...n, wrap: [...(n.wrap ?? []), { text: '{title} (family member)' }], link },
       executor,
     );
   }

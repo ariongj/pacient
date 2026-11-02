@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { Referral, Role } from '../../../api/types';
 import { Badge, Button, StatusBadge } from '../../../components/ui';
 import { age, formatDate, formatDateTime, humanize } from '../../../format';
+import { t } from '../../../i18n';
 
 export type ReferralAction = 'accept' | 'accept-assign' | 'decline' | 'complete' | 'cancel';
 
@@ -50,31 +51,38 @@ export function ReferralItem({
       <div className="row-between">
         <span className="row">
           {r.priority === 'URGENT' ? (
-            <Badge tone="danger">Urgent</Badge>
+            <Badge tone="danger">{t('Urgent')}</Badge>
           ) : (
-            <Badge tone="neutral">Routine</Badge>
+            <Badge tone="neutral">{t('Routine')}</Badge>
           )}
           <StatusBadge value={r.status} />
           <strong>{r.specialty}</strong>
         </span>
-        <span className="muted">Sent {formatDateTime(r.createdAt)}</span>
+        <span className="muted">{t('Sent {date}', { date: formatDateTime(r.createdAt) })}</span>
       </div>
       <p style={{ margin: '0.4rem 0' }}>
-        <strong>{r.patientName}</strong> · {age(r.patientDateOfBirth)} y · {humanize(r.patientSex)}
+        <strong>{r.patientName}</strong> · {t('{age} y', { age: age(r.patientDateOfBirth) })} ·{' '}
+        {humanize(r.patientSex)}
         {' — '}
         {r.reason}
       </p>
       <div className="muted">
-        From {r.fromDoctorName} ({r.fromFacilityName}) → {r.toFacilityName}
-        {r.toDoctorName ? `, ${r.toDoctorName}` : ' (no doctor assigned yet)'}
-        {r.respondedAt ? ` · updated ${formatDate(r.respondedAt)}` : ''}
+        {t('From {doctor} ({facility})', {
+          doctor: r.fromDoctorName,
+          facility: r.fromFacilityName,
+        })}{' '}
+        → {r.toFacilityName}
+        {r.toDoctorName ? `, ${r.toDoctorName}` : ` ${t('(no doctor assigned yet)')}`}
+        {r.respondedAt ? ` · ${t('updated {date}', { date: formatDate(r.respondedAt) })}` : ''}
       </div>
       <details style={{ marginTop: '0.4rem' }}>
-        <summary>Clinical summary{r.responseNote ? ' and response' : ''}</summary>
+        <summary>
+          {r.responseNote ? t('Clinical summary and response') : t('Clinical summary')}
+        </summary>
         <div className="note">{r.clinicalSummary}</div>
         {r.responseNote && (
           <div className="addendum">
-            <strong>Response:</strong> {r.responseNote}
+            <strong>{t('Response:')}</strong> {r.responseNote}
           </div>
         )}
       </details>
@@ -82,7 +90,7 @@ export function ReferralItem({
         <div className="row" style={{ marginTop: '0.5rem' }}>
           {canOpenRecord && (
             <Link className="btn btn-secondary btn-sm" to={`/doctor/patients/${r.patientId}`}>
-              Open patient record
+              {t('Open patient record')}
             </Link>
           )}
           {actions.map((a) => (
@@ -93,7 +101,7 @@ export function ReferralItem({
               disabled={busy}
               onClick={() => onAction(a)}
             >
-              {ACTION_LABEL[a]}
+              {t(ACTION_LABEL[a])}
             </Button>
           ))}
         </div>

@@ -182,7 +182,10 @@ async function alertDoctor(
     if (c.coverDoctorId === order.orderedById) continue;
     await notifyUsers(
       [c.coverDoctorId],
-      { ...n, title: `${n.title} (covering for ${c.doctorName})`.slice(0, 200) },
+      {
+        ...n,
+        wrap: [{ text: '{title} (covering for {doctor})', vars: { doctor: c.doctorName } }],
+      },
       tx,
     );
   }

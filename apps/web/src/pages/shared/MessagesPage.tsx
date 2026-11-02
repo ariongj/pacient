@@ -25,6 +25,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { formatDateTime } from '../../format';
+import { t } from '../../i18n';
 
 /**
  * Secure, non-urgent messaging between a patient and the doctors in their care team.
@@ -92,8 +93,10 @@ function NewThreadForm({
     return (
       <Alert tone="warning">
         {isPatient
-          ? 'You do not have a doctor in your care team yet, so you cannot start a conversation.'
-          : 'You have no patients in your care. Messages can only be sent within a care relationship.'}
+          ? t('You do not have a doctor in your care team yet, so you cannot start a conversation.')
+          : t(
+              'You have no patients in your care. Messages can only be sent within a care relationship.',
+            )}
       </Alert>
     );
   }
@@ -101,30 +104,30 @@ function NewThreadForm({
   return (
     <form onSubmit={onSubmit}>
       <SelectField
-        label={isPatient ? 'Doctor' : 'Patient'}
+        label={isPatient ? t('Doctor') : t('Patient')}
         name="recipient"
         required
         disabled={loading}
         defaultValue={!isPatient && prefillPatientId ? prefillPatientId : undefined}
         key={options.length}
-        placeholder={loading ? 'Loading…' : 'Choose…'}
+        placeholder={loading ? t('Loading…') : t('Choose…')}
         options={options}
       />
-      <TextField label="Subject" name="subject" required minLength={2} maxLength={200} />
+      <TextField label={t('Subject')} name="subject" required minLength={2} maxLength={200} />
       <TextAreaField
-        label="Message"
+        label={t('Message')}
         name="body"
         required
         maxLength={5000}
-        hint={isPatient ? 'Not for emergencies — call 112 if you need urgent help.' : undefined}
+        hint={isPatient ? t('Not for emergencies — call 112 if you need urgent help.') : undefined}
       />
       <ErrorAlert error={create.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={create.isPending}>
-          Send
+          {t('Send')}
         </Button>
       </div>
     </form>
@@ -169,52 +172,58 @@ function Conversation({ threadId }: { threadId: string }) {
 
   return (
     <QueryView query={q}>
-      {(t) => (
+      {(th) => (
         <Card
-          title={t.subject}
+          title={th.subject}
           actions={
             <span className="row">
-              {t.status === 'CLOSED' && <Badge tone="neutral">Closed</Badge>}
-              {user.role === 'DOCTOR' && t.status === 'OPEN' && (
+              {th.status === 'CLOSED' && <Badge tone="neutral">{t('Closed')}</Badge>}
+              {user.role === 'DOCTOR' && th.status === 'OPEN' && (
                 <Button
                   variant="secondary"
                   size="sm"
                   loading={close.isPending}
                   onClick={() => {
                     if (
-                      window.confirm('Close this conversation? Neither side can reply afterwards.')
+                      window.confirm(
+                        t('Close this conversation? Neither side can reply afterwards.'),
+                      )
                     ) {
                       close.mutate();
                     }
                   }}
                 >
-                  Close conversation
+                  {t('Close conversation')}
                 </Button>
               )}
             </span>
           }
         >
           <p className="muted">
-            {user.role === 'PATIENT' ? `With ${t.doctorName}` : `With ${t.patientName}`}
+            {t('With {name}', {
+              name: user.role === 'PATIENT' ? th.doctorName : th.patientName,
+            })}
           </p>
           <ErrorAlert error={close.error} />
-          <div className="chat" role="log" aria-label="Messages" aria-live="polite">
-            {t.messages.map((m) => {
+          <div className="chat" role="log" aria-label={t('Messages')} aria-live="polite">
+            {th.messages.map((m) => {
               const mine = m.senderId === user.id;
               return (
                 <div key={m.id} className={`bubble ${mine ? 'bubble-mine' : ''}`}>
-                  <span className="sr-only">{mine ? 'You wrote:' : `${m.senderName} wrote:`}</span>
+                  <span className="sr-only">
+                    {mine ? t('You wrote:') : t('{name} wrote:', { name: m.senderName })}
+                  </span>
                   {m.body}
                   <div className="bubble-meta">
-                    {mine ? 'You' : m.senderName} · {formatDateTime(m.createdAt)}
-                    {mine && m.readAt ? ' · Read' : ''}
+                    {mine ? t('You') : m.senderName} · {formatDateTime(m.createdAt)}
+                    {mine && m.readAt ? ` · ${t('Read')}` : ''}
                   </div>
                 </div>
               );
             })}
             <div ref={endRef} />
           </div>
-          {t.canReply ? (
+          {th.canReply ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -223,7 +232,7 @@ function Conversation({ threadId }: { threadId: string }) {
               style={{ marginTop: '1rem' }}
             >
               <TextAreaField
-                label="Reply"
+                label={t('Reply')}
                 name="reply"
                 rows={3}
                 required
@@ -234,15 +243,15 @@ function Conversation({ threadId }: { threadId: string }) {
               <ErrorAlert error={send.error} />
               <div className="form-actions">
                 <Button type="submit" loading={send.isPending} disabled={!body.trim()}>
-                  Send
+                  {t('Send')}
                 </Button>
               </div>
             </form>
           ) : (
             <Alert tone="neutral">
-              {t.status === 'CLOSED'
-                ? 'This conversation has been closed. Start a new message if you need to.'
-                : 'Replies are not possible because the care relationship has ended.'}
+              {th.status === 'CLOSED'
+                ? t('This conversation has been closed. Start a new message if you need to.')
+                : t('Replies are not possible because the care relationship has ended.')}
             </Alert>
           )}
         </Card>
@@ -275,50 +284,55 @@ export function MessagesPage() {
   return (
     <>
       <PageHeader
-        title="Messages"
+        title={t('Messages')}
         subtitle={
           isPatient
-            ? 'Secure messages with the doctors in your care team.'
-            : 'Secure messages with patients in your care.'
+            ? t('Secure messages with the doctors in your care team.')
+            : t('Secure messages with patients in your care.')
         }
-        actions={<Button onClick={() => setComposing(true)}>New message</Button>}
+        actions={<Button onClick={() => setComposing(true)}>{t('New message')}</Button>}
       />
       {isPatient && (
         <Alert tone="info">
-          Messages are for non-urgent questions and are answered during working hours. In an
-          emergency, call <strong>112</strong>.
+          {t(
+            'Messages are for non-urgent questions and are answered during working hours. In an emergency, call 112.',
+          )}
         </Alert>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start' }}>
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-          <Card title="Conversations">
+          <Card title={t('Conversations')}>
             <QueryView query={threads}>
               {(d) =>
                 d.items.length ? (
-                  <nav aria-label="Conversations" className="thread-list">
-                    {d.items.map((t) => (
+                  <nav aria-label={t('Conversations')} className="thread-list">
+                    {d.items.map((th) => (
                       <button
-                        key={t.id}
+                        key={th.id}
                         type="button"
-                        aria-current={t.id === selected ? 'true' : undefined}
-                        onClick={() => select(t.id)}
+                        aria-current={th.id === selected ? 'true' : undefined}
+                        onClick={() => select(th.id)}
                       >
                         <div className="row-between">
-                          <strong>{t.subject}</strong>
+                          <strong>{th.subject}</strong>
                           <span className="row">
-                            {t.unreadCount > 0 && <Badge tone="info">{t.unreadCount} new</Badge>}
-                            {t.status === 'CLOSED' && <Badge tone="neutral">Closed</Badge>}
+                            {th.unreadCount > 0 && (
+                              <Badge tone="info">
+                                {t('{count} new', { count: th.unreadCount })}
+                              </Badge>
+                            )}
+                            {th.status === 'CLOSED' && <Badge tone="neutral">{t('Closed')}</Badge>}
                           </span>
                         </div>
                         <div className="muted" style={{ fontSize: '0.85rem' }}>
-                          {isPatient ? t.doctorName : t.patientName} ·{' '}
-                          {formatDateTime(t.lastMessageAt)}
+                          {isPatient ? th.doctorName : th.patientName} ·{' '}
+                          {formatDateTime(th.lastMessageAt)}
                         </div>
                       </button>
                     ))}
                   </nav>
                 ) : (
-                  <EmptyState title="No conversations yet" />
+                  <EmptyState title={t('No conversations yet')} />
                 )
               }
             </QueryView>
@@ -329,14 +343,14 @@ export function MessagesPage() {
             <Conversation key={selected} threadId={selected} />
           ) : (
             <Card>
-              <EmptyState title="Select a conversation">
-                Choose a conversation on the left, or start a new message.
+              <EmptyState title={t('Select a conversation')}>
+                {t('Choose a conversation on the left, or start a new message.')}
               </EmptyState>
             </Card>
           )}
         </div>
       </div>
-      <Dialog open={composing} onClose={() => setComposing(false)} title="New message" wide>
+      <Dialog open={composing} onClose={() => setComposing(false)} title={t('New message')} wide>
         <NewThreadForm
           prefillPatientId={prefillPatientId}
           onCancel={() => setComposing(false)}

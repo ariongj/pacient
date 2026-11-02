@@ -16,6 +16,7 @@ import { humanize } from '../../format';
 import { useAppointmentStatus } from './appointmentActions';
 import { AppointmentTable } from './AppointmentTable';
 import { BookAppointmentDialog } from './BookAppointmentDialog';
+import { intlLocale, t } from '../../i18n';
 
 const STATUSES: AppointmentStatus[] = [
   'REQUESTED',
@@ -62,7 +63,7 @@ export function ReceptionAppointments() {
     const key = isoDay(new Date(a.scheduledAt));
     days.set(key, [...(days.get(key) ?? []), a]);
   }
-  const dayFmt = new Intl.DateTimeFormat('en-GB', {
+  const dayFmt = new Intl.DateTimeFormat(intlLocale(), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -71,41 +72,43 @@ export function ReceptionAppointments() {
   return (
     <>
       <PageHeader
-        title="Appointments"
-        subtitle="Facility schedule across all doctors"
-        actions={<Button onClick={() => setBooking(true)}>Book appointment</Button>}
+        title={t('Appointments')}
+        subtitle={t('Facility schedule across all doctors')}
+        actions={<Button onClick={() => setBooking(true)}>{t('Book appointment')}</Button>}
       />
       <Card>
         <div className="form-grid">
           <TextField
-            label="From"
+            label={t('From')}
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
           <TextField
-            label="To"
+            label={t('To')}
             type="date"
             value={to}
             min={from}
             onChange={(e) => setTo(e.target.value)}
           />
           <SelectField
-            label="Status"
+            label={t('Status')}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            placeholder="All statuses"
+            placeholder={t('All statuses')}
             options={STATUSES.map((s) => ({ value: s, label: humanize(s) }))}
           />
           <SelectField
-            label="Doctor"
+            label={t('Doctor')}
             value={doctorId}
             onChange={(e) => setDoctorId(e.target.value)}
-            placeholder="All doctors"
+            placeholder={t('All doctors')}
             options={(doctors.data?.items ?? []).map((d) => ({ value: d.id, label: d.fullName }))}
           />
         </div>
-        {from > to && <p className="error-text">The start date must be before the end date.</p>}
+        {from > to && (
+          <p className="error-text">{t('The start date must be before the end date.')}</p>
+        )}
       </Card>
       <ErrorAlert error={mutation.error} />
       <div className="stack" style={{ marginTop: '1rem' }}>
@@ -118,7 +121,7 @@ export function ReceptionAppointments() {
                   title={`${dayFmt.format(new Date(`${day}T12:00:00`))} · ${items.length}`}
                 >
                   <AppointmentTable
-                    caption={`Appointments on ${day}`}
+                    caption={t('Appointments on {day}', { day })}
                     items={items}
                     mutation={mutation}
                   />
@@ -126,7 +129,7 @@ export function ReceptionAppointments() {
               ))
             ) : (
               <Card>
-                <EmptyState title="No appointments in this period" />
+                <EmptyState title={t('No appointments in this period')} />
               </Card>
             )
           }

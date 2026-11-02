@@ -2,6 +2,7 @@ import type { Appointment } from '../../api/types';
 import { StatusBadge, Table } from '../../components/ui';
 import { formatTime } from '../../format';
 import { AppointmentActions, type useAppointmentStatus } from './appointmentActions';
+import { t } from '../../i18n';
 
 export function AppointmentTable({
   caption,
@@ -16,13 +17,13 @@ export function AppointmentTable({
     <Table caption={caption}>
       <thead>
         <tr>
-          <th>Time</th>
-          <th>Patient</th>
-          <th>Doctor</th>
-          <th>Reason</th>
-          <th>Status</th>
+          <th>{t('Time')}</th>
+          <th>{t('Patient')}</th>
+          <th>{t('Doctor')}</th>
+          <th>{t('Reason')}</th>
+          <th>{t('Status')}</th>
           <th>
-            <span className="sr-only">Actions</span>
+            <span className="sr-only">{t('Actions')}</span>
           </th>
         </tr>
       </thead>
@@ -31,7 +32,7 @@ export function AppointmentTable({
           <tr key={a.id}>
             <td className="mono">
               {formatTime(a.scheduledAt)}
-              <div className="muted">{a.durationMinutes} min</div>
+              <div className="muted">{t('{minutes} min', { minutes: a.durationMinutes })}</div>
             </td>
             <td>
               <strong>{a.patientName}</strong>

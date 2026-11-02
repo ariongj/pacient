@@ -17,6 +17,7 @@ import {
 import { age, formatTime, fullName, humanize } from '../../format';
 import { DueText, isOverdue, TaskActions, TaskFlags } from '../shared/tasks/TaskActions';
 import { useCheckIn, useDaySchedule } from './appointments';
+import { t } from '../../i18n';
 
 /** Shift overview: my tasks, patients waiting, and my patients. */
 export function NurseHome() {
@@ -36,7 +37,7 @@ export function NurseHome() {
 
   const openTasks = tasks.data?.items ?? [];
   const overdue = openTasks.filter(isOverdue).length;
-  const urgent = openTasks.filter((t) => t.priority === 'URGENT').length;
+  const urgent = openTasks.filter((task) => task.priority === 'URGENT').length;
   const appts = today.data?.items ?? [];
   const waiting = appts.filter((a) => a.status === 'CHECKED_IN');
   const expected = appts.filter((a) => a.status === 'CONFIRMED');
@@ -44,65 +45,70 @@ export function NurseHome() {
   return (
     <>
       <PageHeader
-        title="Shift overview"
+        title={t('Shift overview')}
         subtitle={`${user.fullName}${user.facility ? ` · ${user.facility.name}` : ''}`}
         actions={
           <Link to="/tasks" className="btn btn-secondary btn-md">
-            All care tasks
+            {t('All care tasks')}
           </Link>
         }
       />
       <div className="stack">
         <div className="kpi-grid">
-          <Stat label="My open tasks" value={tasks.data ? openTasks.length : '…'} />
+          <Stat label={t('My open tasks')} value={tasks.data ? openTasks.length : '…'} />
           <Stat
-            label="Overdue"
+            label={t('Overdue')}
             value={tasks.data ? overdue : '…'}
             tone={overdue ? 'danger' : 'success'}
           />
           <Stat
-            label="Urgent"
+            label={t('Urgent')}
             value={tasks.data ? urgent : '…'}
             tone={urgent ? 'warning' : 'success'}
           />
           <Stat
-            label="Patients in my care"
+            label={t('Patients in my care')}
             value={patients.data ? patients.data.total : '…'}
             tone="info"
           />
           <Stat
-            label="Checked in, waiting"
+            label={t('Checked in, waiting')}
             value={today.data ? waiting.length : '…'}
             tone={waiting.length ? 'warning' : undefined}
-            hint={today.data ? `${expected.length} still expected today` : undefined}
+            hint={
+              today.data ? t('{count} still expected today', { count: expected.length }) : undefined
+            }
           />
         </div>
 
         <div className="two-col">
-          <Card title="My tasks" actions={<Link to="/tasks">View all</Link>}>
+          <Card title={t('My tasks')} actions={<Link to="/tasks">{t('View all')}</Link>}>
             <QueryView query={tasks}>
               {(d) =>
                 d.items.length === 0 ? (
-                  <EmptyState title="No open tasks">Nothing assigned to you right now.</EmptyState>
+                  <EmptyState title={t('No open tasks')}>
+                    {t('Nothing assigned to you right now.')}
+                  </EmptyState>
                 ) : (
                   <ul className="list">
-                    {d.items.slice(0, 10).map((t) => (
-                      <li key={t.id}>
+                    {d.items.slice(0, 10).map((task) => (
+                      <li key={task.id}>
                         <div className="row-between">
                           <span>
-                            <strong>{t.title}</strong> ·{' '}
-                            <Link to={`/nurse/patients/${t.patientId}?tab=tasks`}>
-                              {t.patientName}
+                            <strong>{task.title}</strong> ·{' '}
+                            <Link to={`/nurse/patients/${task.patientId}?tab=tasks`}>
+                              {task.patientName}
                             </Link>
                           </span>
-                          <TaskFlags task={t} />
+                          <TaskFlags task={task} />
                         </div>
-                        {t.details && <div className="muted">{t.details}</div>}
+                        {task.details && <div className="muted">{task.details}</div>}
                         <div className="row-between">
                           <span className="muted">
-                            Due <DueText task={t} /> · from {t.createdByName}
+                            {t('Due')} <DueText task={task} /> ·{' '}
+                            {t('from {name}', { name: task.createdByName })}
                           </span>
-                          <TaskActions task={t} />
+                          <TaskActions task={task} />
                         </div>
                       </li>
                     ))}
@@ -114,14 +120,14 @@ export function NurseHome() {
 
           <div className="stack">
             <Card
-              title="Patients waiting"
-              actions={<Link to="/nurse/schedule">Clinic schedule</Link>}
+              title={t('Patients waiting')}
+              actions={<Link to="/nurse/schedule">{t('Clinic schedule')}</Link>}
             >
               <ErrorAlert error={checkIn.error} />
               <QueryView query={today}>
                 {() =>
                   waiting.length + expected.length === 0 ? (
-                    <EmptyState title="No clinic appointments today" />
+                    <EmptyState title={t('No clinic appointments today')} />
                   ) : (
                     <ul className="list">
                       {waiting.map((a) => (
@@ -151,7 +157,7 @@ export function NurseHome() {
                             loading={checkIn.isPending && checkIn.variables === a.id}
                             onClick={() => checkIn.mutate(a.id)}
                           >
-                            Check in
+                            {t('Check in')}
                           </Button>
                         </li>
                       ))}
@@ -161,12 +167,15 @@ export function NurseHome() {
               </QueryView>
             </Card>
 
-            <Card title="My patients" actions={<Link to="/nurse/patients">All patients</Link>}>
+            <Card
+              title={t('My patients')}
+              actions={<Link to="/nurse/patients">{t('All patients')}</Link>}
+            >
               <QueryView query={patients}>
                 {(d) =>
                   d.items.length === 0 ? (
-                    <EmptyState title="No patients in your care">
-                      Join a care team from the patient list.
+                    <EmptyState title={t('No patients in your care')}>
+                      {t('Join a care team from the patient list.')}
                     </EmptyState>
                   ) : (
                     <ul className="list">
@@ -174,7 +183,7 @@ export function NurseHome() {
                         <li key={p.id} className="row-between">
                           <Link to={`/nurse/patients/${p.id}`}>{fullName(p)}</Link>
                           <span className="muted">
-                            {age(p.dateOfBirth)} y · {humanize(p.sex)}
+                            {t('{age} y', { age: age(p.dateOfBirth) })} · {humanize(p.sex)}
                           </span>
                         </li>
                       ))}

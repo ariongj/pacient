@@ -48,7 +48,8 @@ export type Env = Omit<
 > & {
   MFA_ENCRYPTION_KEY: string;
   REQUIRE_STAFF_MFA: boolean;
-  EMAIL_TRANSPORT: 'smtp' | 'log' | 'memory';
+  /** 'held' = queue only, no delivery (production without SMTP settings). */
+  EMAIL_TRANSPORT: 'smtp' | 'log' | 'memory' | 'held';
 };
 
 function loadEnv(): Env {
@@ -59,13 +60,17 @@ function loadEnv(): Env {
     throw new Error(`Invalid environment configuration:\n${issues.join('\n')}`);
   }
   const data = parsed.data;
-  const emailTransport =
+  // Production without SMTP settings holds email in the outbox (delivered once SMTP is configured)
+  // rather than refusing to start; an explicit EMAIL_TRANSPORT=smtp without SMTP_URL is an error.
+  const emailTransport: Env['EMAIL_TRANSPORT'] =
     data.EMAIL_TRANSPORT ??
     (data.NODE_ENV === 'test'
       ? 'memory'
-      : data.SMTP_URL || data.NODE_ENV === 'production'
+      : data.SMTP_URL
         ? 'smtp'
-        : 'log');
+        : data.NODE_ENV === 'production'
+          ? 'held'
+          : 'log');
   if (emailTransport === 'smtp' && !data.SMTP_URL) {
     throw new Error(
       'Invalid environment configuration:\n  - SMTP_URL is required for email delivery',

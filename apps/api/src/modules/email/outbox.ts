@@ -112,6 +112,12 @@ let running = false;
 
 export function startEmailWorker(intervalMs = 5_000) {
   if (timer || isTest || env.EMAIL_WORKER !== 'true') return;
+  if (env.EMAIL_TRANSPORT === 'held') {
+    logger.warn(
+      'SMTP_URL is not set: emails (activation, password reset, notifications) are queued but not delivered',
+    );
+    return;
+  }
   timer = setInterval(() => {
     if (running) return;
     running = true;

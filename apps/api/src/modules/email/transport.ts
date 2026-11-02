@@ -51,6 +51,8 @@ let instance: EmailTransport | null = null;
 
 export function getTransport(): EmailTransport {
   if (override) return override;
+  if (env.EMAIL_TRANSPORT === 'held')
+    throw new Error('Email delivery is not configured (SMTP_URL)');
   instance ??=
     env.EMAIL_TRANSPORT === 'smtp'
       ? new SmtpTransport()

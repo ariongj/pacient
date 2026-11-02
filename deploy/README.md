@@ -57,8 +57,12 @@ The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH` command ref
 account already exists, creates a single-use 72-hour invitation, and writes its URL only to a
 new 0600 file. Run it inside the API image with a temporary private bind mount; do not expose
 that directory through HTTP. The owner chooses their password through the activation page.
-Email delivery is not implemented in the supplied application; activation/reset delivery must
-be configured or handled through an explicitly authorized private setup process before use.
+Email delivery (activation, password reset and notification emails) uses an SMTP relay: add
+`SMTP_URL` (e.g. `smtps://user:password@smtp.example.org:465`) and `EMAIL_FROM` to `.env.vps`,
+keeping the credentials as private as the other secrets. Without `SMTP_URL` the API starts but holds
+all email in its outbox (visible to the Ministry under email delivery health) and delivers it once SMTP
+is configured; activation links expire after 72 hours, so issue new invitations if delivery was
+delayed. Emails never contain clinical information.
 
 ## Pages deployment
 

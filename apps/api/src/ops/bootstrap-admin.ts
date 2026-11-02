@@ -22,7 +22,12 @@ export async function bootstrapAdmin(email: string, outputPath: string): Promise
       }
       const [user] = await tx
         .insert(users)
-        .values({ email: normalized, fullName: 'Administrator', role: 'MINISTRY', facilityId: null })
+        .values({
+          email: normalized,
+          fullName: 'Administrator',
+          role: 'MINISTRY',
+          facilityId: null,
+        })
         .returning();
       if (!user) throw new Error('Could not create the first administrator');
       const token = generateOpaqueToken();

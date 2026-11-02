@@ -62,7 +62,11 @@ export function ReceptionAppointments() {
     const key = isoDay(new Date(a.scheduledAt));
     days.set(key, [...(days.get(key) ?? []), a]);
   }
-  const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dayFmt = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 
   return (
     <>
@@ -73,8 +77,19 @@ export function ReceptionAppointments() {
       />
       <Card>
         <div className="form-grid">
-          <TextField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <TextField label="To" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+          <TextField
+            label="From"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <TextField
+            label="To"
+            type="date"
+            value={to}
+            min={from}
+            onChange={(e) => setTo(e.target.value)}
+          />
           <SelectField
             label="Status"
             value={status}
@@ -98,8 +113,15 @@ export function ReceptionAppointments() {
           {() =>
             days.size ? (
               [...days.entries()].map(([day, items]) => (
-                <Card key={day} title={`${dayFmt.format(new Date(`${day}T12:00:00`))} · ${items.length}`}>
-                  <AppointmentTable caption={`Appointments on ${day}`} items={items} mutation={mutation} />
+                <Card
+                  key={day}
+                  title={`${dayFmt.format(new Date(`${day}T12:00:00`))} · ${items.length}`}
+                >
+                  <AppointmentTable
+                    caption={`Appointments on ${day}`}
+                    items={items}
+                    mutation={mutation}
+                  />
                 </Card>
               ))
             ) : (

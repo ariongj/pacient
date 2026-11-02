@@ -5,15 +5,33 @@ import { Button, ErrorAlert } from '../../components/ui';
 
 /** Front-desk status changes allowed by the server for reception. */
 const ACTIONS: Partial<
-  Record<AppointmentStatus, { to: AppointmentStatus; label: string; confirm?: string; variant?: 'primary' | 'secondary' | 'danger' }[]>
+  Record<
+    AppointmentStatus,
+    {
+      to: AppointmentStatus;
+      label: string;
+      confirm?: string;
+      variant?: 'primary' | 'secondary' | 'danger';
+    }[]
+  >
 > = {
   REQUESTED: [
     { to: 'CONFIRMED', label: 'Confirm' },
-    { to: 'CANCELLED', label: 'Cancel', confirm: 'Cancel this appointment request?', variant: 'secondary' },
+    {
+      to: 'CANCELLED',
+      label: 'Cancel',
+      confirm: 'Cancel this appointment request?',
+      variant: 'secondary',
+    },
   ],
   CONFIRMED: [
     { to: 'CHECKED_IN', label: 'Check in' },
-    { to: 'NO_SHOW', label: 'No-show', confirm: 'Mark the patient as a no-show?', variant: 'secondary' },
+    {
+      to: 'NO_SHOW',
+      label: 'No-show',
+      confirm: 'Mark the patient as a no-show?',
+      variant: 'secondary',
+    },
     { to: 'CANCELLED', label: 'Cancel', confirm: 'Cancel this appointment?', variant: 'secondary' },
   ],
   CHECKED_IN: [{ to: 'CONFIRMED', label: 'Undo check-in', variant: 'secondary' }],

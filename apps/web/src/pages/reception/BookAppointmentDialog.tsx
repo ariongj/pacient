@@ -24,7 +24,13 @@ export interface PatientRef {
   name: string;
 }
 
-function BookingForm({ initialPatient, onDone }: { initialPatient?: PatientRef; onDone: () => void }) {
+function BookingForm({
+  initialPatient,
+  onDone,
+}: {
+  initialPatient?: PatientRef;
+  onDone: () => void;
+}) {
   const queryClient = useQueryClient();
   const [patient, setPatient] = useState<PatientRef | null>(initialPatient ?? null);
   const [search, setSearch] = useState('');
@@ -101,8 +107,8 @@ function BookingForm({ initialPatient, onDone }: { initialPatient?: PatientRef; 
             </Button>
           </form>
           {results.error ? <ErrorAlert error={results.error} /> : null}
-          {results.data && (
-            results.data.items.length ? (
+          {results.data &&
+            (results.data.items.length ? (
               <ul className="list">
                 {results.data.items.map((p) => (
                   <li key={p.id} className="row-between">
@@ -126,8 +132,7 @@ function BookingForm({ initialPatient, onDone }: { initialPatient?: PatientRef; 
               </ul>
             ) : (
               <p className="muted">No patients found at your facility.</p>
-            )
-          )}
+            ))}
         </div>
       )}
 
@@ -158,7 +163,14 @@ function BookingForm({ initialPatient, onDone }: { initialPatient?: PatientRef; 
             options={DURATIONS.map((d) => ({ value: String(d), label: `${d} minutes` }))}
           />
         </div>
-        <TextAreaField label="Reason for the visit" name="reason" required minLength={2} maxLength={500} rows={2} />
+        <TextAreaField
+          label="Reason for the visit"
+          name="reason"
+          required
+          minLength={2}
+          maxLength={500}
+          rows={2}
+        />
         <ErrorAlert error={mutation.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onDone}>

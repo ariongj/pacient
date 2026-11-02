@@ -277,8 +277,7 @@ function Detail({ id }: { id: string }) {
 
       <Card title="Safety checks">
         <p className="muted">
-          Decision support – does not replace professional judgement or a full interaction
-          database.
+          Decision support – does not replace professional judgement or a full interaction database.
         </p>
         {c.alerts.length ? (
           <ul className="alert-list">
@@ -407,8 +406,8 @@ export function PharmacyQueue() {
         subtitle="Verify, dispense or return prescriptions written at your facility."
       />
       <Alert tone="info">
-        You see only the medication context needed to check each prescription — not the full
-        record. Every context view is logged and visible to the patient.
+        You see only the medication context needed to check each prescription — not the full record.
+        Every context view is logged and visible to the patient.
       </Alert>
       <div className="stack">
         <div className="kpi-grid">
@@ -453,9 +452,7 @@ export function PharmacyQueue() {
                             key={it.id}
                             aria-current={selected === it.id ? 'true' : undefined}
                             style={
-                              selected === it.id
-                                ? { background: 'var(--primary-soft)' }
-                                : undefined
+                              selected === it.id ? { background: 'var(--primary-soft)' } : undefined
                             }
                           >
                             <td>

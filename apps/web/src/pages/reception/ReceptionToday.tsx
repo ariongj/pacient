@@ -3,7 +3,17 @@ import { useState } from 'react';
 import { api } from '../../api/client';
 import type { Appointment } from '../../api/types';
 import { AnnouncementsCard } from '../../components/Announcements';
-import { Button, Card, EmptyState, ErrorAlert, PageHeader, QueryView, Stat, StatusBadge, Table } from '../../components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorAlert,
+  PageHeader,
+  QueryView,
+  Stat,
+  StatusBadge,
+  Table,
+} from '../../components/ui';
 import { formatDateTime } from '../../format';
 import { AppointmentActions, useAppointmentStatus } from './appointmentActions';
 import { AppointmentTable } from './AppointmentTable';
@@ -72,7 +82,11 @@ export function ReceptionToday() {
           <QueryView query={today}>
             {() =>
               active.length ? (
-                <AppointmentTable caption="Today's appointments" items={active} mutation={mutation} />
+                <AppointmentTable
+                  caption="Today's appointments"
+                  items={active}
+                  mutation={mutation}
+                />
               ) : (
                 <EmptyState title="No appointments today" />
               )

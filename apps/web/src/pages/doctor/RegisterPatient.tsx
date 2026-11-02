@@ -16,6 +16,7 @@ import {
   Table,
   TextField,
 } from '../../components/ui';
+import { useUser } from '../../auth/AuthContext';
 import { formatDate } from '../../format';
 
 const SEX = ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN'] as const;
@@ -35,6 +36,10 @@ interface RegisterResult {
 
 export function RegisterPatient() {
   const qc = useQueryClient();
+  // Shared by doctors and reception; reception has no chart, so links go back to the patient list.
+  const isReception = useUser().role === 'RECEPTION';
+  const listPath = isReception ? '/reception/patients' : '/doctor/patients';
+  const recordPath = (id: string) => (isReception ? listPath : `/doctor/patients/${id}`);
   const formRef = useRef<HTMLFormElement>(null);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -87,8 +92,8 @@ export function RegisterPatient() {
             </Alert>
           )}
           <div className="row">
-            <Link to={`/doctor/patients/${result.patient.id}`} className="btn btn-primary btn-md">
-              Open chart
+            <Link to={recordPath(result.patient.id)} className="btn btn-primary btn-md">
+              {isReception ? 'Back to patients' : 'Open chart'}
             </Link>
             <Button
               variant="secondary"
@@ -208,7 +213,9 @@ export function RegisterPatient() {
                       </td>
                       <td>{formatDate(c.dateOfBirth)}</td>
                       <td>
-                        <Link to={`/doctor/patients/${c.id}`}>Open existing record</Link>
+                        <Link to={recordPath(c.id)}>
+                          {isReception ? 'Find in patient list' : 'Open existing record'}
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -227,7 +234,7 @@ export function RegisterPatient() {
 
           {!isDuplicateError && <ErrorAlert error={register.error} />}
           <div className="form-actions">
-            <Link to="/doctor/patients" className="btn btn-secondary btn-md">
+            <Link to={listPath} className="btn btn-secondary btn-md">
               Cancel
             </Link>
             <Button

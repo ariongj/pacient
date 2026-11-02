@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import type { Referral, ReferralStatus } from '../../api/types';
@@ -19,6 +20,7 @@ const STATUS: Record<ReferralStatus, { tone: Tone; label: string }> = {
   COMPLETED: { tone: 'success', label: 'Completed' },
   CANCELLED: { tone: 'neutral', label: 'Cancelled' },
 };
+// Labels are translated at render time with t().
 
 export function PortalReferrals() {
   const q = useQuery({
@@ -28,13 +30,14 @@ export function PortalReferrals() {
   return (
     <>
       <PageHeader
-        title="Referrals"
-        subtitle="When your doctor sends you to another facility or specialist."
+        title={t('Referrals')}
+        subtitle={t('When your doctor sends you to another facility or specialist.')}
       />
       <Alert tone="info">
-        When you are referred, the receiving facility sees the summary your doctor wrote. They can
-        open your full record only after accepting the referral, and every access is shown under{' '}
-        <strong>Who viewed my record</strong>.
+        {t(
+          'When you are referred, the receiving facility sees the summary your doctor wrote. They can open your full record only after accepting the referral, and every access is shown under',
+        )}{' '}
+        <strong>{t('Who viewed my record')}</strong>.
       </Alert>
       <QueryView query={q}>
         {(d) =>
@@ -46,39 +49,41 @@ export function PortalReferrals() {
                   title={r.specialty}
                   actions={
                     <span className="row">
-                      {r.priority === 'URGENT' && <Badge tone="danger">Urgent</Badge>}
-                      <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                      {r.priority === 'URGENT' && <Badge tone="danger">{t('Urgent')}</Badge>}
+                      <Badge tone={STATUS[r.status].tone}>{t(STATUS[r.status].label)}</Badge>
                     </span>
                   }
                 >
                   <p>
-                    <strong>From</strong> {r.fromDoctorName}, {r.fromFacilityName}
+                    <strong>{t('From')}</strong> {r.fromDoctorName}, {r.fromFacilityName}
                     <br />
-                    <strong>To</strong> {r.toFacilityName}
+                    <strong>{t('To')}</strong> {r.toFacilityName}
                     {r.toDoctorName ? ` — ${r.toDoctorName}` : ''}
                   </p>
                   <p>
-                    <strong>Reason:</strong> {r.reason}
+                    <strong>{t('Reason:')}</strong> {r.reason}
                   </p>
                   <details>
-                    <summary>Summary sent by your doctor</summary>
+                    <summary>{t('Summary sent by your doctor')}</summary>
                     <div className="note">{r.clinicalSummary}</div>
                   </details>
                   {r.responseNote && (
                     <div className="addendum">
-                      <strong>Response from the receiving facility:</strong> {r.responseNote}
+                      <strong>{t('Response from the receiving facility:')}</strong> {r.responseNote}
                     </div>
                   )}
                   <p className="muted" style={{ fontSize: '0.85rem' }}>
-                    Referred {formatDate(r.createdAt)}
-                    {r.respondedAt ? ` · updated ${formatDate(r.respondedAt)}` : ''}
+                    {t('Referred {date}', { date: formatDate(r.createdAt) })}
+                    {r.respondedAt
+                      ? ` · ${t('updated {date}', { date: formatDate(r.respondedAt) })}`
+                      : ''}
                   </p>
                 </Card>
               ))}
             </div>
           ) : (
             <Card>
-              <EmptyState title="You have no referrals" />
+              <EmptyState title={t('You have no referrals')} />
             </Card>
           )
         }

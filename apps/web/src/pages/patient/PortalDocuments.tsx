@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
@@ -52,7 +53,7 @@ export function PortalDocuments() {
     mutationFn: (docId: string) =>
       api(`/patients/${id}/documents/${docId}/entered-in-error`, {
         method: 'POST',
-        body: { reason: 'Withdrawn by the patient' },
+        body: { reason: 'Withdrawn by the patient' }, // stored in English for the audit trail,
       }),
     onSuccess: () => void refresh(),
   });
@@ -67,13 +68,17 @@ export function PortalDocuments() {
     upload.mutate({ file, title: String(form.get('title') ?? '').trim() || undefined });
   }
 
-  const name = acting ? `${acting.firstName}’s` : 'your';
-
   return (
     <>
       <PageHeader
-        title="Documents"
-        subtitle={`Letters and reports from ${name} care team, and documents you added.`}
+        title={t('Documents')}
+        subtitle={
+          acting
+            ? t('Letters and reports from {name}’s care team, and documents you added.', {
+                name: acting.firstName,
+              })
+            : t('Letters and reports from your care team, and documents you added.')
+        }
         actions={
           <Button
             onClick={() => {
@@ -82,33 +87,35 @@ export function PortalDocuments() {
               setAdding(true);
             }}
           >
-            Add a document
+            {t('Add a document')}
           </Button>
         }
       />
       <Alert tone="info">
-        Documents are stored encrypted. Your care team decides which of their documents are shared
-        here; anything you add is visible to your care team. Every time someone opens a document it
-        is shown under <strong>Who viewed my record</strong>.
+        {t(
+          'Documents are stored encrypted. Your care team decides which of their documents are shared here; anything you add is visible to your care team. Every time someone opens a document it is shown under',
+        )}{' '}
+        <strong>{t('Who viewed my record')}</strong>.
       </Alert>
       <ErrorAlert error={openError ?? withdraw.error} />
       <Card>
         <QueryView query={q}>
           {(d) =>
             d.items.length === 0 ? (
-              <EmptyState title="No documents yet">
-                When your doctor shares a letter or report, it appears here. You can also add your
-                own, for example results from a clinic abroad.
+              <EmptyState title={t('No documents yet')}>
+                {t(
+                  'When your doctor shares a letter or report, it appears here. You can also add your own, for example results from a clinic abroad.',
+                )}
               </EmptyState>
             ) : (
-              <Table caption="Documents">
+              <Table caption={t('Documents')}>
                 <thead>
                   <tr>
-                    <th>Document</th>
-                    <th>Date</th>
-                    <th>From</th>
+                    <th>{t('Document')}</th>
+                    <th>{t('Date')}</th>
+                    <th>{t('From')}</th>
                     <th>
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   </tr>
                 </thead>
@@ -123,12 +130,12 @@ export function PortalDocuments() {
                           </Badge>
                         </div>
                         <div className="muted">
-                          {doc.mimeType === 'application/pdf' ? 'PDF' : 'Image'} ·{' '}
+                          {doc.mimeType === 'application/pdf' ? 'PDF' : t('Image')} ·{' '}
                           {formatBytes(doc.sizeBytes)}
                         </div>
                       </td>
                       <td>{formatDate(doc.createdAt)}</td>
-                      <td>{doc.uploadedById === user.id ? 'Added by you' : doc.uploadedBy}</td>
+                      <td>{doc.uploadedById === user.id ? t('Added by you') : doc.uploadedBy}</td>
                       <td>
                         <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
                           <Button
@@ -139,7 +146,7 @@ export function PortalDocuments() {
                               openDocument(doc).catch(setOpenError);
                             }}
                           >
-                            Open
+                            {t('Open')}
                           </Button>
                           {doc.source === 'PATIENT' && doc.uploadedById === user.id && (
                             <Button
@@ -149,13 +156,15 @@ export function PortalDocuments() {
                               onClick={() => {
                                 if (
                                   window.confirm(
-                                    `Withdraw “${doc.title}”? Your care team will no longer use it.`,
+                                    t('Withdraw “{title}”? Your care team will no longer use it.', {
+                                      title: doc.title,
+                                    }),
                                   )
                                 )
                                   withdraw.mutate(doc.id);
                               }}
                             >
-                              Withdraw
+                              {t('Withdraw')}
                             </Button>
                           )}
                         </div>
@@ -169,15 +178,16 @@ export function PortalDocuments() {
         </QueryView>
       </Card>
 
-      <Dialog open={adding} onClose={() => setAdding(false)} title="Add a document">
+      <Dialog open={adding} onClose={() => setAdding(false)} title={t('Add a document')}>
         <form onSubmit={onSubmit}>
           <p className="muted">
-            For example a report or results from another clinic. Your care team will be told that
-            you added it.
+            {t(
+              'For example a report or results from another clinic. Your care team will be told that you added it.',
+            )}
           </p>
           <div className="field">
             <label htmlFor="portal-document-file">
-              File{' '}
+              {t('File')}{' '}
               <span className="required" aria-hidden="true">
                 {' '}
                 *
@@ -193,24 +203,24 @@ export function PortalDocuments() {
               onChange={() => setFileError(null)}
             />
             <small id="portal-document-hint" className="muted">
-              PDF, JPEG or PNG, up to 10 MB.
+              {t('PDF, JPEG or PNG, up to 10 MB.')}
             </small>
             {fileError && <small className="error-text">{fileError}</small>}
           </div>
           <TextField
-            label="Title"
+            label={t('Title')}
             name="title"
             minLength={2}
             maxLength={200}
-            placeholder="e.g. Blood test, Klinikum Munich, May 2026"
+            placeholder={t('e.g. Blood test, Klinikum Munich, May 2026')}
           />
           <ErrorAlert error={upload.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setAdding(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={upload.isPending}>
-              Add document
+              {t('Add document')}
             </Button>
           </div>
         </form>

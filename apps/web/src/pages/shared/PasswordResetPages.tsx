@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -26,17 +27,18 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthCard>
-      <h1>Reset your password</h1>
+      <h1>{t('Reset your password')}</h1>
       {sent ? (
-        <Alert tone="success" title="Check your email">
-          If an account exists for <strong>{email}</strong>, we have sent a link to reset the
-          password. The link expires in one hour. <Link to="/login">Back to sign in</Link>
+        <Alert tone="success" title={t('Check your email')}>
+          {t('If an account exists for')} <strong>{email}</strong>
+          {t(', we have sent a link to reset the password. The link expires in one hour.')}{' '}
+          <Link to="/login">{t('Back to sign in')}</Link>
         </Alert>
       ) : (
         <form onSubmit={onSubmit}>
-          <p className="muted">Enter the email address of your account.</p>
+          <p className="muted">{t('Enter the email address of your account.')}</p>
           <TextField
-            label="Email"
+            label={t('Email')}
             type="email"
             autoComplete="username"
             required
@@ -45,9 +47,9 @@ export function ForgotPasswordPage() {
           />
           <ErrorAlert error={error} />
           <Button type="submit" loading={busy} className="btn-block">
-            Send reset link
+            {t('Send reset link')}
           </Button>
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t('Back to sign in')}</Link>
         </form>
       )}
     </AuthCard>
@@ -66,7 +68,7 @@ export function ResetPasswordPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (password !== confirm) {
-      setError(new Error('The two passwords do not match'));
+      setError(new Error(t('The two passwords do not match')));
       return;
     }
     setBusy(true);
@@ -83,28 +85,28 @@ export function ResetPasswordPage() {
 
   return (
     <AuthCard>
-      <h1>Choose a new password</h1>
-      {!token && <Alert tone="danger" title="This reset link is incomplete." />}
+      <h1>{t('Choose a new password')}</h1>
+      {!token && <Alert tone="danger" title={t('This reset link is incomplete.')} />}
       {done ? (
-        <Alert tone="success" title="Your password was changed.">
-          You have been signed out everywhere.{' '}
-          <Link to="/login">Sign in with your new password</Link>
+        <Alert tone="success" title={t('Your password was changed.')}>
+          {t('You have been signed out everywhere.')}{' '}
+          <Link to="/login">{t('Sign in with your new password')}</Link>
         </Alert>
       ) : (
         <form onSubmit={onSubmit}>
           <TextField
-            label="New password"
+            label={t('New password')}
             type="password"
             autoComplete="new-password"
             minLength={12}
             maxLength={128}
             required
-            hint="At least 12 characters. A passphrase of several words works well."
+            hint={t('At least 12 characters. A passphrase of several words works well.')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
           <TextField
-            label="Confirm password"
+            label={t('Confirm password')}
             type="password"
             autoComplete="new-password"
             required
@@ -113,7 +115,7 @@ export function ResetPasswordPage() {
           />
           <ErrorAlert error={error} />
           <Button type="submit" loading={busy} disabled={!token} className="btn-block">
-            Set new password
+            {t('Set new password')}
           </Button>
         </form>
       )}

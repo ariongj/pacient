@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -18,14 +19,14 @@ import {
   TextField,
 } from './ui';
 
-const EMAIL_OPTIONS: { value: EmailPreference; label: string; help: string }[] = [
-  { value: 'ALL', label: 'Every notification', help: 'An email for each new notification.' },
+const emailOptions = (): { value: EmailPreference; label: string; help: string }[] => [
+  { value: 'ALL', label: t('Every notification'), help: t('An email for each new notification.') },
   {
     value: 'IMPORTANT',
-    label: 'Important only',
-    help: 'Results, appointment changes, messages, referrals, medication ready, urgent alerts.',
+    label: t('Important only'),
+    help: t('Results, appointment changes, messages, referrals, medication ready, urgent alerts.'),
   },
-  { value: 'OFF', label: 'Off', help: 'Notifications stay in the app only.' },
+  { value: 'OFF', label: t('Off'), help: t('Notifications stay in the app only.') },
 ];
 
 /** Email notification preference. Security emails (activation, password reset) are always sent. */
@@ -38,15 +39,17 @@ export function EmailPreferencesCard() {
     onSuccess: () => reloadProfile(),
   });
   return (
-    <Card title="Email notifications">
+    <Card title={t('Email notifications')}>
       <p className="muted">
-        Emails tell you that something happened and link to Pacient. For your privacy they never
-        include health information. They go to <strong>{user.email}</strong>.
+        {t(
+          'Emails tell you that something happened and link to Pacient. For your privacy they never include health information. They go to',
+        )}{' '}
+        <strong>{user.email}</strong>.
       </p>
       <fieldset>
-        <legend>Send me emails for</legend>
+        <legend>{t('Send me emails for')}</legend>
         <div className="stack" style={{ gap: '0.5rem' }}>
-          {EMAIL_OPTIONS.map((o) => (
+          {emailOptions().map((o) => (
             <label key={o.value} className="checkbox" style={{ alignItems: 'flex-start' }}>
               <input
                 type="radio"
@@ -68,7 +71,7 @@ export function EmailPreferencesCard() {
         </div>
       </fieldset>
       <ErrorAlert error={mutation.error} />
-      {mutation.isSuccess && <Alert tone="success" title="Saved" />}
+      {mutation.isSuccess && <Alert tone="success" title={t('Saved')} />}
     </Card>
   );
 }
@@ -79,10 +82,11 @@ export function DependantsCard() {
   const navigate = useNavigate();
   if (!dependants.length) return null;
   return (
-    <Card title="Family members I look after">
+    <Card title={t('Family members I look after')}>
       <p className="muted">
-        You were registered as a guardian after your facility checked your documents. Access to a
-        child’s record ends on their 18th birthday.
+        {t(
+          'You were registered as a guardian after your facility checked your documents. Access to a child’s record ends on their 18th birthday.',
+        )}
       </p>
       <ul className="list">
         {dependants.map((d) => (
@@ -92,9 +96,9 @@ export function DependantsCard() {
                 {d.firstName} {d.lastName}
               </strong>{' '}
               <span className="muted">
-                {age(d.dateOfBirth)} y · {humanize(d.relationship)} ·{' '}
-                {d.scope === 'FULL' ? 'full record' : 'appointments only'} · until{' '}
-                {formatDate(d.validUntil)}
+                {t('{age} y', { age: age(d.dateOfBirth) })} · {humanize(d.relationship)} ·{' '}
+                {d.scope === 'FULL' ? t('full record') : t('appointments only')} ·{' '}
+                {t('until {date}', { date: formatDate(d.validUntil) })}
               </span>
             </span>
             <Button
@@ -105,7 +109,7 @@ export function DependantsCard() {
                 navigate(d.scope === 'FULL' ? '/portal' : '/portal/appointments');
               }}
             >
-              Open record
+              {t('Open record')}
             </Button>
           </li>
         ))}
@@ -138,16 +142,17 @@ export function MyGuardiansCard({
     },
   });
   return (
-    <Card title="People who can act for you">
+    <Card title={t('People who can act for you')}>
       <QueryView query={q}>
         {(d) => {
           const active = d.items.filter((g) => g.active);
           return active.length ? (
             <>
               <p className="muted">
-                These people can open your record on your behalf. Every time they do, it appears in
-                “Who viewed my record”.
-                {!isAdult && ' To change this, contact your health facility.'}
+                {t(
+                  'These people can open your record on your behalf. Every time they do, it appears in “Who viewed my record”.',
+                )}
+                {!isAdult && ` ${t('To change this, contact your health facility.')}`}
               </p>
               <ul className="list">
                 {active.map((g) => (
@@ -156,13 +161,13 @@ export function MyGuardiansCard({
                       <strong>{g.guardianName}</strong>{' '}
                       <Badge tone="info">{humanize(g.relationship)}</Badge>{' '}
                       <span className="muted">
-                        {g.scope === 'FULL' ? 'Full record' : 'Appointments only'} · until{' '}
-                        {formatDate(g.validUntil)}
+                        {g.scope === 'FULL' ? t('Full record') : t('Appointments only')} ·{' '}
+                        {t('until {date}', { date: formatDate(g.validUntil) })}
                       </span>
                     </span>
                     {isAdult && (
                       <Button size="sm" variant="secondary" onClick={() => setRevoking(g)}>
-                        Remove access
+                        {t('Remove access')}
                       </Button>
                     )}
                   </li>
@@ -170,11 +175,11 @@ export function MyGuardiansCard({
               </ul>
             </>
           ) : (
-            <EmptyState title="Nobody else can act on your behalf" />
+            <EmptyState title={t('Nobody else can act on your behalf')} />
           );
         }}
       </QueryView>
-      <Dialog open={Boolean(revoking)} onClose={() => setRevoking(null)} title="Remove access">
+      <Dialog open={Boolean(revoking)} onClose={() => setRevoking(null)} title={t('Remove access')}>
         {revoking && (
           <form
             onSubmit={(e) => {
@@ -184,16 +189,24 @@ export function MyGuardiansCard({
             }}
           >
             <p>
-              {revoking.guardianName} will immediately lose access to your record. This is recorded.
+              {t('{name} will immediately lose access to your record. This is recorded.', {
+                name: revoking.guardianName,
+              })}
             </p>
-            <TextAreaField label="Reason" name="reason" required minLength={3} maxLength={300} />
+            <TextAreaField
+              label={t('Reason')}
+              name="reason"
+              required
+              minLength={3}
+              maxLength={300}
+            />
             <ErrorAlert error={revoke.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={() => setRevoking(null)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" variant="danger" loading={revoke.isPending}>
-                Remove access
+                {t('Remove access')}
               </Button>
             </div>
           </form>
@@ -241,33 +254,34 @@ export function SmsCard() {
   const showNumberForm = !sentTo && (!user.phone || editing);
 
   return (
-    <Card title="SMS alerts">
+    <Card title={t('SMS alerts')}>
       <p className="muted">
-        Text messages are sent only for important events – such as a critical result, an appointment
-        change or a medication ready to collect – and only say that something needs your attention.
-        No health information is ever sent by SMS. Non-urgent texts wait until morning.
+        {t(
+          'Text messages are sent only for important events – such as a critical result, an appointment change or a medication ready to collect – and only say that something needs your attention. No health information is ever sent by SMS. Non-urgent texts wait until morning.',
+        )}
       </p>
 
       {user.phone && !editing && !sentTo && (
         <div className="stack" style={{ gap: '0.75rem' }}>
           <div className="row-between">
             <span>
-              Mobile number <strong>{user.phone}</strong> <Badge tone="success">Verified</Badge>
+              {t('Mobile number')} <strong>{user.phone}</strong>{' '}
+              <Badge tone="success">{t('Verified')}</Badge>
             </span>
             <span className="row" style={{ gap: '0.5rem' }}>
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-                Change
+                {t('Change')}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 loading={remove.isPending}
                 onClick={() => {
-                  if (window.confirm('Remove your mobile number and stop all SMS alerts?'))
+                  if (window.confirm(t('Remove your mobile number and stop all SMS alerts?')))
                     remove.mutate();
                 }}
               >
-                Remove
+                {t('Remove')}
               </Button>
             </span>
           </div>
@@ -278,7 +292,7 @@ export function SmsCard() {
               disabled={pref.isPending}
               onChange={(e) => pref.mutate(e.currentTarget.checked ? 'IMPORTANT' : 'OFF')}
             />
-            <span>Text me about important events</span>
+            <span>{t('Text me about important events')}</span>
           </label>
         </div>
       )}
@@ -294,7 +308,7 @@ export function SmsCard() {
           }}
         >
           <TextField
-            label="Mobile number"
+            label={t('Mobile number')}
             name="phone"
             type="tel"
             autoComplete="tel"
@@ -303,16 +317,16 @@ export function SmsCard() {
             minLength={6}
             maxLength={30}
             placeholder="+383 44 123 456"
-            hint="Kosovo numbers can be entered without the country code, e.g. 044 123 456."
+            hint={t('Kosovo numbers can be entered without the country code, e.g. 044 123 456.')}
           />
           <div className="form-actions">
             {editing && (
               <Button variant="secondary" onClick={() => setEditing(false)}>
-                Cancel
+                {t('Cancel')}
               </Button>
             )}
             <Button type="submit" loading={request.isPending}>
-              Send verification code
+              {t('Send verification code')}
             </Button>
           </div>
         </form>
@@ -328,11 +342,11 @@ export function SmsCard() {
             if (typeof code === 'string') verify.mutate(code.trim());
           }}
         >
-          <Alert tone="info" title={`We sent a 6-digit code to ${sentTo}`}>
-            It expires in 10 minutes. Never share it with anyone, including Pacient staff.
+          <Alert tone="info" title={t('We sent a 6-digit code to {phone}', { phone: sentTo })}>
+            {t('It expires in 10 minutes. Never share it with anyone, including Pacient staff.')}
           </Alert>
           <TextField
-            label="Verification code"
+            label={t('Verification code')}
             name="code"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -348,17 +362,19 @@ export function SmsCard() {
                 verify.reset();
               }}
             >
-              Use another number
+              {t('Use another number')}
             </Button>
             <Button type="submit" loading={verify.isPending}>
-              Verify number
+              {t('Verify number')}
             </Button>
           </div>
         </form>
       )}
 
       <ErrorAlert error={request.error ?? verify.error ?? remove.error ?? pref.error} />
-      {(verify.isSuccess || pref.isSuccess) && !sentTo && <Alert tone="success" title="Saved" />}
+      {(verify.isSuccess || pref.isSuccess) && !sentTo && (
+        <Alert tone="success" title={t('Saved')} />
+      )}
     </Card>
   );
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
@@ -223,7 +224,7 @@ export function useAuth() {
 /** Use inside role workspaces, where a signed-in user is guaranteed by the route guard. */
 export function useUser(): Profile {
   const { user } = useAuth();
-  if (!user) throw new Error('No authenticated user');
+  if (!user) throw new Error(t('No authenticated user'));
   return user;
 }
 

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { apiRaw, apiUpload } from './client';
 
 export type DocumentCategory =
@@ -32,15 +33,32 @@ export interface PatientDocument {
   uploadedByRole: string;
 }
 
+/** Category names in the current language (getters, so they follow a language switch). */
 export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
-  REFERRAL_LETTER: 'Referral letter',
-  DISCHARGE_SUMMARY: 'Discharge summary',
-  IMAGING_REPORT: 'Imaging report',
-  LAB_REPORT: 'Laboratory report',
-  CONSENT_FORM: 'Consent form',
-  CLINICAL_PHOTO: 'Clinical photo',
-  PATIENT_PROVIDED: 'Provided by patient',
-  OTHER: 'Other',
+  get REFERRAL_LETTER() {
+    return t('Referral letter');
+  },
+  get DISCHARGE_SUMMARY() {
+    return t('Discharge summary');
+  },
+  get IMAGING_REPORT() {
+    return t('Imaging report');
+  },
+  get LAB_REPORT() {
+    return t('Laboratory report');
+  },
+  get CONSENT_FORM() {
+    return t('Consent form');
+  },
+  get CLINICAL_PHOTO() {
+    return t('Clinical photo');
+  },
+  get PATIENT_PROVIDED() {
+    return t('Provided by patient');
+  },
+  get OTHER() {
+    return t('Other');
+  },
 };
 
 export const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -54,10 +72,10 @@ export function formatBytes(n: number): string {
 
 /** Client-side checks before uploading (the server checks again, including the file signature). */
 export function checkFile(file: File | null | undefined): string | null {
-  if (!file) return 'Choose a file';
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only PDF, JPEG or PNG files can be uploaded';
-  if (file.size > MAX_BYTES) return 'The file is too large (maximum 10 MB)';
-  if (file.size === 0) return 'The file is empty';
+  if (!file) return t('Choose a file');
+  if (!ACCEPTED_TYPES.includes(file.type)) return t('Only PDF, JPEG or PNG files can be uploaded');
+  if (file.size > MAX_BYTES) return t('The file is too large (maximum 10 MB)');
+  if (file.size === 0) return t('The file is empty');
   return null;
 }
 

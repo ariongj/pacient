@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -16,7 +17,7 @@ import {
   StatusBadge,
 } from '../../components/ui';
 import { formatDate, formatDateTime } from '../../format';
-import { ALLERGY_ASSESSMENT_TEXT, useCareTeam, useSummary } from './shared';
+import { allergyAssessmentText, useCareTeam, useSummary } from './shared';
 
 export function PortalHome() {
   const user = useUser();
@@ -27,7 +28,7 @@ export function PortalHome() {
     queryKey: ['messages', 'threads'],
     queryFn: () => api<{ items: MessageThreadSummary[] }>('/messages/threads'),
   });
-  const unreadMessages = threads.data?.items.reduce((n, t) => n + t.unreadCount, 0) ?? 0;
+  const unreadMessages = threads.data?.items.reduce((n, th) => n + th.unreadCount, 0) ?? 0;
   const upcoming = useQuery({
     queryKey: ['appointments', 'upcoming'],
     queryFn: () =>
@@ -38,13 +39,15 @@ export function PortalHome() {
     <>
       <PageHeader
         title={
-          acting ? `${acting.firstName}’s health record` : `Hello, ${user.fullName.split(' ')[0]}`
+          acting
+            ? t('{name}’s health record', { name: acting.firstName })
+            : t('Hello, {name}', { name: user.fullName.split(' ')[0] })
         }
-        subtitle="Your health record from every facility, in one place."
+        subtitle={t('Your health record from every facility, in one place.')}
       />
       <Alert tone="info">
-        This portal is not for emergencies. If you need urgent help, call <strong>112</strong> or go
-        to the nearest emergency department.
+        {t('This portal is not for emergencies. If you need urgent help, call')}{' '}
+        <strong>112</strong> {t('or go to the nearest emergency department.')}
       </Alert>
       <div className="stack" style={{ marginBottom: '1rem' }}>
         <AnnouncementsCard />
@@ -53,11 +56,11 @@ export function PortalHome() {
         {(s) => (
           <div className="stack">
             <Grid min={180}>
-              <Stat label="Visits on record" value={s.counts.encounters} />
-              <Stat label="Active medications" value={s.activeMedications.length} />
-              <Stat label="Ongoing conditions" value={s.activeProblems.length} />
+              <Stat label={t('Visits on record')} value={s.counts.encounters} />
+              <Stat label={t('Active medications')} value={s.activeMedications.length} />
+              <Stat label={t('Ongoing conditions')} value={s.activeProblems.length} />
               <Stat
-                label="Allergies"
+                label={t('Allergies')}
                 value={
                   s.allergies.filter((a) =>
                     ['CONFIRMED', 'UNCONFIRMED'].includes(a.verificationStatus),
@@ -68,31 +71,33 @@ export function PortalHome() {
                 }
               />
               <Stat
-                label="Vaccinations"
+                label={t('Vaccinations')}
                 value={s.immunizations.length}
                 hint={
                   s.immunizations[0] ? (
                     <>
-                      Latest: {s.immunizations[0].vaccine} (
-                      {formatDate(s.immunizations[0].administeredAt)}) ·{' '}
-                      <Link to="/portal/history">View</Link>
+                      {t('Latest: {vaccine} ({date})', {
+                        vaccine: s.immunizations[0].vaccine,
+                        date: formatDate(s.immunizations[0].administeredAt),
+                      })}{' '}
+                      · <Link to="/portal/history">{t('View')}</Link>
                     </>
                   ) : undefined
                 }
               />
               <Stat
-                label="Unread messages"
+                label={t('Unread messages')}
                 value={unreadMessages}
                 tone={unreadMessages > 0 ? 'info' : undefined}
-                hint={<Link to="/portal/messages">Open messages</Link>}
+                hint={<Link to="/portal/messages">{t('Open messages')}</Link>}
               />
             </Grid>
 
             <div className="two-col">
               <div className="stack">
                 <Card
-                  title="Upcoming appointments"
-                  actions={<Link to="/portal/appointments">Manage</Link>}
+                  title={t('Upcoming appointments')}
+                  actions={<Link to="/portal/appointments">{t('Manage')}</Link>}
                 >
                   <QueryView query={upcoming}>
                     {(d) => {
@@ -115,35 +120,38 @@ export function PortalHome() {
                           ))}
                         </ul>
                       ) : (
-                        <EmptyState title="No upcoming appointments">
-                          <Link to="/portal/appointments">Request an appointment</Link>
+                        <EmptyState title={t('No upcoming appointments')}>
+                          <Link to="/portal/appointments">{t('Request an appointment')}</Link>
                         </EmptyState>
                       );
                     }}
                   </QueryView>
                 </Card>
 
-                <Card title="Current medications">
+                <Card title={t('Current medications')}>
                   {s.activeMedications.length ? (
                     <ul className="list">
                       {s.activeMedications.map((m) => (
                         <li key={m.id}>
                           <strong>{m.medication}</strong> {m.dosage} — {m.frequency}
                           <div className="muted">
-                            Prescribed by {m.doctorName} since {formatDate(m.startDate)}
+                            {t('Prescribed by {doctor} since {date}', {
+                              doctor: m.doctorName,
+                              date: formatDate(m.startDate),
+                            })}
                             {m.instructions ? ` · ${m.instructions}` : ''}
                           </div>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <EmptyState title="No active medications" />
+                    <EmptyState title={t('No active medications')} />
                   )}
                 </Card>
 
                 <Card
-                  title="Ongoing conditions"
-                  actions={<Link to="/portal/history">Full history</Link>}
+                  title={t('Ongoing conditions')}
+                  actions={<Link to="/portal/history">{t('Full history')}</Link>}
                 >
                   {s.activeProblems.length ? (
                     <ul className="list">
@@ -151,20 +159,22 @@ export function PortalHome() {
                         <li key={d.id} className="row-between">
                           <span>
                             {d.description} <code>{d.icd10Code}</code>
-                            <div className="muted">Since {formatDate(d.diagnosedAt)}</div>
+                            <div className="muted">
+                              {t('Since {date}', { date: formatDate(d.diagnosedAt) })}
+                            </div>
                           </span>
                           <StatusBadge value={d.status} />
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <EmptyState title="No ongoing conditions recorded" />
+                    <EmptyState title={t('No ongoing conditions recorded')} />
                   )}
                 </Card>
               </div>
 
               <div className="stack">
-                <Card title="Allergies">
+                <Card title={t('Allergies')}>
                   {s.allergies.length ? (
                     <ul className="list">
                       {s.allergies.map((a) => (
@@ -174,27 +184,27 @@ export function PortalHome() {
                             <StatusBadge value={a.severity} />
                           </div>
                           <div className="muted">
-                            {a.reaction ?? 'Reaction not recorded'} ·{' '}
+                            {a.reaction ?? t('Reaction not recorded')} ·{' '}
                             {a.verificationStatus === 'CONFIRMED'
-                              ? 'Confirmed'
-                              : 'Not yet confirmed'}
-                            {a.source === 'PATIENT_REPORTED' ? ' · reported by you' : ''}
+                              ? t('Confirmed')
+                              : t('Not yet confirmed')}
+                            {a.source === 'PATIENT_REPORTED' ? ` · ${t('reported by you')}` : ''}
                           </div>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="muted">{ALLERGY_ASSESSMENT_TEXT[s.patient.allergyAssessment]}</p>
+                    <p className="muted">{allergyAssessmentText(s.patient.allergyAssessment)}</p>
                   )}
                 </Card>
 
-                <Card title="Latest measurements">
+                <Card title={t('Latest measurements')}>
                   {s.latestVitals ? (
                     <>
                       <ul className="list">
                         {s.latestVitals.systolic && (
                           <li className="row-between">
-                            Blood pressure
+                            {t('Blood pressure')}
                             <strong>
                               {s.latestVitals.systolic}/{s.latestVitals.diastolic} mmHg
                             </strong>
@@ -202,28 +212,31 @@ export function PortalHome() {
                         )}
                         {s.latestVitals.heartRate && (
                           <li className="row-between">
-                            Heart rate <strong>{s.latestVitals.heartRate} bpm</strong>
+                            {t('Heart rate')} <strong>{s.latestVitals.heartRate} bpm</strong>
                           </li>
                         )}
                         {s.latestVitals.weightKg && (
                           <li className="row-between">
-                            Weight <strong>{s.latestVitals.weightKg} kg</strong>
+                            {t('Weight')} <strong>{s.latestVitals.weightKg} kg</strong>
                           </li>
                         )}
                         {s.latestVitals.oxygenSaturation && (
                           <li className="row-between">
-                            Oxygen saturation <strong>{s.latestVitals.oxygenSaturation}%</strong>
+                            {t('Oxygen saturation')}{' '}
+                            <strong>{s.latestVitals.oxygenSaturation}%</strong>
                           </li>
                         )}
                       </ul>
-                      <p className="muted">Measured {formatDate(s.latestVitals.recordedAt)}</p>
+                      <p className="muted">
+                        {t('Measured {date}', { date: formatDate(s.latestVitals.recordedAt) })}
+                      </p>
                     </>
                   ) : (
-                    <EmptyState title="No measurements yet" />
+                    <EmptyState title={t('No measurements yet')} />
                   )}
                 </Card>
 
-                <Card title="Your care team">
+                <Card title={t('Your care team')}>
                   <QueryView query={careTeam}>
                     {(d) =>
                       d.items.length ? (
@@ -231,21 +244,21 @@ export function PortalHome() {
                           {d.items.map((m) => (
                             <li key={m.doctorId}>
                               <strong>{m.fullName}</strong>
-                              <div className="muted">{m.specialty ?? 'Doctor'}</div>
+                              <div className="muted">{m.specialty ?? t('Doctor')}</div>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <EmptyState title="No doctor assigned yet" />
+                        <EmptyState title={t('No doctor assigned yet')} />
                       )
                     }
                   </QueryView>
                 </Card>
 
-                <Card title="Registered at">
+                <Card title={t('Registered at')}>
                   <p>{s.patient.primaryFacilityName}</p>
-                  <Badge tone="info">Privacy</Badge>{' '}
-                  <Link to="/portal/access-log">See who has viewed your record</Link>
+                  <Badge tone="info">{t('Privacy')}</Badge>{' '}
+                  <Link to="/portal/access-log">{t('See who has viewed your record')}</Link>
                 </Card>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -50,12 +51,14 @@ function RequestForm({ onDone }: { onDone: () => void }) {
       {(team) =>
         team.items.length === 0 ? (
           <Alert tone="warning">
-            You do not have a doctor in your care team yet. Contact your family medicine centre.
+            {t(
+              'You do not have a doctor in your care team yet. Contact your family medicine centre.',
+            )}
           </Alert>
         ) : (
           <form onSubmit={onSubmit}>
             <SelectField
-              label="Doctor"
+              label={t('Doctor')}
               name="doctorId"
               required
               options={team.items.map((m) => ({
@@ -64,27 +67,27 @@ function RequestForm({ onDone }: { onDone: () => void }) {
               }))}
             />
             <TextField
-              label="Preferred date and time"
+              label={t('Preferred date and time')}
               name="scheduledAt"
               type="datetime-local"
               min={min}
               required
             />
             <TextAreaField
-              label="Reason for the visit"
+              label={t('Reason for the visit')}
               name="reason"
               required
               minLength={2}
               maxLength={500}
-              hint="Do not use this for urgent problems — call 112 in an emergency."
+              hint={t('Do not use this for urgent problems — call 112 in an emergency.')}
             />
             <ErrorAlert error={mutation.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={onDone}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" loading={mutation.isPending}>
-                Send request
+                {t('Send request')}
               </Button>
             </div>
           </form>
@@ -111,9 +114,9 @@ export function PortalAppointments() {
   return (
     <>
       <PageHeader
-        title="Appointments"
-        subtitle="Requests are confirmed by your doctor."
-        actions={<Button onClick={() => setOpen(true)}>Request appointment</Button>}
+        title={t('Appointments')}
+        subtitle={t('Requests are confirmed by your doctor.')}
+        actions={<Button onClick={() => setOpen(true)}>{t('Request appointment')}</Button>}
       />
       <ErrorAlert error={cancel.error} />
       <QueryView query={q}>
@@ -121,17 +124,17 @@ export function PortalAppointments() {
           const upcoming = d.items.filter((a) => new Date(a.scheduledAt).getTime() >= now);
           const past = d.items.filter((a) => new Date(a.scheduledAt).getTime() < now).reverse();
           const rows = (items: Appointment[], allowCancel: boolean) => (
-            <Table caption="Appointments">
+            <Table caption={t('Appointments')}>
               <thead>
                 <tr>
-                  <th>When</th>
-                  <th>Doctor</th>
-                  <th>Where</th>
-                  <th>Reason</th>
-                  <th>Status</th>
+                  <th>{t('When')}</th>
+                  <th>{t('Doctor')}</th>
+                  <th>{t('Where')}</th>
+                  <th>{t('Reason')}</th>
+                  <th>{t('Status')}</th>
                   {allowCancel && (
                     <th>
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   )}
                 </tr>
@@ -154,10 +157,11 @@ export function PortalAppointments() {
                             size="sm"
                             loading={cancel.isPending && cancel.variables === a.id}
                             onClick={() => {
-                              if (window.confirm('Cancel this appointment?')) cancel.mutate(a.id);
+                              if (window.confirm(t('Cancel this appointment?')))
+                                cancel.mutate(a.id);
                             }}
                           >
-                            Cancel
+                            {t('Cancel')}
                           </Button>
                         )}
                       </td>
@@ -169,21 +173,21 @@ export function PortalAppointments() {
           );
           return (
             <div className="stack">
-              <Card title="Upcoming">
+              <Card title={t('Upcoming')}>
                 {upcoming.length ? (
                   rows(upcoming, true)
                 ) : (
-                  <EmptyState title="No upcoming appointments" />
+                  <EmptyState title={t('No upcoming appointments')} />
                 )}
               </Card>
-              <Card title="Past">
-                {past.length ? rows(past, false) : <EmptyState title="No past appointments" />}
+              <Card title={t('Past')}>
+                {past.length ? rows(past, false) : <EmptyState title={t('No past appointments')} />}
               </Card>
             </div>
           );
         }}
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Request an appointment">
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Request an appointment')}>
         <RequestForm onDone={() => setOpen(false)} />
       </Dialog>
     </>

@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { HOME_BY_ROLE, needsMfaEnrollment, useAuth } from '../../auth/AuthContext';
 import { TwoStepEnrollment } from '../../components/TwoStep';
@@ -13,10 +14,11 @@ export function MfaSetupPage() {
   if (!needsMfaEnrollment(user)) return <Navigate to={HOME_BY_ROLE[user.role]} replace />;
   return (
     <AuthCard>
-      <h1>Set up two-step sign-in</h1>
+      <h1>{t('Set up two-step sign-in')}</h1>
       <Alert tone="info">
-        Your organisation requires two-step sign-in for every staff account before you can access
-        patient information.
+        {t(
+          'Your organisation requires two-step sign-in for every staff account before you can access patient information.',
+        )}
       </Alert>
       <TwoStepEnrollment onDone={() => navigate(HOME_BY_ROLE[user.role], { replace: true })} />
       <div style={{ marginTop: '1rem' }}>
@@ -28,7 +30,7 @@ export function MfaSetupPage() {
             navigate('/login', { replace: true });
           }}
         >
-          Sign out
+          {t('Sign out')}
         </Button>
       </div>
     </AuthCard>

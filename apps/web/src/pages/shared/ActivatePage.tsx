@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -16,7 +17,7 @@ export function ActivatePage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (password !== confirm) {
-      setError(new Error('The two passwords do not match'));
+      setError(new Error(t('The two passwords do not match')));
       return;
     }
     setBusy(true);
@@ -34,20 +35,21 @@ export function ActivatePage() {
   return (
     <div className="auth-page">
       <main className="auth-card" id="main">
-        <h1>Activate your account</h1>
-        {!token && <Alert tone="danger" title="This activation link is incomplete." />}
+        <h1>{t('Activate your account')}</h1>
+        {!token && <Alert tone="danger" title={t('This activation link is incomplete.')} />}
         {done ? (
-          <Alert tone="success" title="Your account is ready.">
-            <Link to="/login">Continue to sign in</Link>
+          <Alert tone="success" title={t('Your account is ready.')}>
+            <Link to="/login">{t('Continue to sign in')}</Link>
           </Alert>
         ) : (
           <form onSubmit={onSubmit}>
             <p className="muted">
-              Choose a password of at least 12 characters. A memorable passphrase of several words
-              works well.
+              {t(
+                'Choose a password of at least 12 characters. A memorable passphrase of several words works well.',
+              )}
             </p>
             <TextField
-              label="New password"
+              label={t('New password')}
               type="password"
               autoComplete="new-password"
               minLength={12}
@@ -57,7 +59,7 @@ export function ActivatePage() {
               onChange={(e) => setPassword(e.target.value)}
             />
             <TextField
-              label="Confirm password"
+              label={t('Confirm password')}
               type="password"
               autoComplete="new-password"
               required
@@ -66,7 +68,7 @@ export function ActivatePage() {
             />
             <ErrorAlert error={error} />
             <Button type="submit" loading={busy} disabled={!token} className="btn-block">
-              Activate account
+              {t('Activate account')}
             </Button>
           </form>
         )}

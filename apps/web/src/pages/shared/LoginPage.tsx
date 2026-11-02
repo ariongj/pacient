@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -54,7 +55,7 @@ export function LoginPage() {
   const [useRecovery, setUseRecovery] = useState(false);
   const [code, setCode] = useState('');
 
-  if (status === 'loading') return <Loading label="Restoring your session…" />;
+  if (status === 'loading') return <Loading label={t('Restoring your session…')} />;
   if (user) {
     return (
       <Navigate to={needsMfaEnrollment(user) ? MFA_SETUP_PATH : HOME_BY_ROLE[user.role]} replace />
@@ -112,15 +113,17 @@ export function LoginPage() {
   if (challenge) {
     return (
       <AuthCard>
-        <h1>Two-step sign-in</h1>
+        <h1>{t('Two-step sign-in')}</h1>
         <p className="muted">
           {useRecovery
-            ? 'Enter one of the recovery codes you saved when you set up two-step sign-in. Each code works once.'
-            : 'Enter the 6-digit code from your authenticator app.'}
+            ? t(
+                'Enter one of the recovery codes you saved when you set up two-step sign-in. Each code works once.',
+              )
+            : t('Enter the 6-digit code from your authenticator app.')}
         </p>
         <form onSubmit={onCode}>
           <TextField
-            label={useRecovery ? 'Recovery code' : 'Authentication code'}
+            label={useRecovery ? t('Recovery code') : t('Authentication code')}
             name="code"
             autoComplete="one-time-code"
             inputMode={useRecovery ? 'text' : 'numeric'}
@@ -133,7 +136,7 @@ export function LoginPage() {
           />
           <ErrorAlert error={error} />
           <Button type="submit" loading={busy} className="btn-block">
-            Verify
+            {t('Verify')}
           </Button>
         </form>
         <div className="row-between" style={{ marginTop: '1rem' }}>
@@ -146,7 +149,7 @@ export function LoginPage() {
               setError(null);
             }}
           >
-            {useRecovery ? 'Use authenticator code' : 'Use a recovery code'}
+            {useRecovery ? t('Use authenticator code') : t('Use a recovery code')}
           </Button>
           <Button
             variant="ghost"
@@ -157,7 +160,7 @@ export function LoginPage() {
               setCode('');
             }}
           >
-            Start over
+            {t('Start over')}
           </Button>
         </div>
       </AuthCard>
@@ -166,13 +169,15 @@ export function LoginPage() {
 
   return (
     <AuthCard>
-      <h1>Sign in</h1>
+      <h1>{t('Sign in')}</h1>
       <p className="muted">
-        Patients, clinicians, pharmacy and front-desk teams, facility directors and the Ministry.
+        {t(
+          'Patients, clinicians, pharmacy and front-desk teams, facility directors and the Ministry.',
+        )}
       </p>
       <form onSubmit={onPassword}>
         <TextField
-          label="Email"
+          label={t('Email')}
           type="email"
           name="email"
           autoComplete="username"
@@ -181,7 +186,7 @@ export function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <TextField
-          label="Password"
+          label={t('Password')}
           type="password"
           name="password"
           autoComplete="current-password"
@@ -191,19 +196,19 @@ export function LoginPage() {
         />
         <ErrorAlert error={error} />
         <Button type="submit" loading={busy} className="btn-block">
-          Sign in
+          {t('Sign in')}
         </Button>
       </form>
       <p style={{ marginTop: '1rem' }}>
-        <Link to="/forgot-password">Forgot your password?</Link>
+        <Link to="/forgot-password">{t('Forgot your password?')}</Link>
       </p>
       {DEMO.length > 0 && (
         <div className="demo-accounts">
           <p className="muted">
-            Demo accounts (development only) — password <code>Pacient-Demo-2026</code>
+            {t('Demo accounts (development only) — password')} <code>Pacient-Demo-2026</code>
           </p>
           <div className="demo-buttons">
-            {DEMO.map(([label, addr]) => (
+            {DEMO.map(([role, addr]) => (
               <Button
                 key={addr}
                 variant="secondary"
@@ -213,7 +218,7 @@ export function LoginPage() {
                   setPassword('Pacient-Demo-2026');
                 }}
               >
-                {label}
+                {t(role!)}
               </Button>
             ))}
           </div>

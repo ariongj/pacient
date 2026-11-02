@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api, downloadFile, downloadJson } from '../../api/client';
@@ -72,37 +73,37 @@ function ContactForm({ patient, onDone }: { patient: Demographics; onDone: () =>
     <form onSubmit={onSubmit}>
       <div className="form-grid">
         <TextField
-          label="Phone"
+          label={t('Phone')}
           name="phone"
           type="tel"
           autoComplete="tel"
           defaultValue={patient.phone ?? ''}
         />
         <TextField
-          label="Email"
+          label={t('Email')}
           name="email"
           type="email"
           autoComplete="email"
           defaultValue={patient.email ?? ''}
         />
         <TextField
-          label="Address"
+          label={t('Address')}
           name="address"
           autoComplete="street-address"
           defaultValue={patient.address ?? ''}
         />
         <TextField
-          label="Municipality"
+          label={t('Municipality')}
           name="municipality"
           defaultValue={patient.municipality ?? ''}
         />
         <TextField
-          label="Emergency contact name"
+          label={t('Emergency contact name')}
           name="emergencyContactName"
           defaultValue={patient.emergencyContactName ?? ''}
         />
         <TextField
-          label="Emergency contact phone"
+          label={t('Emergency contact phone')}
           name="emergencyContactPhone"
           type="tel"
           defaultValue={patient.emergencyContactPhone ?? ''}
@@ -111,10 +112,10 @@ function ContactForm({ patient, onDone }: { patient: Demographics; onDone: () =>
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Save
+          {t('Save')}
         </Button>
       </div>
     </form>
@@ -139,16 +140,17 @@ function Corrections() {
   });
   return (
     <Card
-      title="Correction requests"
+      title={t('Correction requests')}
       actions={
         <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-          Request a correction
+          {t('Request a correction')}
         </Button>
       }
     >
       <p className="muted">
-        If something in your record looks wrong, tell your care team. A doctor reviews every
-        request; your record is never changed without a clinician’s review.
+        {t(
+          'If something in your record looks wrong, tell your care team. A doctor reviews every request; your record is never changed without a clinician’s review.',
+        )}
       </p>
       <QueryView query={q}>
         {(d) =>
@@ -161,22 +163,24 @@ function Corrections() {
                     <StatusBadge value={c.status} />
                   </div>
                   <p>{c.description}</p>
-                  <div className="muted">Submitted {formatDate(c.createdAt)}</div>
+                  <div className="muted">
+                    {t('Submitted {date}', { date: formatDate(c.createdAt) })}
+                  </div>
                   {c.response && (
                     <div className="addendum">
-                      <strong>Response from {c.resolvedBy}</strong> ({formatDate(c.resolvedAt)}):{' '}
-                      {c.response}
+                      <strong>{t('Response from {name}', { name: c.resolvedBy })}</strong> (
+                      {formatDate(c.resolvedAt)}): {c.response}
                     </div>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyState title="No correction requests" />
+            <EmptyState title={t('No correction requests')} />
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Request a correction">
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Request a correction')}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -185,26 +189,28 @@ function Corrections() {
           }}
         >
           <SelectField
-            label="Which part of your record?"
+            label={t('Which part of your record?')}
             name="section"
             required
             options={SECTIONS.map((s) => ({ value: s, label: humanize(s) }))}
           />
           <TextAreaField
-            label="What should be corrected?"
+            label={t('What should be corrected?')}
             name="description"
             required
             minLength={10}
             maxLength={4000}
-            hint="Describe what is wrong and what you believe is correct (at least 10 characters)."
+            hint={t(
+              'Describe what is wrong and what you believe is correct (at least 10 characters).',
+            )}
           />
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Submit request
+              {t('Submit request')}
             </Button>
           </div>
         </form>
@@ -228,47 +234,48 @@ export function PortalAccount() {
   return (
     <>
       <PageHeader
-        title={acting ? `${acting.firstName}’s details` : 'My details'}
-        subtitle={acting ? 'You are managing these details as their guardian.' : undefined}
+        title={acting ? t('{name}’s details', { name: acting.firstName }) : t('My details')}
+        subtitle={acting ? t('You are managing these details as their guardian.') : undefined}
       />
       <div className="stack">
         <QueryView query={summary}>
           {({ patient: p }) => (
             <Card
-              title="Personal information"
+              title={t('Personal information')}
               actions={
                 <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-                  Update contact details
+                  {t('Update contact details')}
                 </Button>
               }
             >
               <DefinitionList
                 items={[
-                  ['Name', `${p.firstName} ${p.lastName}`],
-                  ['National ID', p.nationalId],
-                  ['Date of birth', formatDate(p.dateOfBirth)],
-                  ['Sex', humanize(p.sex)],
-                  ['Blood type', p.bloodType === 'UNKNOWN' ? 'Unknown' : p.bloodType],
-                  ['Registered at', p.primaryFacilityName],
-                  ['Phone', p.phone],
-                  ['Email', p.email],
-                  ['Address', [p.address, p.municipality].filter(Boolean).join(', ') || null],
+                  [t('Name'), `${p.firstName} ${p.lastName}`],
+                  [t('National ID'), p.nationalId],
+                  [t('Date of birth'), formatDate(p.dateOfBirth)],
+                  [t('Sex'), humanize(p.sex)],
+                  [t('Blood type'), p.bloodType === 'UNKNOWN' ? t('Unknown') : p.bloodType],
+                  [t('Registered at'), p.primaryFacilityName],
+                  [t('Phone'), p.phone],
+                  [t('Email'), p.email],
+                  [t('Address'), [p.address, p.municipality].filter(Boolean).join(', ') || null],
                   [
-                    'Emergency contact',
+                    t('Emergency contact'),
                     p.emergencyContactName
-                      ? `${p.emergencyContactName} (${p.emergencyContactPhone ?? 'no phone'})`
+                      ? `${p.emergencyContactName} (${p.emergencyContactPhone ?? t('no phone')})`
                       : null,
                   ],
                 ]}
               />
               <p className="muted" style={{ marginTop: '1rem' }}>
-                Name, date of birth and national ID can only be corrected by your facility — use a
-                correction request below.
+                {t(
+                  'Name, date of birth and national ID can only be corrected by your facility — use a correction request below.',
+                )}
               </p>
               <Dialog
                 open={editing}
                 onClose={() => setEditing(false)}
-                title="Update contact details"
+                title={t('Update contact details')}
                 wide
               >
                 <ContactForm patient={p} onDone={() => setEditing(false)} />
@@ -287,10 +294,11 @@ export function PortalAccount() {
         {acting?.scope !== 'APPOINTMENTS' && <Corrections />}
 
         {acting?.scope !== 'APPOINTMENTS' && (
-          <Card title={acting ? 'Download the record' : 'Download my record'}>
+          <Card title={acting ? t('Download the record') : t('Download my record')}>
             <p className="muted">
-              You have the right to a copy of your health record. The download is a machine-readable
-              JSON file containing your released information. Store it securely.
+              {t(
+                'You have the right to a copy of your health record. The download is a machine-readable JSON file containing your released information. Store it securely.',
+              )}
             </p>
             <ErrorAlert error={exportError} />
             <Button
@@ -308,7 +316,7 @@ export function PortalAccount() {
                 }
               }}
             >
-              Download (JSON)
+              {t('Download (JSON)')}
             </Button>{' '}
             <Button
               variant="secondary"
@@ -321,18 +329,20 @@ export function PortalAccount() {
                 }
               }}
             >
-              Download for another provider (HL7 FHIR)
+              {t('Download for another provider (HL7 FHIR)')}
             </Button>
             <p className="muted" style={{ marginTop: '0.5rem' }}>
-              FHIR is the international standard format other hospitals and health apps can import.
+              {t(
+                'FHIR is the international standard format other hospitals and health apps can import.',
+              )}
             </p>
           </Card>
         )}
 
         {acting ? (
           <Alert tone="info">
-            Your own sign-in, two-step and email settings are under <strong>My details</strong> when
-            you switch back to your own record.
+            {t('Your own sign-in, two-step and email settings are under')}{' '}
+            <strong>{t('My details')}</strong> {t('when you switch back to your own record.')}
           </Alert>
         ) : (
           <>
@@ -343,7 +353,7 @@ export function PortalAccount() {
           </>
         )}
         <Alert tone="neutral">
-          Signing in on a shared computer? Always sign out when you finish.
+          {t('Signing in on a shared computer? Always sign out when you finish.')}
         </Alert>
       </div>
     </>

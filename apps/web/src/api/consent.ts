@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 
@@ -75,23 +76,44 @@ export function useRecordConsent(patientId: string, onDone?: () => void) {
   });
 }
 
+// Labels are getters so they follow a language switch.
 export const CONSENT_LABELS: Record<ConsentType, string> = {
-  CROSS_FACILITY_SHARING: 'Sharing with other facilities',
-  RESEARCH: 'Research use',
-  TREATMENT: 'Treatment consent',
+  get CROSS_FACILITY_SHARING() {
+    return t('Sharing with other facilities');
+  },
+  get RESEARCH() {
+    return t('Research use');
+  },
+  get TREATMENT() {
+    return t('Treatment consent');
+  },
 };
 
 export const DECISION_LABELS: Record<CurrentConsent['decision'], string> = {
-  GRANTED: 'Agreed',
-  WITHDRAWN: 'Withdrawn',
-  REFUSED: 'Refused',
-  NOT_GRANTED: 'Not given',
+  get GRANTED() {
+    return t('Agreed');
+  },
+  get WITHDRAWN() {
+    return t('Withdrawn');
+  },
+  get REFUSED() {
+    return t('Refused');
+  },
+  get NOT_GRANTED() {
+    return t('Not given');
+  },
 };
 
 export const METHOD_LABELS: Record<ConsentMethod, string> = {
-  PORTAL: 'Online (portal)',
-  IN_PERSON: 'In person',
-  WRITTEN: 'Signed form',
+  get PORTAL() {
+    return t('Online (portal)');
+  },
+  get IN_PERSON() {
+    return t('In person');
+  },
+  get WRITTEN() {
+    return t('Signed form');
+  },
 };
 
 export const decisionTone = (d: CurrentConsent['decision']) =>

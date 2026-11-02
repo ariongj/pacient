@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -18,22 +19,22 @@ import {
 } from '../../components/ui';
 import { age, formatDate, humanize } from '../../format';
 
-const RELATIONSHIPS: { value: GuardianRelationship; label: string }[] = [
-  { value: 'PARENT', label: 'Parent' },
-  { value: 'LEGAL_GUARDIAN', label: 'Legal guardian (court-appointed)' },
-  { value: 'FOSTER_CARER', label: 'Foster carer' },
-  { value: 'OTHER_AUTHORISED', label: 'Other authorised person' },
+const relationships = (): { value: GuardianRelationship; label: string }[] => [
+  { value: 'PARENT', label: t('Parent') },
+  { value: 'LEGAL_GUARDIAN', label: t('Legal guardian (court-appointed)') },
+  { value: 'FOSTER_CARER', label: t('Foster carer') },
+  { value: 'OTHER_AUTHORISED', label: t('Other authorised person') },
 ];
 
-const SCOPES: { value: ProxyScope; label: string }[] = [
-  { value: 'FULL', label: 'Full – health record, appointments and messages' },
-  { value: 'APPOINTMENTS', label: 'Appointments only – scheduling and contact details' },
+const scopes = (): { value: ProxyScope; label: string }[] => [
+  { value: 'FULL', label: t('Full – health record, appointments and messages') },
+  { value: 'APPOINTMENTS', label: t('Appointments only – scheduling and contact details') },
 ];
 
 function statusOf(g: Guardianship): { tone: 'success' | 'neutral' | 'danger'; label: string } {
-  if (g.revokedAt) return { tone: 'danger', label: 'Revoked' };
-  if (g.active) return { tone: 'success', label: 'Active' };
-  return { tone: 'neutral', label: 'Expired' };
+  if (g.revokedAt) return { tone: 'danger', label: t('Revoked') };
+  if (g.active) return { tone: 'success', label: t('Active') };
+  return { tone: 'neutral', label: t('Expired') };
 }
 
 const sortGuardians = (items: Guardianship[]) =>
@@ -77,20 +78,21 @@ function AddGuardianForm({
   if (mutation.isSuccess) {
     return (
       <div className="stack">
-        <Alert tone="success" title="Guardian added">
-          They can now act for this patient from their own portal account.
+        <Alert tone="success" title={t('Guardian added')}>
+          {t('They can now act for this patient from their own portal account.')}
         </Alert>
         {mutation.data.activationUrl && (
-          <Alert tone="info" title="Portal activation link">
+          <Alert tone="info" title={t('Portal activation link')}>
             <p>
-              The guardian has no Pacient account yet. Give them this single-use link to choose a
-              password. In production it is delivered by email and not shown here.
+              {t(
+                'The guardian has no Pacient account yet. Give them this single-use link to choose a password. In production it is delivered by email and not shown here.',
+              )}
             </p>
             <code style={{ wordBreak: 'break-all' }}>{mutation.data.activationUrl}</code>
           </Alert>
         )}
         <div className="form-actions">
-          <Button onClick={onDone}>Done</Button>
+          <Button onClick={onDone}>{t('Done')}</Button>
         </div>
       </div>
     );
@@ -99,55 +101,56 @@ function AddGuardianForm({
   return (
     <form onSubmit={onSubmit}>
       <Alert tone="info">
-        Check original documents before adding a guardian (for example a birth certificate or court
-        order). Staff accounts cannot be guardians — use the guardian’s personal email address.
+        {t(
+          'Check original documents before adding a guardian (for example a birth certificate or court order). Staff accounts cannot be guardians — use the guardian’s personal email address.',
+        )}
       </Alert>
       <div className="form-grid">
-        <TextField label="Guardian’s full name" name="fullName" required minLength={2} />
-        <TextField label="Guardian’s email" name="email" type="email" required />
+        <TextField label={t('Guardian’s full name')} name="fullName" required minLength={2} />
+        <TextField label={t('Guardian’s email')} name="email" type="email" required />
         <SelectField
-          label="Relationship"
+          label={t('Relationship')}
           name="relationship"
           required
           defaultValue={isAdult ? 'LEGAL_GUARDIAN' : 'PARENT'}
-          options={RELATIONSHIPS}
+          options={relationships()}
         />
         <SelectField
-          label="Access"
+          label={t('Access')}
           name="scope"
           required
           defaultValue="FULL"
-          options={SCOPES}
-          hint="Appointments-only guardians never see clinical information."
+          options={scopes()}
+          hint={t('Appointments-only guardians never see clinical information.')}
         />
       </div>
       <TextAreaField
-        label="Evidence checked"
+        label={t('Evidence checked')}
         name="evidence"
         required
         minLength={5}
         maxLength={300}
         rows={2}
-        hint="Document type and number, e.g. “Birth certificate 4411/2016”."
+        hint={t('Document type and number, e.g. “Birth certificate 4411/2016”.')}
       />
       <TextField
-        label="Access ends on"
+        label={t('Access ends on')}
         name="validUntil"
         type="date"
         required={isAdult}
         hint={
           isAdult
-            ? 'Required for adults: the end date from the court order (at most 5 years ahead).'
-            : 'Optional. For children, access ends automatically on their 18th birthday.'
+            ? t('Required for adults: the end date from the court order (at most 5 years ahead).')
+            : t('Optional. For children, access ends automatically on their 18th birthday.')
         }
       />
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Add guardian
+          {t('Add guardian')}
         </Button>
       </div>
     </form>
@@ -183,25 +186,25 @@ function RevokeForm({
       }}
     >
       <p>
-        <strong>{guardianship.guardianName}</strong> will lose access immediately, including any
-        session they have open.
+        <strong>{guardianship.guardianName}</strong>{' '}
+        {t('will lose access immediately, including any session they have open.')}
       </p>
       <TextAreaField
-        label="Reason"
+        label={t('Reason')}
         name="reason"
         required
         minLength={3}
         maxLength={300}
         rows={2}
-        hint="e.g. custody arrangement changed, request of the patient."
+        hint={t('e.g. custody arrangement changed, request of the patient.')}
       />
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" variant="danger" loading={mutation.isPending}>
-          Revoke access
+          {t('Revoke access')}
         </Button>
       </div>
     </form>
@@ -232,28 +235,29 @@ export function GuardiansPanel({
     <div className="stack">
       <div className="row-between">
         <p className="muted" style={{ margin: 0 }}>
-          Guardians act for the patient from their own portal account. Every view is audited and
-          appears in the patient’s access log; revocation takes effect immediately.
+          {t(
+            'Guardians act for the patient from their own portal account. Every view is audited and appears in the patient’s access log; revocation takes effect immediately.',
+          )}
         </p>
-        {canManage && <Button onClick={() => setAdding(true)}>Add guardian</Button>}
+        {canManage && <Button onClick={() => setAdding(true)}>{t('Add guardian')}</Button>}
       </div>
       <QueryView query={q}>
         {(d) =>
           d.items.length === 0 ? (
-            <EmptyState title="No guardians registered" />
+            <EmptyState title={t('No guardians registered')} />
           ) : (
-            <Table caption="Guardians with proxy access to this patient">
+            <Table caption={t('Guardians with proxy access to this patient')}>
               <thead>
                 <tr>
-                  <th scope="col">Guardian</th>
-                  <th scope="col">Relationship</th>
-                  <th scope="col">Access</th>
-                  <th scope="col">Valid until</th>
-                  <th scope="col">Evidence</th>
-                  <th scope="col">Status</th>
+                  <th scope="col">{t('Guardian')}</th>
+                  <th scope="col">{t('Relationship')}</th>
+                  <th scope="col">{t('Access')}</th>
+                  <th scope="col">{t('Valid until')}</th>
+                  <th scope="col">{t('Evidence')}</th>
+                  <th scope="col">{t('Status')}</th>
                   {canManage && (
                     <th scope="col">
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   )}
                 </tr>
@@ -266,14 +270,18 @@ export function GuardiansPanel({
                       <td>
                         <strong>{g.guardianName}</strong>
                         {g.guardianEmail && <div className="muted">{g.guardianEmail}</div>}
-                        {!g.guardianActivated && <Badge tone="warning">Invitation pending</Badge>}
+                        {!g.guardianActivated && (
+                          <Badge tone="warning">{t('Invitation pending')}</Badge>
+                        )}
                       </td>
                       <td>{humanize(g.relationship)}</td>
-                      <td>{g.scope === 'FULL' ? 'Full record' : 'Appointments only'}</td>
+                      <td>{g.scope === 'FULL' ? t('Full record') : t('Appointments only')}</td>
                       <td>{formatDate(g.validUntil)}</td>
                       <td>
                         {g.evidence}
-                        <div className="muted">Verified by {g.verifiedBy}</div>
+                        <div className="muted">
+                          {t('Verified by {name}', { name: g.verifiedBy })}
+                        </div>
                       </td>
                       <td>
                         <Badge tone={status.tone}>{status.label}</Badge>
@@ -288,7 +296,7 @@ export function GuardiansPanel({
                         <td>
                           {g.active && (
                             <Button size="sm" variant="secondary" onClick={() => setRevoking(g)}>
-                              Revoke
+                              {t('Revoke')}
                             </Button>
                           )}
                         </td>
@@ -303,7 +311,7 @@ export function GuardiansPanel({
       </QueryView>
       {canManage && (
         <>
-          <Dialog open={adding} onClose={() => setAdding(false)} title="Add guardian" wide>
+          <Dialog open={adding} onClose={() => setAdding(false)} title={t('Add guardian')} wide>
             {adding && (
               <AddGuardianForm
                 patientId={patientId}
@@ -315,7 +323,7 @@ export function GuardiansPanel({
           <Dialog
             open={revoking !== null}
             onClose={() => setRevoking(null)}
-            title="Revoke guardian access"
+            title={t('Revoke guardian access')}
           >
             {revoking && (
               <RevokeForm

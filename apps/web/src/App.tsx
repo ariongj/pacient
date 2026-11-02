@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { DirectorDuplicates } from './pages/director/DirectorDuplicates';
 import { PortalDocuments } from './pages/patient/PortalDocuments';
 import { PortalConsents } from './pages/patient/PortalConsents';
@@ -55,7 +56,7 @@ const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{e
 
 function HomeRedirect() {
   const { status, user } = useAuth();
-  if (status === 'loading') return <Loading label="Restoring your session…" />;
+  if (status === 'loading') return <Loading label={t('Restoring your session…')} />;
   return <Navigate to={user ? HOME_BY_ROLE[user.role] : '/login'} replace />;
 }
 
@@ -383,7 +384,9 @@ export function App() {
         <Route
           path="*"
           element={
-            <EmptyState title="Page not found">Check the address or use the menu.</EmptyState>
+            <EmptyState title={t('Page not found')}>
+              {t('Check the address or use the menu.')}
+            </EmptyState>
           }
         />
       </Route>

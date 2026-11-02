@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import type { LabResult } from '../../api/types';
@@ -21,26 +22,26 @@ export function PortalResults() {
   });
   return (
     <>
-      <PageHeader title="Test results" />
+      <PageHeader title={t('Test results')} />
       <Alert tone="info">
-        Results appear here after your doctor has reviewed them. A result outside the reference
-        range does not always mean something is wrong — your doctor will explain what it means for
-        you. If you have questions, book an appointment.
+        {t(
+          'Results appear here after your doctor has reviewed them. A result outside the reference range does not always mean something is wrong — your doctor will explain what it means for you. If you have questions, book an appointment.',
+        )}
       </Alert>
       <Card>
         <QueryView query={q}>
           {(d) =>
             d.items.length ? (
-              <Table caption="Released laboratory results">
+              <Table caption={t('Released laboratory results')}>
                 <thead>
                   <tr>
-                    <th>Test</th>
-                    <th className="num">Result</th>
-                    <th>Reference range</th>
-                    <th>Flag</th>
-                    <th>Status</th>
-                    <th>Collected</th>
-                    <th>Requested by</th>
+                    <th>{t('Test')}</th>
+                    <th className="num">{t('Result')}</th>
+                    <th>{t('Reference range')}</th>
+                    <th>{t('Flag')}</th>
+                    <th>{t('Status')}</th>
+                    <th>{t('Collected')}</th>
+                    <th>{t('Requested by')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -64,7 +65,7 @@ export function PortalResults() {
                 </tbody>
               </Table>
             ) : (
-              <EmptyState title="No results released yet" />
+              <EmptyState title={t('No results released yet')} />
             )
           }
         </QueryView>

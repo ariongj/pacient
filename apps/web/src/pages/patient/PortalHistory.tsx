@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../api/client';
@@ -56,12 +57,12 @@ function Visits() {
                     <div className="note">{e.notes}</div>
                   ) : e.noteStatus === 'DRAFT' ? (
                     <p className="muted">
-                      The visit note will appear here once your doctor signs it.
+                      {t('The visit note will appear here once your doctor signs it.')}
                     </p>
                   ) : null}
                   {e.addenda.map((a) => (
                     <div key={a.id} className="addendum">
-                      <strong>Addendum</strong> — {a.reason}{' '}
+                      <strong>{t('Addendum')}</strong> — {a.reason}{' '}
                       <span className="muted">
                         ({a.authorName}, {formatDate(a.createdAt)})
                       </span>
@@ -70,13 +71,13 @@ function Visits() {
                   ))}
                   {e.diagnoses.length > 0 && (
                     <p>
-                      <strong>Diagnoses: </strong>
+                      <strong>{t('Diagnoses:')} </strong>
                       {e.diagnoses.map((dx) => `${dx.description} (${dx.icd10Code})`).join('; ')}
                     </p>
                   )}
                   {e.prescriptions.length > 0 && (
                     <p>
-                      <strong>Prescribed: </strong>
+                      <strong>{t('Prescribed:')} </strong>
                       {e.prescriptions
                         .map((p) => `${p.medication} ${p.dosage}, ${p.frequency}`)
                         .join('; ')}
@@ -88,7 +89,7 @@ function Visits() {
             <Pagination page={d.page} totalPages={d.totalPages} onChange={setPage} />
           </>
         ) : (
-          <EmptyState title="No visits recorded yet" />
+          <EmptyState title={t('No visits recorded yet')} />
         )
       }
     </QueryView>
@@ -105,14 +106,14 @@ function Conditions() {
     <QueryView query={q}>
       {(d) =>
         d.items.length ? (
-          <Table caption="Diagnoses">
+          <Table caption={t('Diagnoses')}>
             <thead>
               <tr>
-                <th>Condition</th>
-                <th>Code</th>
-                <th>Status</th>
-                <th>Diagnosed</th>
-                <th>Doctor</th>
+                <th>{t('Condition')}</th>
+                <th>{t('Code')}</th>
+                <th>{t('Status')}</th>
+                <th>{t('Diagnosed')}</th>
+                <th>{t('Doctor')}</th>
               </tr>
             </thead>
             <tbody>
@@ -125,7 +126,9 @@ function Conditions() {
                   <td>
                     <StatusBadge value={x.status} />
                     {x.resolvedAt && (
-                      <div className="muted">Resolved {formatDate(x.resolvedAt)}</div>
+                      <div className="muted">
+                        {t('Resolved {date}', { date: formatDate(x.resolvedAt) })}
+                      </div>
                     )}
                   </td>
                   <td>{formatDate(x.diagnosedAt)}</td>
@@ -135,7 +138,7 @@ function Conditions() {
             </tbody>
           </Table>
         ) : (
-          <EmptyState title="No conditions recorded" />
+          <EmptyState title={t('No conditions recorded')} />
         )
       }
     </QueryView>
@@ -152,15 +155,15 @@ function Medications() {
     <QueryView query={q}>
       {(d) =>
         d.items.length ? (
-          <Table caption="Medication history">
+          <Table caption={t('Medication history')}>
             <thead>
               <tr>
-                <th>Medication</th>
-                <th>Dose & frequency</th>
-                <th>Route</th>
-                <th>Period</th>
-                <th>Status</th>
-                <th>Prescriber</th>
+                <th>{t('Medication')}</th>
+                <th>{t('Dose & frequency')}</th>
+                <th>{t('Route')}</th>
+                <th>{t('Period')}</th>
+                <th>{t('Status')}</th>
+                <th>{t('Prescriber')}</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +178,7 @@ function Medications() {
                   </td>
                   <td>{humanize(p.route)}</td>
                   <td>
-                    {formatDate(p.startDate)} – {p.endDate ? formatDate(p.endDate) : 'ongoing'}
+                    {formatDate(p.startDate)} – {p.endDate ? formatDate(p.endDate) : t('ongoing')}
                   </td>
                   <td>
                     <StatusBadge value={p.status} />
@@ -186,7 +189,7 @@ function Medications() {
             </tbody>
           </Table>
         ) : (
-          <EmptyState title="No medications recorded" />
+          <EmptyState title={t('No medications recorded')} />
         )
       }
     </QueryView>
@@ -203,16 +206,16 @@ function Vaccinations() {
     <QueryView query={q}>
       {(d) =>
         d.items.length ? (
-          <Table caption="Vaccinations">
+          <Table caption={t('Vaccinations')}>
             <thead>
               <tr>
-                <th>Vaccine</th>
-                <th className="num">Dose</th>
-                <th>Date</th>
-                <th>Facility</th>
-                <th>Given by</th>
-                <th>Lot</th>
-                <th>Site</th>
+                <th>{t('Vaccine')}</th>
+                <th className="num">{t('Dose')}</th>
+                <th>{t('Date')}</th>
+                <th>{t('Facility')}</th>
+                <th>{t('Given by')}</th>
+                <th>{t('Lot')}</th>
+                <th>{t('Site')}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,7 +236,7 @@ function Vaccinations() {
             </tbody>
           </Table>
         ) : (
-          <EmptyState title="No vaccinations recorded" />
+          <EmptyState title={t('No vaccinations recorded')} />
         )
       }
     </QueryView>
@@ -250,15 +253,15 @@ function VitalsTab() {
     <QueryView query={q}>
       {(d) =>
         d.items.length ? (
-          <Table caption="Vital signs">
+          <Table caption={t('Vital signs')}>
             <thead>
               <tr>
-                <th>Date</th>
-                <th className="num">Blood pressure</th>
-                <th className="num">Heart rate</th>
-                <th className="num">Temp.</th>
+                <th>{t('Date')}</th>
+                <th className="num">{t('Blood pressure')}</th>
+                <th className="num">{t('Heart rate')}</th>
+                <th className="num">{t('Temp.')}</th>
                 <th className="num">SpO₂</th>
-                <th className="num">Weight</th>
+                <th className="num">{t('Weight')}</th>
               </tr>
             </thead>
             <tbody>
@@ -275,7 +278,7 @@ function VitalsTab() {
             </tbody>
           </Table>
         ) : (
-          <EmptyState title="No measurements recorded" />
+          <EmptyState title={t('No measurements recorded')} />
         )
       }
     </QueryView>
@@ -287,20 +290,22 @@ export function PortalHistory() {
   return (
     <>
       <PageHeader
-        title="Medical history"
-        subtitle="Visits, conditions and medications recorded by your doctors. Each entry shows who recorded it and where."
+        title={t('Medical history')}
+        subtitle={t(
+          'Visits, conditions and medications recorded by your doctors. Each entry shows who recorded it and where.',
+        )}
       />
       <Card>
         <Tabs
-          label="Medical history sections"
+          label={t('Medical history sections')}
           active={tab}
           onChange={setTab}
           tabs={[
-            { id: 'visits', label: 'Visits' },
-            { id: 'conditions', label: 'Conditions' },
-            { id: 'medications', label: 'Medications' },
-            { id: 'vaccinations', label: 'Vaccinations' },
-            { id: 'vitals', label: 'Measurements' },
+            { id: 'visits', label: t('Visits') },
+            { id: 'conditions', label: t('Conditions') },
+            { id: 'medications', label: t('Medications') },
+            { id: 'vaccinations', label: t('Vaccinations') },
+            { id: 'vitals', label: t('Measurements') },
           ]}
         />
         <TabPanel id={tab}>

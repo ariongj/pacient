@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -24,7 +25,7 @@ export function ChangePasswordCard() {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     if (data.get('newPassword') !== data.get('confirm')) {
-      setError(new Error('The new passwords do not match'));
+      setError(new Error(t('The new passwords do not match')));
       return;
     }
     setBusy(true);
@@ -48,26 +49,26 @@ export function ChangePasswordCard() {
   }
 
   return (
-    <Card title="Change password">
+    <Card title={t('Change password')}>
       <form onSubmit={onSubmit} className="form-narrow">
         <TextField
-          label="Current password"
+          label={t('Current password')}
           name="currentPassword"
           type="password"
           autoComplete="current-password"
           required
         />
         <TextField
-          label="New password"
+          label={t('New password')}
           name="newPassword"
           type="password"
           autoComplete="new-password"
           minLength={12}
           required
-          hint="At least 12 characters. You will be signed out of all devices."
+          hint={t('At least 12 characters. You will be signed out of all devices.')}
         />
         <TextField
-          label="Confirm new password"
+          label={t('Confirm new password')}
           name="confirm"
           type="password"
           autoComplete="new-password"
@@ -75,7 +76,7 @@ export function ChangePasswordCard() {
         />
         <ErrorAlert error={error} />
         <Button type="submit" loading={busy}>
-          Change password
+          {t('Change password')}
         </Button>
       </form>
     </Card>
@@ -86,16 +87,16 @@ export function AccountPage() {
   const user = useUser();
   return (
     <>
-      <PageHeader title="Account" />
+      <PageHeader title={t('Account')} />
       <div className="stack">
-        <Card title="Profile">
+        <Card title={t('Profile')}>
           <DefinitionList
             items={[
-              ['Name', user.fullName],
-              ['Email', user.email],
-              ['Role', humanize(user.role)],
-              ['Facility', user.facility?.name ?? '—'],
-              ['Last sign-in', formatDateTime(user.lastLoginAt)],
+              [t('Name'), user.fullName],
+              [t('Email'), user.email],
+              [t('Role'), humanize(user.role)],
+              [t('Facility'), user.facility?.name ?? '—'],
+              [t('Last sign-in'), formatDateTime(user.lastLoginAt)],
             ]}
           />
         </Card>

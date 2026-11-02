@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import QRCode from 'qrcode';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api/client';
@@ -17,17 +18,18 @@ function QrImage({ value }: { value: string }) {
       src={src}
       width={200}
       height={200}
-      alt="QR code to add Pacient to your authenticator app"
+      alt={t('QR code to add Pacient to your authenticator app')}
     />
   ) : null;
 }
 
 function RecoveryCodes({ codes }: { codes: string[] }) {
   return (
-    <Alert tone="warning" title="Save your recovery codes now">
+    <Alert tone="warning" title={t('Save your recovery codes now')}>
       <p>
-        Each code can be used once if you lose your phone. They will not be shown again. Store them
-        somewhere safe (for example, printed in a locked drawer).
+        {t(
+          'Each code can be used once if you lose your phone. They will not be shown again. Store them somewhere safe (for example, printed in a locked drawer).',
+        )}
       </p>
       <ul className="recovery-codes">
         {codes.map((c) => (
@@ -41,7 +43,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
         size="sm"
         onClick={() => navigator.clipboard?.writeText(codes.join('\n'))}
       >
-        Copy codes
+        {t('Copy codes')}
       </Button>
     </Alert>
   );
@@ -89,7 +91,7 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
   if (codes) {
     return (
       <div className="stack">
-        <Alert tone="success" title="Two-step sign-in is on." />
+        <Alert tone="success" title={t('Two-step sign-in is on.')} />
         <RecoveryCodes codes={codes} />
         <div>
           <Button
@@ -98,7 +100,7 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
               onDone?.();
             }}
           >
-            I have saved my codes
+            {t('I have saved my codes')}
           </Button>
         </div>
       </div>
@@ -109,13 +111,14 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
     return (
       <div className="stack">
         <p>
-          Two-step sign-in protects health records even if your password is stolen. You will need an
-          authenticator app such as Google Authenticator, Microsoft Authenticator or Aegis.
+          {t(
+            'Two-step sign-in protects health records even if your password is stolen. You will need an authenticator app such as Google Authenticator, Microsoft Authenticator or Aegis.',
+          )}
         </p>
         <ErrorAlert error={error} />
         <div>
           <Button onClick={start} loading={busy}>
-            Set up two-step sign-in
+            {t('Set up two-step sign-in')}
           </Button>
         </div>
       </div>
@@ -126,19 +129,19 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
     <form onSubmit={confirm}>
       <ol className="steps">
         <li>
-          Open your authenticator app and scan this code:
+          {t('Open your authenticator app and scan this code:')}
           <div className="qr">
             <QrImage value={setup.otpauthUrl} />
           </div>
           <details>
-            <summary>Can’t scan? Enter the key manually</summary>
+            <summary>{t('Can’t scan? Enter the key manually')}</summary>
             <code className="secret">{setup.secret.match(/.{1,4}/g)?.join(' ')}</code>
           </details>
         </li>
-        <li>Enter the 6-digit code the app shows to confirm.</li>
+        <li>{t('Enter the 6-digit code the app shows to confirm.')}</li>
       </ol>
       <TextField
-        label="Authentication code"
+        label={t('Authentication code')}
         inputMode="numeric"
         autoComplete="one-time-code"
         pattern="[0-9]{6}"
@@ -150,7 +153,7 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
       <ErrorAlert error={error} />
       <div>
         <Button type="submit" loading={busy}>
-          Confirm and turn on
+          {t('Confirm and turn on')}
         </Button>
       </div>
     </form>
@@ -194,24 +197,24 @@ export function TwoStepCard() {
   }
 
   return (
-    <Card title="Two-step sign-in">
+    <Card title={t('Two-step sign-in')}>
       {!user.mfaEnabled ? (
         <TwoStepEnrollment />
       ) : (
         <div className="stack">
           <p>
-            <strong>On.</strong> You are asked for a code from your authenticator app each time you
-            sign in.
+            <strong>{t('On.')}</strong>{' '}
+            {t('You are asked for a code from your authenticator app each time you sign in.')}
           </p>
           {codes && <RecoveryCodes codes={codes} />}
           {mode === 'idle' ? (
             <div className="row">
               <Button variant="secondary" onClick={() => setMode('regenerate')}>
-                New recovery codes
+                {t('New recovery codes')}
               </Button>
               {!user.mfaRequired && (
                 <Button variant="secondary" onClick={() => setMode('disable')}>
-                  Turn off
+                  {t('Turn off')}
                 </Button>
               )}
             </div>
@@ -219,7 +222,7 @@ export function TwoStepCard() {
             <form onSubmit={onSubmit} className="form-narrow">
               {mode === 'disable' && (
                 <TextField
-                  label="Password"
+                  label={t('Password')}
                   name="password"
                   type="password"
                   autoComplete="current-password"
@@ -227,7 +230,7 @@ export function TwoStepCard() {
                 />
               )}
               <TextField
-                label="Current authentication code"
+                label={t('Current authentication code')}
                 name="code"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -242,16 +245,16 @@ export function TwoStepCard() {
                   loading={busy}
                   variant={mode === 'disable' ? 'danger' : 'primary'}
                 >
-                  {mode === 'disable' ? 'Turn off two-step sign-in' : 'Generate new codes'}
+                  {mode === 'disable' ? t('Turn off two-step sign-in') : t('Generate new codes')}
                 </Button>
                 <Button variant="secondary" onClick={() => setMode('idle')}>
-                  Cancel
+                  {t('Cancel')}
                 </Button>
               </div>
             </form>
           )}
           {user.mfaRequired && (
-            <p className="muted">Two-step sign-in is mandatory for staff accounts.</p>
+            <p className="muted">{t('Two-step sign-in is mandatory for staff accounts.')}</p>
           )}
         </div>
       )}

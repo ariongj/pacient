@@ -539,4 +539,8 @@ export const clinical: Record<string, string> = {
   '{h} h {m} min': '{h} orë {m} min',
   '{m} min': '{m} min',
   '{name} has been registered.': '{name} u regjistrua.',
+  'This record was merged': 'Kjo kartelë është bashkuar',
+  'This was a duplicate record and has been merged into another record. All entries are now in the surviving record.':
+    'Kjo ishte një kartelë e dyfishtë dhe është bashkuar me një kartelë tjetër. Të gjitha shënimet tani gjenden në kartelën që u ruajt.',
+  'Open the surviving record': 'Hapni kartelën që u ruajt',
 };

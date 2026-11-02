@@ -39,6 +39,8 @@ import { t } from '../../i18n';
 
 /** GET /patients/:id – demographics without clinical data. */
 interface PatientDemographics {
+  /** Set when this record was a duplicate merged into another one. */
+  mergedIntoId?: string | null;
   id: string;
   nationalId: string;
   firstName: string;
@@ -117,6 +119,18 @@ export function PatientChart() {
   }
 
   const p = demographics.data;
+  if (p.mergedIntoId) {
+    return (
+      <Card title={t('This record was merged')}>
+        <p>
+          {t(
+            'This was a duplicate record and has been merged into another record. All entries are now in the surviving record.',
+          )}
+        </p>
+        <Link to={`${base}/patients/${p.mergedIntoId}`}>{t('Open the surviving record')}</Link>
+      </Card>
+    );
+  }
   const sameFacility = p.primaryFacilityId === user.facility?.id;
   const noClinicalAccess = summary.error instanceof ApiError && summary.error.status === 403;
   const s = summary.data;

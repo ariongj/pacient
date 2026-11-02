@@ -91,4 +91,6 @@ export const sq: Record<string, string> = {
     'E merrni këtë sepse njoftimet me email janë të aktivizuara për llogarinë tuaj në Pacient. Për privatësinë tuaj, nuk përfshijmë kurrë informacione shëndetësore në email. Këtë mund ta ndryshoni te Të dhënat e mia / Llogaria. Në rast emergjence telefononi 112.',
   'If you did not expect this email you can ignore it. Pacient staff will never ask you for your password.':
     'Nëse nuk e prisnit këtë email, mund ta injoroni. Stafi i Pacient nuk do t’ju kërkojë kurrë fjalëkalimin.',
+  'Two patient records were merged': 'Dy kartela pacientësh u bashkuan',
+  'A patient record merge was undone': 'Bashkimi i kartelave të pacientit u anulua',
 };

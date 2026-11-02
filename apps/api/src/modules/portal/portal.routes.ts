@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { and, count, desc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { auditLogs, facilities, patients, users } from '../../db/schema.js';
+import { auditLogs, facilities, patientMerges, patients, users } from '../../db/schema.js';
 import { forbidden } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
@@ -35,8 +35,13 @@ portalRouter.get('/access-log', async (req, res) => {
   assertFullProxyScope(ctx);
   const patientId = ownPatientId(ctx.patientId);
   const page = parse(PaginationSchema, req.query);
+  // Include accesses to duplicate records that were merged into this one.
+  const merged = await db
+    .select({ id: patientMerges.mergedId })
+    .from(patientMerges)
+    .where(and(eq(patientMerges.survivorId, patientId), isNull(patientMerges.unmergedAt)));
   const where = and(
-    eq(auditLogs.patientId, patientId),
+    inArray(auditLogs.patientId, [patientId, ...merged.map((m) => m.id)]),
     or(isNull(auditLogs.actorUserId), ne(auditLogs.actorUserId, ctx.userId)),
   );
   const [rows, [total]] = await Promise.all([

@@ -17,7 +17,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { formatDateTime } from '../../../format';
-import { EncounterSelect, useChartMutation } from './shared';
+import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 
 export function ResultsTab({
@@ -54,13 +54,17 @@ export function ResultsTab({
     );
   }
 
+  const { isDoctor } = useChartRole();
+
   return (
     <Card
       title="Test results"
       actions={
-        <Button size="sm" onClick={() => setOpen(true)}>
-          Add result
-        </Button>
+        isDoctor ? (
+          <Button size="sm" onClick={() => setOpen(true)}>
+            Add result
+          </Button>
+        ) : undefined
       }
     >
       <p className="muted">
@@ -112,6 +116,8 @@ export function ResultsTab({
                             <Badge tone="success">
                               Reviewed {formatDateTime(r.acknowledgedAt)}
                             </Badge>
+                          ) : !isDoctor ? (
+                            <Badge tone="warning">Awaiting doctor review</Badge>
                           ) : (
                             <Button
                               size="sm"
@@ -123,7 +129,7 @@ export function ResultsTab({
                           )}
                           {r.releasedAt ? (
                             <Badge tone="info">Released to patient</Badge>
-                          ) : (
+                          ) : !isDoctor ? null : (
                             <Button
                               size="sm"
                               variant="secondary"

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Alert, Button, Card, Dialog, ErrorAlert, TextAreaField } from '../../../components/ui';
-import { useChartMutation } from './shared';
+import { useChartMutation, useChartRole } from './shared';
 
 /**
  * Shown when the doctor may see demographics but not the clinical record. Offers the two
@@ -13,6 +13,7 @@ export function AccessPanel({
   patientId: string;
   sameFacility: boolean;
 }) {
+  const { isDoctor } = useChartRole();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const join = useChartMutation(patientId, () => ({
@@ -34,8 +35,8 @@ export function AccessPanel({
   return (
     <Card title="You are not in this patient’s care team">
       <p>
-        Clinical records are available only to the doctors treating the patient. Choose how you need
-        to access this record.
+        Clinical records are available only to the patient’s care team. Choose how you need to
+        access this record.
       </p>
       {!sameFacility && (
         <Alert tone="info">
@@ -50,7 +51,7 @@ export function AccessPanel({
             Join care team
           </Button>
         )}
-        {sameFacility && (
+        {sameFacility && isDoctor && (
           <Button variant="danger" onClick={() => setOpen(true)}>
             Emergency access…
           </Button>
@@ -59,6 +60,7 @@ export function AccessPanel({
       {sameFacility && (
         <p className="muted" style={{ marginTop: '0.75rem' }}>
           Joining the care team is recorded in the audit trail and is visible to the patient.
+          {!isDoctor && ' In an emergency, ask a doctor to use emergency access.'}
         </p>
       )}
 

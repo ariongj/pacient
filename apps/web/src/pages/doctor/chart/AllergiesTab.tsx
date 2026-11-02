@@ -17,7 +17,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
-import { useChartMutation } from './shared';
+import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 
 const SEVERITIES = ['MILD', 'MODERATE', 'SEVERE', 'LIFE_THREATENING'] as const;
@@ -58,9 +58,13 @@ export function AllergiesTab({
     body: { status },
   }));
 
+  const { isDoctor } = useChartRole();
+
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    create.mutate(compact(formValues(e.currentTarget)));
+    const v = compact(formValues(e.currentTarget));
+    // Nurses record allergies as unconfirmed; a doctor confirms them.
+    create.mutate(isDoctor ? v : { ...v, verificationStatus: 'UNCONFIRMED' });
   }
 
   return (
@@ -68,6 +72,8 @@ export function AllergiesTab({
       title="Allergies & intolerances"
       actions={
         <>
+          {isDoctor && (
+            <>
           <Button
             size="sm"
             variant="secondary"
@@ -84,6 +90,8 @@ export function AllergiesTab({
           >
             Record unknown
           </Button>
+            </>
+          )}
           <Button size="sm" onClick={() => setOpen(true)}>
             Add allergy
           </Button>
@@ -108,7 +116,7 @@ export function AllergiesTab({
                   <th>Verification</th>
                   <th>Source</th>
                   <th>Recorded</th>
-                  <th>Change verification</th>
+                  {isDoctor && <th>Change verification</th>}
                 </tr>
               </thead>
               <tbody>
@@ -129,6 +137,7 @@ export function AllergiesTab({
                       {formatDate(a.recordedAt)}
                       <div className="muted">{a.recordedBy}</div>
                     </td>
+                    {isDoctor && (
                     <td>
                       <label className="sr-only" htmlFor={`al-${a.id}`}>
                         Verification of {a.substance}
@@ -148,6 +157,7 @@ export function AllergiesTab({
                         ))}
                       </select>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -167,17 +177,22 @@ export function AllergiesTab({
               options={enumOptions(SEVERITIES)}
               placeholder="Select…"
             />
-            <SelectField
-              label="Verification"
-              name="verificationStatus"
-              options={enumOptions(['UNCONFIRMED', 'CONFIRMED'])}
-            />
+            {isDoctor && (
+              <SelectField
+                label="Verification"
+                name="verificationStatus"
+                options={enumOptions(['UNCONFIRMED', 'CONFIRMED'])}
+              />
+            )}
             <SelectField
               label="Source"
               name="source"
               options={enumOptions(['CLINICIAN', 'PATIENT_REPORTED'])}
             />
           </div>
+          {!isDoctor && (
+            <p className="muted">Recorded as unconfirmed until a doctor verifies it.</p>
+          )}
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>

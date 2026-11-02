@@ -9,20 +9,23 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Roles and permission model (§3)
 
-| Requirement                                                                          | Status | Where                                                                   |
-| ------------------------------------------------------------------------------------ | :----: | ----------------------------------------------------------------------- |
-| Default deny; contextual authorization enforced on the server                        |   ✅   | `modules/access/policy.ts`                                              |
-| Roles are responsibilities, not a ladder; director/ministry get no record access     |   ✅   | policy + `test/access-control.test.ts`                                  |
-| Doctor access limited to assigned care                                               |   ✅   | `care_assignments`                                                      |
-| Institution (tenant) isolation incl. search and break-glass                          |   ✅   | patients routes, policy                                                 |
-| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant |   ✅   | emergency access + director review queue + Ministry compliance view     |
-| Audit of reads, searches, changes, exports, denials, role changes, emergency access  |   ✅   | `modules/audit`                                                         |
-| Prompt leaver revocation (blocks active sessions)                                    |   ✅   | staff status + per-request account check                                |
-| Patient, Doctor, Director (operations/clinical), Ministry roles                      |   ✅   |                                                                         |
-| Nurse, pharmacist, lab/radiology, reception, billing, IT support, proxy/guardian     |   ⏳   | add roles + policy rules per workflow                                   |
-| Purpose/consent and data-sensitivity in policy decisions                             |   ⏳   |                                                                         |
-| Periodic access review                                                               |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
-| Cross-institution sharing only through an explicit arrangement                       |   ✅   | referrals: acceptance creates the care relationship                     |
+| Requirement                                                                            | Status | Where                                                                   |
+| -------------------------------------------------------------------------------------- | :----: | ----------------------------------------------------------------------- |
+| Default deny; contextual authorization enforced on the server                          |   ✅   | `modules/access/policy.ts`                                              |
+| Roles are responsibilities, not a ladder; director/ministry get no record access       |   ✅   | policy + `test/access-control.test.ts`                                  |
+| Doctor access limited to assigned care                                                 |   ✅   | `care_assignments`                                                      |
+| Institution (tenant) isolation incl. search and break-glass                            |   ✅   | patients routes, policy                                                 |
+| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant   |   ✅   | emergency access + director review queue + Ministry compliance view     |
+| Audit of reads, searches, changes, exports, denials, role changes, emergency access    |   ✅   | `modules/audit`                                                         |
+| Prompt leaver revocation (blocks active sessions)                                      |   ✅   | staff status + per-request account check                                |
+| Patient, Doctor, Director (operations/clinical), Ministry roles                        |   ✅   |                                                                         |
+| Nurse role: care team, observations, tasks, medication administration (no prescribing) |   ✅   | `policy.ts` WRITERS, MAR, care tasks                                    |
+| Pharmacist role: medication review/verification/dispensing with necessary context only |   ✅   | `modules/pharmacy`                                                      |
+| Reception role: identity, contact, scheduling; clinical detail hidden                  |   ✅   | patients/appointments routes                                            |
+| Lab/radiology, billing, IT support, proxy/guardian roles                               |   ⏳   |                                                                         |
+| Purpose/consent and data-sensitivity in policy decisions                               |   ⏳   |                                                                         |
+| Periodic access review                                                                 |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
+| Cross-institution sharing only through an explicit arrangement                         |   ✅   | referrals: acceptance creates the care relationship                     |
 
 ## Patient portal (§2, §4)
 
@@ -67,15 +70,16 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Architecture & interoperability (§6)
 
-| Requirement                                                                | Status |
-| -------------------------------------------------------------------------- | :----: |
-| Modular monolith with explicit domain modules                              |   ✅   |
-| Relational transactional store; transactions around record changes + audit |   ✅   |
-| MFA (TOTP + recovery codes), mandatory for staff                           |   ✅   |
-| Managed identity provider / OIDC, passkeys                                 |   ⏳   |
-| Transactional outbox + durable queue for integrations                      |   ⏳   |
-| FHIR R4 mapping / export profiles                                          |   ⏳   |
-| Private object store for documents, upload scanning                        |   ⏳   |
+| Requirement                                                                   |             Status             |
+| ----------------------------------------------------------------------------- | :----------------------------: |
+| Modular monolith with explicit domain modules                                 |               ✅               |
+| Relational transactional store; transactions around record changes + audit    |               ✅               |
+| MFA (TOTP + recovery codes), mandatory for staff                              |               ✅               |
+| Managed identity provider / OIDC, passkeys                                    |               ⏳               |
+| Transactional event delivery (NOTIFY inside the transaction) for live updates |               ✅               |
+| Durable outbox + queue for external integrations                              |               ⏳               |
+| FHIR R4 export (Patient/$everything, ICD-10, LOINC/UCUM)                      | ✅ (validate partner profiles) |
+| Private object store for documents, upload scanning                           |               ⏳               |
 
 ## Security, privacy and reporting (§7)
 
@@ -102,14 +106,13 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Suggested next backlog (in order)
 
-1. **Nurse and reception roles** with policy tests (B03).
+1. **Validated drug-interaction database** for pharmacy decision support; barcode administration.
 2. **Email/SMS provider** for activation, reset and notification delivery; passkeys or OIDC (§7).
 3. **Structured orders and critical-result escalation** with backup owners (B05).
 4. **Proxy/guardian access** and consent records (B06).
 5. **Identity merge/unmerge** with lineage (B02).
 6. **Transactional outbox** and one validated integration (e.g. LIS results via HL7 v2) (B07).
-7. **FHIR R4 export** (Patient, Encounter, Condition, MedicationRequest, AllergyIntolerance,
-   Observation) for portability and exchange.
+7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR/HL7 v2 interfaces.
 8. Backup/restore and downtime rehearsal; accessibility evaluation; independent security review (B09–B10).
 
 ## Open decisions (§10) — needed from the project sponsor

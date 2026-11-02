@@ -12,12 +12,13 @@ import {
   QueryView,
   Table,
 } from '../../../components/ui';
-import { formatDate } from '../../../format';
-import { useChartMutation } from './shared';
+import { formatDate, humanize } from '../../../format';
+import { useChartMutation, useChartRole } from './shared';
 
 export function CareTeamTab({ patientId }: { patientId: string }) {
   const user = useUser();
   const navigate = useNavigate();
+  const { base } = useChartRole();
   const team = useQuery({
     queryKey: ['patient', patientId, 'care-team'],
     queryFn: () =>
@@ -26,7 +27,7 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
   const leave = useChartMutation(
     patientId,
     () => ({ path: `/care-team/${user.id}`, method: 'DELETE' }),
-    () => navigate('/doctor/patients'),
+    () => navigate(`${base}/patients`),
   );
 
   return (
@@ -35,12 +36,13 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
       <QueryView query={team}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No doctors assigned" />
+            <EmptyState title="No clinicians assigned" />
           ) : (
             <Table caption="Care team">
               <thead>
                 <tr>
-                  <th>Doctor</th>
+                  <th>Clinician</th>
+                  <th>Role</th>
                   <th>Specialty</th>
                   <th>Since</th>
                   <th>
@@ -54,6 +56,7 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
                     <td>
                       {m.fullName} {m.doctorId === user.id && <Badge tone="info">You</Badge>}
                     </td>
+                    <td>{humanize(m.role ?? 'DOCTOR')}</td>
                     <td>{m.specialty ?? '—'}</td>
                     <td>{formatDate(m.startedAt)}</td>
                     <td>

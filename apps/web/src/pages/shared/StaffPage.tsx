@@ -77,8 +77,11 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   const user = useUser();
   const qc = useQueryClient();
   const isMinistry = user.role === 'MINISTRY';
-  const roleOptions: StaffRole[] = isMinistry ? ['DIRECTOR', 'MINISTRY'] : ['DOCTOR', 'DIRECTOR'];
+  const roleOptions: StaffRole[] = isMinistry
+    ? ['DIRECTOR', 'MINISTRY']
+    : ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR'];
   const [role, setRole] = useState<StaffRole>(roleOptions[0]!);
+  const licensed = role === 'DOCTOR' || role === 'NURSE' || role === 'PHARMACIST';
   const facilities = useFacilities(isMinistry);
 
   const mutation = useMutation({
@@ -108,9 +111,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
       fullName: v.fullName,
       role,
       ...(isMinistry && role === 'DIRECTOR' ? { facilityId: v.facilityId } : {}),
-      ...(role === 'DOCTOR'
-        ? { licenseNumber: v.licenseNumber, specialty: v.specialty || null }
-        : {}),
+      ...(licensed ? { licenseNumber: v.licenseNumber, specialty: v.specialty || null } : {}),
     });
   }
 
@@ -139,10 +140,10 @@ function InviteForm({ onClose }: { onClose: () => void }) {
             }))}
           />
         )}
-        {role === 'DOCTOR' && (
+        {licensed && (
           <>
             <TextField
-              label="Medical license number"
+              label="Professional licence number"
               name="licenseNumber"
               required
               maxLength={60}
@@ -151,7 +152,13 @@ function InviteForm({ onClose }: { onClose: () => void }) {
               label="Specialty"
               name="specialty"
               maxLength={120}
-              placeholder="e.g. Family Medicine"
+              placeholder={
+                role === 'DOCTOR'
+                  ? 'e.g. Family Medicine'
+                  : role === 'NURSE'
+                    ? 'e.g. Registered Nurse'
+                    : 'e.g. Hospital Pharmacist'
+              }
             />
           </>
         )}
@@ -254,7 +261,9 @@ export function StaffPage() {
     (isMinistry ? m.role === 'MINISTRY' || m.role === 'DIRECTOR' : m.role !== 'MINISTRY');
 
   const roleFilterOptions = (
-    isMinistry ? ['MINISTRY', 'DIRECTOR', 'DOCTOR'] : ['DIRECTOR', 'DOCTOR']
+    isMinistry
+      ? ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION']
+      : ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION']
   ).map((r) => ({
     value: r,
     label: humanize(r),

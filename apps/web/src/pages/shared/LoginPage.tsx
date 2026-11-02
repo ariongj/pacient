@@ -15,6 +15,9 @@ const DEMO = import.meta.env.DEV
       ['Ministry', 'minister@pacient.local'],
       ['Director', 'director@pacient.local'],
       ['Doctor', 'doctor@pacient.local'],
+      ['Nurse', 'nurse@pacient.local'],
+      ['Pharmacist', 'pharmacist@pacient.local'],
+      ['Reception', 'reception@pacient.local'],
       ['Patient', 'patient@pacient.local'],
     ]
   : [];
@@ -160,7 +163,9 @@ export function LoginPage() {
   return (
     <AuthCard>
       <h1>Sign in</h1>
-      <p className="muted">Patients, clinicians, facility directors and Ministry officials.</p>
+      <p className="muted">
+        Patients, clinicians, pharmacy and front-desk teams, facility directors and the Ministry.
+      </p>
       <form onSubmit={onPassword}>
         <TextField
           label="Email"

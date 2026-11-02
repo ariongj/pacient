@@ -5,12 +5,15 @@
 Authorization is **default-deny and contextual**. Job title alone never grants access to a record.
 The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 
-| Role     | Identifiable clinical record                                               | Demographics                       | Aggregates                      |
-| -------- | -------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
-| Patient  | Own record, read-only; only **released** results and **signed** notes      | Own                                | –                               |
-| Doctor   | Active care relationship, or emergency access **within the same facility** | Own facility, own care team        | –                               |
-| Director | Never                                                                      | Own facility's registered patients | Own facility                    |
-| Ministry | Never                                                                      | Never                              | National, small-cell suppressed |
+| Role       | Identifiable clinical record                                                                                | Demographics                       | Aggregates                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
+| Patient    | Own record, read-only; only **released** results and **signed** notes                                       | Own                                | –                               |
+| Doctor     | Active care relationship, or emergency access **within the same facility**                                  | Own facility, own care team        | –                               |
+| Nurse      | Care team: read; record vitals, reported allergies, vaccinations, medication administration                 | Own facility, own care team        | –                               |
+| Pharmacist | Never in full – medication context of prescriptions in the facility queue (audited, visible to the patient) | Via the queue only                 | –                               |
+| Reception  | Never                                                                                                       | Own facility's registered patients | –                               |
+| Director   | Never                                                                                                       | Own facility's registered patients | Own facility                    |
+| Ministry   | Never                                                                                                       | Never                              | National, small-cell suppressed |
 
 - **Institution boundaries.** Patient search, care-team assignment and emergency access never cross
   facilities. A national ID match at another facility is not disclosed.
@@ -30,6 +33,15 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   the doctor made during the access window. The Ministry sees review compliance per facility, never
   the patients involved.
 - **Messaging** is only possible within an active care relationship and is part of the audit trail.
+- **Medication safety:** prescriber, pharmacist and nurse duties are separate. Nurses can only
+  record administration against pharmacy-verified prescriptions; every dose given, withheld,
+  refused or omitted is recorded with author and reason in an append-only table. Pharmacy safety
+  alerts (allergy, class cross-reactivity, duplicate therapy) are decision support: verifying a
+  flagged prescription requires an explicit review note. A validated drug-interaction database must
+  be integrated before production.
+- **Team channels** are scoped by facility and role; national channels connect the Ministry with
+  directors. Channel posts are audited, and the UI reminds staff not to post patient identifiers.
+- **Live updates** use single-use 30-second tickets instead of putting access tokens in URLs.
 
 ## Authentication
 

@@ -17,7 +17,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
-import { EncounterSelect, useChartMutation } from './shared';
+import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 
 const STATUSES = ['ACTIVE', 'CHRONIC', 'RESOLVED'] as const;
@@ -42,6 +42,8 @@ export function ProblemsTab({
     body: { status },
   }));
 
+  const { isDoctor } = useChartRole();
+
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     create.mutate(compact(formValues(e.currentTarget)));
@@ -51,9 +53,11 @@ export function ProblemsTab({
     <Card
       title="Problems & diagnoses"
       actions={
-        <Button size="sm" onClick={() => setOpen(true)}>
-          Add diagnosis
-        </Button>
+        isDoctor ? (
+          <Button size="sm" onClick={() => setOpen(true)}>
+            Add diagnosis
+          </Button>
+        ) : undefined
       }
     >
       <ErrorAlert error={update.error} />
@@ -70,7 +74,7 @@ export function ProblemsTab({
                   <th>Status</th>
                   <th>Diagnosed</th>
                   <th>By</th>
-                  <th>Change status</th>
+                  {isDoctor && <th>Change status</th>}
                 </tr>
               </thead>
               <tbody>
@@ -93,6 +97,7 @@ export function ProblemsTab({
                       )}
                     </td>
                     <td>{d.doctorName}</td>
+                    {isDoctor && (
                     <td>
                       <label className="sr-only" htmlFor={`dx-${d.id}`}>
                         Status of {d.description}
@@ -110,6 +115,7 @@ export function ProblemsTab({
                         ))}
                       </select>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

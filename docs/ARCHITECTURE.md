@@ -33,6 +33,12 @@ apps/
         notifications/      in-app notifications + outbound notifier (email/SMS adapter)
         emergency/          director review of break-glass events, Ministry compliance view
         announcements/      national and facility announcements
+        pharmacy/           verification & dispensing queue, medication-context view
+        care-tasks/         clinician task lists with explicit ownership
+        channels/           team channels (facility + national)
+        events/             Server-Sent Events stream (tickets) fed by PostgreSQL LISTEN/NOTIFY
+        fhir/               HL7 FHIR R4 CapabilityStatement, Patient, Patient/$everything
+        directory/          same-facility clinician directory
     test/                   integration tests against a real PostgreSQL database
   web/                      React 19 + Vite
     src/
@@ -104,3 +110,22 @@ covers authentication (lockout, token rotation and reuse detection, activation),
 matrix for every role, tenant boundaries, break-glass, clinical integrity (versioning, signing,
 addenda, DB-level immutability), result follow-up, corrections, duplicate review, the staff
 hierarchy, appointments, reporting scope and small-cell suppression, and audit immutability.
+
+## Real-time updates
+
+Notifications and channel messages are published with PostgreSQL `NOTIFY` inside the same
+transaction as the change, so they are delivered only after commit. Each API process keeps one
+`LISTEN` connection and fans events out to its Server-Sent-Event streams; any number of API
+instances can run behind a load balancer without extra infrastructure. Event payloads carry only
+identifiers – the browser re-fetches data through the authorised API. EventSource cannot send an
+Authorization header, so the client first exchanges its access token for a 30-second, single-use
+ticket.
+
+## Interoperability (HL7 FHIR R4)
+
+`/api/v1/fhir/Patient/:id/$everything` returns a searchset Bundle with Patient, Organization,
+Practitioner, Encounter, Condition (ICD-10), MedicationRequest, MedicationAdministration,
+AllergyIntolerance, Observation (vital signs with LOINC + UCUM, laboratory results) and
+Immunization. Access, patient-view filtering (released results, signed notes) and auditing are
+identical to the rest of the API. Partner-specific profiles (e.g. International Patient Summary)
+must be validated before production exchange.

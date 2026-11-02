@@ -21,7 +21,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { formatDateTime, humanize } from '../../../format';
-import { useChartMutation } from './shared';
+import { useChartMutation, useChartRole } from './shared';
 
 const TYPES = ['OUTPATIENT', 'INPATIENT', 'EMERGENCY', 'TELEHEALTH', 'HOME_VISIT'] as const;
 
@@ -80,6 +80,7 @@ function NewEncounterForm({ patientId, onDone }: { patientId: string; onDone: ()
 function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
   const user = useUser();
   const isAuthor = e.doctorId === user.id;
+  const { isDoctor } = useChartRole();
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState(e.notes ?? '');
   const [addendumOpen, setAddendumOpen] = useState(false);
@@ -180,10 +181,10 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
             </Button>
           </>
         )}
-        {e.noteStatus === 'DRAFT' && !isAuthor && (
+        {e.noteStatus === 'DRAFT' && !isAuthor && isDoctor && (
           <span className="muted">Draft — only the author can edit or sign.</span>
         )}
-        {e.noteStatus === 'SIGNED' && (
+        {e.noteStatus === 'SIGNED' && isDoctor && (
           <Button size="sm" variant="secondary" onClick={() => setAddendumOpen(true)}>
             Add addendum
           </Button>
@@ -241,6 +242,8 @@ export function VisitsTab({ patientId }: { patientId: string }) {
     placeholderData: keepPreviousData,
   });
 
+  const { isDoctor } = useChartRole();
+
   return (
     <Card
       title="Visits"
@@ -249,9 +252,11 @@ export function VisitsTab({ patientId }: { patientId: string }) {
           <Button size="sm" variant="secondary" onClick={() => void list.refetch()}>
             Reload
           </Button>
-          <Button size="sm" onClick={() => setCreating(true)}>
-            New visit
-          </Button>
+          {isDoctor && (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              New visit
+            </Button>
+          )}
         </>
       }
     >

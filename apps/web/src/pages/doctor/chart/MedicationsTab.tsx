@@ -16,7 +16,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { formatDate } from '../../../format';
-import { EncounterSelect, useChartMutation } from './shared';
+import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 
 export function MedicationsTab({
@@ -40,6 +40,17 @@ export function MedicationsTab({
     method: 'PATCH',
     body: { status },
   }));
+  const { isDoctor } = useChartRole();
+  const [resubmitting, setResubmitting] = useState<Prescription | null>(null);
+  const resubmit = useChartMutation(
+    patientId,
+    ({ id, body }: { id: string; body: Record<string, unknown> }) => ({
+      path: `/prescriptions/${id}/resubmit`,
+      method: 'POST',
+      body,
+    }),
+    () => setResubmitting(null),
+  );
   const activeAllergies = allergies.filter(
     (a) => a.verificationStatus === 'CONFIRMED' || a.verificationStatus === 'UNCONFIRMED',
   );
@@ -53,11 +64,17 @@ export function MedicationsTab({
     <Card
       title="Medications"
       actions={
-        <Button size="sm" onClick={() => setOpen(true)}>
-          Prescribe
-        </Button>
+        isDoctor ? (
+          <Button size="sm" onClick={() => setOpen(true)}>
+            Prescribe
+          </Button>
+        ) : undefined
       }
     >
+      <p className="muted">
+        New prescriptions go to the pharmacy for verification before they can be dispensed or
+        administered.
+      </p>
       <ErrorAlert error={update.error} />
       <QueryView query={list}>
         {(items) =>
@@ -72,9 +89,12 @@ export function MedicationsTab({
                   <th>Period</th>
                   <th>Prescriber</th>
                   <th>Status</th>
-                  <th>
-                    <span className="sr-only">Actions</span>
-                  </th>
+                  <th>Pharmacy</th>
+                  {isDoctor && (
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -96,8 +116,22 @@ export function MedicationsTab({
                       <StatusBadge value={p.status} />
                     </td>
                     <td>
+                      {p.pharmacyStatus && <StatusBadge value={p.pharmacyStatus} />}
+                      {p.pharmacistNote && (
+                        <div className="muted" style={{ maxWidth: '22rem' }}>
+                          Pharmacist: {p.pharmacistNote}
+                        </div>
+                      )}
+                    </td>
+                    {isDoctor && (
+                    <td>
                       {p.status === 'ACTIVE' && (
                         <div className="row">
+                          {p.pharmacyStatus === 'RETURNED' && (
+                            <Button size="sm" onClick={() => setResubmitting(p)}>
+                              Resubmit
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="secondary"
@@ -117,6 +151,7 @@ export function MedicationsTab({
                         </div>
                       )}
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -124,6 +159,70 @@ export function MedicationsTab({
           )
         }
       </QueryView>
+      <Dialog
+        open={resubmitting !== null}
+        onClose={() => setResubmitting(null)}
+        title="Resubmit to pharmacy"
+        wide
+      >
+        {resubmitting && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              resubmit.mutate({
+                id: resubmitting.id,
+                body: compact(formValues(e.currentTarget)),
+              });
+            }}
+          >
+            <Alert tone="warning" title={`Returned: ${resubmitting.medication}`}>
+              {resubmitting.pharmacistNote ?? 'The pharmacy returned this prescription.'}
+            </Alert>
+            <p className="muted">
+              Adjust the plan if needed and explain how the pharmacist’s concern was addressed. If
+              the medicine is no longer appropriate, stop the prescription instead.
+            </p>
+            <div className="form-grid">
+              <TextField
+                label="Dosage"
+                name="dosage"
+                defaultValue={resubmitting.dosage}
+                maxLength={100}
+              />
+              <TextField
+                label="Frequency"
+                name="frequency"
+                defaultValue={resubmitting.frequency}
+                maxLength={100}
+              />
+            </div>
+            <TextAreaField
+              label="Instructions for the patient"
+              name="instructions"
+              defaultValue={resubmitting.instructions ?? ''}
+              maxLength={2000}
+              rows={2}
+            />
+            <TextAreaField
+              label="Note to the pharmacist"
+              name="note"
+              required
+              minLength={3}
+              maxLength={1000}
+              rows={3}
+            />
+            <ErrorAlert error={resubmit.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={() => setResubmitting(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={resubmit.isPending}>
+                Resubmit
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
       <Dialog open={open} onClose={() => setOpen(false)} title="New prescription" wide>
         <form onSubmit={onSubmit}>
           {activeAllergies.length > 0 && (

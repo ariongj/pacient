@@ -13,7 +13,7 @@ import {
   TextAreaField,
 } from '../../../components/ui';
 import { formatDateTime, humanize } from '../../../format';
-import { useChartMutation } from './shared';
+import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 
 export function CorrectionsTab({ patientId }: { patientId: string }) {
@@ -28,6 +28,8 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
     }),
     () => setResolving(null),
   );
+
+  const { isDoctor } = useChartRole();
 
   return (
     <Card title="Correction requests from the patient">
@@ -57,7 +59,7 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
                       <div>{c.response}</div>
                     </div>
                   )}
-                  {c.status === 'OPEN' && (
+                  {c.status === 'OPEN' && isDoctor && (
                     <Button size="sm" variant="secondary" onClick={() => setResolving(c)}>
                       Respond
                     </Button>

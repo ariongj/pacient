@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type RequestOptions } from '../../../api/client';
 import type { Encounter } from '../../../api/types';
+import { useUser } from '../../../auth/AuthContext';
 import { SelectField } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
 
@@ -47,4 +48,15 @@ export function numbers(values: Record<string, string>, keys: string[]) {
     if (v !== undefined && v !== '') out[k] = Number(v);
   }
   return out;
+}
+
+/**
+ * Which clinical workspace is viewing the chart. Doctors author diagnoses, prescriptions, notes and
+ * results; nurses record observations, reported allergies, vaccinations, doses and tasks. The API
+ * enforces this – the UI only hides actions that would be refused.
+ */
+export function useChartRole() {
+  const user = useUser();
+  const isDoctor = user.role === 'DOCTOR';
+  return { isDoctor, isNurse: user.role === 'NURSE', base: isDoctor ? '/doctor' : '/nurse' };
 }

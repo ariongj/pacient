@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { api, downloadJson } from '../../api/client';
+import { api, downloadFile, downloadJson } from '../../api/client';
 import type { CorrectionRequest, Demographics } from '../../api/types';
 import {
   Alert,
@@ -286,7 +286,23 @@ export function PortalAccount() {
             }}
           >
             Download (JSON)
+          </Button>{' '}
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              setExportError(null);
+              try {
+                await downloadFile(`/fhir/Patient/${id}/$everything`, 'my-record.fhir.json');
+              } catch (err) {
+                setExportError(err);
+              }
+            }}
+          >
+            Download for another provider (HL7 FHIR)
           </Button>
+          <p className="muted" style={{ marginTop: '0.5rem' }}>
+            FHIR is the international standard format other hospitals and health apps can import.
+          </p>
         </Card>
 
         <TwoStepCard />

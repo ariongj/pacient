@@ -14,11 +14,11 @@ import {
   StatusBadge,
   Table,
 } from '../../components/ui';
-import { formatDateTime } from '../../format';
+import { formatDateTime, formatFullDate } from '../../format';
 import { AppointmentActions, useAppointmentStatus } from './appointmentActions';
 import { AppointmentTable } from './AppointmentTable';
 import { BookAppointmentDialog } from './BookAppointmentDialog';
-import { intlLocale, t } from '../../i18n';
+import { t } from '../../i18n';
 
 const byTime = (a: Appointment, b: Appointment) => a.scheduledAt.localeCompare(b.scheduledAt);
 
@@ -53,7 +53,7 @@ export function ReceptionToday() {
     <>
       <PageHeader
         title={t('Front desk – today')}
-        subtitle={new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'full' }).format(new Date())}
+        subtitle={formatFullDate(new Date())}
         actions={<Button onClick={() => setBooking(true)}>{t('Book appointment')}</Button>}
       />
       <div className="stack">

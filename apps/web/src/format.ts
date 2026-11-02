@@ -1,4 +1,41 @@
-import { intlLocale, t } from './i18n';
+import { getLocale, intlLocale, t } from './i18n';
+
+/*
+ * Albanian dates are formatted here rather than by Intl: some browsers ship without Albanian
+ * locale data (and fall back to English), and Intl's Albanian default is a 12-hour clock while
+ * Kosovo uses 24-hour time.
+ */
+const SQ_MONTHS = [
+  'janar',
+  'shkurt',
+  'mars',
+  'prill',
+  'maj',
+  'qershor',
+  'korrik',
+  'gusht',
+  'shtator',
+  'tetor',
+  'nëntor',
+  'dhjetor',
+];
+const SQ_MONTHS_SHORT = [
+  'jan',
+  'shk',
+  'mar',
+  'pri',
+  'maj',
+  'qer',
+  'korr',
+  'gush',
+  'sht',
+  'tet',
+  'nën',
+  'dhj',
+];
+const SQ_WEEKDAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
+const pad = (n: number) => String(n).padStart(2, '0');
+const sq = () => getLocale() === 'sq';
 
 const cache = new Map<string, Intl.DateTimeFormat>();
 function fmt(key: string, options: Intl.DateTimeFormatOptions) {
@@ -10,23 +47,48 @@ function fmt(key: string, options: Intl.DateTimeFormatOptions) {
   }
   return f;
 }
+const sqDate = (d: Date) =>
+  `${pad(d.getDate())} ${SQ_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+const sqTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const dateFmt = {
-  format: (d: Date) => fmt('date', { day: '2-digit', month: 'short', year: 'numeric' }).format(d),
+  format: (d: Date) =>
+    sq() ? sqDate(d) : fmt('date', { day: '2-digit', month: 'short', year: 'numeric' }).format(d),
 };
 const dateTimeFmt = {
   format: (d: Date) =>
-    fmt('datetime', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(d),
+    sq()
+      ? `${sqDate(d)}, ${sqTime(d)}`
+      : fmt('datetime', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(d),
 };
 const timeFmt = {
-  format: (d: Date) => fmt('time', { hour: '2-digit', minute: '2-digit' }).format(d),
+  format: (d: Date) =>
+    sq() ? sqTime(d) : fmt('time', { hour: '2-digit', minute: '2-digit' }).format(d),
 };
-const monthFmt = { format: (d: Date) => fmt('month', { month: 'short' }).format(d) };
+const monthFmt = {
+  format: (d: Date) =>
+    sq()
+      ? SQ_MONTHS_SHORT[d.getUTCMonth()]!
+      : fmt('month', { month: 'short', timeZone: 'UTC' }).format(d),
+};
+
+/** "e hënë, 2 nëntor" / "Monday 2 November" – day headings in schedules. */
+export function formatDayHeading(d: Date): string {
+  if (sq()) return `${SQ_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${SQ_MONTHS[d.getMonth()]}`;
+  return fmt('dayheading', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+}
+
+/** "e hënë, 2 nëntor 2026" / "Monday 2 November 2026". */
+export function formatFullDate(d: Date): string {
+  if (sq())
+    return `${SQ_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${SQ_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return fmt('full', { dateStyle: 'full' }).format(d);
+}
 
 export const formatDate = (v: string | null | undefined) => (v ? dateFmt.format(new Date(v)) : '—');
 export const formatDateTime = (v: string | null | undefined) =>

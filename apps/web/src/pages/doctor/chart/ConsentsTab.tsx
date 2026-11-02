@@ -89,7 +89,7 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
                             {c.isDefault ? ` ${t('(default)')}` : ''}
                           </Badge>
                         </div>
-                        {text && <p className="muted">{text.summary}</p>}
+                        {text && <p className="muted">{t(text.summary)}</p>}
                         <small className="muted">{recordedLine(c)}</small>
                       </div>
                     );

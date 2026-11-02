@@ -12,11 +12,11 @@ import {
   SelectField,
   TextField,
 } from '../../components/ui';
-import { humanize } from '../../format';
+import { formatDayHeading, humanize } from '../../format';
 import { useAppointmentStatus } from './appointmentActions';
 import { AppointmentTable } from './AppointmentTable';
 import { BookAppointmentDialog } from './BookAppointmentDialog';
-import { intlLocale, t } from '../../i18n';
+import { t } from '../../i18n';
 
 const STATUSES: AppointmentStatus[] = [
   'REQUESTED',
@@ -63,11 +63,6 @@ export function ReceptionAppointments() {
     const key = isoDay(new Date(a.scheduledAt));
     days.set(key, [...(days.get(key) ?? []), a]);
   }
-  const dayFmt = new Intl.DateTimeFormat(intlLocale(), {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
 
   return (
     <>
@@ -118,7 +113,7 @@ export function ReceptionAppointments() {
               [...days.entries()].map(([day, items]) => (
                 <Card
                   key={day}
-                  title={`${dayFmt.format(new Date(`${day}T12:00:00`))} · ${items.length}`}
+                  title={`${formatDayHeading(new Date(`${day}T12:00:00`))} · ${items.length}`}
                 >
                   <AppointmentTable
                     caption={t('Appointments on {day}', { day })}

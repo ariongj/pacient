@@ -34,6 +34,19 @@ import { MfaSetupPage } from './pages/shared/MfaSetupPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/shared/PasswordResetPages';
 import { ReferralsPage } from './pages/shared/ReferralsPage';
 import { ReportsPage } from './pages/shared/ReportsPage';
+import { NurseHome } from './pages/nurse/NurseHome';
+import { NurseSchedule } from './pages/nurse/NurseSchedule';
+import { PharmacyQueue } from './pages/pharmacy/PharmacyQueue';
+import { ReceptionAppointments } from './pages/reception/ReceptionAppointments';
+import { ReceptionPatients } from './pages/reception/ReceptionPatients';
+import { ReceptionToday } from './pages/reception/ReceptionToday';
+import { ChannelsPage } from './pages/shared/ChannelsPage';
+import { TasksPage } from './pages/shared/TasksPage';
+import type { Role } from './api/types';
+import type { ReactElement } from 'react';
+
+const STAFF: Role[] = ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
+const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{el}</RequireRole>;
 
 function HomeRedirect() {
   const { status, user } = useAuth();
@@ -311,6 +324,25 @@ export function App() {
               <AuditLogPage />
             </RequireRole>
           }
+        />
+
+        <Route path="/channels" element={guard(STAFF, <ChannelsPage />)} />
+        <Route path="/tasks" element={guard(['DOCTOR', 'NURSE'], <TasksPage />)} />
+        <Route path="/messages" element={guard(['PATIENT', 'DOCTOR', 'NURSE'], <MessagesPage />)} />
+        <Route path="/nurse" element={guard(['NURSE'], <NurseHome />)} />
+        <Route path="/nurse/patients" element={guard(['NURSE'], <DoctorPatients />)} />
+        <Route path="/nurse/patients/:patientId" element={guard(['NURSE'], <PatientChart />)} />
+        <Route path="/nurse/schedule" element={guard(['NURSE'], <NurseSchedule />)} />
+        <Route path="/pharmacy" element={guard(['PHARMACIST'], <PharmacyQueue />)} />
+        <Route path="/reception" element={guard(['RECEPTION'], <ReceptionToday />)} />
+        <Route path="/reception/patients" element={guard(['RECEPTION'], <ReceptionPatients />)} />
+        <Route
+          path="/reception/patients/new"
+          element={guard(['RECEPTION'], <RegisterPatient />)}
+        />
+        <Route
+          path="/reception/appointments"
+          element={guard(['RECEPTION'], <ReceptionAppointments />)}
         />
 
         <Route

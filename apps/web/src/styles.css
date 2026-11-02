@@ -20,6 +20,10 @@
   --danger: #b42318;
   --danger-soft: #fdeceb;
   --focus: #2563eb;
+  --nav-bg: #0f1d2b;
+  --nav-text: #c9d6e2;
+  --nav-muted: #7f93a6;
+  --nav-active: #1b3346;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
@@ -48,6 +52,10 @@
     --danger: #ff8a80;
     --danger-soft: #3a1a18;
     --focus: #8ab4ff;
+    --nav-bg: #0a1219;
+    --nav-text: #c9d6e2;
+    --nav-muted: #6f8294;
+    --nav-active: #15293a;
     --shadow: none;
   }
 }
@@ -197,9 +205,20 @@ code {
   grid-template-columns: 230px 1fr;
 }
 .sidenav {
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-  padding: 1rem 0.75rem;
+  background: var(--nav-bg);
+  color: var(--nav-text);
+  padding: 1rem 0.65rem 2rem;
+}
+.nav-section + .nav-section {
+  margin-top: 1.1rem;
+}
+.nav-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--nav-muted);
+  padding: 0 0.75rem 0.35rem;
 }
 .sidenav ul {
   list-style: none;
@@ -208,24 +227,34 @@ code {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  position: sticky;
-  top: 80px;
 }
 .sidenav a {
-  display: block;
-  padding: 0.55rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: var(--nav-text);
   text-decoration: none;
   font-weight: 500;
+  font-size: 0.92rem;
+  border-left: 3px solid transparent;
 }
 .sidenav a:hover {
-  background: var(--surface-2);
+  background: var(--nav-active);
+  color: #fff;
 }
 .sidenav a.active {
-  background: var(--primary-soft);
-  color: var(--primary-strong);
+  background: var(--nav-active);
+  color: #fff;
   font-weight: 650;
+  border-left-color: var(--primary);
+}
+.sidenav a:focus-visible {
+  outline-color: #8ab4ff;
+}
+.icon {
+  flex: none;
 }
 main {
   padding: 1.5rem 2rem 3rem;
@@ -247,14 +276,21 @@ main:focus {
     grid-template-columns: 1fr;
   }
   .sidenav {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
     padding: 0.5rem;
     overflow-x: auto;
+    display: flex;
+    gap: 0.5rem;
+  }
+  .nav-section + .nav-section {
+    margin-top: 0;
+  }
+  .nav-title,
+  .hide-sm,
+  .live-text {
+    display: none;
   }
   .sidenav ul {
     flex-direction: row;
-    position: static;
   }
   .sidenav a {
     white-space: nowrap;
@@ -1022,4 +1058,116 @@ th.num {
 }
 .thread-list button[aria-current='true'] {
   background: var(--primary-soft);
+}
+
+/* ------------------------------------------------------------------ topbar extras */
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+.live-live .live-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+.live-offline .live-dot {
+  background: var(--danger);
+}
+
+/* ------------------------------------------------------------------ data density helpers */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 0.75rem;
+}
+.split {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+.alert-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.mono {
+  font-family: var(--mono);
+}
+.print-only {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ print (reports, records) */
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --surface: #fff;
+    --surface-2: #f3f4f6;
+    --text: #000;
+    --text-muted: #444;
+    --border: #bbb;
+  }
+  .topbar,
+  .sidenav,
+  .footer,
+  .skip-link,
+  .no-print,
+  .page-actions,
+  .tabs,
+  .bell,
+  .pagination {
+    display: none !important;
+  }
+  .print-only {
+    display: block;
+  }
+  .body {
+    display: block;
+  }
+  main {
+    padding: 0;
+    max-width: none;
+  }
+  .card,
+  .stat {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .badge {
+    border: 1px solid #999;
+  }
 }

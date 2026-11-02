@@ -90,5 +90,16 @@ export const ACTION_LABELS: Record<string, string> = {
   'care.emergency_access.reviewed': 'Emergency access reviewed',
   'announcement.published': 'Announcement published',
   'report.exported': 'Report exported',
+  'pharmacy.context.viewed': 'Pharmacist reviewed medication context',
+  'pharmacy.prescription.verified': 'Prescription verified by pharmacy',
+  'pharmacy.prescription.returned': 'Prescription returned by pharmacy',
+  'pharmacy.prescription.dispensed': 'Medication dispensed',
+  'clinical.prescription.resubmitted': 'Prescription resubmitted',
+  'clinical.medication.administration_recorded': 'Medication administration recorded',
+  'care.task.created': 'Care task created',
+  'care.task.updated': 'Care task updated',
+  'channel.created': 'Channel created',
+  'channel.message.posted': 'Channel message posted',
+  'patient.record.fhir_exported': 'Record exported (FHIR)',
 };
 export const actionLabel = (a: string) => ACTION_LABELS[a] ?? humanize(a);

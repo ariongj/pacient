@@ -30,6 +30,7 @@ import { pharmacyRouter } from './modules/pharmacy/pharmacy.routes.js';
 import { channelsRouter } from './modules/channels/channels.routes.js';
 import { eventsRouter } from './modules/events/events.routes.js';
 import { fhirRouter } from './modules/fhir/fhir.routes.js';
+import { directoryRouter } from './modules/directory/directory.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -112,6 +113,7 @@ export function createApp(): Express {
   api.use('/channels', channelsRouter);
   api.use('/events', eventsRouter);
   api.use('/fhir', fhirRouter);
+  api.use('/directory', directoryRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler);

@@ -136,6 +136,9 @@ export function useUser(): Profile {
 export const HOME_BY_ROLE: Record<Profile['role'], string> = {
   PATIENT: '/portal',
   DOCTOR: '/doctor',
+  NURSE: '/nurse',
+  PHARMACIST: '/pharmacy',
+  RECEPTION: '/reception',
   DIRECTOR: '/director',
   MINISTRY: '/ministry',
 };

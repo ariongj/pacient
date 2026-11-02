@@ -349,3 +349,15 @@ describe('care tasks', () => {
     );
   });
 });
+
+describe('staff directory', () => {
+  it('lists same-facility clinicians for reception, but not for patients', async () => {
+    const res = await api().get('/api/v1/directory?role=DOCTOR').set(bearer(w.tokens.reception));
+    expect(res.status).toBe(200);
+    const ids = res.body.items.map((u: { id: string }) => u.id);
+    expect(ids).toContain(w.users.doctor.id);
+    expect(ids).not.toContain(w.users.outsideDoctor.id);
+    expect(res.body.items[0]).not.toHaveProperty('email');
+    expect((await api().get('/api/v1/directory').set(bearer(w.tokens.patient))).status).toBe(403);
+  });
+});

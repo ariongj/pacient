@@ -146,6 +146,21 @@ const STATUS_TONES: Record<string, Tone> = {
   DENIED: 'danger',
   EMERGENCY: 'danger',
   CARE_TEAM: 'info',
+  CHECKED_IN: 'info',
+  PENDING: 'warning',
+  VERIFIED: 'info',
+  RETURNED: 'danger',
+  DISPENSED: 'success',
+  GIVEN: 'success',
+  WITHHELD: 'warning',
+  REFUSED: 'warning',
+  OMITTED: 'danger',
+  DONE: 'success',
+  URGENT: 'danger',
+  ROUTINE: 'neutral',
+  APPROPRIATE: 'success',
+  INAPPROPRIATE: 'danger',
+  NEEDS_FOLLOW_UP: 'warning',
 };
 
 export function StatusBadge({ value }: { value: string }) {

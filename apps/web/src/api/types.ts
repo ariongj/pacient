@@ -1,4 +1,13 @@
-export type Role = 'MINISTRY' | 'DIRECTOR' | 'DOCTOR' | 'PATIENT';
+export type Role =
+  | 'MINISTRY'
+  | 'DIRECTOR'
+  | 'DOCTOR'
+  | 'NURSE'
+  | 'PHARMACIST'
+  | 'RECEPTION'
+  | 'PATIENT';
+
+export type StaffRole = Exclude<Role, 'PATIENT'>;
 
 export interface Profile {
   id: string;
@@ -103,8 +112,14 @@ export interface Prescription {
   startDate: string;
   endDate: string | null;
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  pharmacyStatus: PharmacyStatus;
+  pharmacistNote: string | null;
+  verifiedAt: string | null;
+  dispensedAt: string | null;
   doctorName: string;
 }
+
+export type PharmacyStatus = 'PENDING' | 'VERIFIED' | 'RETURNED' | 'DISPENSED';
 
 export interface Vitals {
   id: string;
@@ -186,12 +201,19 @@ export interface ClinicalSummary {
 export interface CareTeamMember {
   doctorId: string;
   fullName: string;
+  role: Role;
   specialty: string | null;
   facilityId: string;
   startedAt: string;
 }
 
-export type AppointmentStatus = 'REQUESTED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+export type AppointmentStatus =
+  | 'REQUESTED'
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'NO_SHOW';
 
 export interface Appointment {
   id: string;
@@ -262,13 +284,23 @@ export interface Worklist {
     startedAt: string;
     version: number;
   }[];
+  returnedPrescriptions: {
+    id: string;
+    patientId: string;
+    patientName: string;
+    medication: string;
+    dosage: string;
+    frequency: string;
+    pharmacistNote: string | null;
+    returnedAt: string | null;
+  }[];
 }
 
 export interface StaffMember {
   id: string;
   email: string;
   fullName: string;
-  role: Exclude<Role, 'PATIENT'>;
+  role: StaffRole;
   specialty: string | null;
   licenseNumber: string | null;
   isActive: boolean;
@@ -519,4 +551,135 @@ export interface Report<Row> {
   smallCellThreshold: number;
   columns: string[];
   rows: Row[];
+}
+
+export interface DirectoryEntry {
+  id: string;
+  fullName: string;
+  role: StaffRole;
+  specialty: string | null;
+}
+
+export interface CareTask {
+  id: string;
+  patientId?: string;
+  patientName?: string;
+  title: string;
+  details: string | null;
+  priority: 'ROUTINE' | 'URGENT';
+  status: 'OPEN' | 'DONE' | 'CANCELLED';
+  dueAt: string | null;
+  assignedRole: Role;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  createdByName: string;
+  createdAt: string;
+  completedAt: string | null;
+  completionNote?: string | null;
+  completedByName?: string | null;
+  overdue?: boolean;
+}
+
+export type AdministrationStatus = 'GIVEN' | 'WITHHELD' | 'REFUSED' | 'OMITTED';
+
+export interface MedicationAdministration {
+  id: string;
+  prescriptionId: string;
+  medication: string;
+  dosage: string;
+  status: AdministrationStatus;
+  doseGiven: string | null;
+  reason: string | null;
+  notes: string | null;
+  administeredAt: string;
+  recordedBy: string;
+}
+
+export interface SafetyAlert {
+  kind: 'ALLERGY' | 'CROSS_REACTIVITY' | 'DUPLICATE_THERAPY';
+  severity: 'HIGH' | 'MODERATE';
+  message: string;
+}
+
+export interface PharmacyItem {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientDateOfBirth: string;
+  patientSex: string;
+  medication: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  instructions: string | null;
+  startDate: string;
+  endDate: string | null;
+  status: Prescription['status'];
+  pharmacyStatus: PharmacyStatus;
+  pharmacistNote: string | null;
+  verifiedAt: string | null;
+  dispensedAt: string | null;
+  dispensedQuantity: string | null;
+  createdAt: string;
+  prescriberId: string;
+  prescriberName: string;
+  alerts?: SafetyAlert[];
+}
+
+export interface PharmacyQueue {
+  items: PharmacyItem[];
+  counts: Partial<Record<PharmacyStatus, number>>;
+}
+
+export interface PharmacyContext {
+  prescription: PharmacyItem;
+  allergyAssessment: Demographics['allergyAssessment'];
+  allergies: Pick<Allergy, 'substance' | 'reaction' | 'severity' | 'verificationStatus'>[];
+  otherActiveMedications: { id: string; medication: string; dosage: string; frequency: string; pharmacyStatus: PharmacyStatus }[];
+  activeProblems: { icd10Code: string; description: string; status: string }[];
+  renalAndElectrolytes: { testName: string; value: string; unit: string | null; flag: LabResult['flag']; collectedAt: string }[];
+  latestWeight: { weightKg: string; recordedAt: string } | null;
+  alerts: SafetyAlert[];
+}
+
+export interface Channel {
+  id: string;
+  scope: 'FACILITY' | 'NATIONAL';
+  name: string;
+  description: string | null;
+  allowedRoles: StaffRole[];
+  facilityName: string | null;
+  lastMessageAt: string | null;
+  isArchived: boolean;
+  unreadCount: number;
+}
+
+export interface ChannelMessage {
+  id: string;
+  body: string;
+  isUrgent: boolean;
+  createdAt: string;
+  authorId: string;
+  authorName: string;
+  authorRole: StaffRole;
+  authorFacility: string | null;
+}
+
+export type ReportName =
+  | 'activity'
+  | 'diagnoses'
+  | 'medications'
+  | 'pharmacy'
+  | 'vaccinations'
+  | 'referrals'
+  | 'appointments'
+  | 'workforce';
+
+/** Generic report payload; rows are keyed by `columns`. Suppressed patient counts are null. */
+export interface GenericReport {
+  from: string;
+  to: string;
+  smallCellThreshold: number;
+  columns: string[];
+  rows: (Record<string, string | number | boolean | null> & { suppressed?: boolean })[];
 }

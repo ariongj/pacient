@@ -46,6 +46,12 @@ are referred to another facility and whether de-identified data may be used for 
 doctors record treatment consent in person or with a signed form. Consent history is append-only,
 and referring a patient who withdrew sharing requires recording their renewed agreement.
 
+**Albanian and English:** the whole interface, notifications, emails and SMS are available in
+Albanian (default) and English; dates use a 24-hour clock.
+
+**Duplicate records:** directors find people registered twice, compare both records (demographics
+and counts only), merge them with a reason and can undo a wrong merge exactly.
+
 **Result cover and escalation:** doctors name a colleague who covers their results while they are
 away. Critical results nobody has acknowledged escalate after 30 minutes to the care team and
 cover, and after 2 hours also to the director (without patient details).
@@ -65,33 +71,47 @@ deliberately deferred to later phases.
 - **Tests** — Vitest + Supertest integration tests against a real PostgreSQL database.
 - **Ops** — Dockerfiles (non-root), docker-compose, nginx with strict CSP, GitHub Actions CI.
 
-## Quick start (local development)
+## Try it on your computer
 
-Requirements: Node.js 22+, PostgreSQL 16.
+You need [Git](https://git-scm.com) and **either** Docker Desktop (option A) **or** Node.js 22+
+(option B). Everything runs on your machine with synthetic demo data.
 
 ```bash
-npm install
+git clone https://github.com/ariongj/pacient.git
 ```
 
 ```bash
-createuser -P pacient            # password: pacient (development only)
-createdb -O pacient pacient
-createdb -O pacient pacient_test
+cd pacient && git checkout claude/practical-rubin-idyxdo
 ```
 
-```bash
-cp apps/api/.env.example apps/api/.env   # then set JWT_ACCESS_SECRET to a long random value
-```
+**Option A – only Docker Desktop (simplest).** Builds and starts the database, API, web app and a
+mail catcher, migrates and loads the demo data on first start:
 
 ```bash
-npm run db:migrate && npm run db:seed
+docker compose -f docker-compose.demo.yml up --build
+```
+
+Open http://localhost:8080 for the app and http://localhost:8025 for the emails it sends. Stop with
+Ctrl+C; delete the demo data with `docker compose -f docker-compose.demo.yml down -v`.
+
+**Option B – Node.js (best for development, live reload).** One-time setup creates
+`apps/api/.env` with random secrets, starts PostgreSQL and Mailpit with Docker if no database is
+running on port 5432 (or uses your own PostgreSQL 16 with user/password `pacient`), migrates and
+loads the demo data:
+
+```bash
+npm run setup
 ```
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:5173. The seed creates demo accounts (password `Pacient-Demo-2026`, development only):
+Open http://localhost:5173 (emails: http://localhost:8025 when Mailpit runs).
+
+The interface opens in **Albanian**; switch to English with **SQ / EN** at the top. Each user's
+choice is saved, and notifications, emails and SMS follow it. Sign in with any demo account
+(password `Pacient-Demo-2026`, development only):
 
 | Role       | Email                      |
 | ---------- | -------------------------- |
@@ -116,10 +136,24 @@ docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
 
 Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://localhost:8025.
 
+### What to try
+
+- **Patient** (`patient@`): medical history, results, documents, privacy & consent, and switch to
+  the record of daughter Lea with the selector at the top left (guardian access).
+- **Doctor** (`doctor@`): worklist (including results covered for an absent colleague), open Arta
+  Krasniqi → order a lab test on _Rezultatet / Results_, then run the laboratory simulator below.
+- **Director** (`director@`): dashboard with an overdue critical result, _Kartela të dyfishta /
+  Duplicate records_ (merge the two "Blerim Gashi" records, then undo it from the history), lab
+  connections with one held message to review.
+- **Nurse, pharmacist, reception, ministry**: their own workspaces and team channels.
+
 ### Laboratory simulator
 
 The seed creates a laboratory connection with a development key. With the API running, act as the
-laboratory: pull the open orders and send back results (occasionally abnormal or critical):
+laboratory: pull the open orders and send back results (occasionally abnormal or critical). With
+option A run it inside the container:
+`docker compose -f docker-compose.demo.yml exec -e LAB_API_KEY=pk_dev_ucc_laboratory_demo_key_not_for_production api node dist/ops/lab-simulator.js`.
+With option B:
 
 ```bash
 cd apps/api
@@ -129,7 +163,7 @@ LAB_API_KEY=pk_dev_ucc_laboratory_demo_key_not_for_production npm run lab:simula
 
 SMS uses the `log` provider in development: verification codes appear in the API log.
 
-### With Docker
+### Production-style Docker (no demo data)
 
 ```bash
 JWT_ACCESS_SECRET=$(openssl rand -base64 48) MFA_ENCRYPTION_KEY=$(openssl rand -base64 48) docker compose up --build

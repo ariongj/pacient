@@ -133,6 +133,9 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - Result cover grants care-team access only during the cover window, only for the absent doctor's
   care-team patients, and is audited (`via: COVER`). Escalations to directors carry no patient
   identity or values.
+- Patient merges are director-only, limited to records registered at the director's facility,
+  require a reason, show demographics and counts only (no clinical content), are audited for both
+  records and can be undone exactly. Both records having portal accounts blocks the merge.
 - Backups are encrypted to an offline age key before they leave `pg_dump`; the backup script refuses
   to write unencrypted dumps, and restores are verified in a throw-away database.
 - Dependencies are audited in CI (`npm audit --omit=dev --audit-level=high`).

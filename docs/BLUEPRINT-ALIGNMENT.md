@@ -56,7 +56,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Distinguish "no known allergies" / "unknown" / "not recorded"            |                 ✅                 |
 | Patient-reported vs clinician-entered information distinguishable        |           ✅ (allergies)           |
 | Duplicate identities go to human review, never auto-merged               |      ✅ (registration check)       |
-| Merge/unmerge workflow, temporary identities, newborns                   |                 ⏳                 |
+| Merge/unmerge workflow with lineage                                      |                 ✅                 |
+| Temporary identities, newborns                                           |                 ⏳                 |
 | Coded values + original text; local code systems; versioned mappings     |   🟡 ICD-10 codes + description    |
 | Version history for every clinical resource                              | 🟡 audit trail; full versioning ⏳ |
 
@@ -119,7 +120,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
 3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
 4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
-5. **Identity merge/unmerge** with lineage (B02).
+5. **Temporary identities and newborn registration** (B02); Serbian interface.
 6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
    needed) and add RIS/PACS (B07).
 7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
@@ -128,6 +129,6 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 ## Open decisions (§10) — needed from the project sponsor
 
 Hospital(s) and jurisdiction; first service and clinical owner; existing LIS/RIS/PACS/pharmacy
-systems; record ownership and the legal basis for any Ministry reporting; languages (Albanian /
-Serbian / English UI) and accessibility needs; hosting, retention, recovery objectives and
+systems; record ownership and the legal basis for any Ministry reporting; languages (Albanian and English are implemented; Serbian
+to add) and accessibility needs; hosting, retention, recovery objectives and
 out-of-hours support; who approves go-live.

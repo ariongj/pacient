@@ -215,3 +215,27 @@ results escalate at 30 minutes (ordering doctor, cover, care-team doctors) and 2
 facility director, without patient details). `result_escalations` has a unique (result, level)
 key and inserts use `ON CONFLICT DO NOTHING … RETURNING`, so several API instances never notify
 twice.
+
+## Languages (Albanian / English)
+
+Web: `apps/web/src/i18n` – English source strings wrapped in `t()` / `tn()`; Albanian dictionaries
+per area in `i18n/sq/*.ts` (glossary in `i18n/GLOSSARY.md`); missing entries fall back to English.
+Enum labels (`humanize`), audit action labels, server error messages and stored notification
+titles are translated centrally. Albanian dates are formatted in code (24-hour clock) rather than
+relying on browser locale data. The language lives in `users.locale` (`sq` default) and is switched
+with SQ / EN in the top bar; a choice made on the sign-in page is saved to the profile.
+
+API: `apps/api/src/i18n` – `tr(locale, text, vars)`. `notifyUsers` translates each notification
+for its recipient before storing it and before queueing email/SMS; email templates and SMS bodies
+exist in both languages.
+
+## Patient merge
+
+`modules/merge` – directors merge a duplicate into the surviving record at their facility. In one
+transaction (`SET LOCAL pacient.patient_merge = 'on'`, which the append-only triggers accept only
+for changes to `patient_id`), every table referencing `patients` is re-pointed (a test fails if a
+new referencing table is not covered), equivalent active care-team/guardian rows are ended instead
+of duplicated, and the moved row ids plus a demographic snapshot are stored in `patient_merges`.
+Unmerge moves exactly those rows back; rows created after the merge stay with the survivor. Merged
+records are read-only: clinical access answers `409 PATIENT_MERGED` with the surviving id. Audit
+entries are never rewritten; the patient's access log includes those of merged duplicates.

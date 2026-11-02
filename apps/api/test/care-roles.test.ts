@@ -49,15 +49,12 @@ describe('nurse', () => {
       .set(bearer(w.tokens.nurse))
       .send({ icd10Code: 'I10', description: 'Hypertension' });
     expect(dx.status).toBe(403);
-    const rx = await api()
-      .post(`${base()}/prescriptions`)
-      .set(bearer(w.tokens.nurse))
-      .send({
-        medication: 'Ibuprofen',
-        dosage: '400 mg',
-        frequency: 'tds',
-        startDate: '2026-11-01',
-      });
+    const rx = await api().post(`${base()}/prescriptions`).set(bearer(w.tokens.nurse)).send({
+      medication: 'Ibuprofen',
+      dosage: '400 mg',
+      frequency: 'tds',
+      startDate: '2026-11-01',
+    });
     expect(rx.status).toBe(403);
     const glass = await api()
       .post(`/api/v1/patients/${w.otherPatient.id}/emergency-access`)
@@ -77,29 +74,23 @@ describe('reception', () => {
       403,
     );
 
-    const reg = await api()
-      .post('/api/v1/patients')
-      .set(bearer(w.tokens.reception))
-      .send({
-        nationalId: nextNationalId(),
-        firstName: 'Ardit',
-        lastName: 'Morina',
-        dateOfBirth: '1999-02-02',
-        sex: 'MALE',
-      });
+    const reg = await api().post('/api/v1/patients').set(bearer(w.tokens.reception)).send({
+      nationalId: nextNationalId(),
+      firstName: 'Ardit',
+      lastName: 'Morina',
+      dateOfBirth: '1999-02-02',
+      sex: 'MALE',
+    });
     expect(reg.status).toBe(201);
 
     const at = new Date(Date.now() + 3 * 86_400_000);
     at.setUTCHours(13, 0, 0, 0);
-    const appt = await api()
-      .post('/api/v1/appointments')
-      .set(bearer(w.tokens.reception))
-      .send({
-        patientId: w.patient.id,
-        doctorId: w.users.colleague.id,
-        scheduledAt: at.toISOString(),
-        reason: 'Check-up',
-      });
+    const appt = await api().post('/api/v1/appointments').set(bearer(w.tokens.reception)).send({
+      patientId: w.patient.id,
+      doctorId: w.users.colleague.id,
+      scheduledAt: at.toISOString(),
+      reason: 'Check-up',
+    });
     expect(appt.status).toBe(201);
     expect(appt.body.status).toBe('CONFIRMED');
 
@@ -191,15 +182,12 @@ describe('pharmacy workflow', () => {
       .set(bearer(w.tokens.doctor))
       .send({ substance: 'Penicillin', severity: 'SEVERE', verificationStatus: 'CONFIRMED' })
       .expect(201);
-    const rx = await api()
-      .post(`${base()}/prescriptions`)
-      .set(bearer(w.tokens.doctor))
-      .send({
-        medication: 'Amoxicillin 500 mg',
-        dosage: '500 mg',
-        frequency: 'three times daily',
-        startDate: '2026-11-02',
-      });
+    const rx = await api().post(`${base()}/prescriptions`).set(bearer(w.tokens.doctor)).send({
+      medication: 'Amoxicillin 500 mg',
+      dosage: '500 mg',
+      frequency: 'three times daily',
+      startDate: '2026-11-02',
+    });
     expect(rx.status).toBe(201);
     expect(rx.body.pharmacyStatus).toBe('PENDING');
     rxId = rx.body.id;

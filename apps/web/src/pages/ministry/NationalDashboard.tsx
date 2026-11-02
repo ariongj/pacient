@@ -16,6 +16,7 @@ import {
   Table,
 } from '../../components/ui';
 import { formatNumber, humanize } from '../../format';
+import { OperationsPanel } from '../director/OperationsPanel';
 
 export function NationalDashboard() {
   const query = useQuery({
@@ -170,6 +171,7 @@ export function NationalDashboard() {
         }}
       </QueryView>
       <div className="stack" style={{ marginTop: '1rem' }}>
+        <OperationsPanel reportsPath="/ministry/reports" />
         <Grid min={260}>
           <Card title="Emergency access oversight">
             <p className="muted">
@@ -179,9 +181,14 @@ export function NationalDashboard() {
           </Card>
           <Card title="Reports">
             <p className="muted">
-              Activity and diagnoses by period, region and facility, with CSV export.
+              Eight aggregate reports – activity, diseases, medicines, pharmacy, vaccinations,
+              referrals, appointments and workforce – with charts, CSV and print.
             </p>
             <Link to="/ministry/reports">Open reports</Link>
+          </Card>
+          <Card title="Team channels">
+            <p className="muted">Coordinate with facility directors in national channels.</p>
+            <Link to="/channels">Open channels</Link>
           </Card>
           <Card title="Announcements">
             <p className="muted">Publish national notices to staff and patients.</p>

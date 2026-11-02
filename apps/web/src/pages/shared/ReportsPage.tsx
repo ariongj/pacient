@@ -78,7 +78,9 @@ function DataTable({ name, report }: { name: ReportName; report: GenericReport }
               return (
                 <td key={c} className={isTextColumn(c) ? undefined : 'num'}>
                   {formatted === null ? (
-                    <abbr title={`Fewer than ${report.smallCellThreshold} – hidden to protect privacy`}>
+                    <abbr
+                      title={`Fewer than ${report.smallCellThreshold} – hidden to protect privacy`}
+                    >
                       &lt;{report.smallCellThreshold}
                     </abbr>
                   ) : c === 'name' && hasFacility ? (
@@ -101,7 +103,11 @@ function DataTable({ name, report }: { name: ReportName; report: GenericReport }
 function ReportView({ name, report }: { name: ReportName; report: GenericReport }) {
   const def = reportDef(name);
   if (!report.rows.length) {
-    return <EmptyState title="No data for these filters">Try a longer period or a different region.</EmptyState>;
+    return (
+      <EmptyState title="No data for these filters">
+        Try a longer period or a different region.
+      </EmptyState>
+    );
   }
   const kpis = def.kpis(report.rows);
   const charts = def.charts(report.rows);
@@ -126,8 +132,9 @@ function ReportView({ name, report }: { name: ReportName; report: GenericReport 
         <DataTable name={name} report={report} />
         {anySuppressed && (
           <p className="muted" style={{ marginTop: '0.75rem' }}>
-            Patient counts below {report.smallCellThreshold} are shown as “&lt;{report.smallCellThreshold}”
-            so that individuals cannot be identified, including in CSV downloads.
+            Patient counts below {report.smallCellThreshold} are shown as “&lt;
+            {report.smallCellThreshold}” so that individuals cannot be identified, including in CSV
+            downloads.
           </p>
         )}
       </Card>
@@ -160,7 +167,9 @@ export function ReportsPage() {
     () => [...new Set((facilities.data?.items ?? []).map((f) => f.region))].sort(),
     [facilities.data],
   );
-  const facilityOptions = (facilities.data?.items ?? []).filter((f) => !region || f.region === region);
+  const facilityOptions = (facilities.data?.items ?? []).filter(
+    (f) => !region || f.region === region,
+  );
 
   const filters = {
     ...(def.pointInTime ? {} : { from, to }),
@@ -186,7 +195,11 @@ export function ReportsPage() {
     setDownloading(true);
     setDownloadError(null);
     try {
-      await downloadFile(`/reports/${name}/export`, `pacient-${name}-${from}-to-${to}.csv`, filters);
+      await downloadFile(
+        `/reports/${name}/export`,
+        `pacient-${name}-${from}-to-${to}.csv`,
+        filters,
+      );
     } catch (err) {
       setDownloadError(err);
     } finally {
@@ -205,7 +218,12 @@ export function ReportsPage() {
         }
         actions={
           <>
-            <Button variant="secondary" onClick={download} loading={downloading} disabled={Boolean(periodError)}>
+            <Button
+              variant="secondary"
+              onClick={download}
+              loading={downloading}
+              disabled={Boolean(periodError)}
+            >
               Download CSV
             </Button>
             <Button variant="secondary" onClick={() => window.print()} disabled={!report.data}>
@@ -220,7 +238,8 @@ export function ReportsPage() {
         <p>
           Scope: {scopeText}
           <br />
-          Period: {def.pointInTime ? 'Point in time (current)' : `${formatDate(from)} – ${formatDate(to)}`}
+          Period:{' '}
+          {def.pointInTime ? 'Point in time (current)' : `${formatDate(from)} – ${formatDate(to)}`}
           <br />
           Generated {formatDateTime(new Date().toISOString())} by {user.fullName}. Aggregate data;
           small counts suppressed.
@@ -313,7 +332,10 @@ export function ReportsPage() {
                     value={facilityId}
                     onChange={(e) => setFacilityId(e.target.value)}
                     placeholder="All facilities"
-                    options={facilityOptions.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` }))}
+                    options={facilityOptions.map((f) => ({
+                      value: f.id,
+                      label: `${f.name} (${f.code})`,
+                    }))}
                   />
                 </>
               )}
@@ -333,7 +355,9 @@ export function ReportsPage() {
           {periodError && <Alert tone="warning" title={periodError} />}
           <ErrorAlert error={downloadError} />
           {!periodError && (
-            <QueryView query={report}>{(data) => <ReportView name={name} report={data} />}</QueryView>
+            <QueryView query={report}>
+              {(data) => <ReportView name={name} report={data} />}
+            </QueryView>
           )}
         </div>
       </div>

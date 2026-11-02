@@ -98,23 +98,23 @@ export function ProblemsTab({
                     </td>
                     <td>{d.doctorName}</td>
                     {isDoctor && (
-                    <td>
-                      <label className="sr-only" htmlFor={`dx-${d.id}`}>
-                        Status of {d.description}
-                      </label>
-                      <select
-                        id={`dx-${d.id}`}
-                        value={d.status}
-                        disabled={update.isPending}
-                        onChange={(e) => update.mutate({ id: d.id, status: e.target.value })}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {humanize(s)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                      <td>
+                        <label className="sr-only" htmlFor={`dx-${d.id}`}>
+                          Status of {d.description}
+                        </label>
+                        <select
+                          id={`dx-${d.id}`}
+                          value={d.status}
+                          disabled={update.isPending}
+                          onChange={(e) => update.mutate({ id: d.id, status: e.target.value })}
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {humanize(s)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                     )}
                   </tr>
                 ))}

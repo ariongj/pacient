@@ -116,8 +116,13 @@ code {
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+/* Tables cannot shrink below their content width unless they stop behaving as tables. */
+table.sr-only {
+  display: block;
 }
 
 :focus-visible {
@@ -202,7 +207,7 @@ code {
 .body {
   flex: 1;
   display: grid;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: 230px minmax(0, 1fr);
 }
 .sidenav {
   background: var(--nav-bg);
@@ -257,6 +262,7 @@ code {
   flex: none;
 }
 main {
+  min-width: 0;
   padding: 1.5rem 2rem 3rem;
   max-width: 1280px;
   width: 100%;
@@ -273,9 +279,10 @@ main:focus {
 
 @media (max-width: 860px) {
   .body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidenav {
+    min-width: 0;
     padding: 0.5rem;
     overflow-x: auto;
     display: flex;
@@ -652,6 +659,9 @@ textarea {
 /* ------------------------------------------------------------------ tables & lists */
 .table-wrap {
   overflow-x: auto;
+  /* Containing block for visually hidden (absolutely positioned) labels inside the table, so they
+     are clipped with the table instead of widening the page. */
+  position: relative;
 }
 table {
   width: 100%;
@@ -1170,4 +1180,12 @@ th.num {
   .badge {
     border: 1px solid #999;
   }
+}
+
+/* Grid children must be allowed to shrink so wide tables scroll inside their card instead of
+   stretching the page. */
+.split > *,
+.two-col > *,
+.grid > * {
+  min-width: 0;
 }

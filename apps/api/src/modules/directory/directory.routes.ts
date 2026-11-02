@@ -22,7 +22,12 @@ directoryRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
   const q = parse(Query, req.query);
   const rows = await db
-    .select({ id: users.id, fullName: users.fullName, role: users.role, specialty: users.specialty })
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      role: users.role,
+      specialty: users.specialty,
+    })
     .from(users)
     .where(
       and(

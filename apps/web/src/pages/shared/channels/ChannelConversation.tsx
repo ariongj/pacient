@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { api } from '../../../api/client';
 import type { Channel, ChannelMessage } from '../../../api/types';
 import { useUser } from '../../../auth/AuthContext';
@@ -182,7 +189,12 @@ export function ChannelConversation({
                 {newDay && (
                   <div
                     className="muted"
-                    style={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, margin: '0.4rem 0' }}
+                    style={{
+                      textAlign: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      margin: '0.4rem 0',
+                    }}
                   >
                     {formatDate(m.createdAt)}
                   </div>
@@ -196,7 +208,9 @@ export function ChannelConversation({
                       <strong>{m.authorName}</strong>{' '}
                       <span className="muted">
                         {humanize(m.authorRole)}
-                        {channel.scope === 'NATIONAL' && m.authorFacility ? ` · ${m.authorFacility}` : ''}
+                        {channel.scope === 'NATIONAL' && m.authorFacility
+                          ? ` · ${m.authorFacility}`
+                          : ''}
                       </span>
                     </div>
                   )}
@@ -206,7 +220,9 @@ export function ChannelConversation({
                     </div>
                   )}
                   {m.body}
-                  <div className="bubble-meta">{mine ? `You · ${formatTime(m.createdAt)}` : formatTime(m.createdAt)}</div>
+                  <div className="bubble-meta">
+                    {mine ? `You · ${formatTime(m.createdAt)}` : formatTime(m.createdAt)}
+                  </div>
                 </div>
               </div>
             );
@@ -235,7 +251,11 @@ export function ChannelConversation({
           </div>
           <div className="row-between">
             <label className="checkbox">
-              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={urgent}
+                onChange={(e) => setUrgent(e.target.checked)}
+              />
               Mark as urgent – notifies everyone in the channel
             </label>
             <Button type="submit" loading={send.isPending} disabled={!body.trim()}>

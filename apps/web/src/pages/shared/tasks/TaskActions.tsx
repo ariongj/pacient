@@ -3,15 +3,29 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../../../api/client';
 import type { CareTask } from '../../../api/types';
 import { useUser } from '../../../auth/AuthContext';
-import { Badge, Button, Dialog, ErrorAlert, StatusBadge, TextAreaField } from '../../../components/ui';
+import {
+  Badge,
+  Button,
+  Dialog,
+  ErrorAlert,
+  StatusBadge,
+  TextAreaField,
+} from '../../../components/ui';
 import { formatDateTime } from '../../../format';
 
 /** Refreshes every view that may show care tasks (lists, chart tabs, home tiles). */
 export function useTaskMutation(onDone?: () => void) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action, note }: { id: string; action: 'complete' | 'cancel'; note?: string }) =>
-      api(`/care-tasks/${id}/${action}`, { method: 'POST', body: note ? { note } : {} }),
+    mutationFn: ({
+      id,
+      action,
+      note,
+    }: {
+      id: string;
+      action: 'complete' | 'cancel';
+      note?: string;
+    }) => api(`/care-tasks/${id}/${action}`, { method: 'POST', body: note ? { note } : {} }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['careTasks'] });
       void qc.invalidateQueries({ queryKey: ['patient'] });
@@ -37,7 +51,9 @@ export function TaskFlags({ task }: { task: CareTask }) {
 
 export function DueText({ task }: { task: CareTask }) {
   if (!task.dueAt) return <span className="muted">No due time</span>;
-  return <span className={isOverdue(task) ? 'error-text' : undefined}>{formatDateTime(task.dueAt)}</span>;
+  return (
+    <span className={isOverdue(task) ? 'error-text' : undefined}>{formatDateTime(task.dueAt)}</span>
+  );
 }
 
 /**
@@ -49,7 +65,7 @@ export function TaskActions({ task }: { task: CareTask }) {
   const [mode, setMode] = useState<'complete' | 'cancel' | null>(null);
   const mutation = useTaskMutation(() => setMode(null));
   if (task.status !== 'OPEN') return null;
-  const mayCancel = user.role === 'DOCTOR' || task.createdByName === user.fullName;
+  const mayCancel = user.role === 'DOCTOR' || task.createdById === user.id;
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

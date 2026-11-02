@@ -35,7 +35,9 @@ export function NewChannelDialog({
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     create.mutate({
-      name: String(f.get('name') ?? '').trim().toLowerCase(),
+      name: String(f.get('name') ?? '')
+        .trim()
+        .toLowerCase(),
       description: String(f.get('description') ?? '').trim() || null,
       allowedRoles: roles,
     });
@@ -66,7 +68,9 @@ export function NewChannelDialog({
                 type="checkbox"
                 checked={roles.includes(r)}
                 onChange={(e) =>
-                  setRoles((prev) => (e.target.checked ? [...prev, r] : prev.filter((x) => x !== r)))
+                  setRoles((prev) =>
+                    e.target.checked ? [...prev, r] : prev.filter((x) => x !== r),
+                  )
                 }
               />
               {humanize(r)}

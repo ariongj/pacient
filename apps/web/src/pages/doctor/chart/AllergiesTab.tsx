@@ -74,22 +74,22 @@ export function AllergiesTab({
         <>
           {isDoctor && (
             <>
-          <Button
-            size="sm"
-            variant="secondary"
-            loading={assess.isPending && assess.variables === 'NO_KNOWN_ALLERGIES'}
-            onClick={() => assess.mutate('NO_KNOWN_ALLERGIES')}
-          >
-            Record no known allergies
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            loading={assess.isPending && assess.variables === 'UNKNOWN'}
-            onClick={() => assess.mutate('UNKNOWN')}
-          >
-            Record unknown
-          </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={assess.isPending && assess.variables === 'NO_KNOWN_ALLERGIES'}
+                onClick={() => assess.mutate('NO_KNOWN_ALLERGIES')}
+              >
+                Record no known allergies
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={assess.isPending && assess.variables === 'UNKNOWN'}
+                onClick={() => assess.mutate('UNKNOWN')}
+              >
+                Record unknown
+              </Button>
             </>
           )}
           <Button size="sm" onClick={() => setOpen(true)}>
@@ -138,25 +138,25 @@ export function AllergiesTab({
                       <div className="muted">{a.recordedBy}</div>
                     </td>
                     {isDoctor && (
-                    <td>
-                      <label className="sr-only" htmlFor={`al-${a.id}`}>
-                        Verification of {a.substance}
-                      </label>
-                      <select
-                        id={`al-${a.id}`}
-                        value={a.verificationStatus}
-                        disabled={verify.isPending}
-                        onChange={(e) =>
-                          verify.mutate({ id: a.id, verificationStatus: e.target.value })
-                        }
-                      >
-                        {VERIFICATION.map((v) => (
-                          <option key={v} value={v}>
-                            {humanize(v)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                      <td>
+                        <label className="sr-only" htmlFor={`al-${a.id}`}>
+                          Verification of {a.substance}
+                        </label>
+                        <select
+                          id={`al-${a.id}`}
+                          value={a.verificationStatus}
+                          disabled={verify.isPending}
+                          onChange={(e) =>
+                            verify.mutate({ id: a.id, verificationStatus: e.target.value })
+                          }
+                        >
+                          {VERIFICATION.map((v) => (
+                            <option key={v} value={v}>
+                              {humanize(v)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                     )}
                   </tr>
                 ))}

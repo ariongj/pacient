@@ -7,7 +7,8 @@ export type Row = GenericReport['rows'][number];
 
 const n = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
 const sum = (rows: Row[], key: string) => rows.reduce((a, r) => a + n(r[key]), 0);
-const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 1000) / 10}%` : '—');
+const pct = (part: number, whole: number) =>
+  whole ? `${Math.round((part / whole) * 1000) / 10}%` : '—';
 const avg = (rows: Row[], key: string) => {
   const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === 'number');
   return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
@@ -103,7 +104,8 @@ export interface ReportDef {
 
 const topN = (rows: Row[], groupKey: string, valueKey: string, limit = 10) => {
   const map = new Map<string, number>();
-  for (const r of rows) map.set(String(r[groupKey]), (map.get(String(r[groupKey])) ?? 0) + n(r[valueKey]));
+  for (const r of rows)
+    map.set(String(r[groupKey]), (map.get(String(r[groupKey])) ?? 0) + n(r[valueKey]));
   return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
 };
 
@@ -111,7 +113,8 @@ export const REPORT_DEFS: ReportDef[] = [
   {
     name: 'activity',
     title: 'Facility activity',
-    description: 'Encounters, appointments, referrals, vaccinations and emergency access per facility.',
+    description:
+      'Encounters, appointments, referrals, vaccinations and emergency access per facility.',
     kpis: (rows) => [
       { label: 'Encounters', value: formatNumber(sum(rows, 'encounters')) },
       { label: 'Appointments completed', value: formatNumber(sum(rows, 'appointmentsCompleted')) },
@@ -136,7 +139,11 @@ export const REPORT_DEFS: ReportDef[] = [
             label="Encounters by facility"
             rows={[...rows]
               .sort((a, b) => n(b.encounters) - n(a.encounters))
-              .map((r) => ({ key: String(r.code), label: facilityLabel(r), value: n(r.encounters) }))}
+              .map((r) => ({
+                key: String(r.code),
+                label: facilityLabel(r),
+                value: n(r.encounters),
+              }))}
           />
         ),
       },
@@ -151,7 +158,10 @@ export const REPORT_DEFS: ReportDef[] = [
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
-              values: { referralsSent: n(r.referralsSent), referralsReceived: n(r.referralsReceived) },
+              values: {
+                referralsSent: n(r.referralsSent),
+                referralsReceived: n(r.referralsReceived),
+              },
             }))}
           />
         ),
@@ -197,8 +207,15 @@ export const REPORT_DEFS: ReportDef[] = [
       const top = topN(rows, 'medication', 'prescriptions', 1)[0];
       return [
         { label: 'Prescriptions', value: formatNumber(sum(rows, 'prescriptions')) },
-        { label: 'Distinct medicines', value: formatNumber(new Set(rows.map((r) => r.medication)).size) },
-        { label: 'Most prescribed', value: top ? top[0] : '—', hint: top ? `${formatNumber(top[1])} prescriptions` : undefined },
+        {
+          label: 'Distinct medicines',
+          value: formatNumber(new Set(rows.map((r) => r.medication)).size),
+        },
+        {
+          label: 'Most prescribed',
+          value: top ? top[0] : '—',
+          hint: top ? `${formatNumber(top[1])} prescriptions` : undefined,
+        },
       ];
     },
     charts: (rows) => [
@@ -207,7 +224,11 @@ export const REPORT_DEFS: ReportDef[] = [
         node: (
           <RankedBars
             label="Top medicines by prescriptions"
-            rows={topN(rows, 'medication', 'prescriptions').map(([k, v]) => ({ key: k, label: k, value: v }))}
+            rows={topN(rows, 'medication', 'prescriptions').map(([k, v]) => ({
+              key: k,
+              label: k,
+              value: v,
+            }))}
           />
         ),
       },
@@ -216,7 +237,10 @@ export const REPORT_DEFS: ReportDef[] = [
         node: (
           <Donut
             title="Prescriptions by region"
-            data={topN(rows, 'region', 'prescriptions', 6).map(([k, v]) => ({ label: k, value: v }))}
+            data={topN(rows, 'region', 'prescriptions', 6).map(([k, v]) => ({
+              label: k,
+              value: v,
+            }))}
           />
         ),
       },
@@ -316,7 +340,11 @@ export const REPORT_DEFS: ReportDef[] = [
       const response = avg(rows, 'avgHoursToRespond');
       return [
         { label: 'Received', value: formatNumber(sum(rows, 'received')) },
-        { label: 'Urgent', value: formatNumber(sum(rows, 'urgent')), tone: sum(rows, 'urgent') ? 'warning' : undefined },
+        {
+          label: 'Urgent',
+          value: formatNumber(sum(rows, 'urgent')),
+          tone: sum(rows, 'urgent') ? 'warning' : undefined,
+        },
         {
           label: 'Pending',
           value: formatNumber(sum(rows, 'pending')),
@@ -355,7 +383,8 @@ export const REPORT_DEFS: ReportDef[] = [
   {
     name: 'appointments',
     title: 'Appointments & no-shows',
-    description: 'Booked, completed, missed and cancelled appointments, with no-show rate and lead time.',
+    description:
+      'Booked, completed, missed and cancelled appointments, with no-show rate and lead time.',
     kpis: (rows) => {
       const lead = avg(rows, 'avgLeadDays');
       return [
@@ -384,7 +413,12 @@ export const REPORT_DEFS: ReportDef[] = [
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
-              values: { completed: n(r.completed), open: n(r.open), noShows: n(r.noShows), cancelled: n(r.cancelled) },
+              values: {
+                completed: n(r.completed),
+                open: n(r.open),
+                noShows: n(r.noShows),
+                cancelled: n(r.cancelled),
+              },
             }))}
           />
         ),
@@ -394,7 +428,8 @@ export const REPORT_DEFS: ReportDef[] = [
   {
     name: 'workforce',
     title: 'Workforce & security',
-    description: 'Staff by role, two-step sign-in adoption, pending invitations and overdue care tasks.',
+    description:
+      'Staff by role, two-step sign-in adoption, pending invitations and overdue care tasks.',
     pointInTime: true,
     kpis: (rows) => {
       const staff = sum(rows, 'activeStaff');

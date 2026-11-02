@@ -6,6 +6,7 @@ import { useUser } from '../../auth/AuthContext';
 import { AnnouncementsCard } from '../../components/Announcements';
 import { Alert, PageHeader, QueryView } from '../../components/ui';
 import { FacilityStatsView } from './FacilityStatsView';
+import { OperationsPanel } from './OperationsPanel';
 
 /** Items that need the director's action, shown above the statistics. */
 function ActionAlerts() {
@@ -63,6 +64,7 @@ export function DirectorDashboard() {
       />
       <ActionAlerts />
       <div className="stack">
+        <OperationsPanel reportsPath="/director/reports" />
         <QueryView query={query}>
           {(stats) => <FacilityStatsView stats={stats} auditPath="/director/audit" />}
         </QueryView>

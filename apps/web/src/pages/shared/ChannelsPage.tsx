@@ -29,7 +29,10 @@ export function ChannelsPage() {
     (user.role === 'DIRECTOR' && c.scope === 'FACILITY');
 
   const groups: { title: string; items: Channel[] }[] = [
-    { title: user.facility?.name ?? 'Facility', items: items.filter((c) => c.scope === 'FACILITY') },
+    {
+      title: user.facility?.name ?? 'Facility',
+      items: items.filter((c) => c.scope === 'FACILITY'),
+    },
     { title: 'National', items: items.filter((c) => c.scope === 'NATIONAL') },
   ].filter((g) => g.items.length);
 
@@ -38,7 +41,9 @@ export function ChannelsPage() {
       <PageHeader
         title="Team channels"
         subtitle="Real-time coordination with your colleagues"
-        actions={canCreate ? <Button onClick={() => setCreating(true)}>New channel</Button> : undefined}
+        actions={
+          canCreate ? <Button onClick={() => setCreating(true)}>New channel</Button> : undefined
+        }
       />
       <Alert tone="info">
         Channels are for coordination. Do not post patient identifiers — use the patient record,
@@ -56,7 +61,13 @@ export function ChannelsPage() {
                     <div key={g.title} style={{ marginBottom: '0.75rem' }}>
                       <div
                         className="muted"
-                        style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 0.5rem 0.25rem' }}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.06em',
+                          padding: '0 0.5rem 0.25rem',
+                        }}
                       >
                         {g.title}
                       </div>
@@ -69,16 +80,21 @@ export function ChannelsPage() {
                           onClick={() => select(c.id)}
                         >
                           <span className="row-between">
-                            <span style={{ fontWeight: c.unreadCount ? 700 : 500 }}># {c.name}</span>
+                            <span style={{ fontWeight: c.unreadCount ? 700 : 500 }}>
+                              # {c.name}
+                            </span>
                             {c.unreadCount > 0 && (
-                              <Badge tone="danger">
+                              <Badge tone="info">
                                 {c.unreadCount}
                                 <span className="sr-only"> unread</span>
                               </Badge>
                             )}
                           </span>
                           {c.description && (
-                            <span className="muted" style={{ display: 'block', fontSize: '0.78rem' }}>
+                            <span
+                              className="muted"
+                              style={{ display: 'block', fontSize: '0.78rem' }}
+                            >
                               {c.description}
                             </span>
                           )}

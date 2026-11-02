@@ -66,7 +66,7 @@ export function App() {
 
       <Route
         element={
-          <RequireRole roles={['PATIENT', 'DOCTOR', 'DIRECTOR', 'MINISTRY']}>
+          <RequireRole roles={[...STAFF, 'PATIENT']}>
             <Layout />
           </RequireRole>
         }
@@ -336,10 +336,7 @@ export function App() {
         <Route path="/pharmacy" element={guard(['PHARMACIST'], <PharmacyQueue />)} />
         <Route path="/reception" element={guard(['RECEPTION'], <ReceptionToday />)} />
         <Route path="/reception/patients" element={guard(['RECEPTION'], <ReceptionPatients />)} />
-        <Route
-          path="/reception/patients/new"
-          element={guard(['RECEPTION'], <RegisterPatient />)}
-        />
+        <Route path="/reception/patients/new" element={guard(['RECEPTION'], <RegisterPatient />)} />
         <Route
           path="/reception/appointments"
           element={guard(['RECEPTION'], <ReceptionAppointments />)}

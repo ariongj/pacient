@@ -50,7 +50,10 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/doctor/referrals', label: 'Referrals', icon: 'share' },
       ],
     },
-    { title: 'Communication', items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items] },
+    {
+      title: 'Communication',
+      items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items],
+    },
   ],
   NURSE: [
     {
@@ -62,7 +65,10 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/nurse/schedule', label: 'Clinic schedule', icon: 'calendar' },
       ],
     },
-    { title: 'Communication', items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items] },
+    {
+      title: 'Communication',
+      items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items],
+    },
   ],
   PHARMACIST: [
     {
@@ -102,7 +108,10 @@ const NAV: Record<Role, NavSection[]> = {
     },
     {
       title: 'Communication',
-      items: [...COMMS.items, { to: '/director/announcements', label: 'Announcements', icon: 'megaphone' }],
+      items: [
+        ...COMMS.items,
+        { to: '/director/announcements', label: 'Announcements', icon: 'megaphone' },
+      ],
     },
   ],
   MINISTRY: [
@@ -124,7 +133,10 @@ const NAV: Record<Role, NavSection[]> = {
     },
     {
       title: 'Communication',
-      items: [...COMMS.items, { to: '/ministry/announcements', label: 'Announcements', icon: 'megaphone' }],
+      items: [
+        ...COMMS.items,
+        { to: '/ministry/announcements', label: 'Announcements', icon: 'megaphone' },
+      ],
     },
   ],
 };

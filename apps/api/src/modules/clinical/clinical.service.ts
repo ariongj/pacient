@@ -317,6 +317,7 @@ export function listCareTasks(patientId: string) {
       assignedToName: sql<
         string | null
       >`(SELECT u.full_name FROM users u WHERE u.id = ${careTasks.assignedToId})`,
+      createdById: careTasks.createdById,
       createdByName: doctorName,
       completedAt: careTasks.completedAt,
       completionNote: careTasks.completionNote,

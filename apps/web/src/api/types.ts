@@ -1,11 +1,5 @@
 export type Role =
-  | 'MINISTRY'
-  | 'DIRECTOR'
-  | 'DOCTOR'
-  | 'NURSE'
-  | 'PHARMACIST'
-  | 'RECEPTION'
-  | 'PATIENT';
+  'MINISTRY' | 'DIRECTOR' | 'DOCTOR' | 'NURSE' | 'PHARMACIST' | 'RECEPTION' | 'PATIENT';
 
 export type StaffRole = Exclude<Role, 'PATIENT'>;
 
@@ -208,12 +202,7 @@ export interface CareTeamMember {
 }
 
 export type AppointmentStatus =
-  | 'REQUESTED'
-  | 'CONFIRMED'
-  | 'CHECKED_IN'
-  | 'CANCELLED'
-  | 'COMPLETED'
-  | 'NO_SHOW';
+  'REQUESTED' | 'CONFIRMED' | 'CHECKED_IN' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
 
 export interface Appointment {
   id: string;
@@ -572,6 +561,7 @@ export interface CareTask {
   assignedRole: Role;
   assignedToId: string | null;
   assignedToName: string | null;
+  createdById: string;
   createdByName: string;
   createdAt: string;
   completedAt: string | null;
@@ -635,9 +625,21 @@ export interface PharmacyContext {
   prescription: PharmacyItem;
   allergyAssessment: Demographics['allergyAssessment'];
   allergies: Pick<Allergy, 'substance' | 'reaction' | 'severity' | 'verificationStatus'>[];
-  otherActiveMedications: { id: string; medication: string; dosage: string; frequency: string; pharmacyStatus: PharmacyStatus }[];
+  otherActiveMedications: {
+    id: string;
+    medication: string;
+    dosage: string;
+    frequency: string;
+    pharmacyStatus: PharmacyStatus;
+  }[];
   activeProblems: { icd10Code: string; description: string; status: string }[];
-  renalAndElectrolytes: { testName: string; value: string; unit: string | null; flag: LabResult['flag']; collectedAt: string }[];
+  renalAndElectrolytes: {
+    testName: string;
+    value: string;
+    unit: string | null;
+    flag: LabResult['flag'];
+    collectedAt: string;
+  }[];
   latestWeight: { weightKg: string; recordedAt: string } | null;
   alerts: SafetyAlert[];
 }

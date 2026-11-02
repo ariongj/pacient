@@ -124,33 +124,33 @@ export function MedicationsTab({
                       )}
                     </td>
                     {isDoctor && (
-                    <td>
-                      {p.status === 'ACTIVE' && (
-                        <div className="row">
-                          {p.pharmacyStatus === 'RETURNED' && (
-                            <Button size="sm" onClick={() => setResubmitting(p)}>
-                              Resubmit
+                      <td>
+                        {p.status === 'ACTIVE' && (
+                          <div className="row">
+                            {p.pharmacyStatus === 'RETURNED' && (
+                              <Button size="sm" onClick={() => setResubmitting(p)}>
+                                Resubmit
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={update.isPending}
+                              onClick={() => update.mutate({ id: p.id, status: 'COMPLETED' })}
+                            >
+                              Complete
                             </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={update.isPending}
-                            onClick={() => update.mutate({ id: p.id, status: 'COMPLETED' })}
-                          >
-                            Complete
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={update.isPending}
-                            onClick={() => update.mutate({ id: p.id, status: 'CANCELLED' })}
-                          >
-                            Stop
-                          </Button>
-                        </div>
-                      )}
-                    </td>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={update.isPending}
+                              onClick={() => update.mutate({ id: p.id, status: 'CANCELLED' })}
+                            >
+                              Stop
+                            </Button>
+                          </div>
+                        )}
+                      </td>
                     )}
                   </tr>
                 ))}

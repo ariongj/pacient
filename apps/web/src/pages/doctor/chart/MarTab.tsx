@@ -42,16 +42,22 @@ export function MarTab({ patientId }: { patientId: string }) {
   const [status, setStatus] = useState<AdministrationStatus>('GIVEN');
   const record = useChartMutation(
     patientId,
-    (body: Record<string, unknown>) => ({ path: '/medication-administrations', method: 'POST', body }),
+    (body: Record<string, unknown>) => ({
+      path: '/medication-administrations',
+      method: 'POST',
+      body,
+    }),
     () => setRecording(null),
   );
 
   const administrable = (rx.data ?? []).filter(
     (p) =>
-      p.status === 'ACTIVE' && (p.pharmacyStatus === 'VERIFIED' || p.pharmacyStatus === 'DISPENSED'),
+      p.status === 'ACTIVE' &&
+      (p.pharmacyStatus === 'VERIFIED' || p.pharmacyStatus === 'DISPENSED'),
   );
   const awaiting = (rx.data ?? []).filter(
-    (p) => p.status === 'ACTIVE' && (p.pharmacyStatus === 'PENDING' || p.pharmacyStatus === 'RETURNED'),
+    (p) =>
+      p.status === 'ACTIVE' && (p.pharmacyStatus === 'PENDING' || p.pharmacyStatus === 'RETURNED'),
   );
 
   function open(p: Prescription) {

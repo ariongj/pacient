@@ -73,6 +73,7 @@ careTasksRouter.get('/', async (req, res) => {
       assignedToName: sql<
         string | null
       >`(SELECT u.full_name FROM users u WHERE u.id = ${careTasks.assignedToId})`,
+      createdById: careTasks.createdById,
       createdByName: users.fullName,
       createdAt: careTasks.createdAt,
       completedAt: careTasks.completedAt,

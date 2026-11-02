@@ -331,7 +331,12 @@ export function Donut({
         role="img"
         aria-label={`${title}. Values in the legend.`}
       >
-        <circle cx={50} cy={50} r={r} style={{ fill: 'none', stroke: 'var(--surface-2)', strokeWidth: 14 }} />
+        <circle
+          cx={50}
+          cy={50}
+          r={r}
+          style={{ fill: 'none', stroke: 'var(--surface-2)', strokeWidth: 14 }}
+        />
         {total > 0 &&
           data.map((d, i) => {
             const len = (d.value / total) * c;
@@ -368,7 +373,10 @@ export function Donut({
       </svg>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.88rem' }}>
         {data.map((d, i) => (
-          <li key={d.label} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: 4 }}>
+          <li
+            key={d.label}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: 4 }}
+          >
             <span
               aria-hidden="true"
               style={{
@@ -380,7 +388,9 @@ export function Donut({
             />
             <span>
               {d.label}: <strong>{formatNumber(d.value)}</strong>
-              {total > 0 && <span className="muted"> ({Math.round((d.value / total) * 100)}%)</span>}
+              {total > 0 && (
+                <span className="muted"> ({Math.round((d.value / total) * 100)}%)</span>
+              )}
             </span>
           </li>
         ))}

@@ -17,9 +17,10 @@ import {
   Table,
   TextAreaField,
 } from '../../../components/ui';
-import { formatDateTime } from '../../../format';
+import { formatDateTime, humanize } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const STEPS: LabOrder['status'][] = ['ORDERED', 'RECEIVED', 'IN_PROGRESS', 'RESULTED'];
 
@@ -28,14 +29,17 @@ function OrderProgress({ order }: { order: LabOrder }) {
   if (order.status === 'CANCELLED') return <StatusBadge value="CANCELLED" />;
   const at = STEPS.indexOf(order.status);
   return (
-    <ol className="lab-progress" aria-label={`Order status: ${order.status.toLowerCase()}`}>
+    <ol
+      className="lab-progress"
+      aria-label={t('Order status: {status}', { status: humanize(order.status) })}
+    >
       {STEPS.map((s, i) => (
         <li
           key={s}
           className={i <= at ? 'done' : undefined}
           aria-current={i === at ? 'step' : undefined}
         >
-          {s === 'IN_PROGRESS' ? 'In lab' : s.charAt(0) + s.slice(1).toLowerCase()}
+          {s === 'IN_PROGRESS' ? t('In lab') : humanize(s)}
         </li>
       ))}
     </ol>
@@ -81,7 +85,7 @@ export function LabOrdersPanel({
     create.mutate(compact(formValues(e.currentTarget)));
   }
 
-  const test = catalog.data?.find((t) => t.code === selected);
+  const test = catalog.data?.find((lt) => lt.code === selected);
   const active = (orders.data ?? []).filter(
     (o) => o.status !== 'RESULTED' && o.status !== 'CANCELLED',
   );
@@ -90,14 +94,16 @@ export function LabOrdersPanel({
     <Card
       title={
         <>
-          Laboratory orders{' '}
-          {active.length > 0 && <Badge tone="info">{active.length} pending</Badge>}
+          {t('Laboratory orders')}{' '}
+          {active.length > 0 && (
+            <Badge tone="info">{t('{count} pending', { count: active.length })}</Badge>
+          )}
         </>
       }
       actions={
         isDoctor ? (
           <Button size="sm" onClick={() => setOpen(true)}>
-            Order test
+            {t('Order test')}
           </Button>
         ) : undefined
       }
@@ -106,19 +112,21 @@ export function LabOrdersPanel({
       <QueryView query={orders}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No laboratory orders">
-              Orders are sent to the connected laboratory and results come back here automatically.
+            <EmptyState title={t('No laboratory orders')}>
+              {t(
+                'Orders are sent to the connected laboratory and results come back here automatically.',
+              )}
             </EmptyState>
           ) : (
-            <Table caption="Laboratory orders">
+            <Table caption={t('Laboratory orders')}>
               <thead>
                 <tr>
-                  <th>Test</th>
-                  <th>Priority</th>
-                  <th>Progress</th>
-                  <th>Ordered</th>
+                  <th>{t('Test')}</th>
+                  <th>{t('Priority')}</th>
+                  <th>{t('Progress')}</th>
+                  <th>{t('Ordered')}</th>
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('Actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -128,7 +136,7 @@ export function LabOrdersPanel({
                     <td>
                       <strong>{o.testName}</strong>
                       <div className="muted">
-                        LOINC {o.testCode} · {o.specimen ?? 'specimen n/a'} ·{' '}
+                        LOINC {o.testCode} · {o.specimen ?? t('specimen n/a')} ·{' '}
                         <span className="mono">{o.placerOrderNumber}</span>
                       </div>
                       {o.clinicalNotes && <div className="muted">“{o.clinicalNotes}”</div>}
@@ -139,7 +147,9 @@ export function LabOrdersPanel({
                     <td>
                       <OrderProgress order={o} />
                       {o.fillerOrderNumber && (
-                        <div className="muted">Lab ref. {o.fillerOrderNumber}</div>
+                        <div className="muted">
+                          {t('Lab ref. {ref}', { ref: o.fillerOrderNumber })}
+                        </div>
                       )}
                     </td>
                     <td>
@@ -153,11 +163,11 @@ export function LabOrdersPanel({
                           variant="secondary"
                           loading={cancel.isPending && cancel.variables === o.id}
                           onClick={() => {
-                            if (window.confirm(`Cancel the ${o.testName} order?`))
+                            if (window.confirm(t('Cancel the {test} order?', { test: o.testName })))
                               cancel.mutate(o.id);
                           }}
                         >
-                          Cancel
+                          {t('Cancel')}
                         </Button>
                       )}
                     </td>
@@ -168,53 +178,57 @@ export function LabOrdersPanel({
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Order laboratory test" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Order laboratory test')} wide>
         <form onSubmit={onSubmit}>
           <div className="form-grid">
             <SelectField
-              label="Test"
+              label={t('Test')}
               name="testCode"
               required
-              placeholder={catalog.isLoading ? 'Loading tests…' : 'Choose a test'}
+              placeholder={catalog.isLoading ? t('Loading tests…') : t('Choose a test')}
               value={selected}
               onChange={(e) => setSelected(e.currentTarget.value)}
-              options={(catalog.data ?? []).map((t) => ({
-                value: t.code,
-                label: `${t.name} (${t.code})`,
+              options={(catalog.data ?? []).map((lt) => ({
+                value: lt.code,
+                label: `${lt.name} (${lt.code})`,
               }))}
             />
             <SelectField
-              label="Priority"
+              label={t('Priority')}
               name="priority"
               required
               defaultValue="ROUTINE"
               options={[
-                { value: 'ROUTINE', label: 'Routine' },
-                { value: 'URGENT', label: 'Urgent' },
-                { value: 'STAT', label: 'STAT (immediately)' },
+                { value: 'ROUTINE', label: t('Routine') },
+                { value: 'URGENT', label: t('Urgent') },
+                { value: 'STAT', label: t('STAT (immediately)') },
               ]}
             />
           </div>
           {test && (
             <p className="muted">
-              Specimen: {test.specimen} · Reference range: {test.referenceRange} {test.unit}
+              {t('Specimen: {specimen} · Reference range: {range} {unit}', {
+                specimen: test.specimen,
+                range: test.referenceRange,
+                unit: test.unit,
+              })}
             </p>
           )}
           <TextAreaField
-            label="Clinical information for the laboratory"
+            label={t('Clinical information for the laboratory')}
             name="clinicalNotes"
             maxLength={1000}
             rows={3}
-            hint="Relevant symptoms or medication, e.g. “on diuretics”."
+            hint={t('Relevant symptoms or medication, e.g. “on diuretics”.')}
           />
           <EncounterSelect encounters={encounters} />
           <ErrorAlert error={create.error ?? catalog.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Send order
+              {t('Send order')}
             </Button>
           </div>
         </form>

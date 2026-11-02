@@ -14,6 +14,7 @@ import {
 import { formatDateTime } from '../../../format';
 import { EncounterSelect, numbers, useChartMutation } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const FIELDS = [
   'systolic',
@@ -52,29 +53,29 @@ export function VitalsTab({
 
   return (
     <Card
-      title="Vital signs"
+      title={t('Vital signs')}
       actions={
         <Button size="sm" onClick={() => setOpen(true)}>
-          Record vitals
+          {t('Record vitals')}
         </Button>
       }
     >
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No vital signs recorded" />
+            <EmptyState title={t('No vital signs recorded')} />
           ) : (
-            <Table caption="Vital signs">
+            <Table caption={t('Vital signs')}>
               <thead>
                 <tr>
-                  <th>Recorded</th>
-                  <th className="num">BP (mmHg)</th>
-                  <th className="num">HR (bpm)</th>
-                  <th className="num">Temp (°C)</th>
-                  <th className="num">RR</th>
-                  <th className="num">SpO₂ (%)</th>
-                  <th className="num">Weight (kg)</th>
-                  <th className="num">Height (cm)</th>
+                  <th>{t('Recorded')}</th>
+                  <th className="num">{t('BP (mmHg)')}</th>
+                  <th className="num">{t('HR (bpm)')}</th>
+                  <th className="num">{t('Temp (°C)')}</th>
+                  <th className="num">{t('RR')}</th>
+                  <th className="num">{t('SpO₂ (%)')}</th>
+                  <th className="num">{t('Weight (kg)')}</th>
+                  <th className="num">{t('Height (cm)')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,15 +101,33 @@ export function VitalsTab({
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Record vital signs" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Record vital signs')} wide>
         <form onSubmit={onSubmit}>
-          <p className="muted">Enter at least one measurement.</p>
+          <p className="muted">{t('Enter at least one measurement.')}</p>
           <div className="form-grid">
-            <TextField label="Systolic (mmHg)" name="systolic" type="number" min={40} max={300} />
-            <TextField label="Diastolic (mmHg)" name="diastolic" type="number" min={20} max={200} />
-            <TextField label="Heart rate (bpm)" name="heartRate" type="number" min={20} max={300} />
             <TextField
-              label="Temperature (°C)"
+              label={t('Systolic (mmHg)')}
+              name="systolic"
+              type="number"
+              min={40}
+              max={300}
+            />
+            <TextField
+              label={t('Diastolic (mmHg)')}
+              name="diastolic"
+              type="number"
+              min={20}
+              max={200}
+            />
+            <TextField
+              label={t('Heart rate (bpm)')}
+              name="heartRate"
+              type="number"
+              min={20}
+              max={300}
+            />
+            <TextField
+              label={t('Temperature (°C)')}
               name="temperatureC"
               type="number"
               step="0.1"
@@ -116,15 +135,21 @@ export function VitalsTab({
               max={45}
             />
             <TextField
-              label="Respiratory rate"
+              label={t('Respiratory rate')}
               name="respiratoryRate"
               type="number"
               min={4}
               max={80}
             />
-            <TextField label="SpO₂ (%)" name="oxygenSaturation" type="number" min={30} max={100} />
             <TextField
-              label="Weight (kg)"
+              label={t('SpO₂ (%)')}
+              name="oxygenSaturation"
+              type="number"
+              min={30}
+              max={100}
+            />
+            <TextField
+              label={t('Weight (kg)')}
               name="weightKg"
               type="number"
               step="0.1"
@@ -132,7 +157,7 @@ export function VitalsTab({
               max={500}
             />
             <TextField
-              label="Height (cm)"
+              label={t('Height (cm)')}
               name="heightCm"
               type="number"
               step="0.1"
@@ -144,10 +169,10 @@ export function VitalsTab({
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Save
+              {t('Save')}
             </Button>
           </div>
         </form>

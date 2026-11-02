@@ -16,10 +16,11 @@ import {
   TextAreaField,
   TextField,
 } from '../../../components/ui';
-import { formatDateTime, humanize } from '../../../format';
+import { formatDateTime } from '../../../format';
 import { DueText, TaskActions, TaskFlags } from '../../shared/tasks/TaskActions';
 import { useChartMutation } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 /** Care tasks for one patient: every task has an owner (a person or a role) and an explicit state. */
 export function TasksTab({ patientId }: { patientId: string }) {
@@ -48,60 +49,64 @@ export function TasksTab({ patientId }: { patientId: string }) {
 
   return (
     <Card
-      title="Care tasks"
+      title={t('Care tasks')}
       actions={
         <Button size="sm" onClick={() => setOpen(true)}>
-          New task
+          {t('New task')}
         </Button>
       }
     >
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No care tasks for this patient" />
+            <EmptyState title={t('No care tasks for this patient')} />
           ) : (
-            <Table caption="Care tasks">
+            <Table caption={t('Care tasks')}>
               <thead>
                 <tr>
-                  <th>Task</th>
-                  <th>Status</th>
-                  <th>Due</th>
-                  <th>Assigned to</th>
-                  <th>Created by</th>
+                  <th>{t('Task')}</th>
+                  <th>{t('Status')}</th>
+                  <th>{t('Due')}</th>
+                  <th>{t('Assigned to')}</th>
+                  <th>{t('Created by')}</th>
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('Actions')}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((t) => (
-                  <tr key={t.id}>
+                {items.map((task) => (
+                  <tr key={task.id}>
                     <td>
-                      <strong>{t.title}</strong>
-                      {t.details && <div className="muted">{t.details}</div>}
-                      {t.completionNote && (
+                      <strong>{task.title}</strong>
+                      {task.details && <div className="muted">{task.details}</div>}
+                      {task.completionNote && (
                         <div className="muted">
-                          {t.status === 'CANCELLED' ? 'Cancelled' : 'Done'}: {t.completionNote}
-                          {t.completedByName && ` — ${t.completedByName}`}
+                          {task.status === 'CANCELLED' ? t('Cancelled') : t('Done')}:{' '}
+                          {task.completionNote}
+                          {task.completedByName && ` — ${task.completedByName}`}
                         </div>
                       )}
                     </td>
                     <td>
-                      <TaskFlags task={t} />
-                      {t.status === 'OPEN' && t.priority !== 'URGENT' && (
-                        <span className="muted">Open</span>
+                      <TaskFlags task={task} />
+                      {task.status === 'OPEN' && task.priority !== 'URGENT' && (
+                        <span className="muted">{t('Open')}</span>
                       )}
                     </td>
                     <td>
-                      <DueText task={t} />
-                    </td>
-                    <td>{t.assignedToName ?? `Any ${humanize(t.assignedRole).toLowerCase()}`}</td>
-                    <td>
-                      {t.createdByName}
-                      <div className="muted">{formatDateTime(t.createdAt)}</div>
+                      <DueText task={task} />
                     </td>
                     <td>
-                      <TaskActions task={t} />
+                      {task.assignedToName ??
+                        (task.assignedRole === 'NURSE' ? t('Any nurse') : t('Any doctor'))}
+                    </td>
+                    <td>
+                      {task.createdByName}
+                      <div className="muted">{formatDateTime(task.createdAt)}</div>
+                    </td>
+                    <td>
+                      <TaskActions task={task} />
                     </td>
                   </tr>
                 ))}
@@ -110,44 +115,48 @@ export function TasksTab({ patientId }: { patientId: string }) {
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="New care task" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('New care task')} wide>
         <form onSubmit={onSubmit}>
-          <TextField label="Task" name="title" required minLength={3} maxLength={200} />
-          <TextAreaField label="Details" name="details" maxLength={4000} rows={3} />
+          <TextField label={t('Task')} name="title" required minLength={3} maxLength={200} />
+          <TextAreaField label={t('Details')} name="details" maxLength={4000} rows={3} />
           <div className="form-grid">
             <SelectField
-              label="Priority"
+              label={t('Priority')}
               name="priority"
               options={[
-                { value: 'ROUTINE', label: 'Routine' },
-                { value: 'URGENT', label: 'Urgent' },
+                { value: 'ROUTINE', label: t('Routine') },
+                { value: 'URGENT', label: t('Urgent') },
               ]}
             />
-            <TextField label="Due" name="dueAt" type="datetime-local" />
+            <TextField label={t('Due')} name="dueAt" type="datetime-local" />
             <SelectField
-              label="Assign to role"
+              label={t('Assign to role')}
               name="assignedRole"
               value={role}
               onChange={(e) => setRole(e.target.value as 'NURSE' | 'DOCTOR')}
               options={[
-                { value: 'NURSE', label: 'Nursing team' },
-                { value: 'DOCTOR', label: 'Doctors' },
+                { value: 'NURSE', label: t('Nursing team') },
+                { value: 'DOCTOR', label: t('Doctors') },
               ]}
             />
             <SelectField
-              label="Specific person (optional)"
+              label={t('Specific person (optional)')}
               name="assignedToId"
-              placeholder={`Anyone in the care team (${role === 'NURSE' ? 'nurses' : 'doctors'})`}
+              placeholder={
+                role === 'NURSE'
+                  ? t('Anyone in the care team (nurses)')
+                  : t('Anyone in the care team (doctors)')
+              }
               options={assignees.map((m) => ({ value: m.doctorId, label: m.fullName }))}
             />
           </div>
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Create task
+              {t('Create task')}
             </Button>
           </div>
         </form>

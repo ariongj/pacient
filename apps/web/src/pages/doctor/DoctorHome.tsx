@@ -19,13 +19,14 @@ import {
   Table,
 } from '../../components/ui';
 import { formatDate, formatDateTime, formatTime, humanize } from '../../format';
+import { t } from '../../i18n';
 
 /** Shown when an unreviewed critical result has been escalated to colleagues (and the director). */
 function EscalatedBadge({ level }: { level?: number }) {
   if (!level) return null;
   return (
     <span style={{ display: 'block', marginTop: '0.25rem' }}>
-      <Badge tone="danger">{level >= 2 ? 'Escalated to director' : 'Escalated'}</Badge>
+      <Badge tone="danger">{level >= 2 ? t('Escalated to director') : t('Escalated')}</Badge>
     </span>
   );
 }
@@ -67,11 +68,11 @@ export function DoctorHome() {
   });
   const openTasks = tasks.data?.items ?? [];
   const overdueTasks = openTasks.filter(
-    (t) => t.dueAt && new Date(t.dueAt).getTime() < Date.now(),
+    (task) => task.dueAt && new Date(task.dueAt).getTime() < Date.now(),
   ).length;
   const referralItems = pendingReferrals.data?.items ?? [];
   const urgentReferrals = referralItems.filter((r) => r.priority === 'URGENT').length;
-  const unreadMessages = (threads.data?.items ?? []).reduce((n, t) => n + t.unreadCount, 0);
+  const unreadMessages = (threads.data?.items ?? []).reduce((n, th) => n + th.unreadCount, 0);
 
   const acknowledge = useMutation({
     mutationFn: ({ patientId, id }: { patientId: string; id: string }) =>
@@ -91,15 +92,17 @@ export function DoctorHome() {
   return (
     <>
       <PageHeader
-        title="Worklist"
-        subtitle={`Good day, ${user.fullName}. Follow-up stays here until it is explicitly closed.`}
+        title={t('Worklist')}
+        subtitle={t('Good day, {name}. Follow-up stays here until it is explicitly closed.', {
+          name: user.fullName,
+        })}
       />
       <QueryView query={worklist}>
         {(w) => (
           <div className="stack">
             <Grid min={180}>
               <Stat
-                label="Results to review"
+                label={t('Results to review')}
                 value={w.unacknowledgedResults.length}
                 tone={
                   w.unacknowledgedResults.some((r) => r.flag === 'CRITICAL')
@@ -110,50 +113,54 @@ export function DoctorHome() {
                 }
                 hint={
                   w.unacknowledgedResults.some((r) => r.flag === 'CRITICAL')
-                    ? 'Includes critical results'
+                    ? t('Includes critical results')
                     : (w.coveredResults ?? []).length
-                      ? `+ ${(w.coveredResults ?? []).length} you are covering`
+                      ? t('+ {count} you are covering', { count: (w.coveredResults ?? []).length })
                       : undefined
                 }
               />
               <Stat
-                label="Correction requests"
+                label={t('Correction requests')}
                 value={w.openCorrectionRequests.length}
                 tone={w.openCorrectionRequests.length ? 'warning' : 'success'}
               />
               <Stat
-                label="Notes awaiting signature"
+                label={t('Notes awaiting signature')}
                 value={w.draftNotes.length}
                 tone={w.draftNotes.length ? 'warning' : 'success'}
               />
-              <Stat label="Appointments today" value={today.length} tone="info" />
+              <Stat label={t('Appointments today')} value={today.length} tone="info" />
               <Stat
-                label="Pending referrals"
+                label={t('Pending referrals')}
                 value={pendingReferrals.data ? referralItems.length : '…'}
                 tone={urgentReferrals ? 'danger' : referralItems.length ? 'warning' : 'success'}
                 hint={
                   <Link to="/doctor/referrals">
-                    {urgentReferrals ? `${urgentReferrals} urgent · review` : 'Open referrals'}
+                    {urgentReferrals
+                      ? t('{count} urgent · review', { count: urgentReferrals })
+                      : t('Open referrals')}
                   </Link>
                 }
               />
               <Stat
-                label="Unread messages"
+                label={t('Unread messages')}
                 value={threads.data ? unreadMessages : '…'}
                 tone={unreadMessages ? 'warning' : 'success'}
-                hint={<Link to="/messages">Open messages</Link>}
+                hint={<Link to="/messages">{t('Open messages')}</Link>}
               />
               <Stat
-                label="Returned by pharmacy"
+                label={t('Returned by pharmacy')}
                 value={w.returnedPrescriptions.length}
                 tone={w.returnedPrescriptions.length ? 'danger' : 'success'}
               />
               <Stat
-                label="Open care tasks"
+                label={t('Open care tasks')}
                 value={tasks.data ? openTasks.length : '…'}
                 tone={overdueTasks ? 'danger' : openTasks.length ? 'warning' : 'success'}
                 hint={
-                  <Link to="/tasks">{overdueTasks ? `${overdueTasks} overdue` : 'Open tasks'}</Link>
+                  <Link to="/tasks">
+                    {overdueTasks ? t('{count} overdue', { count: overdueTasks }) : t('Open tasks')}
+                  </Link>
                 }
               />
             </Grid>
@@ -161,10 +168,11 @@ export function DoctorHome() {
             <AnnouncementsCard />
 
             {w.returnedPrescriptions.length > 0 && (
-              <Card title="Returned by pharmacy">
+              <Card title={t('Returned by pharmacy')}>
                 <p className="muted">
-                  The pharmacy could not verify these prescriptions. Amend and resubmit, or stop
-                  them, from the patient’s Medications tab.
+                  {t(
+                    'The pharmacy could not verify these prescriptions. Amend and resubmit, or stop them, from the patient’s Medications tab.',
+                  )}
                 </p>
                 <ul className="list">
                   {w.returnedPrescriptions.map((r) => (
@@ -190,24 +198,24 @@ export function DoctorHome() {
               </Card>
             )}
 
-            <Card title="Results awaiting review">
+            <Card title={t('Results awaiting review')}>
               <ErrorAlert error={acknowledge.error} />
               {w.unacknowledgedResults.length === 0 ? (
-                <EmptyState title="No results waiting">
-                  All results you ordered have been reviewed.
+                <EmptyState title={t('No results waiting')}>
+                  {t('All results you ordered have been reviewed.')}
                 </EmptyState>
               ) : (
-                <Table caption="Results awaiting review">
+                <Table caption={t('Results awaiting review')}>
                   <thead>
                     <tr>
-                      <th>Patient</th>
-                      <th>Test</th>
-                      <th>Value</th>
-                      <th>Flag</th>
-                      <th>Status</th>
-                      <th>Collected</th>
+                      <th>{t('Patient')}</th>
+                      <th>{t('Test')}</th>
+                      <th>{t('Value')}</th>
+                      <th>{t('Flag')}</th>
+                      <th>{t('Status')}</th>
+                      <th>{t('Collected')}</th>
                       <th>
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -238,7 +246,7 @@ export function DoctorHome() {
                             loading={acknowledge.isPending && acknowledge.variables?.id === r.id}
                             onClick={() => acknowledge.mutate({ patientId: r.patientId, id: r.id })}
                           >
-                            Acknowledge
+                            {t('Acknowledge')}
                           </Button>
                         </td>
                       </tr>
@@ -250,24 +258,27 @@ export function DoctorHome() {
 
             {(w.coveredResults ?? []).length > 0 && (
               <Card
-                title={`Covering for ${[...new Set((w.coveredResults ?? []).map((r) => r.orderedBy))].join(', ')}`}
-                actions={<Link to="/doctor/cover">Cover & absence</Link>}
+                title={t('Covering for {names}', {
+                  names: [...new Set((w.coveredResults ?? []).map((r) => r.orderedBy))].join(', '),
+                })}
+                actions={<Link to="/doctor/cover">{t('Cover & absence')}</Link>}
               >
                 <p className="muted">
-                  Results ordered by colleagues you are covering for. Review them as you would your
-                  own; the ordering doctor sees who acknowledged them.
+                  {t(
+                    'Results ordered by colleagues you are covering for. Review them as you would your own; the ordering doctor sees who acknowledged them.',
+                  )}
                 </p>
-                <Table caption="Results of colleagues you are covering for">
+                <Table caption={t('Results of colleagues you are covering for')}>
                   <thead>
                     <tr>
-                      <th>Patient</th>
-                      <th>Test</th>
-                      <th>Value</th>
-                      <th>Flag</th>
-                      <th>Ordered by</th>
-                      <th>Collected</th>
+                      <th>{t('Patient')}</th>
+                      <th>{t('Test')}</th>
+                      <th>{t('Value')}</th>
+                      <th>{t('Flag')}</th>
+                      <th>{t('Ordered by')}</th>
+                      <th>{t('Collected')}</th>
                       <th>
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -296,7 +307,7 @@ export function DoctorHome() {
                             loading={acknowledge.isPending && acknowledge.variables?.id === r.id}
                             onClick={() => acknowledge.mutate({ patientId: r.patientId, id: r.id })}
                           >
-                            Acknowledge
+                            {t('Acknowledge')}
                           </Button>
                         </td>
                       </tr>
@@ -307,9 +318,9 @@ export function DoctorHome() {
             )}
 
             <div className="two-col">
-              <Card title="Open correction requests">
+              <Card title={t('Open correction requests')}>
                 {w.openCorrectionRequests.length === 0 ? (
-                  <EmptyState title="No open requests" />
+                  <EmptyState title={t('No open requests')} />
                 ) : (
                   <ul className="list">
                     {w.openCorrectionRequests.map((c) => (
@@ -327,9 +338,9 @@ export function DoctorHome() {
                   </ul>
                 )}
               </Card>
-              <Card title="Draft notes awaiting signature">
+              <Card title={t('Draft notes awaiting signature')}>
                 {w.draftNotes.length === 0 ? (
-                  <EmptyState title="All notes signed" />
+                  <EmptyState title={t('All notes signed')} />
                 ) : (
                   <ul className="list">
                     {w.draftNotes.map((n) => (
@@ -355,13 +366,13 @@ export function DoctorHome() {
 
       <div style={{ marginTop: '1rem' }}>
         <Card
-          title="Upcoming appointments"
-          actions={<Link to="/doctor/schedule">Full schedule</Link>}
+          title={t('Upcoming appointments')}
+          actions={<Link to="/doctor/schedule">{t('Full schedule')}</Link>}
         >
           <QueryView query={appointments}>
             {() =>
               upcoming.length === 0 ? (
-                <EmptyState title="No upcoming appointments" />
+                <EmptyState title={t('No upcoming appointments')} />
               ) : (
                 <ul className="list">
                   {upcoming.slice(0, 8).map((a) => (

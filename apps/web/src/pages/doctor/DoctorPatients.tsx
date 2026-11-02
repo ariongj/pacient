@@ -19,6 +19,7 @@ import {
 } from '../../components/ui';
 import { age, formatDate, fullName, humanize } from '../../format';
 import { useChartRole } from './chart/shared';
+import { t, tn } from '../../i18n';
 
 type Scope = 'mine' | 'facility';
 
@@ -54,38 +55,38 @@ export function DoctorPatients() {
   return (
     <>
       <PageHeader
-        title="Patients"
+        title={t('Patients')}
         actions={
           isDoctor ? (
             <Link to="/doctor/patients/new" className="btn btn-primary btn-md">
-              Register patient
+              {t('Register patient')}
             </Link>
           ) : undefined
         }
       />
       <Card>
         <Tabs<Scope>
-          label="Patient list scope"
+          label={t('Patient list scope')}
           active={scope}
           onChange={(s) => {
             setScope(s);
             setPage(1);
           }}
           tabs={[
-            { id: 'mine', label: 'In my care' },
-            { id: 'facility', label: 'Registered at my facility' },
+            { id: 'mine', label: t('In my care') },
+            { id: 'facility', label: t('Registered at my facility') },
           ]}
         />
         <TabPanel id={scope}>
           <form className="search-bar" onSubmit={onSearch} role="search">
             <TextField
-              label="Search by name or national ID"
+              label={t('Search by name or national ID')}
               type="search"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               maxLength={100}
             />
-            <Button type="submit">Search</Button>
+            <Button type="submit">{t('Search')}</Button>
             {search && (
               <Button
                 variant="ghost"
@@ -95,36 +96,37 @@ export function DoctorPatients() {
                   setPage(1);
                 }}
               >
-                Clear
+                {t('Clear')}
               </Button>
             )}
           </form>
           {scope === 'facility' && (
             <p className="muted">
-              Joining a patient’s care team gives you access to their record. It is recorded in the
-              audit trail and shown to the patient in their access log.
+              {t(
+                'Joining a patient’s care team gives you access to their record. It is recorded in the audit trail and shown to the patient in their access log.',
+              )}
             </p>
           )}
           <ErrorAlert error={join.error} />
           <QueryView query={list}>
             {(data) =>
               data.items.length === 0 ? (
-                <EmptyState title="No patients found">
+                <EmptyState title={t('No patients found')}>
                   {search
-                    ? 'Try a different name or national ID.'
-                    : 'No patients in this list yet.'}
+                    ? t('Try a different name or national ID.')
+                    : t('No patients in this list yet.')}
                 </EmptyState>
               ) : (
                 <>
-                  <Table caption="Patients">
+                  <Table caption={t('Patients')}>
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>National ID</th>
-                        <th>Date of birth</th>
-                        <th>Sex</th>
-                        <th>Portal</th>
-                        <th>Care</th>
+                        <th>{t('Name')}</th>
+                        <th>{t('National ID')}</th>
+                        <th>{t('Date of birth')}</th>
+                        <th>{t('Sex')}</th>
+                        <th>{t('Portal')}</th>
+                        <th>{t('Care')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -144,23 +146,23 @@ export function DoctorPatients() {
                           <td>{humanize(p.sex)}</td>
                           <td>
                             {p.hasPortalAccount ? (
-                              <Badge tone="success">Active</Badge>
+                              <Badge tone="success">{t('Active')}</Badge>
                             ) : (
-                              <Badge>None</Badge>
+                              <Badge>{t('None')}</Badge>
                             )}
                           </td>
                           <td>
                             {p.inMyCare ? (
-                              <Badge tone="info">In my care</Badge>
+                              <Badge tone="info">{t('In my care')}</Badge>
                             ) : (
                               <Button
                                 size="sm"
                                 variant="secondary"
                                 loading={join.isPending && join.variables === p.id}
                                 onClick={() => join.mutate(p.id)}
-                                aria-label={`Join care team of ${fullName(p)}`}
+                                aria-label={t('Join care team of {name}', { name: fullName(p) })}
                               >
-                                Join care team
+                                {t('Join care team')}
                               </Button>
                             )}
                           </td>
@@ -168,7 +170,7 @@ export function DoctorPatients() {
                       ))}
                     </tbody>
                   </Table>
-                  <p className="muted">{data.total} patient(s)</p>
+                  <p className="muted">{tn(data.total, '{count} patient', '{count} patients')}</p>
                   <Pagination page={data.page} totalPages={data.totalPages} onChange={setPage} />
                 </>
               )

@@ -19,6 +19,7 @@ import {
 import { formatDate, humanize } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const STATUSES = ['ACTIVE', 'CHRONIC', 'RESOLVED'] as const;
 
@@ -51,11 +52,11 @@ export function ProblemsTab({
 
   return (
     <Card
-      title="Problems & diagnoses"
+      title={t('Problems & diagnoses')}
       actions={
         isDoctor ? (
           <Button size="sm" onClick={() => setOpen(true)}>
-            Add diagnosis
+            {t('Add diagnosis')}
           </Button>
         ) : undefined
       }
@@ -64,17 +65,17 @@ export function ProblemsTab({
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No diagnoses recorded" />
+            <EmptyState title={t('No diagnoses recorded')} />
           ) : (
-            <Table caption="Diagnoses">
+            <Table caption={t('Diagnoses')}>
               <thead>
                 <tr>
-                  <th>ICD-10</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Diagnosed</th>
-                  <th>By</th>
-                  {isDoctor && <th>Change status</th>}
+                  <th>{t('ICD-10')}</th>
+                  <th>{t('Description')}</th>
+                  <th>{t('Status')}</th>
+                  <th>{t('Diagnosed')}</th>
+                  <th>{t('By')}</th>
+                  {isDoctor && <th>{t('Change status')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -93,14 +94,16 @@ export function ProblemsTab({
                     <td>
                       {formatDate(d.diagnosedAt)}
                       {d.resolvedAt && (
-                        <div className="muted">Resolved {formatDate(d.resolvedAt)}</div>
+                        <div className="muted">
+                          {t('Resolved {date}', { date: formatDate(d.resolvedAt) })}
+                        </div>
                       )}
                     </td>
                     <td>{d.doctorName}</td>
                     {isDoctor && (
                       <td>
                         <label className="sr-only" htmlFor={`dx-${d.id}`}>
-                          Status of {d.description}
+                          {t('Status of {name}', { name: d.description })}
                         </label>
                         <select
                           id={`dx-${d.id}`}
@@ -123,35 +126,35 @@ export function ProblemsTab({
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Add diagnosis">
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Add diagnosis')}>
         <form onSubmit={onSubmit}>
           <div className="form-grid">
             <TextField
-              label="ICD-10 code"
+              label={t('ICD-10 code')}
               name="icd10Code"
               required
               pattern="[A-Za-z][0-9]{2}(\.[0-9A-Za-z]{1,4})?"
-              hint="e.g. E11.9"
+              hint={t('e.g. E11.9')}
               maxLength={10}
             />
-            <SelectField label="Status" name="status" options={enumOptions(STATUSES)} />
+            <SelectField label={t('Status')} name="status" options={enumOptions(STATUSES)} />
           </div>
           <TextField
-            label="Description"
+            label={t('Description')}
             name="description"
             required
             minLength={2}
             maxLength={300}
           />
           <EncounterSelect encounters={encounters} />
-          <TextAreaField label="Notes" name="notes" maxLength={5000} rows={3} />
+          <TextAreaField label={t('Notes')} name="notes" maxLength={5000} rows={3} />
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Add diagnosis
+              {t('Add diagnosis')}
             </Button>
           </div>
         </form>

@@ -16,6 +16,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { humanize } from '../../../format';
+import { t } from '../../../i18n';
 
 /** Prefills the referral letter from the chart; the doctor edits it before sending. */
 function summaryTemplate(s: ClinicalSummary): string {
@@ -28,11 +29,11 @@ function summaryTemplate(s: ClinicalSummary): string {
     .map((a) => `${a.substance} (${humanize(a.severity)})`)
     .join('; ');
   return [
-    `Active problems: ${problems || 'none recorded'}`,
-    `Current medications: ${meds || 'none'}`,
-    `Allergies: ${allergies || humanize(s.patient.allergyAssessment)}`,
+    t('Active problems: {list}', { list: problems || t('none recorded') }),
+    t('Current medications: {list}', { list: meds || t('none') }),
+    t('Allergies: {list}', { list: allergies || humanize(s.patient.allergyAssessment) }),
     '',
-    'History and reason for referral: ',
+    `${t('History and reason for referral:')} `,
   ].join('\n');
 }
 
@@ -122,60 +123,64 @@ export function ReferDialog({
   }
 
   return (
-    <Dialog open={open} onClose={close} title="Refer to another facility" wide>
+    <Dialog open={open} onClose={close} title={t('Refer to another facility')} wide>
       {sent ? (
         <div className="stack">
-          <Alert tone="success" title="Referral sent">
-            The receiving facility can now see your summary (not the full record). The patient has
-            been notified. <Link to="/doctor/referrals">Track it under Referrals</Link>.
+          <Alert tone="success" title={t('Referral sent')}>
+            {t(
+              'The receiving facility can now see your summary (not the full record). The patient has been notified.',
+            )}{' '}
+            <Link to="/doctor/referrals">{t('Track it under Referrals')}</Link>.
           </Alert>
           <div className="form-actions">
-            <Button onClick={close}>Close</Button>
+            <Button onClick={close}>{t('Close')}</Button>
           </div>
         </div>
       ) : (
         <>
           {pending && (
             <form onSubmit={onConfirmConsent}>
-              <Alert tone="warning" title="The patient has withdrawn consent to sharing">
-                This patient asked that their record is not shared with other facilities. Discuss
-                this referral with them. If they agree, record how they agreed – this is added to
-                their consent history and the referral is sent.
+              <Alert tone="warning" title={t('The patient has withdrawn consent to sharing')}>
+                {t(
+                  'This patient asked that their record is not shared with other facilities. Discuss this referral with them. If they agree, record how they agreed – this is added to their consent history and the referral is sent.',
+                )}
               </Alert>
               <SelectField
-                label="How did the patient agree?"
+                label={t('How did the patient agree?')}
                 name="consentMethod"
                 required
                 value={consentMethod}
                 onChange={(e) => setConsentMethod(e.currentTarget.value as 'IN_PERSON' | 'WRITTEN')}
                 options={[
-                  { value: 'IN_PERSON', label: 'In person (verbal)' },
-                  { value: 'WRITTEN', label: 'Signed form' },
+                  { value: 'IN_PERSON', label: t('In person (verbal)') },
+                  { value: 'WRITTEN', label: t('Signed form') },
                 ]}
               />
               {consentMethod === 'WRITTEN' && (
                 <SelectField
-                  label="Signed consent form"
+                  label={t('Signed consent form')}
                   name="documentId"
                   required
                   placeholder={
                     consentForms.isLoading
-                      ? 'Loading documents…'
+                      ? t('Loading documents…')
                       : consentForms.data?.length
-                        ? 'Choose the signed form'
-                        : 'No consent forms uploaded'
+                        ? t('Choose the signed form')
+                        : t('No consent forms uploaded')
                   }
                   options={(consentForms.data ?? []).map((d) => ({ value: d.id, label: d.title }))}
                 />
               )}
               <TextAreaField
-                label="What was discussed"
+                label={t('What was discussed')}
                 name="consentNote"
                 required
                 minLength={10}
                 maxLength={1000}
                 rows={3}
-                hint="e.g. “Discussed in clinic; patient agrees to sharing for this cardiology referral.”"
+                hint={t(
+                  'e.g. “Discussed in clinic; patient agrees to sharing for this cardiology referral.”',
+                )}
               />
               {!consentBlocked && <ErrorAlert error={create.error} />}
               <div className="form-actions">
@@ -186,27 +191,27 @@ export function ReferDialog({
                     create.reset();
                   }}
                 >
-                  Back
+                  {t('Back')}
                 </Button>
                 <Button type="submit" loading={create.isPending}>
-                  Confirm agreement and send referral
+                  {t('Confirm agreement and send referral')}
                 </Button>
               </div>
             </form>
           )}
           <form onSubmit={onSubmit} style={pending ? { display: 'none' } : undefined}>
             <Alert tone="info">
-              Only this summary is shared while the referral is pending. If the receiving facility
-              accepts, the assigned doctor joins the care team and can open the record. All steps
-              are audited and visible to the patient.
+              {t(
+                'Only this summary is shared while the referral is pending. If the receiving facility accepts, the assigned doctor joins the care team and can open the record. All steps are audited and visible to the patient.',
+              )}
             </Alert>
             <QueryView query={facilities}>
               {(d) => (
                 <SelectField
-                  label="Receiving facility"
+                  label={t('Receiving facility')}
                   name="toFacilityId"
                   required
-                  placeholder="Choose a facility"
+                  placeholder={t('Choose a facility')}
                   options={d.items
                     .filter((f) => f.id !== user.facility?.id)
                     .map((f) => ({ value: f.id, label: `${f.name} (${f.region})` }))}
@@ -215,40 +220,40 @@ export function ReferDialog({
             </QueryView>
             <div className="form-grid">
               <TextField
-                label="Specialty"
+                label={t('Specialty')}
                 name="specialty"
                 required
                 minLength={2}
                 maxLength={120}
               />
               <SelectField
-                label="Priority"
+                label={t('Priority')}
                 name="priority"
                 defaultValue="ROUTINE"
                 options={[
-                  { value: 'ROUTINE', label: 'Routine' },
-                  { value: 'URGENT', label: 'Urgent' },
+                  { value: 'ROUTINE', label: t('Routine') },
+                  { value: 'URGENT', label: t('Urgent') },
                 ]}
               />
             </div>
-            <TextField label="Reason" name="reason" required minLength={5} maxLength={500} />
+            <TextField label={t('Reason')} name="reason" required minLength={5} maxLength={500} />
             <TextAreaField
-              label="Clinical summary"
+              label={t('Clinical summary')}
               name="clinicalSummary"
               required
               minLength={20}
               maxLength={10_000}
               rows={8}
               defaultValue={summaryTemplate(summary)}
-              hint="Include only what the receiving clinician needs for this referral."
+              hint={t('Include only what the receiving clinician needs for this referral.')}
             />
             <ErrorAlert error={create.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={close}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" loading={create.isPending}>
-                Send referral
+                {t('Send referral')}
               </Button>
             </div>
           </form>

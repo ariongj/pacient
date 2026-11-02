@@ -19,6 +19,7 @@ import {
 import { formatDate, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const SEVERITIES = ['MILD', 'MODERATE', 'SEVERE', 'LIFE_THREATENING'] as const;
 const VERIFICATION = ['UNCONFIRMED', 'CONFIRMED', 'REFUTED', 'ENTERED_IN_ERROR'] as const;
@@ -69,7 +70,7 @@ export function AllergiesTab({
 
   return (
     <Card
-      title="Allergies & intolerances"
+      title={t('Allergies & intolerances')}
       actions={
         <>
           {isDoctor && (
@@ -80,7 +81,7 @@ export function AllergiesTab({
                 loading={assess.isPending && assess.variables === 'NO_KNOWN_ALLERGIES'}
                 onClick={() => assess.mutate('NO_KNOWN_ALLERGIES')}
               >
-                Record no known allergies
+                {t('Record no known allergies')}
               </Button>
               <Button
                 size="sm"
@@ -88,35 +89,35 @@ export function AllergiesTab({
                 loading={assess.isPending && assess.variables === 'UNKNOWN'}
                 onClick={() => assess.mutate('UNKNOWN')}
               >
-                Record unknown
+                {t('Record unknown')}
               </Button>
             </>
           )}
           <Button size="sm" onClick={() => setOpen(true)}>
-            Add allergy
+            {t('Add allergy')}
           </Button>
         </>
       }
     >
       <Alert tone={assessment === 'NOT_RECORDED' || assessment === 'UNKNOWN' ? 'warning' : 'info'}>
-        Assessment: <strong>{ALLERGY_ASSESSMENT_TEXT[assessment]}</strong>
+        {t('Assessment:')} <strong>{t(ALLERGY_ASSESSMENT_TEXT[assessment])}</strong>
       </Alert>
       <ErrorAlert error={assess.error ?? verify.error} />
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No allergy entries" />
+            <EmptyState title={t('No allergy entries')} />
           ) : (
-            <Table caption="Allergies">
+            <Table caption={t('Allergies')}>
               <thead>
                 <tr>
-                  <th>Substance</th>
-                  <th>Reaction</th>
-                  <th>Severity</th>
-                  <th>Verification</th>
-                  <th>Source</th>
-                  <th>Recorded</th>
-                  {isDoctor && <th>Change verification</th>}
+                  <th>{t('Substance')}</th>
+                  <th>{t('Reaction')}</th>
+                  <th>{t('Severity')}</th>
+                  <th>{t('Verification')}</th>
+                  <th>{t('Source')}</th>
+                  <th>{t('Recorded')}</th>
+                  {isDoctor && <th>{t('Change verification')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -140,7 +141,7 @@ export function AllergiesTab({
                     {isDoctor && (
                       <td>
                         <label className="sr-only" htmlFor={`al-${a.id}`}>
-                          Verification of {a.substance}
+                          {t('Verification of {name}', { name: a.substance })}
                         </label>
                         <select
                           id={`al-${a.id}`}
@@ -165,41 +166,47 @@ export function AllergiesTab({
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Add allergy">
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Add allergy')}>
         <form onSubmit={onSubmit}>
-          <TextField label="Substance" name="substance" required minLength={2} maxLength={200} />
-          <TextField label="Reaction" name="reaction" maxLength={300} />
+          <TextField
+            label={t('Substance')}
+            name="substance"
+            required
+            minLength={2}
+            maxLength={200}
+          />
+          <TextField label={t('Reaction')} name="reaction" maxLength={300} />
           <div className="form-grid">
             <SelectField
-              label="Severity"
+              label={t('Severity')}
               name="severity"
               required
               options={enumOptions(SEVERITIES)}
-              placeholder="Select…"
+              placeholder={t('Select…')}
             />
             {isDoctor && (
               <SelectField
-                label="Verification"
+                label={t('Verification')}
                 name="verificationStatus"
                 options={enumOptions(['UNCONFIRMED', 'CONFIRMED'])}
               />
             )}
             <SelectField
-              label="Source"
+              label={t('Source')}
               name="source"
               options={enumOptions(['CLINICIAN', 'PATIENT_REPORTED'])}
             />
           </div>
           {!isDoctor && (
-            <p className="muted">Recorded as unconfirmed until a doctor verifies it.</p>
+            <p className="muted">{t('Recorded as unconfirmed until a doctor verifies it.')}</p>
           )}
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Add allergy
+              {t('Add allergy')}
             </Button>
           </div>
         </form>

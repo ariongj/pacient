@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Alert, Button, Card, Dialog, ErrorAlert, TextAreaField } from '../../../components/ui';
 import { useChartMutation, useChartRole } from './shared';
+import { t } from '../../../i18n';
 
 /**
  * Shown when the doctor may see demographics but not the clinical record. Offers the two
@@ -33,60 +34,68 @@ export function AccessPanel({
   }
 
   return (
-    <Card title="You are not in this patient’s care team">
+    <Card title={t('You are not in this patient’s care team')}>
       <p>
-        Clinical records are available only to the patient’s care team. Choose how you need to
-        access this record.
+        {t(
+          'Clinical records are available only to the patient’s care team. Choose how you need to access this record.',
+        )}
       </p>
       {!sameFacility && (
         <Alert tone="info">
-          This patient is registered at another facility. Records are not shared across institutions
-          from this workspace.
+          {t(
+            'This patient is registered at another facility. Records are not shared across institutions from this workspace.',
+          )}
         </Alert>
       )}
       <ErrorAlert error={join.error} />
       <div className="row">
         {sameFacility && (
           <Button onClick={() => join.mutate(undefined)} loading={join.isPending}>
-            Join care team
+            {t('Join care team')}
           </Button>
         )}
         {sameFacility && isDoctor && (
           <Button variant="danger" onClick={() => setOpen(true)}>
-            Emergency access…
+            {t('Emergency access…')}
           </Button>
         )}
       </div>
       {sameFacility && (
         <p className="muted" style={{ marginTop: '0.75rem' }}>
-          Joining the care team is recorded in the audit trail and is visible to the patient.
-          {!isDoctor && ' In an emergency, ask a doctor to use emergency access.'}
+          {t('Joining the care team is recorded in the audit trail and is visible to the patient.')}
+          {!isDoctor && ` ${t('In an emergency, ask a doctor to use emergency access.')}`}
         </p>
       )}
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Emergency (break-glass) access">
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('Emergency (break-glass) access')}
+      >
         <form onSubmit={onSubmit}>
-          <Alert tone="danger" title="Use only when urgent care requires it">
+          <Alert tone="danger" title={t('Use only when urgent care requires it')}>
             <ul>
-              <li>Access expires automatically after 4 hours.</li>
-              <li>The reason and every view are recorded in the audit trail.</li>
-              <li>Your facility director reviews emergency access.</li>
-              <li>The patient can see that you accessed their record and why.</li>
+              <li>{t('Access expires automatically after 4 hours.')}</li>
+              <li>{t('The reason and every view are recorded in the audit trail.')}</li>
+              <li>{t('Your facility director reviews emergency access.')}</li>
+              <li>{t('The patient can see that you accessed their record and why.')}</li>
             </ul>
           </Alert>
           <TextAreaField
-            label="Clinical reason"
+            label={t('Clinical reason')}
             required
             minLength={10}
             maxLength={1000}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            hint="At least 10 characters, e.g. “Unconscious patient in ED, treating doctor unavailable”."
+            hint={t(
+              'At least 10 characters, e.g. “Unconscious patient in ED, treating doctor unavailable”.',
+            )}
           />
           <ErrorAlert error={emergency.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               type="submit"
@@ -94,7 +103,7 @@ export function AccessPanel({
               loading={emergency.isPending}
               disabled={reason.trim().length < 10}
             >
-              Open record in emergency mode
+              {t('Open record in emergency mode')}
             </Button>
           </div>
         </form>

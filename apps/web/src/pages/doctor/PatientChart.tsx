@@ -35,6 +35,7 @@ import { ConsentsTab } from './chart/ConsentsTab';
 import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
 import { VitalsTab } from './chart/VitalsTab';
+import { t } from '../../i18n';
 
 /** GET /patients/:id – demographics without clinical data. */
 interface PatientDemographics {
@@ -90,26 +91,27 @@ export function PatientChart() {
     enabled: demographics.isSuccess,
   });
 
-  if (demographics.isPending) return <Loading label="Loading patient…" />;
+  if (demographics.isPending) return <Loading label={t('Loading patient…')} />;
   if (demographics.error) {
     const err = demographics.error;
     return (
       <Card
         title={
           err instanceof ApiError && err.status === 403
-            ? 'No access to this patient'
-            : 'Patient unavailable'
+            ? t('No access to this patient')
+            : t('Patient unavailable')
         }
       >
         {err instanceof ApiError && err.status === 403 ? (
           <p>
-            This patient is not registered at your facility and is not in your care. Records are not
-            shared across institutions.
+            {t(
+              'This patient is not registered at your facility and is not in your care. Records are not shared across institutions.',
+            )}
           </p>
         ) : (
           <ErrorAlert error={err} />
         )}
-        <Link to={`${base}/patients`}>Back to patients</Link>
+        <Link to={`${base}/patients`}>{t('Back to patients')}</Link>
       </Card>
     );
   }
@@ -130,7 +132,7 @@ export function PatientChart() {
     <>
       <section
         className={`patient-banner ${s?.accessBasis === 'EMERGENCY' ? 'emergency-banner' : ''}`}
-        aria-label="Patient identification"
+        aria-label={t('Patient identification')}
       >
         <div>
           <h1>
@@ -138,21 +140,25 @@ export function PatientChart() {
           </h1>
           <div className="banner-facts">
             <span>
-              {age(p.dateOfBirth)} y · {humanize(p.sex)}
+              {t('{age} y', { age: age(p.dateOfBirth) })} · {humanize(p.sex)}
             </span>
-            <span>DOB {formatDate(p.dateOfBirth)}</span>
+            <span>{t('DOB {date}', { date: formatDate(p.dateOfBirth) })}</span>
             <span>
-              National ID <code>{p.nationalId}</code>
+              {t('National ID')} <code>{p.nationalId}</code>
             </span>
-            <span>Blood type {p.bloodType === 'UNKNOWN' ? 'unknown' : p.bloodType}</span>
-            {p.hasPortalAccount && <Badge tone="success">Portal user</Badge>}
+            <span>
+              {t('Blood type {type}', {
+                type: p.bloodType === 'UNKNOWN' ? t('unknown') : p.bloodType,
+              })}
+            </span>
+            {p.hasPortalAccount && <Badge tone="success">{t('Portal user')}</Badge>}
           </div>
         </div>
         {s && (
-          <div aria-label="Allergies">
+          <div aria-label={t('Allergies')}>
             {activeAllergies.length > 0 ? (
               <div className="row">
-                <strong>Allergies:</strong>
+                <strong>{t('Allergies:')}</strong>
                 {activeAllergies.map((a) => (
                   <span key={a.id} className="row" style={{ gap: '0.25rem' }}>
                     <Badge
@@ -171,7 +177,7 @@ export function PatientChart() {
             ) : (
               assessment && (
                 <Badge tone={assessment === 'NO_KNOWN_ALLERGIES' ? 'success' : 'warning'}>
-                  {ALLERGY_ASSESSMENT_TEXT[assessment]}
+                  {t(ALLERGY_ASSESSMENT_TEXT[assessment])}
                 </Badge>
               )
             )}
@@ -182,10 +188,10 @@ export function PatientChart() {
             {isDoctor && (
               <>
                 <Button variant="secondary" size="sm" onClick={() => setBooking(true)}>
-                  Book appointment
+                  {t('Book appointment')}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setReferring(true)}>
-                  Refer
+                  {t('Refer')}
                 </Button>
               </>
             )}
@@ -194,14 +200,14 @@ export function PatientChart() {
                 className="btn btn-secondary btn-sm"
                 to={`/messages?patientId=${encodeURIComponent(patientId)}`}
               >
-                Message patient
+                {t('Message patient')}
               </Link>
             )}
             <Button
               variant="ghost"
               size="sm"
               loading={exporting}
-              title="HL7 FHIR R4 bundle (Patient/$everything). The export is audited."
+              title={t('HL7 FHIR R4 bundle (Patient/$everything). The export is audited.')}
               onClick={async () => {
                 setExporting(true);
                 setExportError(null);
@@ -217,7 +223,7 @@ export function PatientChart() {
                 }
               }}
             >
-              Download FHIR
+              {t('Download FHIR')}
             </Button>
           </div>
         )}
@@ -225,37 +231,42 @@ export function PatientChart() {
 
       <ErrorAlert error={exportError} />
       {s?.accessBasis === 'EMERGENCY' && (
-        <Alert tone="danger" title="Emergency access">
-          You are viewing this record under break-glass access. It expires automatically, every view
-          is audited, and the patient and your director can see it.
+        <Alert tone="danger" title={t('Emergency access')}>
+          {t(
+            'You are viewing this record under break-glass access. It expires automatically, every view is audited, and the patient and your director can see it.',
+          )}
         </Alert>
       )}
 
-      {summary.isPending && <Loading label="Loading record…" />}
+      {summary.isPending && <Loading label={t('Loading record…')} />}
       {noClinicalAccess && <AccessPanel patientId={patientId} sameFacility={sameFacility} />}
       {summary.error && !noClinicalAccess && <ErrorAlert error={summary.error} />}
 
       {s && (
         <>
           <Tabs<TabId>
-            label="Patient record sections"
+            label={t('Patient record sections')}
             active={tab}
             onChange={setTab}
             tabs={[
-              { id: 'summary', label: 'Summary' },
-              { id: 'visits', label: 'Visits', count: s.counts.encounters },
-              { id: 'problems', label: 'Problems', count: s.counts.diagnoses },
-              { id: 'medications', label: 'Medications', count: s.counts.prescriptions },
-              { id: 'mar', label: 'Administration' },
-              { id: 'tasks', label: 'Care tasks' },
-              { id: 'allergies', label: 'Allergies', count: allergies.length },
-              { id: 'vitals', label: 'Vitals' },
-              { id: 'results', label: 'Results', count: s.counts.labResults },
-              { id: 'vaccinations', label: 'Vaccinations', count: s.immunizations.length },
-              { id: 'documents', label: 'Documents' },
-              { id: 'consents', label: 'Consent' },
-              { id: 'corrections', label: 'Corrections', count: s.counts.openCorrectionRequests },
-              { id: 'care-team', label: 'Care team' },
+              { id: 'summary', label: t('Summary') },
+              { id: 'visits', label: t('Visits'), count: s.counts.encounters },
+              { id: 'problems', label: t('Problems'), count: s.counts.diagnoses },
+              { id: 'medications', label: t('Medications'), count: s.counts.prescriptions },
+              { id: 'mar', label: t('Administration') },
+              { id: 'tasks', label: t('Care tasks') },
+              { id: 'allergies', label: t('Allergies'), count: allergies.length },
+              { id: 'vitals', label: t('Vitals') },
+              { id: 'results', label: t('Results'), count: s.counts.labResults },
+              { id: 'vaccinations', label: t('Vaccinations'), count: s.immunizations.length },
+              { id: 'documents', label: t('Documents') },
+              { id: 'consents', label: t('Consent') },
+              {
+                id: 'corrections',
+                label: t('Corrections'),
+                count: s.counts.openCorrectionRequests,
+              },
+              { id: 'care-team', label: t('Care team') },
             ]}
           />
           <TabPanel id={tab}>
@@ -309,7 +320,7 @@ export function PatientChart() {
       )}
 
       {!s && !summary.isPending && !noClinicalAccess && !summary.error && (
-        <EmptyState title="No record available" />
+        <EmptyState title={t('No record available')} />
       )}
     </>
   );

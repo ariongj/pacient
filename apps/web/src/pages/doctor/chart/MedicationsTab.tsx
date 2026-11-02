@@ -18,6 +18,7 @@ import {
 import { formatDate } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 export function MedicationsTab({
   patientId,
@@ -62,37 +63,38 @@ export function MedicationsTab({
 
   return (
     <Card
-      title="Medications"
+      title={t('Medications')}
       actions={
         isDoctor ? (
           <Button size="sm" onClick={() => setOpen(true)}>
-            Prescribe
+            {t('Prescribe')}
           </Button>
         ) : undefined
       }
     >
       <p className="muted">
-        New prescriptions go to the pharmacy for verification before they can be dispensed or
-        administered.
+        {t(
+          'New prescriptions go to the pharmacy for verification before they can be dispensed or administered.',
+        )}
       </p>
       <ErrorAlert error={update.error} />
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No prescriptions" />
+            <EmptyState title={t('No prescriptions')} />
           ) : (
-            <Table caption="Prescriptions">
+            <Table caption={t('Prescriptions')}>
               <thead>
                 <tr>
-                  <th>Medication</th>
-                  <th>Dose & frequency</th>
-                  <th>Period</th>
-                  <th>Prescriber</th>
-                  <th>Status</th>
-                  <th>Pharmacy</th>
+                  <th>{t('Medication')}</th>
+                  <th>{t('Dose & frequency')}</th>
+                  <th>{t('Period')}</th>
+                  <th>{t('Prescriber')}</th>
+                  <th>{t('Status')}</th>
+                  <th>{t('Pharmacy')}</th>
                   {isDoctor && (
                     <th>
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   )}
                 </tr>
@@ -119,7 +121,7 @@ export function MedicationsTab({
                       {p.pharmacyStatus && <StatusBadge value={p.pharmacyStatus} />}
                       {p.pharmacistNote && (
                         <div className="muted" style={{ maxWidth: '22rem' }}>
-                          Pharmacist: {p.pharmacistNote}
+                          {t('Pharmacist: {note}', { note: p.pharmacistNote })}
                         </div>
                       )}
                     </td>
@@ -129,7 +131,7 @@ export function MedicationsTab({
                           <div className="row">
                             {p.pharmacyStatus === 'RETURNED' && (
                               <Button size="sm" onClick={() => setResubmitting(p)}>
-                                Resubmit
+                                {t('Resubmit')}
                               </Button>
                             )}
                             <Button
@@ -138,7 +140,7 @@ export function MedicationsTab({
                               disabled={update.isPending}
                               onClick={() => update.mutate({ id: p.id, status: 'COMPLETED' })}
                             >
-                              Complete
+                              {t('Complete')}
                             </Button>
                             <Button
                               size="sm"
@@ -146,7 +148,7 @@ export function MedicationsTab({
                               disabled={update.isPending}
                               onClick={() => update.mutate({ id: p.id, status: 'CANCELLED' })}
                             >
-                              Stop
+                              {t('Stop')}
                             </Button>
                           </div>
                         )}
@@ -162,7 +164,7 @@ export function MedicationsTab({
       <Dialog
         open={resubmitting !== null}
         onClose={() => setResubmitting(null)}
-        title="Resubmit to pharmacy"
+        title={t('Resubmit to pharmacy')}
         wide
       >
         {resubmitting && (
@@ -175,36 +177,40 @@ export function MedicationsTab({
               });
             }}
           >
-            <Alert tone="warning" title={`Returned: ${resubmitting.medication}`}>
-              {resubmitting.pharmacistNote ?? 'The pharmacy returned this prescription.'}
+            <Alert
+              tone="warning"
+              title={t('Returned: {medication}', { medication: resubmitting.medication })}
+            >
+              {resubmitting.pharmacistNote ?? t('The pharmacy returned this prescription.')}
             </Alert>
             <p className="muted">
-              Adjust the plan if needed and explain how the pharmacist’s concern was addressed. If
-              the medicine is no longer appropriate, stop the prescription instead.
+              {t(
+                'Adjust the plan if needed and explain how the pharmacist’s concern was addressed. If the medicine is no longer appropriate, stop the prescription instead.',
+              )}
             </p>
             <div className="form-grid">
               <TextField
-                label="Dosage"
+                label={t('Dosage')}
                 name="dosage"
                 defaultValue={resubmitting.dosage}
                 maxLength={100}
               />
               <TextField
-                label="Frequency"
+                label={t('Frequency')}
                 name="frequency"
                 defaultValue={resubmitting.frequency}
                 maxLength={100}
               />
             </div>
             <TextAreaField
-              label="Instructions for the patient"
+              label={t('Instructions for the patient')}
               name="instructions"
               defaultValue={resubmitting.instructions ?? ''}
               maxLength={2000}
               rows={2}
             />
             <TextAreaField
-              label="Note to the pharmacist"
+              label={t('Note to the pharmacist')}
               name="note"
               required
               minLength={3}
@@ -214,19 +220,19 @@ export function MedicationsTab({
             <ErrorAlert error={resubmit.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={() => setResubmitting(null)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" loading={resubmit.isPending}>
-                Resubmit
+                {t('Resubmit')}
               </Button>
             </div>
           </form>
         )}
       </Dialog>
-      <Dialog open={open} onClose={() => setOpen(false)} title="New prescription" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('New prescription')} wide>
         <form onSubmit={onSubmit}>
           {activeAllergies.length > 0 && (
-            <Alert tone="danger" title="Recorded allergies">
+            <Alert tone="danger" title={t('Recorded allergies')}>
               {activeAllergies
                 .map((a) => `${a.substance} (${a.severity.toLowerCase().replace('_', ' ')})`)
                 .join(', ')}
@@ -234,33 +240,39 @@ export function MedicationsTab({
           )}
           <div className="form-grid">
             <TextField
-              label="Medication"
+              label={t('Medication')}
               name="medication"
               required
               minLength={2}
               maxLength={200}
             />
-            <TextField label="Dosage" name="dosage" required maxLength={100} hint="e.g. 5 mg" />
             <TextField
-              label="Frequency"
+              label={t('Dosage')}
+              name="dosage"
+              required
+              maxLength={100}
+              hint={t('e.g. 5 mg')}
+            />
+            <TextField
+              label={t('Frequency')}
               name="frequency"
               required
               maxLength={100}
-              hint="e.g. once daily"
+              hint={t('e.g. once daily')}
             />
-            <TextField label="Route" name="route" defaultValue="oral" maxLength={50} />
+            <TextField label={t('Route')} name="route" defaultValue="oral" maxLength={50} />
             <TextField
-              label="Start date"
+              label={t('Start date')}
               name="startDate"
               type="date"
               required
               defaultValue={new Date().toISOString().slice(0, 10)}
             />
-            <TextField label="End date" name="endDate" type="date" />
+            <TextField label={t('End date')} name="endDate" type="date" />
           </div>
           <EncounterSelect encounters={encounters} />
           <TextAreaField
-            label="Instructions for the patient"
+            label={t('Instructions for the patient')}
             name="instructions"
             maxLength={2000}
             rows={3}
@@ -268,10 +280,10 @@ export function MedicationsTab({
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Prescribe
+              {t('Prescribe')}
             </Button>
           </div>
         </form>

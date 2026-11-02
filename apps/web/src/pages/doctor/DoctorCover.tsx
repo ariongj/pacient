@@ -17,7 +17,8 @@ import {
   Table,
   TextField,
 } from '../../components/ui';
-import { formatDateTime } from '../../format';
+import { formatDateTime, humanize } from '../../format';
+import { t } from '../../i18n';
 
 const STATE_TONE = {
   CURRENT: 'success',
@@ -34,11 +35,7 @@ function localInput(d: Date) {
 
 export function CoverStateBadge({ a }: { a: CoverArrangement }) {
   const s = coverState(a);
-  return (
-    <Badge tone={STATE_TONE[s]}>
-      {s === 'CURRENT' ? 'Active now' : s.charAt(0) + s.slice(1).toLowerCase()}
-    </Badge>
-  );
+  return <Badge tone={STATE_TONE[s]}>{s === 'CURRENT' ? t('Active now') : humanize(s)}</Badge>;
 }
 
 /**
@@ -88,59 +85,59 @@ export function ArrangeCoverDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Arrange result cover" wide>
+    <Dialog open={open} onClose={onClose} title={t('Arrange result cover')} wide>
       <form onSubmit={onSubmit}>
         <p className="muted">
-          While cover is active, the covering doctor receives the new, critical and corrected result
-          alerts, sees the unreviewed results and can open the records of the patients concerned.
-          Every access is recorded in the patient’s access log.
+          {t(
+            'While cover is active, the covering doctor receives the new, critical and corrected result alerts, sees the unreviewed results and can open the records of the patients concerned. Every access is recorded in the patient’s access log.',
+          )}
         </p>
         <div className="form-grid">
           {forDoctor && (
             <SelectField
-              label="Doctor who will be away"
+              label={t('Doctor who will be away')}
               name="doctorId"
               required
-              placeholder={colleagues.isLoading ? 'Loading…' : 'Choose a doctor'}
+              placeholder={colleagues.isLoading ? t('Loading…') : t('Choose a doctor')}
               options={options}
             />
           )}
           <SelectField
-            label="Covering doctor"
+            label={t('Covering doctor')}
             name="coverDoctorId"
             required
-            placeholder={colleagues.isLoading ? 'Loading…' : 'Choose a colleague'}
+            placeholder={colleagues.isLoading ? t('Loading…') : t('Choose a colleague')}
             options={options}
           />
           <TextField
-            label="From"
+            label={t('From')}
             name="startsAt"
             type="datetime-local"
             required
             defaultValue={localInput(now)}
           />
           <TextField
-            label="Until"
+            label={t('Until')}
             name="endsAt"
             type="datetime-local"
             required
             defaultValue={localInput(inAWeek)}
-            hint="At most 60 days"
+            hint={t('At most 60 days')}
           />
         </div>
         <TextField
-          label="Note for the covering doctor"
+          label={t('Note for the covering doctor')}
           name="note"
           maxLength={300}
-          placeholder="e.g. Annual leave – urgent messages too, please"
+          placeholder={t('e.g. Annual leave – urgent messages too, please')}
         />
         <ErrorAlert error={create.error ?? colleagues.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" loading={create.isPending}>
-            Arrange cover
+            {t('Arrange cover')}
           </Button>
         </div>
       </form>
@@ -170,12 +167,12 @@ export function CoverTable({
       <Table caption={caption}>
         <thead>
           <tr>
-            {show !== 'cover' && <th>Away</th>}
-            {show !== 'absent' && <th>Covered by</th>}
-            <th>Period</th>
-            <th>Status</th>
+            {show !== 'cover' && <th>{t('Away')}</th>}
+            {show !== 'absent' && <th>{t('Covered by')}</th>}
+            <th>{t('Period')}</th>
+            <th>{t('Status')}</th>
             <th>
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t('Actions')}</span>
             </th>
           </tr>
         </thead>
@@ -211,10 +208,11 @@ export function CoverTable({
                       variant="secondary"
                       loading={cancel.isPending && cancel.variables === a.id}
                       onClick={() => {
-                        if (window.confirm('Cancel this cover arrangement?')) cancel.mutate(a.id);
+                        if (window.confirm(t('Cancel this cover arrangement?')))
+                          cancel.mutate(a.id);
                       }}
                     >
-                      Cancel
+                      {t('Cancel')}
                     </Button>
                   )}
                 </td>
@@ -236,32 +234,35 @@ export function DoctorCover() {
   return (
     <>
       <PageHeader
-        title="Cover & absence"
-        subtitle="Results never wait for someone who is away: arrange a colleague to cover them."
-        actions={<Button onClick={() => setOpen(true)}>Arrange cover</Button>}
+        title={t('Cover & absence')}
+        subtitle={t(
+          'Results never wait for someone who is away: arrange a colleague to cover them.',
+        )}
+        actions={<Button onClick={() => setOpen(true)}>{t('Arrange cover')}</Button>}
       />
       <QueryView query={query}>
         {(d) => (
           <div className="stack">
-            <Card title="My absences">
+            <Card title={t('My absences')}>
               {d.mine.length === 0 ? (
-                <EmptyState title="No cover arranged">
-                  Going on leave or to a conference? Arrange cover so your results and critical
-                  alerts reach a colleague.
+                <EmptyState title={t('No cover arranged')}>
+                  {t(
+                    'Going on leave or to a conference? Arrange cover so your results and critical alerts reach a colleague.',
+                  )}
                 </EmptyState>
               ) : (
-                <CoverTable items={d.mine} show="cover" caption="My absences" />
+                <CoverTable items={d.mine} show="cover" caption={t('My absences')} />
               )}
             </Card>
-            <Card title="I’m covering for">
+            <Card title={t('I’m covering for')}>
               {d.coveringFor.length === 0 ? (
-                <EmptyState title="You are not covering for anyone" />
+                <EmptyState title={t('You are not covering for anyone')} />
               ) : (
                 <>
                   <p className="muted">
-                    Their unreviewed results appear on your worklist under “Covering for”.
+                    {t('Their unreviewed results appear on your worklist under “Covering for”.')}
                   </p>
-                  <CoverTable items={d.coveringFor} show="absent" caption="Covering for" />
+                  <CoverTable items={d.coveringFor} show="absent" caption={t('Covering for')} />
                 </>
               )}
             </Card>

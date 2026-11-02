@@ -1,6 +1,7 @@
 import type { ClinicalSummary } from '../../../api/types';
 import { Card, DefinitionList, EmptyState, Grid, Stat, StatusBadge } from '../../../components/ui';
 import { formatDate, formatDateTime, humanize } from '../../../format';
+import { t } from '../../../i18n';
 
 export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
   const v = summary.latestVitals;
@@ -8,21 +9,21 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
   return (
     <div className="stack">
       <Grid min={160}>
-        <Stat label="Visits" value={summary.counts.encounters} />
-        <Stat label="Active problems" value={summary.activeProblems.length} />
-        <Stat label="Active medications" value={summary.activeMedications.length} />
-        <Stat label="Vaccinations" value={summary.immunizations?.length ?? 0} />
+        <Stat label={t('Visits')} value={summary.counts.encounters} />
+        <Stat label={t('Active problems')} value={summary.activeProblems.length} />
+        <Stat label={t('Active medications')} value={summary.activeMedications.length} />
+        <Stat label={t('Vaccinations')} value={summary.immunizations?.length ?? 0} />
         <Stat
-          label="Open correction requests"
+          label={t('Open correction requests')}
           value={summary.counts.openCorrectionRequests}
           tone={summary.counts.openCorrectionRequests ? 'warning' : undefined}
         />
       </Grid>
       <div className="two-col">
         <div className="stack">
-          <Card title="Active problems">
+          <Card title={t('Active problems')}>
             {summary.activeProblems.length === 0 ? (
-              <EmptyState title="No active problems recorded" />
+              <EmptyState title={t('No active problems recorded')} />
             ) : (
               <ul className="list">
                 {summary.activeProblems.map((d) => (
@@ -39,25 +40,25 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
               </ul>
             )}
           </Card>
-          <Card title="Active medications">
+          <Card title={t('Active medications')}>
             {summary.activeMedications.length === 0 ? (
-              <EmptyState title="No active medications" />
+              <EmptyState title={t('No active medications')} />
             ) : (
               <ul className="list">
                 {summary.activeMedications.map((m) => (
                   <li key={m.id}>
                     <strong>{m.medication}</strong> {m.dosage} · {m.frequency} · {m.route}
                     <div className="muted">
-                      Since {formatDate(m.startDate)} · {m.doctorName}
+                      {t('Since {date}', { date: formatDate(m.startDate) })} · {m.doctorName}
                     </div>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
-          <Card title="Recent visits">
+          <Card title={t('Recent visits')}>
             {summary.recentEncounters.length === 0 ? (
-              <EmptyState title="No visits yet" />
+              <EmptyState title={t('No visits yet')} />
             ) : (
               <ul className="list">
                 {summary.recentEncounters.map((e) => (
@@ -76,20 +77,20 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
           </Card>
         </div>
         <div className="stack">
-          <Card title="Latest vital signs">
+          <Card title={t('Latest vital signs')}>
             {v ? (
               <>
                 <DefinitionList
                   items={[
                     [
-                      'Blood pressure',
+                      t('Blood pressure'),
                       v.systolic ? `${v.systolic}/${v.diastolic ?? '—'} mmHg` : '—',
                     ],
-                    ['Heart rate', v.heartRate ? `${v.heartRate} bpm` : '—'],
-                    ['Temperature', v.temperatureC ? `${v.temperatureC} °C` : '—'],
+                    [t('Heart rate'), v.heartRate ? `${v.heartRate} bpm` : '—'],
+                    [t('Temperature'), v.temperatureC ? `${v.temperatureC} °C` : '—'],
                     ['SpO₂', v.oxygenSaturation ? `${v.oxygenSaturation} %` : '—'],
-                    ['Weight', v.weightKg ? `${v.weightKg} kg` : '—'],
-                    ['Height', v.heightCm ? `${v.heightCm} cm` : '—'],
+                    [t('Weight'), v.weightKg ? `${v.weightKg} kg` : '—'],
+                    [t('Height'), v.heightCm ? `${v.heightCm} cm` : '—'],
                   ]}
                 />
                 <p className="muted" style={{ marginTop: '0.5rem' }}>
@@ -97,12 +98,12 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
                 </p>
               </>
             ) : (
-              <EmptyState title="No vital signs recorded" />
+              <EmptyState title={t('No vital signs recorded')} />
             )}
           </Card>
-          <Card title="Recent results">
+          <Card title={t('Recent results')}>
             {summary.recentLabResults.length === 0 ? (
-              <EmptyState title="No results" />
+              <EmptyState title={t('No results')} />
             ) : (
               <ul className="list">
                 {summary.recentLabResults.slice(0, 6).map((r) => (
@@ -117,19 +118,19 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
               </ul>
             )}
           </Card>
-          <Card title="Contact">
+          <Card title={t('Contact')}>
             <DefinitionList
               items={[
-                ['Phone', p.phone],
-                ['Email', p.email],
-                ['Address', [p.address, p.municipality].filter(Boolean).join(', ') || null],
+                [t('Phone'), p.phone],
+                [t('Email'), p.email],
+                [t('Address'), [p.address, p.municipality].filter(Boolean).join(', ') || null],
                 [
-                  'Emergency contact',
+                  t('Emergency contact'),
                   p.emergencyContactName
                     ? `${p.emergencyContactName}${p.emergencyContactPhone ? ` · ${p.emergencyContactPhone}` : ''}`
                     : null,
                 ],
-                ['Registered at', p.primaryFacilityName],
+                [t('Registered at'), p.primaryFacilityName],
               ]}
             />
           </Card>

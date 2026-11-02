@@ -30,6 +30,7 @@ import {
 } from '../../../components/ui';
 import { formatDate, formatDateTime, humanize } from '../../../format';
 import { useChartRole } from './shared';
+import { t } from '../../../i18n';
 
 interface DocumentSummary {
   id: string;
@@ -40,8 +41,8 @@ interface DocumentSummary {
 }
 
 function recordedLine(c: CurrentConsent) {
-  if (c.isDefault) return 'No decision recorded – default applies';
-  return `${METHOD_LABELS[c.method!]} · ${c.recordedBy ?? 'unknown'}${
+  if (c.isDefault) return t('No decision recorded – default applies');
+  return `${METHOD_LABELS[c.method!]} · ${c.recordedBy ?? t('unknown')}${
     c.recordedByRole ? ` (${humanize(c.recordedByRole)})` : ''
   } · ${formatDateTime(c.recordedAt)}`;
 }
@@ -60,31 +61,32 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
           return (
             <>
               {sharing && sharing.decision !== 'GRANTED' && (
-                <Alert tone="warning" title="Sharing with other facilities is withdrawn">
-                  Before referring this patient to another facility, discuss it with them and record
-                  their agreement. Care within this facility and emergency access are not affected.
+                <Alert tone="warning" title={t('Sharing with other facilities is withdrawn')}>
+                  {t(
+                    'Before referring this patient to another facility, discuss it with them and record their agreement. Care within this facility and emergency access are not affected.',
+                  )}
                 </Alert>
               )}
               <Card
-                title="Consent"
+                title={t('Consent')}
                 actions={
                   isDoctor ? (
                     <Button size="sm" onClick={() => setOpen(true)}>
-                      Record consent
+                      {t('Record consent')}
                     </Button>
                   ) : undefined
                 }
               >
                 <Grid min={260}>
                   {d.current.map((c) => {
-                    const text = d.texts.find((t) => t.type === c.type);
+                    const text = d.texts.find((tx) => tx.type === c.type);
                     return (
                       <div key={c.type} className="card" style={{ margin: 0 }}>
                         <div className="row-between">
                           <strong>{CONSENT_LABELS[c.type]}</strong>
                           <Badge tone={decisionTone(c.decision)}>
                             {DECISION_LABELS[c.decision]}
-                            {c.isDefault ? ' (default)' : ''}
+                            {c.isDefault ? ` ${t('(default)')}` : ''}
                           </Badge>
                         </div>
                         {text && <p className="muted">{text.summary}</p>}
@@ -94,37 +96,39 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
                   })}
                 </Grid>
               </Card>
-              <Card title="Treatment and procedure consent">
+              <Card title={t('Treatment and procedure consent')}>
                 {d.treatment.length === 0 ? (
-                  <EmptyState title="No treatment consent recorded" />
+                  <EmptyState title={t('No treatment consent recorded')} />
                 ) : (
-                  <Table caption="Treatment consents">
+                  <Table caption={t('Treatment consents')}>
                     <thead>
                       <tr>
-                        <th>Procedure</th>
-                        <th>Decision</th>
-                        <th>How</th>
-                        <th>Recorded</th>
+                        <th>{t('Procedure')}</th>
+                        <th>{t('Decision')}</th>
+                        <th>{t('How')}</th>
+                        <th>{t('Recorded')}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {d.treatment.map((t) => (
-                        <tr key={t.id}>
+                      {d.treatment.map((tc) => (
+                        <tr key={tc.id}>
                           <td>
-                            <strong>{t.procedure}</strong>
-                            {t.expiresAt && (
-                              <div className="muted">Valid until {formatDate(t.expiresAt)}</div>
+                            <strong>{tc.procedure}</strong>
+                            {tc.expiresAt && (
+                              <div className="muted">
+                                {t('Valid until {date}', { date: formatDate(tc.expiresAt) })}
+                              </div>
                             )}
                           </td>
                           <td>
-                            <Badge tone={decisionTone(t.decision)}>
-                              {DECISION_LABELS[t.decision]}
+                            <Badge tone={decisionTone(tc.decision)}>
+                              {DECISION_LABELS[tc.decision]}
                             </Badge>
                           </td>
-                          <td>{t.method ? METHOD_LABELS[t.method] : '—'}</td>
+                          <td>{tc.method ? METHOD_LABELS[tc.method] : '—'}</td>
                           <td>
-                            {formatDateTime(t.recordedAt)}
-                            <div className="muted">{t.recordedBy}</div>
+                            {formatDateTime(tc.recordedAt)}
+                            <div className="muted">{tc.recordedBy}</div>
                           </td>
                         </tr>
                       ))}
@@ -132,23 +136,24 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
                   </Table>
                 )}
               </Card>
-              <Card title="History">
+              <Card title={t('History')}>
                 <p className="muted">
-                  Every decision is kept; nothing is overwritten. The wording version shows which
-                  explanation the patient was given.
+                  {t(
+                    'Every decision is kept; nothing is overwritten. The wording version shows which explanation the patient was given.',
+                  )}
                 </p>
                 {d.history.length === 0 ? (
-                  <EmptyState title="No decisions recorded yet" />
+                  <EmptyState title={t('No decisions recorded yet')} />
                 ) : (
-                  <Table caption="Consent history">
+                  <Table caption={t('Consent history')}>
                     <thead>
                       <tr>
-                        <th>When</th>
-                        <th>Consent</th>
-                        <th>Decision</th>
-                        <th>How</th>
-                        <th>Recorded by</th>
-                        <th>Note</th>
+                        <th>{t('When')}</th>
+                        <th>{t('Consent')}</th>
+                        <th>{t('Decision')}</th>
+                        <th>{t('How')}</th>
+                        <th>{t('Recorded by')}</th>
+                        <th>{t('Note')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -158,7 +163,9 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
                           <td>
                             {CONSENT_LABELS[h.type]}
                             {h.procedure && <div className="muted">{h.procedure}</div>}
-                            <div className="muted">Wording {h.wordingVersion}</div>
+                            <div className="muted">
+                              {t('Wording {version}', { version: h.wordingVersion })}
+                            </div>
                           </td>
                           <td>
                             <Badge tone={decisionTone(h.decision)}>
@@ -167,7 +174,9 @@ export function ConsentsTab({ patientId }: { patientId: string }) {
                           </td>
                           <td>
                             {METHOD_LABELS[h.method]}
-                            {h.onBehalfGuardianshipId && <div className="muted">by guardian</div>}
+                            {h.onBehalfGuardianshipId && (
+                              <div className="muted">{t('by guardian')}</div>
+                            )}
                           </td>
                           <td>
                             {h.recordedBy}
@@ -228,92 +237,92 @@ function RecordConsentDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Record consent" wide>
+    <Dialog open={open} onClose={onClose} title={t('Record consent')} wide>
       <form onSubmit={onSubmit}>
         <div className="form-grid">
           <SelectField
-            label="Consent"
+            label={t('Consent')}
             name="type"
             required
             value={type}
             onChange={(e) => setType(e.currentTarget.value as ConsentType)}
-            options={(['TREATMENT', 'CROSS_FACILITY_SHARING', 'RESEARCH'] as const).map((t) => ({
-              value: t,
-              label: CONSENT_LABELS[t],
+            options={(['TREATMENT', 'CROSS_FACILITY_SHARING', 'RESEARCH'] as const).map((ct) => ({
+              value: ct,
+              label: CONSENT_LABELS[ct],
             }))}
           />
           <SelectField
-            label="Decision"
+            label={t('Decision')}
             name="decision"
             required
             defaultValue="GRANTED"
             options={[
-              { value: 'GRANTED', label: 'Agreed' },
-              { value: 'REFUSED', label: 'Refused' },
-              { value: 'WITHDRAWN', label: 'Withdrawn' },
+              { value: 'GRANTED', label: t('Agreed') },
+              { value: 'REFUSED', label: t('Refused') },
+              { value: 'WITHDRAWN', label: t('Withdrawn') },
             ]}
           />
           <SelectField
-            label="How was it given?"
+            label={t('How was it given?')}
             name="method"
             required
             value={method}
             onChange={(e) => setMethod(e.currentTarget.value as 'IN_PERSON' | 'WRITTEN')}
             options={[
-              { value: 'IN_PERSON', label: 'In person (verbal)' },
-              { value: 'WRITTEN', label: 'Signed form' },
+              { value: 'IN_PERSON', label: t('In person (verbal)') },
+              { value: 'WRITTEN', label: t('Signed form') },
             ]}
           />
         </div>
         {type === 'TREATMENT' && (
           <TextField
-            label="Treatment or procedure"
+            label={t('Treatment or procedure')}
             name="procedure"
             required
             minLength={2}
             maxLength={200}
-            placeholder="e.g. Minor skin excision"
+            placeholder={t('e.g. Minor skin excision')}
           />
         )}
         {method === 'WRITTEN' && (
           <>
             {documents.isError ? (
-              <Alert tone="warning">Documents could not be loaded. Try again later.</Alert>
+              <Alert tone="warning">{t('Documents could not be loaded. Try again later.')}</Alert>
             ) : (
               <SelectField
-                label="Signed consent form"
+                label={t('Signed consent form')}
                 name="documentId"
                 required
                 placeholder={
                   documents.isLoading
-                    ? 'Loading documents…'
+                    ? t('Loading documents…')
                     : forms.length
-                      ? 'Choose the signed form'
-                      : 'No consent forms uploaded'
+                      ? t('Choose the signed form')
+                      : t('No consent forms uploaded')
                 }
                 options={forms.map((f) => ({
                   value: f.id,
                   label: `${f.title}${f.createdAt ? ` · ${formatDate(f.createdAt)}` : ''}`,
                 }))}
-                hint="Upload the scanned form under Documents (category: consent form) first."
+                hint={t('Upload the scanned form under Documents (category: consent form) first.')}
               />
             )}
           </>
         )}
         <TextAreaField
-          label="What was discussed"
+          label={t('What was discussed')}
           name="note"
           maxLength={1000}
           rows={3}
-          hint="Benefits, risks, alternatives and the patient’s questions."
+          hint={t('Benefits, risks, alternatives and the patient’s questions.')}
         />
         <ErrorAlert error={record.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" loading={record.isPending}>
-            Record decision
+            {t('Record decision')}
           </Button>
         </div>
       </form>

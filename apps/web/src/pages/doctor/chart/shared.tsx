@@ -4,6 +4,7 @@ import type { Encounter } from '../../../api/types';
 import { useUser } from '../../../auth/AuthContext';
 import { SelectField } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
+import { t } from '../../../i18n';
 
 /** Mutation against a patient's chart that refreshes every cached view of that chart. */
 export function useChartMutation<TVars>(
@@ -29,9 +30,9 @@ export function useChartMutation<TVars>(
 export function EncounterSelect({ encounters }: { encounters: Encounter[] }) {
   return (
     <SelectField
-      label="Linked visit"
+      label={t('Linked visit')}
       name="encounterId"
-      placeholder="Not linked to a visit"
+      placeholder={t('Not linked to a visit')}
       options={encounters.map((e) => ({
         value: e.id,
         label: `${formatDate(e.startedAt)} · ${humanize(e.type)} · ${e.reason}`,

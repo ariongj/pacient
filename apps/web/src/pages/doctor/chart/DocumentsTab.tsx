@@ -26,6 +26,7 @@ import {
 import { formatDateTime, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const STAFF_CATEGORIES = (Object.keys(CATEGORY_LABELS) as DocumentCategory[]).filter(
   (c) => c !== 'PATIENT_PROVIDED',
@@ -92,7 +93,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
 
   return (
     <Card
-      title="Documents"
+      title={t('Documents')}
       actions={
         canUpload ? (
           <Button
@@ -103,29 +104,30 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
               setUploading(true);
             }}
           >
-            Upload document
+            {t('Upload document')}
           </Button>
         ) : undefined
       }
     >
       <p className="muted">
-        Letters, reports, photos and signed forms. Files are checked, encrypted and every opening is
-        recorded in the patient’s access log. Documents are shown to the patient only when shared.
+        {t(
+          'Letters, reports, photos and signed forms. Files are checked, encrypted and every opening is recorded in the patient’s access log. Documents are shown to the patient only when shared.',
+        )}
       </p>
       <ErrorAlert error={share.error ?? openError} />
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No documents yet" />
+            <EmptyState title={t('No documents yet')} />
           ) : (
-            <Table caption="Documents">
+            <Table caption={t('Documents')}>
               <thead>
                 <tr>
-                  <th>Document</th>
-                  <th>Added</th>
-                  <th>Sharing</th>
+                  <th>{t('Document')}</th>
+                  <th>{t('Added')}</th>
+                  <th>{t('Sharing')}</th>
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('Actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -141,14 +143,16 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                           <Badge tone={d.source === 'PATIENT' ? 'warning' : 'neutral'}>
                             {CATEGORY_LABELS[d.category]}
                           </Badge>
-                          {!current && <Badge tone="danger">Entered in error</Badge>}
+                          {!current && <Badge tone="danger">{t('Entered in error')}</Badge>}
                         </div>
                         <div className="muted">
                           {d.fileName} · {formatBytes(d.sizeBytes)}
-                          {d.scanStatus === 'CLEAN' ? ' · scanned' : ''}
+                          {d.scanStatus === 'CLEAN' ? ` · ${t('scanned')}` : ''}
                         </div>
                         {!current && d.errorReason && (
-                          <div className="muted">Reason: {d.errorReason}</div>
+                          <div className="muted">
+                            {t('Reason: {reason}', { reason: d.errorReason })}
+                          </div>
                         )}
                       </td>
                       <td>
@@ -156,19 +160,19 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                         <div className="muted">
                           {d.uploadedBy}
                           {d.source === 'PATIENT'
-                            ? ' (patient / guardian)'
+                            ? ` (${t('patient / guardian')})`
                             : ` (${humanize(d.uploadedByRole)})`}
                         </div>
                       </td>
                       <td>
                         <div className="stack" style={{ gap: '0.35rem' }}>
                           {d.visibleToPatient ? (
-                            <Badge tone="info">Visible to patient</Badge>
+                            <Badge tone="info">{t('Visible to patient')}</Badge>
                           ) : (
-                            <Badge tone="neutral">Care team only</Badge>
+                            <Badge tone="neutral">{t('Care team only')}</Badge>
                           )}
                           {d.confidentialFromGuardians && (
-                            <Badge tone="warning">Hidden from guardians</Badge>
+                            <Badge tone="warning">{t('Hidden from guardians')}</Badge>
                           )}
                         </div>
                       </td>
@@ -182,7 +186,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                               openDocument(d).catch(setOpenError);
                             }}
                           >
-                            Open
+                            {t('Open')}
                           </Button>
                           {isDoctor && current && d.source === 'STAFF' && (
                             <Button
@@ -193,7 +197,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                                 share.mutate({ id: d.id, visibleToPatient: !d.visibleToPatient })
                               }
                             >
-                              {d.visibleToPatient ? 'Stop sharing' : 'Share with patient'}
+                              {d.visibleToPatient ? t('Stop sharing') : t('Share with patient')}
                             </Button>
                           )}
                           {isDoctor && current && d.source === 'STAFF' && (
@@ -209,8 +213,8 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                               }
                             >
                               {d.confidentialFromGuardians
-                                ? 'Show to guardians'
-                                : 'Hide from guardians'}
+                                ? t('Show to guardians')
+                                : t('Hide from guardians')}
                             </Button>
                           )}
                           {canMark && (
@@ -222,7 +226,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                                 setInError(d);
                               }}
                             >
-                              Entered in error
+                              {t('Entered in error')}
                             </Button>
                           )}
                         </div>
@@ -236,11 +240,16 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
         }
       </QueryView>
 
-      <Dialog open={uploading} onClose={() => setUploading(false)} title="Upload document" wide>
+      <Dialog
+        open={uploading}
+        onClose={() => setUploading(false)}
+        title={t('Upload document')}
+        wide
+      >
         <form onSubmit={onUpload}>
           <div className="field">
             <label htmlFor="document-file">
-              File{' '}
+              {t('File')}{' '}
               <span className="required" aria-hidden="true">
                 {' '}
                 *
@@ -256,45 +265,47 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
               onChange={() => setFileError(null)}
             />
             <small id="document-file-hint" className="muted">
-              PDF, JPEG or PNG, up to 10 MB.
+              {t('PDF, JPEG or PNG, up to 10 MB.')}
             </small>
             {fileError && <small className="error-text">{fileError}</small>}
           </div>
           <div className="form-grid">
             <SelectField
-              label="Category"
+              label={t('Category')}
               name="category"
               required
               defaultValue="REFERRAL_LETTER"
               options={STAFF_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
             />
             <TextField
-              label="Title"
+              label={t('Title')}
               name="title"
               minLength={2}
               maxLength={200}
-              hint="Defaults to the file name"
+              hint={t('Defaults to the file name')}
             />
           </div>
           <div className="stack" style={{ gap: '0.5rem', margin: '0.75rem 0' }}>
             {isDoctor && (
               <label className="checkbox">
                 <input type="checkbox" name="visibleToPatient" />
-                <span>Share with the patient now (they are notified)</span>
+                <span>{t('Share with the patient now (they are notified)')}</span>
               </label>
             )}
             <label className="checkbox">
               <input type="checkbox" name="confidentialFromGuardians" />
-              <span>Hide from guardians (e.g. an adolescent’s confidential consultation)</span>
+              <span>
+                {t('Hide from guardians (e.g. an adolescent’s confidential consultation)')}
+              </span>
             </label>
           </div>
           <ErrorAlert error={upload.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setUploading(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={upload.isPending}>
-              Upload
+              {t('Upload')}
             </Button>
           </div>
         </form>
@@ -303,7 +314,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
       <Dialog
         open={Boolean(inError)}
         onClose={() => setInError(null)}
-        title="Mark as entered in error"
+        title={t('Mark as entered in error')}
       >
         <form
           onSubmit={(e) => {
@@ -317,21 +328,21 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
             flagged for the care team. This cannot be undone.
           </p>
           <TextAreaField
-            label="Reason"
+            label={t('Reason')}
             name="reason"
             required
             minLength={5}
             maxLength={300}
             rows={3}
-            hint="For example: uploaded to the wrong patient."
+            hint={t('For example: uploaded to the wrong patient.')}
           />
           <ErrorAlert error={markInError.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setInError(null)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" variant="danger" loading={markInError.isPending}>
-              Mark entered in error
+              {t('Mark entered in error')}
             </Button>
           </div>
         </form>

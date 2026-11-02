@@ -15,6 +15,7 @@ import {
 import { formatDate, humanize } from '../../../format';
 import { GuardiansPanel } from '../../shared/GuardiansPanel';
 import { useChartMutation, useChartRole } from './shared';
+import { t } from '../../../i18n';
 
 export function CareTeamTab({ patientId }: { patientId: string }) {
   const user = useUser();
@@ -33,22 +34,22 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
 
   return (
     <div className="stack">
-      <Card title="Care team">
+      <Card title={t('Care team')}>
         <ErrorAlert error={leave.error} />
         <QueryView query={team}>
           {(items) =>
             items.length === 0 ? (
-              <EmptyState title="No clinicians assigned" />
+              <EmptyState title={t('No clinicians assigned')} />
             ) : (
-              <Table caption="Care team">
+              <Table caption={t('Care team')}>
                 <thead>
                   <tr>
-                    <th>Clinician</th>
-                    <th>Role</th>
-                    <th>Specialty</th>
-                    <th>Since</th>
+                    <th>{t('Clinician')}</th>
+                    <th>{t('Role')}</th>
+                    <th>{t('Specialty')}</th>
+                    <th>{t('Since')}</th>
                     <th>
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   </tr>
                 </thead>
@@ -56,7 +57,8 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
                   {items.map((m) => (
                     <tr key={m.doctorId}>
                       <td>
-                        {m.fullName} {m.doctorId === user.id && <Badge tone="info">You</Badge>}
+                        {m.fullName}{' '}
+                        {m.doctorId === user.id && <Badge tone="info">{t('You')}</Badge>}
                       </td>
                       <td>{humanize(m.role ?? 'DOCTOR')}</td>
                       <td>{m.specialty ?? '—'}</td>
@@ -70,14 +72,14 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  'Leave this care team? You will lose access to the record.',
+                                  t('Leave this care team? You will lose access to the record.'),
                                 )
                               ) {
                                 leave.mutate(undefined);
                               }
                             }}
                           >
-                            Leave care team
+                            {t('Leave care team')}
                           </Button>
                         )}
                       </td>
@@ -89,7 +91,7 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
           }
         </QueryView>
       </Card>
-      <Card title="Guardians (proxy access)">
+      <Card title={t('Guardians (proxy access)')}>
         <GuardiansPanel patientId={patientId} canManage={false} />
       </Card>
     </div>

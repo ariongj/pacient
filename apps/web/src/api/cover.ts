@@ -1,4 +1,5 @@
 import type { Worklist } from './types';
+import { t } from '../i18n';
 
 /** A period in which a colleague covers an absent doctor's results. */
 export interface CoverArrangement {
@@ -47,8 +48,8 @@ export function coverState(a: CoverArrangement, now = Date.now()): CoverState {
 }
 
 export function waited(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return t('{m} min', { m: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
+  return m ? t('{h} h {m} min', { h, m }) : t('{h} h', { h });
 }

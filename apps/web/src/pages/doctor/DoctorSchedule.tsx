@@ -16,6 +16,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { formatDate, formatTime } from '../../format';
+import { t } from '../../i18n';
 
 /** Mirrors the server's allowed transitions for doctors. */
 const ACTIONS: Partial<
@@ -69,36 +70,37 @@ export function DoctorSchedule() {
   return (
     <>
       <PageHeader
-        title="Schedule"
-        subtitle="Your appointments. Requests from patients need confirmation."
+        title={t('Schedule')}
+        subtitle={t('Your appointments. Requests from patients need confirmation.')}
       />
       <Card>
         <div className="search-bar">
           <TextField
-            label="From"
+            label={t('From')}
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
           <TextField
-            label="To"
+            label={t('To')}
             type="date"
             value={to}
             min={from}
             onChange={(e) => setTo(e.target.value)}
           />
           <SelectField
-            label="Status"
+            label={t('Status')}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            placeholder="All statuses"
+            placeholder={t('All statuses')}
             options={enumOptions(['REQUESTED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'])}
           />
         </div>
         <ErrorAlert error={change.error} />
         <QueryView query={list}>
           {(items) => {
-            if (items.length === 0) return <EmptyState title="No appointments in this period" />;
+            if (items.length === 0)
+              return <EmptyState title={t('No appointments in this period')} />;
             const days = new Map<string, Appointment[]>();
             for (const a of items) {
               const key = new Date(a.scheduledAt).toDateString();
@@ -114,8 +116,10 @@ export function DoctorSchedule() {
                         <li key={a.id} className="row-between">
                           <span>
                             <strong>{formatTime(a.scheduledAt)}</strong>{' '}
-                            <span className="muted">({a.durationMinutes} min)</span> ·{' '}
-                            <Link to={`/doctor/patients/${a.patientId}`}>{a.patientName}</Link> ·{' '}
+                            <span className="muted">
+                              ({t('{m} min', { m: a.durationMinutes })})
+                            </span>{' '}
+                            · <Link to={`/doctor/patients/${a.patientId}`}>{a.patientName}</Link> ·{' '}
                             {a.reason}
                           </span>
                           <span className="row">
@@ -132,9 +136,13 @@ export function DoctorSchedule() {
                                   change.variables.to === act.to
                                 }
                                 onClick={() => change.mutate({ id: a.id, to: act.to })}
-                                aria-label={`${act.label} appointment with ${a.patientName} at ${formatTime(a.scheduledAt)}`}
+                                aria-label={t('{action} appointment with {name} at {time}', {
+                                  action: t(act.label),
+                                  name: a.patientName,
+                                  time: formatTime(a.scheduledAt),
+                                })}
                               >
-                                {act.label}
+                                {t(act.label)}
                               </Button>
                             ))}
                           </span>

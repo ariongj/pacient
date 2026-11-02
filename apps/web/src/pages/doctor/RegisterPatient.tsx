@@ -18,6 +18,7 @@ import {
 } from '../../components/ui';
 import { useUser } from '../../auth/AuthContext';
 import { formatDate } from '../../format';
+import { t } from '../../i18n';
 
 const SEX = ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN'] as const;
 const BLOOD = ['UNKNOWN', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
@@ -74,26 +75,29 @@ export function RegisterPatient() {
   if (result) {
     return (
       <>
-        <PageHeader title="Patient registered" />
+        <PageHeader title={t('Patient registered')} />
         <Card>
           <Alert
             tone="success"
-            title={`${result.patient.firstName} ${result.patient.lastName} has been registered.`}
+            title={t('{name} has been registered.', {
+              name: `${result.patient.firstName} ${result.patient.lastName}`,
+            })}
           >
-            You have been added to the patient’s care team.
+            {t('You have been added to the patient’s care team.')}
           </Alert>
           {result.activationUrl && (
-            <Alert tone="info" title="Portal activation link">
+            <Alert tone="info" title={t('Portal activation link')}>
               <p>
-                Give this single-use link to the patient so they can choose their own password. In
-                production it is delivered by email and is not shown here.
+                {t(
+                  'Give this single-use link to the patient so they can choose their own password. In production it is delivered by email and is not shown here.',
+                )}
               </p>
               <code style={{ wordBreak: 'break-all' }}>{result.activationUrl}</code>
             </Alert>
           )}
           <div className="row">
             <Link to={recordPath(result.patient.id)} className="btn btn-primary btn-md">
-              {isReception ? 'Back to patients' : 'Open chart'}
+              {isReception ? t('Back to patients') : t('Open chart')}
             </Link>
             <Button
               variant="secondary"
@@ -102,7 +106,7 @@ export function RegisterPatient() {
                 setConfirmed(false);
               }}
             >
-              Register another patient
+              {t('Register another patient')}
             </Button>
           </div>
         </Card>
@@ -116,92 +120,101 @@ export function RegisterPatient() {
   return (
     <>
       <PageHeader
-        title="Register patient"
-        subtitle="The patient is registered at your facility and you join their care team."
+        title={t('Register patient')}
+        subtitle={t('The patient is registered at your facility and you join their care team.')}
       />
       <Card>
         <form ref={formRef} onSubmit={onSubmit}>
           <fieldset>
-            <legend>Identity</legend>
+            <legend>{t('Identity')}</legend>
             <div className="form-grid">
               <TextField
-                label="National ID"
+                label={t('National ID')}
                 name="nationalId"
                 required
                 inputMode="numeric"
                 pattern="[0-9]{10}"
                 maxLength={10}
-                hint="10 digits"
+                hint={t('10 digits')}
                 autoComplete="off"
               />
-              <TextField label="First name" name="firstName" required maxLength={100} />
-              <TextField label="Last name" name="lastName" required maxLength={100} />
+              <TextField label={t('First name')} name="firstName" required maxLength={100} />
+              <TextField label={t('Last name')} name="lastName" required maxLength={100} />
               <TextField
-                label="Date of birth"
+                label={t('Date of birth')}
                 name="dateOfBirth"
                 type="date"
                 required
                 max={new Date().toISOString().slice(0, 10)}
               />
               <SelectField
-                label="Sex"
+                label={t('Sex')}
                 name="sex"
                 required
                 options={enumOptions(SEX)}
-                placeholder="Select…"
+                placeholder={t('Select…')}
               />
               <SelectField
-                label="Blood type"
+                label={t('Blood type')}
                 name="bloodType"
-                options={BLOOD.map((b) => ({ value: b, label: b === 'UNKNOWN' ? 'Unknown' : b }))}
+                options={BLOOD.map((b) => ({
+                  value: b,
+                  label: b === 'UNKNOWN' ? t('Unknown') : b,
+                }))}
               />
             </div>
           </fieldset>
           <fieldset>
-            <legend>Contact</legend>
+            <legend>{t('Contact')}</legend>
             <div className="form-grid">
-              <TextField label="Phone" name="phone" type="tel" autoComplete="off" maxLength={40} />
               <TextField
-                label="Email"
+                label={t('Phone')}
+                name="phone"
+                type="tel"
+                autoComplete="off"
+                maxLength={40}
+              />
+              <TextField
+                label={t('Email')}
                 name="email"
                 type="email"
                 autoComplete="off"
                 maxLength={254}
               />
-              <TextField label="Address" name="address" maxLength={300} />
-              <TextField label="Municipality" name="municipality" maxLength={100} />
+              <TextField label={t('Address')} name="address" maxLength={300} />
+              <TextField label={t('Municipality')} name="municipality" maxLength={100} />
               <TextField
-                label="Emergency contact name"
+                label={t('Emergency contact name')}
                 name="emergencyContactName"
                 maxLength={200}
               />
               <TextField
-                label="Emergency contact phone"
+                label={t('Emergency contact phone')}
                 name="emergencyContactPhone"
                 type="tel"
                 maxLength={40}
               />
             </div>
             <label className="checkbox" style={{ marginTop: '0.75rem' }}>
-              <input type="checkbox" name="createPortalAccount" /> Invite the patient to the portal
-              (requires an email address)
+              <input type="checkbox" name="createPortalAccount" />{' '}
+              {t('Invite the patient to the portal (requires an email address)')}
             </label>
           </fieldset>
 
           {candidates && (
-            <Alert tone="warning" title="Possible duplicate record">
+            <Alert tone="warning" title={t('Possible duplicate record')}>
               <p>
-                A patient with the same name and date of birth is already registered at your
-                facility. Records are never merged automatically. Check the existing record before
-                creating a new one.
+                {t(
+                  'A patient with the same name and date of birth is already registered at your facility. Records are never merged automatically. Check the existing record before creating a new one.',
+                )}
               </p>
-              <Table caption="Possible duplicate patients">
+              <Table caption={t('Possible duplicate patients')}>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Date of birth</th>
+                    <th>{t('Name')}</th>
+                    <th>{t('Date of birth')}</th>
                     <th>
-                      <span className="sr-only">Open</span>
+                      <span className="sr-only">{t('Open')}</span>
                     </th>
                   </tr>
                 </thead>
@@ -214,7 +227,7 @@ export function RegisterPatient() {
                       <td>{formatDate(c.dateOfBirth)}</td>
                       <td>
                         <Link to={recordPath(c.id)}>
-                          {isReception ? 'Find in patient list' : 'Open existing record'}
+                          {isReception ? t('Find in patient list') : t('Open existing record')}
                         </Link>
                       </td>
                     </tr>
@@ -227,7 +240,7 @@ export function RegisterPatient() {
                   checked={confirmed}
                   onChange={(e) => setConfirmed(e.target.checked)}
                 />
-                I have reviewed these records and this is a different person
+                {t('I have reviewed these records and this is a different person')}
               </label>
             </Alert>
           )}
@@ -235,14 +248,14 @@ export function RegisterPatient() {
           {!isDuplicateError && <ErrorAlert error={register.error} />}
           <div className="form-actions">
             <Link to={listPath} className="btn btn-secondary btn-md">
-              Cancel
+              {t('Cancel')}
             </Link>
             <Button
               type="submit"
               loading={register.isPending}
               disabled={candidates !== null && !confirmed}
             >
-              {candidates ? 'Register as a new patient' : 'Register patient'}
+              {candidates ? t('Register as a new patient') : t('Register patient')}
             </Button>
           </div>
         </form>

@@ -23,13 +23,14 @@ import {
 } from '../../../components/ui';
 import { formatDateTime, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
+import { t } from '../../../i18n';
 
 const TYPES = ['OUTPATIENT', 'INPATIENT', 'EMERGENCY', 'TELEHEALTH', 'HOME_VISIT'] as const;
 
 function conflictMessage(err: unknown) {
   return err instanceof ApiError && err.status === 409 ? (
-    <Alert tone="warning" title="This note changed since you opened it">
-      {err.message} Reload the visit list to see the latest version before editing again.
+    <Alert tone="warning" title={t('This note changed since you opened it')}>
+      {err.message} {t('Reload the visit list to see the latest version before editing again.')}
     </Alert>
   ) : (
     <ErrorAlert error={err} />
@@ -57,21 +58,32 @@ function NewEncounterForm({ patientId, onDone }: { patientId: string; onDone: ()
   return (
     <form onSubmit={onSubmit}>
       <div className="form-grid">
-        <SelectField label="Visit type" name="type" required options={enumOptions(TYPES)} />
-        <TextField label="Started" name="startedAt" type="datetime-local" hint="Defaults to now" />
+        <SelectField label={t('Visit type')} name="type" required options={enumOptions(TYPES)} />
+        <TextField
+          label={t('Started')}
+          name="startedAt"
+          type="datetime-local"
+          hint={t('Defaults to now')}
+        />
       </div>
-      <TextField label="Reason for visit" name="reason" required minLength={2} maxLength={500} />
+      <TextField
+        label={t('Reason for visit')}
+        name="reason"
+        required
+        minLength={2}
+        maxLength={500}
+      />
       <TextAreaField
-        label="Clinical note"
+        label={t('Clinical note')}
         name="notes"
         rows={8}
         maxLength={20000}
-        hint="Saved as a draft until you sign it."
+        hint={t('Saved as a draft until you sign it.')}
       />
       <ErrorAlert error={create.error} />
       <div className="form-actions">
         <Button type="submit" loading={create.isPending}>
-          Save draft
+          {t('Save draft')}
         </Button>
       </div>
     </form>
@@ -124,7 +136,9 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
           {formatDateTime(e.startedAt)} · {humanize(e.type)}
         </span>
         <span className="row">
-          {e.confidentialFromGuardians && <Badge tone="warning">Confidential from guardians</Badge>}
+          {e.confidentialFromGuardians && (
+            <Badge tone="warning">{t('Confidential from guardians')}</Badge>
+          )}
           <StatusBadge value={e.noteStatus} />
         </span>
       </div>
@@ -132,13 +146,13 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
       <div className="muted">
         {e.doctorName}
         {e.doctorSpecialty ? ` (${e.doctorSpecialty})` : ''} · {e.facilityName}
-        {e.signedAt ? ` · signed ${formatDateTime(e.signedAt)}` : ''}
+        {e.signedAt ? ` · ${t('signed {date}', { date: formatDateTime(e.signedAt) })}` : ''}
       </div>
 
       {editing ? (
         <div className="stack" style={{ marginTop: '0.5rem' }}>
           <TextAreaField
-            label="Clinical note"
+            label={t('Clinical note')}
             rows={8}
             value={notes}
             onChange={(ev) => setNotes(ev.target.value)}
@@ -146,17 +160,17 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
           {conflictMessage(save.error)}
           <div className="row">
             <Button size="sm" loading={save.isPending} onClick={() => save.mutate(undefined)}>
-              Save draft
+              {t('Save draft')}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
           </div>
         </div>
       ) : e.notes ? (
         <div className="note">{e.notes}</div>
       ) : (
-        <p className="muted">No note text.</p>
+        <p className="muted">{t('No note text.')}</p>
       )}
 
       {(e.diagnoses.length > 0 || e.prescriptions.length > 0) && (
@@ -176,7 +190,7 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
 
       {e.addenda.map((a) => (
         <div key={a.id} className="addendum">
-          <strong>Addendum — {a.reason}</strong>
+          <strong>{t('Addendum — {reason}', { reason: a.reason })}</strong>
           <div className="muted">
             {a.authorName} · {formatDateTime(a.createdAt)}
           </div>
@@ -189,24 +203,24 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
         {e.noteStatus === 'DRAFT' && isAuthor && !editing && (
           <>
             <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-              Edit draft
+              {t('Edit draft')}
             </Button>
             <Button size="sm" loading={sign.isPending} onClick={() => sign.mutate(undefined)}>
-              Sign note
+              {t('Sign note')}
             </Button>
           </>
         )}
         {e.noteStatus === 'DRAFT' && !isAuthor && isDoctor && (
-          <span className="muted">Draft — only the author can edit or sign.</span>
+          <span className="muted">{t('Draft — only the author can edit or sign.')}</span>
         )}
         {e.noteStatus === 'SIGNED' && isDoctor && (
           <Button size="sm" variant="secondary" onClick={() => setAddendumOpen(true)}>
-            Add addendum
+            {t('Add addendum')}
           </Button>
         )}
         {isDoctor && (
           <Button size="sm" variant="ghost" onClick={() => setConfidentialOpen(true)}>
-            {markConfidential ? 'Mark confidential from guardians' : 'Remove confidentiality'}
+            {markConfidential ? t('Mark confidential from guardians') : t('Remove confidentiality')}
           </Button>
         )}
       </div>
@@ -215,44 +229,47 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
         open={confidentialOpen}
         onClose={() => setConfidentialOpen(false)}
         title={
-          markConfidential ? 'Mark visit confidential from guardians' : 'Remove confidentiality'
+          markConfidential
+            ? t('Mark visit confidential from guardians')
+            : t('Remove confidentiality')
         }
       >
         {markConfidential ? (
           <div className="stack">
             <p>
-              This visit and everything recorded during it — diagnoses, prescriptions, results,
-              vital signs and vaccinations — will be hidden from the patient’s guardians, and
-              guardians will not be notified about it. The patient still sees it in their own
-              portal.
+              {t(
+                'This visit and everything recorded during it — diagnoses, prescriptions, results, vital signs and vaccinations — will be hidden from the patient’s guardians, and guardians will not be notified about it. The patient still sees it in their own portal.',
+              )}
             </p>
             <p className="muted">
-              Use this for confidential care of young people (for example sexual or mental health),
-              as the applicable law allows. The change is audited.
+              {t(
+                'Use this for confidential care of young people (for example sexual or mental health), as the applicable law allows. The change is audited.',
+              )}
             </p>
           </div>
         ) : (
           <p>
-            Guardians with full access will be able to see this visit and everything recorded during
-            it again. The change is audited.
+            {t(
+              'Guardians with full access will be able to see this visit and everything recorded during it again. The change is audited.',
+            )}
           </p>
         )}
         <ErrorAlert error={confidentiality.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={() => setConfidentialOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             variant={markConfidential ? 'primary' : 'danger'}
             loading={confidentiality.isPending}
             onClick={() => confidentiality.mutate(markConfidential)}
           >
-            {markConfidential ? 'Mark confidential' : 'Remove confidentiality'}
+            {markConfidential ? t('Mark confidential') : t('Remove confidentiality')}
           </Button>
         </div>
       </Dialog>
 
-      <Dialog open={addendumOpen} onClose={() => setAddendumOpen(false)} title="Add addendum">
+      <Dialog open={addendumOpen} onClose={() => setAddendumOpen(false)} title={t('Add addendum')}>
         <form
           onSubmit={(ev) => {
             ev.preventDefault();
@@ -261,17 +278,19 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
           }}
         >
           <p className="muted">
-            Signed notes are never changed. An addendum is attached with your name and the time.
+            {t(
+              'Signed notes are never changed. An addendum is attached with your name and the time.',
+            )}
           </p>
           <TextField
-            label="Reason for addendum"
+            label={t('Reason for addendum')}
             name="reason"
             required
             minLength={3}
             maxLength={300}
           />
           <TextAreaField
-            label="Addendum"
+            label={t('Addendum')}
             name="content"
             required
             minLength={2}
@@ -281,10 +300,10 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
           <ErrorAlert error={addendum.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setAddendumOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={addendum.isPending}>
-              Add addendum
+              {t('Add addendum')}
             </Button>
           </div>
         </form>
@@ -307,15 +326,15 @@ export function VisitsTab({ patientId }: { patientId: string }) {
 
   return (
     <Card
-      title="Visits"
+      title={t('Visits')}
       actions={
         <>
           <Button size="sm" variant="secondary" onClick={() => void list.refetch()}>
-            Reload
+            {t('Reload')}
           </Button>
           {isDoctor && (
             <Button size="sm" onClick={() => setCreating(true)}>
-              New visit
+              {t('New visit')}
             </Button>
           )}
         </>
@@ -324,7 +343,7 @@ export function VisitsTab({ patientId }: { patientId: string }) {
       <QueryView query={list}>
         {(data) =>
           data.items.length === 0 ? (
-            <EmptyState title="No visits recorded" />
+            <EmptyState title={t('No visits recorded')} />
           ) : (
             <>
               <ol className="timeline">
@@ -338,7 +357,7 @@ export function VisitsTab({ patientId }: { patientId: string }) {
           )
         }
       </QueryView>
-      <Dialog open={creating} onClose={() => setCreating(false)} title="New visit" wide>
+      <Dialog open={creating} onClose={() => setCreating(false)} title={t('New visit')} wide>
         <NewEncounterForm patientId={patientId} onDone={() => setCreating(false)} />
       </Dialog>
     </Card>

@@ -15,6 +15,7 @@ import {
 import { formatDateTime, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 export function CorrectionsTab({ patientId }: { patientId: string }) {
   const list = useSection<CorrectionRequest>(patientId, 'correction-requests');
@@ -32,15 +33,16 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
   const { isDoctor } = useChartRole();
 
   return (
-    <Card title="Correction requests from the patient">
+    <Card title={t('Correction requests from the patient')}>
       <p className="muted">
-        Patients cannot edit their record. Review each request; if a change is needed, make it in
-        the relevant section yourself so it is attributed to you, then answer the request.
+        {t(
+          'Patients cannot edit their record. Review each request; if a change is needed, make it in the relevant section yourself so it is attributed to you, then answer the request.',
+        )}
       </p>
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No correction requests" />
+            <EmptyState title={t('No correction requests')} />
           ) : (
             <ul className="list">
               {items.map((c) => (
@@ -55,13 +57,14 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
                   <div style={{ whiteSpace: 'pre-wrap' }}>{c.description}</div>
                   {c.response && (
                     <div className="addendum">
-                      <strong>Response</strong> — {c.resolvedBy} · {formatDateTime(c.resolvedAt)}
+                      <strong>{t('Response')}</strong> — {c.resolvedBy} ·{' '}
+                      {formatDateTime(c.resolvedAt)}
                       <div>{c.response}</div>
                     </div>
                   )}
                   {c.status === 'OPEN' && isDoctor && (
                     <Button size="sm" variant="secondary" onClick={() => setResolving(c)}>
-                      Respond
+                      {t('Respond')}
                     </Button>
                   )}
                 </li>
@@ -73,7 +76,7 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
       <Dialog
         open={resolving !== null}
         onClose={() => setResolving(null)}
-        title="Respond to correction request"
+        title={t('Respond to correction request')}
       >
         {resolving && (
           <form
@@ -89,29 +92,29 @@ export function CorrectionsTab({ patientId }: { patientId: string }) {
           >
             <div className="note">{resolving.description}</div>
             <SelectField
-              label="Decision"
+              label={t('Decision')}
               name="status"
               required
               options={[
-                { value: 'ACCEPTED', label: 'Accepted — record corrected' },
-                { value: 'REJECTED', label: 'Declined — record is accurate' },
+                { value: 'ACCEPTED', label: t('Accepted — record corrected') },
+                { value: 'REJECTED', label: t('Declined — record is accurate') },
               ]}
             />
             <TextAreaField
-              label="Response to the patient"
+              label={t('Response to the patient')}
               name="response"
               required
               minLength={5}
               maxLength={4000}
-              hint="The patient sees this response in their portal."
+              hint={t('The patient sees this response in their portal.')}
             />
             <ErrorAlert error={resolve.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={() => setResolving(null)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" loading={resolve.isPending}>
-                Send response
+                {t('Send response')}
               </Button>
             </div>
           </form>

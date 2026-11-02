@@ -15,6 +15,7 @@ import {
 import { formatDateTime } from '../../../format';
 import { EncounterSelect, useChartMutation } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 /** Local "now" for a datetime-local input's max attribute. */
 function localNow() {
@@ -53,27 +54,27 @@ export function ImmunizationsTab({
 
   return (
     <Card
-      title="Vaccinations"
+      title={t('Vaccinations')}
       actions={
         <Button size="sm" onClick={() => setOpen(true)}>
-          Record vaccination
+          {t('Record vaccination')}
         </Button>
       }
     >
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="No vaccinations recorded" />
+            <EmptyState title={t('No vaccinations recorded')} />
           ) : (
-            <Table caption="Vaccinations">
+            <Table caption={t('Vaccinations')}>
               <thead>
                 <tr>
-                  <th>Vaccine</th>
-                  <th className="num">Dose</th>
-                  <th>Lot</th>
-                  <th>Site</th>
-                  <th>Given</th>
-                  <th>By / where</th>
+                  <th>{t('Vaccine')}</th>
+                  <th className="num">{t('Dose')}</th>
+                  <th>{t('Lot')}</th>
+                  <th>{t('Site')}</th>
+                  <th>{t('Given')}</th>
+                  <th>{t('By / where')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -98,30 +99,30 @@ export function ImmunizationsTab({
           )
         }
       </QueryView>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Record vaccination" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('Record vaccination')} wide>
         <form onSubmit={onSubmit}>
           <div className="form-grid">
-            <TextField label="Vaccine" name="vaccine" required minLength={2} maxLength={200} />
-            <TextField label="Dose number" name="doseNumber" type="number" min={1} max={20} />
-            <TextField label="Lot number" name="lotNumber" maxLength={60} />
-            <TextField label="Site" name="site" maxLength={60} hint="e.g. Left deltoid" />
+            <TextField label={t('Vaccine')} name="vaccine" required minLength={2} maxLength={200} />
+            <TextField label={t('Dose number')} name="doseNumber" type="number" min={1} max={20} />
+            <TextField label={t('Lot number')} name="lotNumber" maxLength={60} />
+            <TextField label={t('Site')} name="site" maxLength={60} hint={t('e.g. Left deltoid')} />
             <TextField
-              label="Given at"
+              label={t('Given at')}
               name="administeredAt"
               type="datetime-local"
               max={localNow()}
-              hint="Leave empty for now"
+              hint={t('Leave empty for now')}
             />
           </div>
-          <TextAreaField label="Notes" name="notes" maxLength={2000} rows={2} />
+          <TextAreaField label={t('Notes')} name="notes" maxLength={2000} rows={2} />
           <EncounterSelect encounters={encounters} />
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Save
+              {t('Save')}
             </Button>
           </div>
         </form>

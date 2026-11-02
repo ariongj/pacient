@@ -23,6 +23,7 @@ import {
 import { formatDateTime } from '../../../format';
 import { useChartMutation } from './shared';
 import { useSection } from './useSection';
+import { t } from '../../../i18n';
 
 const STATUS_OPTIONS: { value: AdministrationStatus; label: string }[] = [
   { value: 'GIVEN', label: 'Given' },
@@ -77,15 +78,16 @@ export function MarTab({ patientId }: { patientId: string }) {
 
   return (
     <div className="stack">
-      <Card title="Active medicines">
+      <Card title={t('Active medicines')}>
         <p className="muted">
-          Only prescriptions verified by the pharmacy can be administered. Record every dose
-          explicitly – including doses withheld, refused or omitted, with the reason.
+          {t(
+            'Only prescriptions verified by the pharmacy can be administered. Record every dose explicitly – including doses withheld, refused or omitted, with the reason.',
+          )}
         </p>
         <QueryView query={rx}>
           {() =>
             administrable.length === 0 ? (
-              <EmptyState title="No pharmacy-verified medicines to administer" />
+              <EmptyState title={t('No pharmacy-verified medicines to administer')} />
             ) : (
               <ul className="list">
                 {administrable.map((p) => (
@@ -98,7 +100,7 @@ export function MarTab({ patientId }: { patientId: string }) {
                     <span className="row">
                       <StatusBadge value={p.pharmacyStatus} />
                       <Button size="sm" onClick={() => open(p)}>
-                        Record dose
+                        {t('Record dose')}
                       </Button>
                     </span>
                   </li>
@@ -108,27 +110,27 @@ export function MarTab({ patientId }: { patientId: string }) {
           }
         </QueryView>
         {awaiting.length > 0 && (
-          <Alert tone="warning" title="Awaiting pharmacy">
+          <Alert tone="warning" title={t('Awaiting pharmacy')}>
             {awaiting.map((p) => `${p.medication} (${p.pharmacyStatus.toLowerCase()})`).join(', ')}{' '}
             cannot be administered until verified.
           </Alert>
         )}
       </Card>
 
-      <Card title="Administration record">
+      <Card title={t('Administration record')}>
         <QueryView query={mar}>
           {(items) =>
             items.length === 0 ? (
-              <EmptyState title="No doses recorded" />
+              <EmptyState title={t('No doses recorded')} />
             ) : (
-              <Table caption="Medication administration record">
+              <Table caption={t('Medication administration record')}>
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>Medicine</th>
-                    <th>Outcome</th>
-                    <th>Dose / reason</th>
-                    <th>Recorded by</th>
+                    <th>{t('Time')}</th>
+                    <th>{t('Medicine')}</th>
+                    <th>{t('Outcome')}</th>
+                    <th>{t('Dose / reason')}</th>
+                    <th>{t('Recorded by')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,53 +159,53 @@ export function MarTab({ patientId }: { patientId: string }) {
         </QueryView>
       </Card>
 
-      <Dialog open={recording !== null} onClose={() => setRecording(null)} title="Record dose">
+      <Dialog open={recording !== null} onClose={() => setRecording(null)} title={t('Record dose')}>
         {recording && (
           <form onSubmit={onSubmit}>
             <p>
               <strong>{recording.medication}</strong> — {recording.dosage}, {recording.frequency}
             </p>
             <SelectField
-              label="Outcome"
+              label={t('Outcome')}
               name="status"
               value={status}
               onChange={(e) => setStatus(e.target.value as AdministrationStatus)}
-              options={STATUS_OPTIONS}
+              options={STATUS_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
             />
             <div className="form-grid">
               <TextField
-                label="Dose given"
+                label={t('Dose given')}
                 name="doseGiven"
                 defaultValue={status === 'GIVEN' ? recording.dosage : ''}
                 maxLength={100}
                 disabled={status !== 'GIVEN'}
               />
               <TextField
-                label="Time"
+                label={t('Time')}
                 name="administeredAt"
                 type="datetime-local"
-                hint="Leave empty for now"
+                hint={t('Leave empty for now')}
               />
             </div>
             {status !== 'GIVEN' && (
               <TextAreaField
-                label="Reason"
+                label={t('Reason')}
                 name="reason"
                 required
                 minLength={3}
                 maxLength={500}
                 rows={2}
-                hint="Required when a dose is not given, e.g. “BP 92/60 – doctor informed”."
+                hint={t('Required when a dose is not given, e.g. “BP 92/60 – doctor informed”.')}
               />
             )}
-            <TextAreaField label="Notes" name="notes" maxLength={2000} rows={2} />
+            <TextAreaField label={t('Notes')} name="notes" maxLength={2000} rows={2} />
             <ErrorAlert error={record.error} />
             <div className="form-actions">
               <Button variant="secondary" onClick={() => setRecording(null)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" loading={record.isPending}>
-                Save to record
+                {t('Save to record')}
               </Button>
             </div>
           </form>

@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { careAssignments, emergencyAccessGrants, patients, type Role } from '../../db/schema.js';
-import { forbidden, notFound } from '../../lib/errors.js';
+import { forbidden, HttpError, notFound } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { AuditAction, auditSafe } from '../audit/audit.service.js';
 import { coverAccessVia } from '../cover/cover.service.js';
@@ -38,6 +38,21 @@ export async function getPatientOrThrow(patientId: string, executor: Executor = 
   const [patient] = await executor.select().from(patients).where(eq(patients.id, patientId));
   if (!patient) throw notFound('Patient not found');
   return patient;
+}
+
+/**
+ * A duplicate that was merged into another record is kept for lineage but closed: nothing may be
+ * read from or written to it. Callers get 409 PATIENT_MERGED with the surviving record's id.
+ */
+export function assertNotMerged(patient: { mergedIntoId: string | null }) {
+  if (patient.mergedIntoId) {
+    throw new HttpError(
+      409,
+      'PATIENT_MERGED',
+      'This record was merged into another record. Open the surviving record instead.',
+      { mergedIntoId: patient.mergedIntoId },
+    );
+  }
 }
 
 /** Is this user (doctor or nurse) an active member of the patient's care team? */
@@ -132,6 +147,7 @@ export async function resolveClinicalReadAccess(
   meta?: RequestMeta,
 ): Promise<ClinicalAccessBasis> {
   const patient = await getPatientOrThrow(patientId);
+  assertNotMerged(patient);
   switch (ctx.role) {
     case 'PATIENT':
       if (ctx.patientId === patientId) {
@@ -204,9 +220,17 @@ export async function assertClinicalWriteAccess(
   return resolveClinicalReadAccess(ctx, patientId, meta);
 }
 
-/** Non-clinical demographic data (name, contact, registration facility). */
-export async function assertDemographicsAccess(ctx: AuthContext, patientId: string) {
+/**
+ * Non-clinical demographic data (name, contact, registration facility). Merged duplicates are
+ * refused (409 PATIENT_MERGED) unless the caller only wants to show where the record went.
+ */
+export async function assertDemographicsAccess(
+  ctx: AuthContext,
+  patientId: string,
+  opts: { allowMerged?: boolean } = {},
+) {
   const patient = await getPatientOrThrow(patientId);
+  if (!opts.allowMerged) assertNotMerged(patient);
   switch (ctx.role) {
     case 'PATIENT':
       if (ctx.patientId === patientId) return patient;

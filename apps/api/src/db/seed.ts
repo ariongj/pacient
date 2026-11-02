@@ -41,6 +41,7 @@ import { newPlacerOrderNumber } from '../modules/lab/orders.routes.js';
 import { buildOru } from '../ops/oru.js';
 import { seedConsents } from './seed-consent.js';
 import { seedCover } from './seed-cover.js';
+import { seedMerge } from './seed-merge.js';
 import { seedDocuments } from './seed-documents.js';
 import { ensureDefaultChannels } from '../modules/channels/channels.routes.js';
 
@@ -1171,6 +1172,7 @@ async function main() {
   await seedDocuments({ demoPatientId, demoDoctorId: demoDoctor.id, facilityId: ucc!.id });
   await seedConsents({ demoPatientId, demoDoctorId: demoDoctor.id });
   await seedCover({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedMerge({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

@@ -30,6 +30,7 @@ import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
   assertDemographicsAccess,
+  assertNotMerged,
   getPatientOrThrow,
   hasActiveCareAssignment,
 } from '../access/policy.js';
@@ -139,6 +140,8 @@ patientsRouter.get(
         )!
       : undefined;
 
+    // Merged duplicates are closed records: they never appear in lists or searches.
+    filters.push(isNull(patients.mergedIntoId));
     if ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && q.scope === 'mine') {
       filters.push(inCareOf(ctx.userId));
       if (searchFilter) filters.push(searchFilter);
@@ -203,6 +206,7 @@ patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR', 'RECEPTION'), async (
     .where(
       and(
         eq(patients.primaryFacilityId, ctx.facilityId!),
+        isNull(patients.mergedIntoId),
         eq(patients.dateOfBirth, input.dateOfBirth),
         sql`lower(${patients.lastName}) = ${input.lastName.toLowerCase()}`,
         sql`lower(${patients.firstName}) = ${input.firstName.toLowerCase()}`,
@@ -283,7 +287,8 @@ patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR', 'RECEPTION'), async (
 patientsRouter.get('/:id', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
-  const patient = await assertDemographicsAccess(ctx, id);
+  // A merged duplicate is still shown (with mergedIntoId) so the interface can redirect.
+  const patient = await assertDemographicsAccess(ctx, id, { allowMerged: true });
   const inMyCare =
     ctx.role === 'DOCTOR' || ctx.role === 'NURSE'
       ? await hasActiveCareAssignment(ctx.userId, id)
@@ -410,6 +415,7 @@ patientsRouter.post(
     const { id } = parse(IdParam, req.params);
     const body = parse(CareTeamBody, req.body ?? {});
     const patient = await getPatientOrThrow(id);
+    assertNotMerged(patient);
     if (patient.primaryFacilityId !== ctx.facilityId) {
       throw forbidden('Patients from other facilities can only be shared through a referral');
     }
@@ -465,6 +471,7 @@ patientsRouter.delete(
     const ctx = requireAuth(req);
     const { id, doctorId } = parse(CareTeamParams, req.params);
     const patient = await getPatientOrThrow(id);
+    assertNotMerged(patient);
     if ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && doctorId !== ctx.userId) {
       throw forbidden();
     }
@@ -515,6 +522,7 @@ patientsRouter.post('/:id/emergency-access', requireRole('DOCTOR'), async (req, 
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(EmergencyBody, req.body);
   const patient = await getPatientOrThrow(id);
+  assertNotMerged(patient);
   // Break-glass is for urgent care inside the institution. It never crosses tenant boundaries.
   if (patient.primaryFacilityId !== ctx.facilityId) {
     throw forbidden('Emergency access is limited to patients of your facility');

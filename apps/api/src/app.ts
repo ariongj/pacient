@@ -23,6 +23,9 @@ import { worklistRouter } from './modules/worklist/worklist.routes.js';
 import { announcementsRouter } from './modules/announcements/announcements.routes.js';
 import { emergencyRouter } from './modules/emergency/emergency.routes.js';
 import { messagingRouter } from './modules/messaging/messaging.routes.js';
+import { consentRouter } from './modules/consent/consent.routes.js';
+import { coverRouter } from './modules/cover/cover.routes.js';
+import { documentsRouter } from './modules/documents/documents.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { referralsRouter } from './modules/referrals/referrals.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
@@ -120,6 +123,8 @@ export function createApp(): Express {
   api.use('/staff', staffRouter);
   api.use('/patients/:id/guardians', guardiansRouter);
   api.use('/patients/:patientId/lab-orders', labOrdersRouter);
+  api.use('/patients/:patientId/documents', documentsRouter);
+  api.use('/patients/:patientId/consents', consentRouter);
   api.use('/patients/:patientId', clinicalRouter);
   api.use('/patients', patientsRouter);
   api.use('/appointments', appointmentsRouter);
@@ -127,6 +132,7 @@ export function createApp(): Express {
   api.use('/stats', statsRouter);
   api.use('/audit-logs', auditRouter);
   api.use('/worklist', worklistRouter);
+  api.use('/cover', coverRouter);
   api.use('/notifications', notificationsRouter);
   api.use('/messages', messagingRouter);
   api.use('/referrals', referralsRouter);

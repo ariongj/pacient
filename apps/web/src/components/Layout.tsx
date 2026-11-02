@@ -42,6 +42,8 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/portal/messages', label: 'Messages', icon: 'message' },
         { to: '/portal/referrals', label: 'Referrals', icon: 'share' },
+        { to: '/portal/documents', label: 'Documents', icon: 'clipboard' },
+        { to: '/portal/consents', label: 'Privacy & consent', icon: 'shield' },
         { to: '/portal/access-log', label: 'Who viewed my record', icon: 'eye' },
         { to: '/portal/account', label: 'My details', icon: 'user' },
       ],
@@ -56,6 +58,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/tasks', label: 'Care tasks', icon: 'clipboard' },
         { to: '/doctor/schedule', label: 'Schedule', icon: 'calendar' },
         { to: '/doctor/referrals', label: 'Referrals', icon: 'share' },
+        { to: '/doctor/cover', label: 'Cover & absence', icon: 'users' },
       ],
     },
     {

@@ -83,6 +83,16 @@ export const AuditAction = {
   LAB_MESSAGE_REVIEWED: 'lab.message.reviewed',
   INTEGRATION_CLIENT_CREATED: 'integration.client.created',
   INTEGRATION_CLIENT_REVOKED: 'integration.client.revoked',
+  DOCUMENT_UPLOADED: 'document.uploaded',
+  DOCUMENT_REJECTED: 'document.rejected',
+  DOCUMENT_VIEWED: 'document.viewed',
+  DOCUMENT_SHARED: 'document.shared',
+  DOCUMENT_MARKED_IN_ERROR: 'document.marked_in_error',
+  CONSENT_RECORDED: 'consent.recorded',
+  CONSENT_CHECK_BLOCKED: 'consent.check.blocked',
+  COVER_CREATED: 'cover.created',
+  COVER_CANCELLED: 'cover.cancelled',
+  RESULT_ESCALATED: 'lab.result.escalated',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

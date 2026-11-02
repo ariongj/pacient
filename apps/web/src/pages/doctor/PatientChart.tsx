@@ -30,6 +30,8 @@ import { MedicationsTab } from './chart/MedicationsTab';
 import { ProblemsTab } from './chart/ProblemsTab';
 import { ReferDialog } from './chart/ReferDialog';
 import { ResultsTab } from './chart/ResultsTab';
+import { DocumentsTab } from './chart/DocumentsTab';
+import { ConsentsTab } from './chart/ConsentsTab';
 import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
 import { VitalsTab } from './chart/VitalsTab';
@@ -59,6 +61,8 @@ const TAB_IDS = [
   'vitals',
   'results',
   'vaccinations',
+  'documents',
+  'consents',
   'corrections',
   'care-team',
 ] as const;
@@ -248,6 +252,8 @@ export function PatientChart() {
               { id: 'vitals', label: 'Vitals' },
               { id: 'results', label: 'Results', count: s.counts.labResults },
               { id: 'vaccinations', label: 'Vaccinations', count: s.immunizations.length },
+              { id: 'documents', label: 'Documents' },
+              { id: 'consents', label: 'Consent' },
               { id: 'corrections', label: 'Corrections', count: s.counts.openCorrectionRequests },
               { id: 'care-team', label: 'Care team' },
             ]}
@@ -279,6 +285,8 @@ export function PatientChart() {
             {tab === 'vaccinations' && (
               <ImmunizationsTab patientId={patientId} encounters={s.recentEncounters} />
             )}
+            {tab === 'documents' && <DocumentsTab patientId={patientId} />}
+            {tab === 'consents' && <ConsentsTab patientId={patientId} />}
             {tab === 'corrections' && <CorrectionsTab patientId={patientId} />}
             {tab === 'care-team' && <CareTeamTab patientId={patientId} />}
           </TabPanel>

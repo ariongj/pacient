@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  customType,
   date,
   index,
   inet,
@@ -1123,6 +1124,164 @@ export const integrationMessages = pgTable(
     uniqueIndex('integration_messages_control_uq').on(t.clientId, t.direction, t.controlId),
     index('integration_messages_status_idx').on(t.status, t.receivedAt),
   ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Documents, consent, result cover and escalation
+ * ---------------------------------------------------------------------------------------------- */
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+export const documentCategoryEnum = pgEnum('document_category', [
+  'REFERRAL_LETTER',
+  'DISCHARGE_SUMMARY',
+  'IMAGING_REPORT',
+  'LAB_REPORT',
+  'CONSENT_FORM',
+  'CLINICAL_PHOTO',
+  'PATIENT_PROVIDED',
+  'OTHER',
+]);
+export const documentStatusEnum = pgEnum('document_status', ['CURRENT', 'ENTERED_IN_ERROR']);
+export const scanStatusEnum = pgEnum('scan_status', ['CLEAN', 'NOT_SCANNED']);
+
+/**
+ * Documents attached to a patient's record (scanned letters, reports, photos, signed consent
+ * forms). Metadata lives here; the encrypted content lives in `document_contents`. Documents are
+ * never deleted – a wrong upload is marked "entered in error" with a reason.
+ */
+export const patientDocuments = pgTable(
+  'patient_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    category: documentCategoryEnum('category').notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    fileName: varchar('file_name', { length: 200 }).notNull(),
+    mimeType: varchar('mime_type', { length: 100 }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: varchar('sha256', { length: 64 }).notNull(),
+    scanStatus: scanStatusEnum('scan_status').notNull().default('NOT_SCANNED'),
+    /** STAFF uploads become visible to the patient only when shared; PATIENT uploads always are. */
+    source: varchar('source', { length: 10 }).notNull().default('STAFF'),
+    visibleToPatient: boolean('visible_to_patient').notNull().default(false),
+    confidentialFromGuardians: boolean('confidential_from_guardians').notNull().default(false),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    uploadedById: uuid('uploaded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    status: documentStatusEnum('status').notNull().default('CURRENT'),
+    errorReason: varchar('error_reason', { length: 300 }),
+    markedInErrorById: uuid('marked_in_error_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    markedInErrorAt: timestamp('marked_in_error_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('patient_documents_patient_idx').on(t.patientId, t.createdAt)],
+);
+
+/** Encrypted document bytes (AES-256-GCM: 12-byte IV ‖ 16-byte tag ‖ ciphertext). */
+export const documentContents = pgTable('document_contents', {
+  documentId: uuid('document_id')
+    .primaryKey()
+    .references(() => patientDocuments.id, { onDelete: 'cascade' }),
+  content: bytea('content').notNull(),
+});
+
+export const consentTypeEnum = pgEnum('consent_type', [
+  /** Sharing the record with another facility when the patient is referred there. */
+  'CROSS_FACILITY_SHARING',
+  /** Use of de-identified data for approved research and public-health statistics. */
+  'RESEARCH',
+  /** Consent to a specific treatment or procedure, recorded by the clinician. */
+  'TREATMENT',
+]);
+export const consentDecisionEnum = pgEnum('consent_decision', ['GRANTED', 'WITHDRAWN', 'REFUSED']);
+export const consentMethodEnum = pgEnum('consent_method', ['PORTAL', 'IN_PERSON', 'WRITTEN']);
+
+/**
+ * Consent decisions as an append-only history: every change is a new row, the latest row per
+ * (patient, type[, procedure]) is the current decision. Nothing is ever overwritten.
+ */
+export const consentRecords = pgTable(
+  'consent_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    type: consentTypeEnum('type').notNull(),
+    decision: consentDecisionEnum('decision').notNull(),
+    method: consentMethodEnum('method').notNull(),
+    /** For TREATMENT consent: the procedure, e.g. "Appendectomy". */
+    procedure: varchar('procedure', { length: 200 }),
+    /** Version of the explanation the patient was shown, so the decision can be interpreted later. */
+    wordingVersion: varchar('wording_version', { length: 20 }).notNull(),
+    note: varchar('note', { length: 1000 }),
+    /** Signed form, when consent was given in writing. */
+    documentId: uuid('document_id').references(() => patientDocuments.id, { onDelete: 'set null' }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Set when a guardian decided on the child's behalf. */
+    onBehalfGuardianshipId: uuid('on_behalf_guardianship_id').references(() => guardianships.id, {
+      onDelete: 'set null',
+    }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('consent_records_patient_idx').on(t.patientId, t.type, t.createdAt)],
+);
+
+/**
+ * Result cover: while a doctor is away, a colleague at the same facility receives their result
+ * notifications, sees their unacknowledged results and may review them for their patients.
+ */
+export const coverArrangements = pgTable(
+  'cover_arrangements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    coverDoctorId: uuid('cover_doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    note: varchar('note', { length: 300 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('cover_arrangements_doctor_idx').on(t.doctorId, t.endsAt),
+    index('cover_arrangements_cover_idx').on(t.coverDoctorId, t.endsAt),
+  ],
+);
+
+/** Escalations of critical results nobody has acknowledged (one row per result and level). */
+export const resultEscalations = pgTable(
+  'result_escalations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    labResultId: uuid('lab_result_id')
+      .notNull()
+      .references(() => labResults.id, { onDelete: 'cascade' }),
+    level: integer('level').notNull(),
+    notifiedUserIds: jsonb('notified_user_ids').$type<string[]>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('result_escalations_uq').on(t.labResultId, t.level)],
 );
 
 /* ------------------------------------------------------------------------------------------------

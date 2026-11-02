@@ -1,3 +1,6 @@
+import { PortalDocuments } from './pages/patient/PortalDocuments';
+import { PortalConsents } from './pages/patient/PortalConsents';
+import { DoctorCover } from './pages/doctor/DoctorCover';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { HOME_BY_ROLE, useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
@@ -120,6 +123,30 @@ export function App() {
           element={
             <RequireRole roles={['PATIENT']}>
               <MessagesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/portal/documents"
+          element={
+            <RequireRole roles={['PATIENT']}>
+              <PortalDocuments />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/portal/consents"
+          element={
+            <RequireRole roles={['PATIENT']}>
+              <PortalConsents />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/doctor/cover"
+          element={
+            <RequireRole roles={['DOCTOR']}>
+              <DoctorCover />
             </RequireRole>
           }
         />

@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import type { CareTeamMember, ClinicalSummary } from '../../api/types';
-import { useUser } from '../../auth/AuthContext';
+import { useAuth, useUser } from '../../auth/AuthContext';
 
+/** The record being viewed: the user's own, or a child's when acting as their guardian. */
 export function usePatientId(): string {
   const user = useUser();
-  if (!user.patientId) throw new Error('This account is not linked to a patient record');
-  return user.patientId;
+  const { acting } = useAuth();
+  const id = acting?.patientId ?? user.patientId;
+  if (!id) throw new Error('This account is not linked to a patient record');
+  return id;
 }
 
 export function useSummary() {

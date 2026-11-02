@@ -39,6 +39,8 @@ apps/
         events/             Server-Sent Events stream (tickets) fed by PostgreSQL LISTEN/NOTIFY
         fhir/               HL7 FHIR R4 CapabilityStatement, Patient, Patient/$everything
         directory/          same-facility clinician directory
+        guardians/          guardian (proxy) access: registration, revocation, dependants
+        email/              transactional email outbox, templates, SMTP/log/memory transports
     test/                   integration tests against a real PostgreSQL database
   web/                      React 19 + Vite
     src/
@@ -129,3 +131,14 @@ AllergyIntolerance, Observation (vital signs with LOINC + UCUM, laboratory resul
 Immunization. Access, patient-view filtering (released results, signed notes) and auditing are
 identical to the rest of the API. Partner-specific profiles (e.g. International Patient Summary)
 must be validated before production exchange.
+
+## Email delivery (transactional outbox)
+
+`enqueueEmail()` inserts into `email_outbox` inside the caller's transaction, so an email exists only
+if the change that caused it committed (no "email sent but change rolled back"). A worker in each API
+process polls every 5 seconds and claims due messages with `UPDATE … WHERE id IN (SELECT … FOR UPDATE
+SKIP LOCKED)`, so instances never send the same message twice; a message stuck in `SENDING` (crash
+mid-send) is re-claimed after a 5-minute lease. Failures back off exponentially (1, 2, 4, 8, 16
+minutes) and are marked `FAILED` after six attempts. Subject and bodies are sealed with AES-256-GCM
+and erased once a message is delivered or abandoned. Transports: `smtp` (nodemailer), `log`
+(development) and `memory` (tests).

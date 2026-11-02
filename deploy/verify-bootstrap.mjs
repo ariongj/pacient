@@ -33,8 +33,14 @@ try {
   await assert.rejects(() => bootstrapAdmin('second@example.test', path.join(directory, 'second')));
   await assert.rejects(() => bootstrapAdmin('third@example.test', output));
   assert.equal((await pool.query('SELECT COUNT(*) AS n FROM users')).rows[0].n, '1');
-  assert.equal((await pool.query("SELECT COUNT(*) AS n FROM audit_logs WHERE action='user.invited'")).rows[0].n, '1');
-  console.log('First-admin bootstrap verified: private invitation, no default password, audited, repeat-safe.');
+  assert.equal(
+    (await pool.query("SELECT COUNT(*) AS n FROM audit_logs WHERE action='user.invited'")).rows[0]
+      .n,
+    '1',
+  );
+  console.log(
+    'First-admin bootstrap verified: private invitation, no default password, audited, repeat-safe.',
+  );
 } finally {
   await pool.end();
 }

@@ -13,6 +13,7 @@ import {
   Table,
 } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
+import { GuardiansPanel } from '../../shared/GuardiansPanel';
 import { useChartMutation, useChartRole } from './shared';
 
 export function CareTeamTab({ patientId }: { patientId: string }) {
@@ -31,61 +32,66 @@ export function CareTeamTab({ patientId }: { patientId: string }) {
   );
 
   return (
-    <Card title="Care team">
-      <ErrorAlert error={leave.error} />
-      <QueryView query={team}>
-        {(items) =>
-          items.length === 0 ? (
-            <EmptyState title="No clinicians assigned" />
-          ) : (
-            <Table caption="Care team">
-              <thead>
-                <tr>
-                  <th>Clinician</th>
-                  <th>Role</th>
-                  <th>Specialty</th>
-                  <th>Since</th>
-                  <th>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((m) => (
-                  <tr key={m.doctorId}>
-                    <td>
-                      {m.fullName} {m.doctorId === user.id && <Badge tone="info">You</Badge>}
-                    </td>
-                    <td>{humanize(m.role ?? 'DOCTOR')}</td>
-                    <td>{m.specialty ?? '—'}</td>
-                    <td>{formatDate(m.startedAt)}</td>
-                    <td>
-                      {m.doctorId === user.id && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          loading={leave.isPending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                'Leave this care team? You will lose access to the record.',
-                              )
-                            ) {
-                              leave.mutate(undefined);
-                            }
-                          }}
-                        >
-                          Leave care team
-                        </Button>
-                      )}
-                    </td>
+    <div className="stack">
+      <Card title="Care team">
+        <ErrorAlert error={leave.error} />
+        <QueryView query={team}>
+          {(items) =>
+            items.length === 0 ? (
+              <EmptyState title="No clinicians assigned" />
+            ) : (
+              <Table caption="Care team">
+                <thead>
+                  <tr>
+                    <th>Clinician</th>
+                    <th>Role</th>
+                    <th>Specialty</th>
+                    <th>Since</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
-          )
-        }
-      </QueryView>
-    </Card>
+                </thead>
+                <tbody>
+                  {items.map((m) => (
+                    <tr key={m.doctorId}>
+                      <td>
+                        {m.fullName} {m.doctorId === user.id && <Badge tone="info">You</Badge>}
+                      </td>
+                      <td>{humanize(m.role ?? 'DOCTOR')}</td>
+                      <td>{m.specialty ?? '—'}</td>
+                      <td>{formatDate(m.startedAt)}</td>
+                      <td>
+                        {m.doctorId === user.id && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={leave.isPending}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  'Leave this care team? You will lose access to the record.',
+                                )
+                              ) {
+                                leave.mutate(undefined);
+                              }
+                            }}
+                          >
+                            Leave care team
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )
+          }
+        </QueryView>
+      </Card>
+      <Card title="Guardians (proxy access)">
+        <GuardiansPanel patientId={patientId} canManage={false} />
+      </Card>
+    </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { age, formatDate, humanize } from '../../format';
+import { GuardiansPanel } from '../shared/GuardiansPanel';
 import { BookAppointmentDialog, type PatientRef } from './BookAppointmentDialog';
 
 interface PatientDetail {
@@ -159,6 +160,7 @@ export function ReceptionPatients() {
   const [editing, setEditing] = useState<string | null>(null);
   const [inviting, setInviting] = useState<string | null>(null);
   const [booking, setBooking] = useState<PatientRef | null>(null);
+  const [guardiansFor, setGuardiansFor] = useState<PatientListItem | null>(null);
 
   const q = useQuery({
     queryKey: ['patients', 'facility', submitted, page],
@@ -253,6 +255,13 @@ export function ReceptionPatients() {
                             <Button size="sm" variant="secondary" onClick={() => setEditing(p.id)}>
                               Edit contact
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setGuardiansFor(p)}
+                            >
+                              Guardians
+                            </Button>
                             {!p.hasPortalAccount && (
                               <Button size="sm" variant="ghost" onClick={() => setInviting(p.id)}>
                                 Invite to portal
@@ -289,6 +298,24 @@ export function ReceptionPatients() {
         title="Invite to patient portal"
       >
         {inviting && <InviteDialog patientId={inviting} onClose={() => setInviting(null)} />}
+      </Dialog>
+      <Dialog
+        open={guardiansFor !== null}
+        onClose={() => setGuardiansFor(null)}
+        title={
+          guardiansFor
+            ? `Guardians – ${guardiansFor.firstName} ${guardiansFor.lastName}`
+            : 'Guardians'
+        }
+        wide
+      >
+        {guardiansFor && (
+          <GuardiansPanel
+            patientId={guardiansFor.id}
+            patientDateOfBirth={guardiansFor.dateOfBirth}
+            canManage
+          />
+        )}
       </Dialog>
       <BookAppointmentDialog
         open={booking !== null}

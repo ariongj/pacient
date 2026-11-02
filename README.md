@@ -22,6 +22,13 @@ directors channel), and the whole app updates **live** (Server-Sent Events). Rec
 exchanged in **HL7 FHIR R4** (`/api/v1/fhir`), and the report centre offers eight aggregate reports
 with charts, print/PDF and audited CSV export.
 
+**Guardians** (parents, legal guardians, foster carers) can be registered by the front desk after
+checking evidence; they switch between their own record and their children's in the portal. Access
+ends automatically at the child's 18th birthday, can be limited to appointments, and doctors can mark
+visits as confidential from guardians. **Email notifications** are delivered through a transactional
+outbox (SMTP, retries, encrypted at rest) and never contain health information; each user chooses
+all, important only, or none.
+
 All staff accounts use **two-step sign-in** (authenticator app with recovery codes) — mandatory in
 production. Every account can reset a forgotten password through a single-use emailed link.
 
@@ -76,6 +83,17 @@ Open http://localhost:5173. The seed creates demo accounts (password `Pacient-De
 | Patient    | `patient@pacient.local`    |
 
 All seed data is synthetic. **Never load real patient data into development or test environments.**
+
+### Email in development
+
+By default the API logs emails instead of sending them. To see real emails, run a local catcher and
+point the API at it:
+
+```bash
+docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://localhost:8025.
 
 ### With Docker
 

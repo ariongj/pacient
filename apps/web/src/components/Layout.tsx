@@ -1,8 +1,16 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import {
+  Navigate,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import type { Role } from '../api/types';
 import { useAuth, useUser } from '../auth/AuthContext';
 import { useLiveEvents } from '../auth/useLiveEvents';
-import { humanize } from '../format';
+import { formatDate, humanize } from '../format';
 import { Icon, type IconName } from './icons';
 import { NotificationBell } from './Notifications';
 
@@ -153,11 +161,81 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const LIVE_TEXT = { live: 'Live', connecting: 'Connecting…', offline: 'Offline – retrying' };
 
+/** Pages an appointments-only guardian may open. */
+const APPOINTMENT_SCOPE_PATHS = ['/portal/appointments', '/portal/account', '/notifications'];
+
+const RELATIONSHIP: Record<string, string> = {
+  PARENT: 'parent',
+  LEGAL_GUARDIAN: 'legal guardian',
+  FOSTER_CARER: 'foster carer',
+  OTHER_AUTHORISED: 'authorised representative',
+};
+
+/** Lets a guardian switch between their own record and the records they may act for. */
+function RecordSwitcher() {
+  const user = useUser();
+  const { dependants, acting, setActing } = useAuth();
+  const navigate = useNavigate();
+  if (!dependants.length) return null;
+  return (
+    <div className="record-switcher">
+      <label htmlFor="record-switcher">Viewing the record of</label>
+      <select
+        id="record-switcher"
+        value={acting?.patientId ?? ''}
+        onChange={(e) => {
+          setActing(e.target.value || null);
+          navigate('/portal');
+        }}
+      >
+        {user.patientId && <option value="">Me – {user.fullName}</option>}
+        {dependants.map((d) => (
+          <option key={d.patientId} value={d.patientId}>
+            {d.firstName} {d.lastName}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function Layout() {
   const user = useUser();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const live = useLiveEvents(true);
+  const { acting, dependants, setActing } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+
+  // Notification links for guardians carry ?for=<patientId>: open that record.
+  const forParam = params.get('for');
+  useEffect(() => {
+    if (!forParam || user.role !== 'PATIENT') return;
+    if (dependants.some((d) => d.patientId === forParam) && acting?.patientId !== forParam) {
+      setActing(forParam);
+    }
+    const next = new URLSearchParams(params);
+    next.delete('for');
+    setParams(next, { replace: true });
+  }, [forParam, dependants, acting, setActing, params, setParams, user.role]);
+
+  const appointmentsOnly = acting?.scope === 'APPOINTMENTS';
+  if (
+    appointmentsOnly &&
+    location.pathname.startsWith('/portal') &&
+    !APPOINTMENT_SCOPE_PATHS.includes(location.pathname)
+  ) {
+    return <Navigate to="/portal/appointments" replace />;
+  }
+  const nav = NAV[user.role]
+    .map((section) => ({
+      ...section,
+      items: appointmentsOnly
+        ? section.items.filter((i) => APPOINTMENT_SCOPE_PATHS.includes(i.to))
+        : section.items,
+    }))
+    .filter((section) => section.items.length);
   const initials = user.fullName
     .replace(/^(Dr\.|Mr\.|Mrs\.|Ms\.)\s*/, '')
     .split(' ')
@@ -215,7 +293,8 @@ export function Layout() {
       </header>
       <div className="body">
         <nav className="sidenav" aria-label="Main">
-          {NAV[user.role].map((section, i) => (
+          {user.role === 'PATIENT' && <RecordSwitcher />}
+          {nav.map((section, i) => (
             <div key={section.title ?? i} className="nav-section">
               {section.title && <div className="nav-title">{section.title}</div>}
               <ul>
@@ -232,7 +311,44 @@ export function Layout() {
           ))}
         </nav>
         <main id="main" tabIndex={-1}>
-          <Outlet />
+          {acting && (
+            <div className="acting-banner" role="status">
+              <div>
+                <strong>
+                  Viewing {acting.firstName} {acting.lastName}’s record
+                </strong>{' '}
+                as their {RELATIONSHIP[acting.relationship] ?? 'guardian'}
+                {acting.scope === 'APPOINTMENTS' ? ' (appointments only)' : ''}.{' '}
+                <span className="muted">
+                  Everything you open is recorded in their access log. Your access ends{' '}
+                  {formatDate(acting.validUntil)}.
+                </span>
+              </div>
+              {user.patientId && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setActing(null);
+                    navigate('/portal');
+                  }}
+                >
+                  Back to my record
+                </button>
+              )}
+            </div>
+          )}
+          {user.role === 'PATIENT' && !user.patientId && !acting ? (
+            <div className="empty">
+              <strong>No health record is linked to this account yet</strong>
+              <p className="muted">
+                If you look after a child or another person, ask their health facility to register
+                you as their guardian.
+              </p>
+            </div>
+          ) : (
+            <Outlet key={acting?.patientId ?? 'self'} />
+          )}
         </main>
       </div>
       <footer className="footer muted">

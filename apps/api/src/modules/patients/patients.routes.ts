@@ -19,6 +19,7 @@ import {
   CARE_TEAM_ROLES,
   careAssignments,
   emergencyAccessGrants,
+  facilities,
   patients,
   sexEnum,
   users,
@@ -283,9 +284,21 @@ patientsRouter.get('/:id', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const patient = await assertDemographicsAccess(ctx, id);
-  const inMyCare = ctx.role === 'DOCTOR' ? await hasActiveCareAssignment(ctx.userId, id) : false;
+  const inMyCare =
+    ctx.role === 'DOCTOR' || ctx.role === 'NURSE'
+      ? await hasActiveCareAssignment(ctx.userId, id)
+      : false;
+  const [facility] = await db
+    .select({ name: facilities.name })
+    .from(facilities)
+    .where(eq(facilities.id, patient.primaryFacilityId));
   const { userId, ...rest } = patient;
-  res.json({ ...rest, hasPortalAccount: Boolean(userId), inMyCare });
+  res.json({
+    ...rest,
+    primaryFacilityName: facility?.name ?? null,
+    hasPortalAccount: Boolean(userId),
+    inMyCare,
+  });
 });
 
 patientsRouter.patch(

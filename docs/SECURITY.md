@@ -42,6 +42,21 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - **Team channels** are scoped by facility and role; national channels connect the Ministry with
   directors. Channel posts are audited, and the UI reminds staff not to post patient identifiers.
 - **Live updates** use single-use 30-second tickets instead of putting access tokens in URLs.
+- **Guardian (proxy) access** follows the blueprint's proxy rules: one verified guardianship per
+  child and guardian (no household-wide sharing), recorded with relationship, scope (full record or
+  appointments only), the evidence checked and who checked it. For minors it ends automatically at
+  the 18th birthday; adults can only have a court-appointed legal guardian with an end date of at
+  most five years. Staff accounts can never be guardians. The `X-Acting-For` header is re-verified
+  against the database on every request, so revocation and expiry are immediate. Guardian reads use
+  their own audited access basis (`GUARDIAN`) and appear in the child's access log. Visits marked
+  _confidential from guardians_ — and everything recorded during them — are excluded from the
+  guardian view, FHIR export and guardian notifications; a young person's own messages stay private.
+- **Email**: messages are queued in the same transaction as the change (transactional outbox),
+  encrypted at rest with the same AES-256-GCM key as MFA secrets, and erased after delivery or after
+  the final failed attempt. Workers claim messages with `FOR UPDATE SKIP LOCKED` (no duplicates across
+  instances) and retry with exponential backoff. Emails never contain clinical information; nodemailer
+  is configured with file and URL access disabled. Without `SMTP_URL`, production holds email in the
+  outbox instead of sending it anywhere.
 
 ## Authentication
 

@@ -2,7 +2,19 @@ import { copyFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const out = path.resolve('apps/web/dist');
-const allowed = new Set(['.html', '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2']);
+const allowed = new Set([
+  '.html',
+  '.js',
+  '.css',
+  '.svg',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.ico',
+  '.woff',
+  '.woff2',
+]);
 async function inspect(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -16,7 +28,9 @@ async function inspect(dir) {
       }
       if (/\.(js|html|css)$/.test(entry.name)) {
         const text = await readFile(full, 'utf8');
-        if (/-----BEGIN .*PRIVATE KEY-----|postgres(?:ql)?:\/\/|sourceMappingURL=|sk-proj-/.test(text)) {
+        if (
+          /-----BEGIN .*PRIVATE KEY-----|postgres(?:ql)?:\/\/|sourceMappingURL=|sk-proj-/.test(text)
+        ) {
           throw new Error(`Potential private material in public artifact: ${entry.name}`);
         }
       }

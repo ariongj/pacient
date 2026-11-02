@@ -3,7 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: ['claude/practical-rubin-idyxdo']
-    paths: ['apps/web/**', 'package*.json', 'deploy/prepare-pages.mjs', '.github/workflows/pages.yml']
+    paths:
+      ['apps/web/**', 'package*.json', 'deploy/prepare-pages.mjs', '.github/workflows/pages.yml']
 permissions:
   contents: read
 concurrency:

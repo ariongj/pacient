@@ -20,6 +20,7 @@ import {
   TextField,
 } from '../../components/ui';
 import { age, formatDate, fullName, humanize } from '../../format';
+import { GuardiansPanel } from '../shared/GuardiansPanel';
 import { RegisterPatientForm } from './RegisterPatientForm';
 
 function CareTeamDialog({
@@ -211,6 +212,7 @@ export function DirectorPatients() {
   const [registering, setRegistering] = useState(false);
   const [careTeamFor, setCareTeamFor] = useState<PatientListItem | null>(null);
   const [inviteFor, setInviteFor] = useState<PatientListItem | null>(null);
+  const [guardiansFor, setGuardiansFor] = useState<PatientListItem | null>(null);
 
   const query = useQuery({
     queryKey: ['patients', 'facility', search, page],
@@ -291,6 +293,13 @@ export function DirectorPatients() {
                             <Button size="sm" variant="secondary" onClick={() => setCareTeamFor(p)}>
                               Care team
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setGuardiansFor(p)}
+                            >
+                              Guardians
+                            </Button>
                             {!p.hasPortalAccount && (
                               <Button size="sm" variant="ghost" onClick={() => setInviteFor(p)}>
                                 Invite to portal
@@ -319,6 +328,20 @@ export function DirectorPatients() {
       </Dialog>
       <CareTeamDialog patient={careTeamFor} onClose={() => setCareTeamFor(null)} />
       <PortalInviteDialog patient={inviteFor} onClose={() => setInviteFor(null)} />
+      <Dialog
+        open={guardiansFor !== null}
+        onClose={() => setGuardiansFor(null)}
+        title={guardiansFor ? `Guardians – ${fullName(guardiansFor)}` : 'Guardians'}
+        wide
+      >
+        {guardiansFor && (
+          <GuardiansPanel
+            patientId={guardiansFor.id}
+            patientDateOfBirth={guardiansFor.dateOfBirth}
+            canManage
+          />
+        )}
+      </Dialog>
     </>
   );
 }

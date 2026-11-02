@@ -22,7 +22,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Nurse role: care team, observations, tasks, medication administration (no prescribing) |   ✅   | `policy.ts` WRITERS, MAR, care tasks                                    |
 | Pharmacist role: medication review/verification/dispensing with necessary context only |   ✅   | `modules/pharmacy`                                                      |
 | Reception role: identity, contact, scheduling; clinical detail hidden                  |   ✅   | patients/appointments routes                                            |
-| Lab/radiology, billing, IT support, proxy/guardian roles                               |   ⏳   |                                                                         |
+| Guardian / proxy: verified, explicit, patient-specific, scoped, expiring, revocable    |   ✅   | `modules/guardians`, `X-Acting-For`                                     |
+| Confidential minor records follow applicable law                                       |   🟡   | per-visit "confidential from guardians"; age rules per jurisdiction ⏳  |
+| Lab/radiology, billing, IT support roles                                               |   ⏳   |                                                                         |
 | Purpose/consent and data-sensitivity in policy decisions                               |   ⏳   |                                                                         |
 | Periodic access review                                                                 |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
 | Cross-institution sharing only through an explicit arrangement                         |   ✅   | referrals: acceptance creates the care relationship                     |
@@ -40,7 +42,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Not an emergency channel (stated in UI)                               |    ✅     |
 | Secure non-urgent messaging (not an emergency channel)                |    ✅     |
 | Vaccination history, referrals, notifications, announcements          |    ✅     |
-| Proxy / guardian access, consent settings, documents                  |    ⏳     |
+| Proxy / guardian access with "viewing as" switcher                    |    ✅     |
+| Email notifications without health information; user preferences      |    ✅     |
+| Consent settings, documents                                           |    ⏳     |
 
 ## Clinical record integrity (§5)
 
@@ -107,9 +111,9 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 ## Suggested next backlog (in order)
 
 1. **Validated drug-interaction database** for pharmacy decision support; barcode administration.
-2. **Email/SMS provider** for activation, reset and notification delivery; passkeys or OIDC (§7).
+2. **SMS channel** and an SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
 3. **Structured orders and critical-result escalation** with backup owners (B05).
-4. **Proxy/guardian access** and consent records (B06).
+4. **Consent records** and jurisdiction-specific rules for adolescent confidentiality (B06).
 5. **Identity merge/unmerge** with lineage (B02).
 6. **Transactional outbox** and one validated integration (e.g. LIS results via HL7 v2) (B07).
 7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR/HL7 v2 interfaces.

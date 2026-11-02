@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Appointment, MessageThreadSummary } from '../../api/types';
-import { useUser } from '../../auth/AuthContext';
+import { useAuth, useUser } from '../../auth/AuthContext';
 import { AnnouncementsCard } from '../../components/Announcements';
 import {
   Alert,
@@ -20,6 +20,7 @@ import { ALLERGY_ASSESSMENT_TEXT, useCareTeam, useSummary } from './shared';
 
 export function PortalHome() {
   const user = useUser();
+  const { acting } = useAuth();
   const summary = useSummary();
   const careTeam = useCareTeam();
   const threads = useQuery({
@@ -36,7 +37,9 @@ export function PortalHome() {
   return (
     <>
       <PageHeader
-        title={`Hello, ${user.fullName.split(' ')[0]}`}
+        title={
+          acting ? `${acting.firstName}’s health record` : `Hello, ${user.fullName.split(' ')[0]}`
+        }
         subtitle="Your health record from every facility, in one place."
       />
       <Alert tone="info">

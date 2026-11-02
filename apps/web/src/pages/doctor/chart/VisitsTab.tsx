@@ -5,6 +5,7 @@ import type { Encounter, Page } from '../../../api/types';
 import { useUser } from '../../../auth/AuthContext';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   compact,
@@ -84,6 +85,7 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState(e.notes ?? '');
   const [addendumOpen, setAddendumOpen] = useState(false);
+  const [confidentialOpen, setConfidentialOpen] = useState(false);
 
   const save = useChartMutation(
     patientId,
@@ -104,6 +106,16 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
     }),
     () => setAddendumOpen(false),
   );
+  const confidentiality = useChartMutation(
+    patientId,
+    (confidential: boolean) => ({
+      path: `/encounters/${e.id}/confidentiality`,
+      method: 'POST',
+      body: { confidential },
+    }),
+    () => setConfidentialOpen(false),
+  );
+  const markConfidential = !e.confidentialFromGuardians;
 
   return (
     <li>
@@ -111,7 +123,10 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
         <span className="timeline-date">
           {formatDateTime(e.startedAt)} · {humanize(e.type)}
         </span>
-        <StatusBadge value={e.noteStatus} />
+        <span className="row">
+          {e.confidentialFromGuardians && <Badge tone="warning">Confidential from guardians</Badge>}
+          <StatusBadge value={e.noteStatus} />
+        </span>
       </div>
       <h3>{e.reason}</h3>
       <div className="muted">
@@ -189,7 +204,53 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
             Add addendum
           </Button>
         )}
+        {isDoctor && (
+          <Button size="sm" variant="ghost" onClick={() => setConfidentialOpen(true)}>
+            {markConfidential ? 'Mark confidential from guardians' : 'Remove confidentiality'}
+          </Button>
+        )}
       </div>
+
+      <Dialog
+        open={confidentialOpen}
+        onClose={() => setConfidentialOpen(false)}
+        title={
+          markConfidential ? 'Mark visit confidential from guardians' : 'Remove confidentiality'
+        }
+      >
+        {markConfidential ? (
+          <div className="stack">
+            <p>
+              This visit and everything recorded during it — diagnoses, prescriptions, results,
+              vital signs and vaccinations — will be hidden from the patient’s guardians, and
+              guardians will not be notified about it. The patient still sees it in their own
+              portal.
+            </p>
+            <p className="muted">
+              Use this for confidential care of young people (for example sexual or mental health),
+              as the applicable law allows. The change is audited.
+            </p>
+          </div>
+        ) : (
+          <p>
+            Guardians with full access will be able to see this visit and everything recorded during
+            it again. The change is audited.
+          </p>
+        )}
+        <ErrorAlert error={confidentiality.error} />
+        <div className="form-actions">
+          <Button variant="secondary" onClick={() => setConfidentialOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant={markConfidential ? 'primary' : 'danger'}
+            loading={confidentiality.isPending}
+            onClick={() => confidentiality.mutate(markConfidential)}
+          >
+            {markConfidential ? 'Mark confidential' : 'Remove confidentiality'}
+          </Button>
+        </div>
+      </Dialog>
 
       <Dialog open={addendumOpen} onClose={() => setAddendumOpen(false)} title="Add addendum">
         <form

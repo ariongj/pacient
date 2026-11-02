@@ -18,9 +18,15 @@ import {
   TextField,
 } from '../../components/ui';
 import { formatDate, humanize } from '../../format';
+import {
+  DependantsCard,
+  EmailPreferencesCard,
+  MyGuardiansCard,
+} from '../../components/AccountCards';
 import { TwoStepCard } from '../../components/TwoStep';
+import { useAuth } from '../../auth/AuthContext';
 import { ChangePasswordCard } from '../shared/AccountPage';
-import { usePatientId, useSummary } from './shared';
+import { usePatientId } from './shared';
 
 const SECTIONS = [
   'demographics',
@@ -208,14 +214,22 @@ function Corrections() {
 
 export function PortalAccount() {
   const id = usePatientId();
-  const summary = useSummary();
+  const { acting } = useAuth();
+  // Demographics (not the clinical summary), so appointments-only guardians can use this page too.
+  const summary = useQuery({
+    queryKey: ['patient', id, 'demographics'],
+    queryFn: async () => ({ patient: await api<Demographics>(`/patients/${id}`) }),
+  });
   const [editing, setEditing] = useState(false);
   const [exportError, setExportError] = useState<unknown>(null);
   const [exporting, setExporting] = useState(false);
 
   return (
     <>
-      <PageHeader title="My details" />
+      <PageHeader
+        title={acting ? `${acting.firstName}’s details` : 'My details'}
+        subtitle={acting ? 'You are managing these details as their guardian.' : undefined}
+      />
       <div className="stack">
         <QueryView query={summary}>
           {({ patient: p }) => (
@@ -262,51 +276,70 @@ export function PortalAccount() {
           )}
         </QueryView>
 
-        <Corrections />
+        {!acting && <DependantsCard />}
+        {!acting && (
+          <QueryView query={summary}>
+            {({ patient: p }) => <MyGuardiansCard patientId={id} dateOfBirth={p.dateOfBirth} />}
+          </QueryView>
+        )}
 
-        <Card title="Download my record">
-          <p className="muted">
-            You have the right to a copy of your health record. The download is a machine-readable
-            JSON file containing your released information. Store it securely.
-          </p>
-          <ErrorAlert error={exportError} />
-          <Button
-            variant="secondary"
-            loading={exporting}
-            onClick={async () => {
-              setExporting(true);
-              setExportError(null);
-              try {
-                await downloadJson(`/patients/${id}/export`, 'my-medical-record.json');
-              } catch (err) {
-                setExportError(err);
-              } finally {
-                setExporting(false);
-              }
-            }}
-          >
-            Download (JSON)
-          </Button>{' '}
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              setExportError(null);
-              try {
-                await downloadFile(`/fhir/Patient/${id}/$everything`, 'my-record.fhir.json');
-              } catch (err) {
-                setExportError(err);
-              }
-            }}
-          >
-            Download for another provider (HL7 FHIR)
-          </Button>
-          <p className="muted" style={{ marginTop: '0.5rem' }}>
-            FHIR is the international standard format other hospitals and health apps can import.
-          </p>
-        </Card>
+        {acting?.scope !== 'APPOINTMENTS' && <Corrections />}
 
-        <TwoStepCard />
-        <ChangePasswordCard />
+        {acting?.scope !== 'APPOINTMENTS' && (
+          <Card title={acting ? 'Download the record' : 'Download my record'}>
+            <p className="muted">
+              You have the right to a copy of your health record. The download is a machine-readable
+              JSON file containing your released information. Store it securely.
+            </p>
+            <ErrorAlert error={exportError} />
+            <Button
+              variant="secondary"
+              loading={exporting}
+              onClick={async () => {
+                setExporting(true);
+                setExportError(null);
+                try {
+                  await downloadJson(`/patients/${id}/export`, 'my-medical-record.json');
+                } catch (err) {
+                  setExportError(err);
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              Download (JSON)
+            </Button>{' '}
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                setExportError(null);
+                try {
+                  await downloadFile(`/fhir/Patient/${id}/$everything`, 'my-record.fhir.json');
+                } catch (err) {
+                  setExportError(err);
+                }
+              }}
+            >
+              Download for another provider (HL7 FHIR)
+            </Button>
+            <p className="muted" style={{ marginTop: '0.5rem' }}>
+              FHIR is the international standard format other hospitals and health apps can import.
+            </p>
+          </Card>
+        )}
+
+        {acting ? (
+          <Alert tone="info">
+            Your own sign-in, two-step and email settings are under <strong>My details</strong> when
+            you switch back to your own record.
+          </Alert>
+        ) : (
+          <>
+            <TwoStepCard />
+            <EmailPreferencesCard />
+            <ChangePasswordCard />
+          </>
+        )}
         <Alert tone="neutral">
           Signing in on a shared computer? Always sign out when you finish.
         </Alert>

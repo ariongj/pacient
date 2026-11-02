@@ -26,7 +26,12 @@ services:
       npm_config_cache: /tmp/npm-cache
       VITE_API_BASE_URL: https://pacienti-api.itdks.tech/api/v1
       WEB_BASE_PATH: /
-    command: ['sh', '-c', 'npm ci && npm run typecheck && npm run build && node deploy/verify-bootstrap.mjs && npm test && node deploy/prepare-pages.mjs']
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci && npm run typecheck && npm run build && node deploy/verify-bootstrap.mjs && npm test && node deploy/prepare-pages.mjs',
+      ]
     mem_limit: 3g
     cpus: 2
     depends_on:

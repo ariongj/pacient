@@ -13,6 +13,7 @@ export interface Profile {
   facility: { id: string; name: string; code: string; region: string } | null;
   patientId: string | null;
   mfaEnabled: boolean;
+  emailNotifications: EmailPreference;
   /** Staff must enrol in two-step sign-in before using their workspace. */
   mfaRequired: boolean;
 }
@@ -158,6 +159,7 @@ export interface Encounter {
   reason: string;
   notes: string | null;
   noteStatus: 'DRAFT' | 'SIGNED';
+  confidentialFromGuardians: boolean;
   signedAt: string | null;
   version: number;
   startedAt: string;
@@ -171,7 +173,7 @@ export interface Encounter {
   addenda: Addendum[];
 }
 
-export type AccessBasis = 'SELF' | 'CARE_TEAM' | 'EMERGENCY';
+export type AccessBasis = 'SELF' | 'GUARDIAN' | 'CARE_TEAM' | 'EMERGENCY';
 
 export interface ClinicalSummary {
   patient: Demographics;
@@ -685,3 +687,43 @@ export interface GenericReport {
   columns: string[];
   rows: (Record<string, string | number | boolean | null> & { suppressed?: boolean })[];
 }
+
+export type EmailPreference = 'ALL' | 'IMPORTANT' | 'OFF';
+export type GuardianRelationship =
+  'PARENT' | 'LEGAL_GUARDIAN' | 'FOSTER_CARER' | 'OTHER_AUTHORISED';
+export type ProxyScope = 'FULL' | 'APPOINTMENTS';
+
+/** A record this account may open on someone else's behalf. */
+export interface Dependant {
+  guardianshipId: string;
+  patientId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  relationship: GuardianRelationship;
+  scope: ProxyScope;
+  validUntil: string;
+}
+
+export interface Guardianship {
+  id: string;
+  guardianUserId: string;
+  guardianName: string;
+  /** Only returned to staff. */
+  guardianEmail?: string;
+  guardianActivated: boolean;
+  relationship: GuardianRelationship;
+  scope: ProxyScope;
+  evidence: string;
+  validFrom: string;
+  validUntil: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+  verifiedBy: string;
+  createdAt: string;
+  active: boolean;
+}
+
+export type EmailHealth = Partial<
+  Record<'PENDING' | 'SENDING' | 'SENT' | 'FAILED', { count: number; oldest: string | null }>
+>;

@@ -20,6 +20,12 @@ export class ApiError extends Error {
 }
 
 let accessToken: string | null = null;
+/** When a guardian acts for a child, every request carries the child's patient id. */
+let actingFor: string | null = null;
+
+export function setActingFor(patientId: string | null) {
+  actingFor = patientId;
+}
 let refreshInFlight: Promise<boolean> | null = null;
 let onSessionExpired: (() => void) | null = null;
 
@@ -68,6 +74,7 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (actingFor) headers['X-Acting-For'] = actingFor;
   return fetch(buildUrl(path, opts.query), {
     method: opts.method ?? 'GET',
     headers,

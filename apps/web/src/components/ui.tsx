@@ -161,6 +161,13 @@ const STATUS_TONES: Record<string, Tone> = {
   APPROPRIATE: 'success',
   INAPPROPRIATE: 'danger',
   NEEDS_FOLLOW_UP: 'warning',
+  ORDERED: 'info',
+  RECEIVED: 'info',
+  IN_PROGRESS: 'info',
+  RESULTED: 'success',
+  STAT: 'danger',
+  NEEDS_REVIEW: 'warning',
+  IGNORED: 'neutral',
 };
 
 export function StatusBadge({ value }: { value: string }) {

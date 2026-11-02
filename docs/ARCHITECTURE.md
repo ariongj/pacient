@@ -91,18 +91,20 @@ entered-in-error) or are amended by addenda.
 
 ## API overview (`/api/v1`)
 
-| Area         | Endpoints                                                                                                                                                                                                                                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Auth         | `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/activate`, `/auth/change-password`, `GET /auth/me`                                                                                                                                                                                                                                                     |
-| Facilities   | `GET /facilities`, `GET /facilities/:id`, `POST` / `PATCH` (Ministry)                                                                                                                                                                                                                                                                                              |
-| Staff        | `GET /staff`, `POST /staff/invitations`, `PATCH /staff/:id/status`                                                                                                                                                                                                                                                                                                 |
-| Patients     | `GET/POST /patients`, `GET/PATCH /patients/:id`, `POST /patients/:id/portal-invitation`, care team `GET/POST/DELETE /patients/:id/care-team[/:doctorId]`, `POST /patients/:id/emergency-access`                                                                                                                                                                    |
-| Clinical     | `GET /patients/:id/{summary,encounters,diagnoses,prescriptions,allergies,vitals,lab-results,export}`; `POST` to the same collections; `PATCH /encounters/:eid` (draft, versioned), `POST /encounters/:eid/sign`, `POST /encounters/:eid/addenda`, `POST /lab-results/:rid/{acknowledge,release}`, `PUT /allergy-assessment`, `GET/POST/PATCH /correction-requests` |
-| Appointments | `GET/POST /appointments`, `PATCH /appointments/:id/status`                                                                                                                                                                                                                                                                                                         |
-| Portal       | `GET /portal/access-log`, `PATCH /portal/contact`                                                                                                                                                                                                                                                                                                                  |
-| Worklist     | `GET /worklist` (doctor)                                                                                                                                                                                                                                                                                                                                           |
-| Reporting    | `GET /stats/facility`, `GET /stats/national`, `GET /audit-logs`                                                                                                                                                                                                                                                                                                    |
-| Health       | `GET /health/live`, `GET /health/ready`                                                                                                                                                                                                                                                                                                                            |
+| Area         | Endpoints                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth         | `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/activate`, `/auth/change-password`, `GET /auth/me`                                                                                                                                                                                                                                                                                                   |
+| Facilities   | `GET /facilities`, `GET /facilities/:id`, `POST` / `PATCH` (Ministry)                                                                                                                                                                                                                                                                                                                                            |
+| Staff        | `GET /staff`, `POST /staff/invitations`, `PATCH /staff/:id/status`                                                                                                                                                                                                                                                                                                                                               |
+| Patients     | `GET/POST /patients`, `GET/PATCH /patients/:id`, `POST /patients/:id/portal-invitation`, care team `GET/POST/DELETE /patients/:id/care-team[/:doctorId]`, `POST /patients/:id/emergency-access`                                                                                                                                                                                                                  |
+| Clinical     | `GET /patients/:id/{summary,encounters,diagnoses,prescriptions,allergies,vitals,lab-results,export}`; `POST` to the same collections; `PATCH /encounters/:eid` (draft, versioned), `POST /encounters/:eid/sign`, `POST /encounters/:eid/addenda`, `POST /lab-results/:rid/{acknowledge,release}`, `PUT /allergy-assessment`, `GET/POST/PATCH /correction-requests`                                               |
+| Appointments | `GET/POST /appointments`, `PATCH /appointments/:id/status`                                                                                                                                                                                                                                                                                                                                                       |
+| Portal       | `GET /portal/access-log`, `PATCH /portal/contact`                                                                                                                                                                                                                                                                                                                                                                |
+| Laboratory   | `GET /lab-catalog`, `GET/POST /patients/:id/lab-orders`, `POST /patients/:id/lab-orders/:oid/cancel`; LIS (API key): `GET /integrations/lab/{orders,ping}`, `POST /integrations/lab/orders/:placer/receive`, `POST /integrations/lab/results`; director: `GET/POST /integrations/clients`, `POST /integrations/clients/:id/revoke`, `GET /integrations/messages[/:id]`, `POST /integrations/messages/:id/review` |
+| SMS          | `POST /auth/me/phone`, `POST /auth/me/phone/verify`, `DELETE /auth/me/phone`, `PATCH /auth/me/preferences`, `GET /stats/sms` (Ministry)                                                                                                                                                                                                                                                                          |
+| Worklist     | `GET /worklist` (doctor)                                                                                                                                                                                                                                                                                                                                                                                         |
+| Reporting    | `GET /stats/facility`, `GET /stats/national`, `GET /audit-logs`                                                                                                                                                                                                                                                                                                                                                  |
+| Health       | `GET /health/live`, `GET /health/ready`                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Testing
 
@@ -142,3 +144,45 @@ mid-send) is re-claimed after a 5-minute lease. Failures back off exponentially 
 minutes) and are marked `FAILED` after six attempts. Subject and bodies are sealed with AES-256-GCM
 and erased once a message is delivered or abandoned. Transports: `smtp` (nodemailer), `log`
 (development) and `memory` (tests).
+
+## SMS delivery
+
+`sms_outbox` works like the email outbox (same claiming, lease, backoff, sealed bodies). Texts are
+only queued for important notifications to users with a verified number who opted in. Non-urgent
+texts scheduled inside quiet hours (`SMS_QUIET_HOURS`, default 22–07 in `SMS_TIMEZONE`) are
+deferred to the end of the window; verification codes are always sent immediately. Providers:
+`twilio` (REST API), `log`, `memory`, and `held` (production without credentials: queue only).
+
+## Laboratory integration (HL7 v2)
+
+```
+Doctor ──POST /patients/:id/lab-orders──▶ lab_orders (ORDERED, placer number PAC…)
+LIS ──GET  /integrations/lab/orders (JSON | ?format=hl7 → ORM^O01)──▶ new orders for its facility
+LIS ──POST /integrations/lab/orders/:placer/receive──▶ RECEIVED (+ filler number)
+LIS ──POST /integrations/lab/results (ORU^R01)──▶ ingest ──▶ ACK (AA / AE / AR)
+```
+
+The laboratory pulls work over HTTPS with its API key, so no inbound connection into the laboratory
+network is required (an MLLP bridge can sit in front for analysers that only speak MLLP). Ingestion
+(`modules/lab/ingest.ts`) runs in one transaction:
+
+1. Idempotency: `(client, direction, MSH-10)` is unique; a retransmission is answered `AA` without
+   filing again.
+2. Matching: the OBR-2 placer order must exist at the laboratory's facility, and PID-3 (national ID)
+   and PID-7 (date of birth) must match that order's patient. Any mismatch stores the message as
+   `NEEDS_REVIEW` (still `AA`, so the lab does not resend) for the director's review queue.
+3. Filing: each OBX becomes a `lab_results` row with `source = LIS`; flags map N/L/H/LL/HH/A/AA,
+   OBX-11 P/F/C map to preliminary/final/corrected. A corrected result supersedes the current row
+   for the same order and test (`superseded_by_id`), so lists and the worklist show only the
+   current version together with the previous value, and acknowledgement starts again.
+4. Alerts: the ordering doctor is notified; critical or corrected results are marked important
+   (email/SMS per preference).
+
+Every inbound message is logged in `integration_messages` (status, error, counts, sealed raw
+message). `npm run lab:simulate` plays the laboratory in development.
+
+## Backups
+
+`deploy/backup.sh` (encrypted custom-format `pg_dump`, checksum, retention) and
+`deploy/restore-verify.sh` (restore into a scratch database, check migrations, key tables and the
+audit log triggers, report the recovery point). See [deploy/README.md](../deploy/README.md).

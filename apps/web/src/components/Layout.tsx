@@ -105,6 +105,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/staff', label: 'Staff', icon: 'users' },
         { to: '/director/patients', label: 'Registered patients', icon: 'user' },
         { to: '/director/referrals', label: 'Referrals', icon: 'share' },
+        { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
       ],
     },
     {

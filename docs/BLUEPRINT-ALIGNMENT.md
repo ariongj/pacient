@@ -62,15 +62,19 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Orders and results (§4)
 
-| Requirement                                                              |        Status         |
-| ------------------------------------------------------------------------ | :-------------------: |
-| Result owner (ordering clinician), acknowledgement, release to patient   |          ✅           |
-| Viewing ≠ acknowledgement; unacknowledged results stay on the worklist   |          ✅           |
-| Preliminary / final / corrected states; preliminary cannot be released   |          ✅           |
-| Director visibility of overdue follow-up                                 | ✅ (exceptions panel) |
-| Structured orders, specimens, critical-result escalation & backup owners |          ⏳           |
-| Amended results reopening review                                         |          ⏳           |
-| LIS/RIS/PACS integration (HL7 v2, DICOMweb)                              |          ⏳           |
+| Requirement                                                             |        Status         |
+| ----------------------------------------------------------------------- | :-------------------: |
+| Result owner (ordering clinician), acknowledgement, release to patient  |          ✅           |
+| Viewing ≠ acknowledgement; unacknowledged results stay on the worklist  |          ✅           |
+| Preliminary / final / corrected states; preliminary cannot be released  |          ✅           |
+| Director visibility of overdue follow-up                                | ✅ (exceptions panel) |
+| Structured orders (LOINC catalogue, specimen, priority), order tracking |          ✅           |
+| Critical results alert the ordering clinician (in-app, email, SMS)      |          ✅           |
+| Backup result owners / escalation when the owner is unavailable         |          ⏳           |
+| Amended results reopening review (superseded value kept and shown)      |          ✅           |
+| LIS integration (HL7 v2 ORM/ORU, ACKs, idempotent, identity-matched)    |          ✅           |
+| Mismatched results held for human review, never auto-filed              |          ✅           |
+| RIS/PACS integration (DICOMweb)                                         |          ⏳           |
 
 ## Architecture & interoperability (§6)
 
@@ -81,7 +85,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | MFA (TOTP + recovery codes), mandatory for staff                              |               ✅               |
 | Managed identity provider / OIDC, passkeys                                    |               ⏳               |
 | Transactional event delivery (NOTIFY inside the transaction) for live updates |               ✅               |
-| Durable outbox + queue for external integrations                              |               ⏳               |
+| Durable outbox for email and SMS; integration message log                     |               ✅               |
 | FHIR R4 export (Patient/$everything, ICD-10, LOINC/UCUM)                      | ✅ (validate partner profiles) |
 | Private object store for documents, upload scanning                           |               ⏳               |
 
@@ -100,24 +104,26 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Reliability and governance (§8)
 
-| Requirement                                           |                                         Status                                          |
-| ----------------------------------------------------- | :-------------------------------------------------------------------------------------: |
-| Health/readiness probes, graceful shutdown            |                                           ✅                                            |
-| Migrations tested against a fresh database in CI      |                                           ✅                                            |
-| Backups, PITR, restore rehearsal, downtime procedures |                                     ⏳ (operations)                                     |
-| Hazard log, clinical safety case, release sign-off    |                                     ⏳ (governance)                                     |
-| WCAG 2.2 AA                                           | 🟡 designed for (labels, focus, non-colour status, keyboard tabs); formal evaluation ⏳ |
+| Requirement                                          |                                         Status                                          |
+| ---------------------------------------------------- | :-------------------------------------------------------------------------------------: |
+| Health/readiness probes, graceful shutdown           |                                           ✅                                            |
+| Migrations tested against a fresh database in CI     |                                           ✅                                            |
+| Encrypted backups with scripted restore verification |                                           ✅                                            |
+| PITR (WAL archiving), downtime procedures            |                                     ⏳ (operations)                                     |
+| Hazard log, clinical safety case, release sign-off   |                                     ⏳ (governance)                                     |
+| WCAG 2.2 AA                                          | 🟡 designed for (labels, focus, non-colour status, keyboard tabs); formal evaluation ⏳ |
 
 ## Suggested next backlog (in order)
 
 1. **Validated drug-interaction database** for pharmacy decision support; barcode administration.
-2. **SMS channel** and an SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
-3. **Structured orders and critical-result escalation** with backup owners (B05).
+2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
+3. **Backup result owners** and timed escalation of unacknowledged critical results (B05).
 4. **Consent records** and jurisdiction-specific rules for adolescent confidentiality (B06).
 5. **Identity merge/unmerge** with lineage (B02).
-6. **Transactional outbox** and one validated integration (e.g. LIS results via HL7 v2) (B07).
-7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR/HL7 v2 interfaces.
-8. Backup/restore and downtime rehearsal; accessibility evaluation; independent security review (B09–B10).
+6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
+   needed) and add RIS/PACS (B07).
+7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
+8. PITR and downtime rehearsal; accessibility evaluation; independent security review (B09–B10).
 
 ## Open decisions (§10) — needed from the project sponsor
 

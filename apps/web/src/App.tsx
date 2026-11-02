@@ -26,6 +26,7 @@ import { AuditLogPage } from './pages/shared/AuditLogPage';
 import { LoginPage } from './pages/shared/LoginPage';
 import { NotificationsPage } from './components/Notifications';
 import { EmergencyReviewPage } from './pages/director/EmergencyReviewPage';
+import { IntegrationsPage } from './pages/director/IntegrationsPage';
 import { EmergencyOversightPage } from './pages/ministry/EmergencyOversightPage';
 import { PortalReferrals } from './pages/patient/PortalReferrals';
 import { AnnouncementsManagePage } from './pages/shared/AnnouncementsManagePage';
@@ -249,6 +250,14 @@ export function App() {
           element={
             <RequireRole roles={['DIRECTOR']}>
               <AnnouncementsManagePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/director/integrations"
+          element={
+            <RequireRole roles={['DIRECTOR']}>
+              <IntegrationsPage />
             </RequireRole>
           }
         />

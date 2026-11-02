@@ -32,6 +32,14 @@ interface PulledOrder {
   };
 }
 
+/** Clinically plausible critical values for the tests where a critical call is meaningful. */
+const CRITICAL: Record<string, { value: number; flag: 'HH' | 'LL' }> = {
+  '2823-3': { value: 6.6, flag: 'HH' }, // potassium
+  '2345-7': { value: 2.4, flag: 'LL' }, // glucose
+  '718-7': { value: 62, flag: 'LL' }, // haemoglobin
+  '2951-2': { value: 118, flag: 'LL' }, // sodium
+};
+
 function simulatedValue(code: string): {
   value: string;
   flag: string;
@@ -44,9 +52,10 @@ function simulatedValue(code: string): {
   const r = Math.random();
   let v: number;
   let flag = 'N';
-  if (r < 0.06) {
-    v = code === '2823-3' ? 6.6 : hi * 1.8; // critical
-    flag = 'HH';
+  const critical = CRITICAL[code];
+  if (critical && r < 0.06) {
+    v = critical.value;
+    flag = critical.flag;
   } else if (r < 0.25) {
     v = hi + (hi - lo) * (0.1 + Math.random() * 0.3);
     flag = 'H';

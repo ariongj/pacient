@@ -14,6 +14,9 @@ export interface Profile {
   patientId: string | null;
   mfaEnabled: boolean;
   emailNotifications: EmailPreference;
+  smsNotifications: SmsPreference;
+  /** Masked mobile number (e.g. "+383 •••• 801"), or null. */
+  phone: string | null;
   /** Staff must enrol in two-step sign-in before using their workspace. */
   mfaRequired: boolean;
 }
@@ -143,6 +146,12 @@ export interface LabResult {
   acknowledgedAt: string | null;
   releasedAt: string | null;
   orderedBy: string;
+  orderId?: string | null;
+  testCode?: string | null;
+  /** MANUAL (entered by a clinician) or LIS (received from a connected laboratory). */
+  source?: 'MANUAL' | 'LIS';
+  /** For a corrected result: the value it replaced. */
+  previousValue?: string | null;
 }
 
 export interface Addendum {
@@ -727,3 +736,75 @@ export interface Guardianship {
 export type EmailHealth = Partial<
   Record<'PENDING' | 'SENDING' | 'SENT' | 'FAILED', { count: number; oldest: string | null }>
 >;
+
+export type SmsPreference = 'IMPORTANT' | 'OFF';
+export type SmsHealth = EmailHealth;
+
+/* ------------------------------------------------------------------ laboratory */
+export interface LabTest {
+  code: string;
+  name: string;
+  specimen: string;
+  unit: string;
+  referenceRange: string;
+}
+
+export type LabOrderStatus = 'ORDERED' | 'RECEIVED' | 'IN_PROGRESS' | 'RESULTED' | 'CANCELLED';
+export type LabPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+
+export interface LabOrder {
+  id: string;
+  placerOrderNumber: string;
+  testCode: string;
+  testName: string;
+  specimen: string | null;
+  priority: LabPriority;
+  clinicalNotes: string | null;
+  status: LabOrderStatus;
+  fillerOrderNumber: string | null;
+  createdAt: string;
+  receivedAt: string | null;
+  resultedAt: string | null;
+  cancelledAt: string | null;
+  orderedBy: string;
+}
+
+export interface IntegrationClient {
+  id: string;
+  name: string;
+  kind: 'LAB';
+  apiKeyPrefix: string;
+  isActive: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+}
+
+export type IntegrationMessageStatus =
+  'ACCEPTED' | 'REJECTED' | 'NEEDS_REVIEW' | 'RESOLVED' | 'IGNORED';
+
+export interface IntegrationMessage {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  messageType: string;
+  controlId: string;
+  status: IntegrationMessageStatus;
+  error: string | null;
+  resultCount: number;
+  patientId: string | null;
+  orderId: string | null;
+  receivedAt: string;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  clientName: string;
+}
+
+export interface IntegrationMessageDetail extends Omit<IntegrationMessage, 'clientName'> {
+  identifiers: { nationalId: string; name: string; dateOfBirth: string; placerOrderNumber: string };
+  candidates: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    nationalId: string;
+  }[];
+}

@@ -115,6 +115,16 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - Notifications are deliberately generic ("A new test result is available") so they reveal no
   clinical detail on lock screens or if later forwarded by email/SMS.
 - Input validation on every endpoint (Zod), size limits on bodies and fields, parameterised SQL only.
+- SMS texts contain no health information, only that something needs attention. Numbers are used
+  only after the owner enters a code sent to them (10-minute expiry, 5 attempts, 3 codes per hour)
+  and are shown masked. Non-urgent texts wait for the end of quiet hours.
+- Laboratory systems authenticate with per-system API keys (shown once, stored as SHA-256 hashes,
+  revocable, scoped to one facility; staff tokens are not accepted and vice versa). Results are
+  filed only when the order number, national ID and date of birth match; otherwise the message is
+  held for a director, who sees only the identifiers needed to decide. Raw messages are stored
+  sealed (AES-256-GCM) for audit and are never returned by the API.
+- Backups are encrypted to an offline age key before they leave `pg_dump`; the backup script refuses
+  to write unencrypted dumps, and restores are verified in a throw-away database.
 - Dependencies are audited in CI (`npm audit --omit=dev --audit-level=high`).
 
 ## Required before production (not yet implemented)
@@ -123,8 +133,8 @@ These are tracked in [BLUEPRINT-ALIGNMENT.md](BLUEPRINT-ALIGNMENT.md):
 
 1. **Phishing-resistant MFA** (WebAuthn/passkeys) or a managed identity provider (OIDC); step-up
    authentication for emergency access and exports. (TOTP two-step sign-in is implemented.)
-2. A real email/SMS provider for activation and reset links (`modules/notifications/notifier.ts`);
-   patient identity proofing.
+2. Production email (SMTP relay with SPF/DKIM/DMARC) and SMS provider accounts; patient identity
+   proofing.
 3. Encryption at rest (managed PostgreSQL with KMS), secrets from a secrets manager, key rotation.
 4. Separate database roles (migrations vs. runtime; runtime without UPDATE/DELETE on audit tables).
 5. Distributed rate limiting (Redis) when running more than one API instance.

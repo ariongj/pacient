@@ -21,6 +21,7 @@ import { formatDate, humanize } from '../../format';
 import {
   DependantsCard,
   EmailPreferencesCard,
+  SmsCard,
   MyGuardiansCard,
 } from '../../components/AccountCards';
 import { TwoStepCard } from '../../components/TwoStep';
@@ -337,6 +338,7 @@ export function PortalAccount() {
           <>
             <TwoStepCard />
             <EmailPreferencesCard />
+            <SmsCard />
             <ChangePasswordCard />
           </>
         )}

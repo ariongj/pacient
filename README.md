@@ -27,7 +27,14 @@ checking evidence; they switch between their own record and their children's in 
 ends automatically at the child's 18th birthday, can be limited to appointments, and doctors can mark
 visits as confidential from guardians. **Email notifications** are delivered through a transactional
 outbox (SMTP, retries, encrypted at rest) and never contain health information; each user chooses
-all, important only, or none.
+all, important only, or none. **SMS alerts** (Twilio) go to a verified mobile number for important
+events only, respect quiet hours and never contain health information.
+
+**Laboratory connections:** doctors order LOINC-coded tests; the facility's laboratory system
+connects with an API key, pulls orders (JSON or HL7 v2 ORM^O01) and returns results as HL7 v2
+ORU^R01. Results are filed automatically only when order number, national ID and date of birth all
+match; anything else waits in the director's review queue. Corrected results supersede the old
+value and reopen review; critical results alert the ordering doctor immediately.
 
 All staff accounts use **two-step sign-in** (authenticator app with recovery codes) — mandatory in
 production. Every account can reset a forgotten password through a single-use emailed link.
@@ -95,6 +102,19 @@ docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
 
 Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://localhost:8025.
 
+### Laboratory simulator
+
+The seed creates a laboratory connection with a development key. With the API running, act as the
+laboratory: pull the open orders and send back results (occasionally abnormal or critical):
+
+```bash
+cd apps/api
+LAB_API_KEY=pk_dev_ucc_laboratory_demo_key_not_for_production npm run lab:simulate             # once
+LAB_API_KEY=pk_dev_ucc_laboratory_demo_key_not_for_production npm run lab:simulate -- --watch  # every 15 s
+```
+
+SMS uses the `log` provider in development: verification codes appear in the API log.
+
 ### With Docker
 
 ```bash
@@ -106,16 +126,19 @@ account with a one-off script or seed in a non-production environment).
 
 ## Scripts
 
-| Command                           | Purpose                                             |
-| --------------------------------- | --------------------------------------------------- |
-| `npm run dev`                     | API (port 4000) and web (port 5173) with hot reload |
-| `npm test`                        | Integration test suite (uses `pacient_test`)        |
-| `npm run lint`                    | ESLint                                              |
-| `npm run typecheck`               | TypeScript, all workspaces                          |
-| `npm run build`                   | Production builds                                   |
-| `npm run db:migrate`              | Apply migrations                                    |
-| `npm run db:seed`                 | Load synthetic demo data (refuses in production)    |
-| `npm run db:generate -w apps/api` | Generate a migration after editing `schema.ts`      |
+| Command                            | Purpose                                             |
+| ---------------------------------- | --------------------------------------------------- |
+| `npm run dev`                      | API (port 4000) and web (port 5173) with hot reload |
+| `npm test`                         | Integration test suite (uses `pacient_test`)        |
+| `npm run lint`                     | ESLint                                              |
+| `npm run typecheck`                | TypeScript, all workspaces                          |
+| `npm run build`                    | Production builds                                   |
+| `npm run db:migrate`               | Apply migrations                                    |
+| `npm run db:seed`                  | Load synthetic demo data (refuses in production)    |
+| `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`      |
+| `npm run lab:simulate -w apps/api` | Development laboratory system (see above)           |
+| `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                  |
+| `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it     |
 
 ## Documentation
 

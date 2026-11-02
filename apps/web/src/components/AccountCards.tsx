@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { EmailPreference, Guardianship } from '../api/types';
+import type { EmailPreference, Guardianship, SmsPreference } from '../api/types';
 import { useAuth, useUser } from '../auth/AuthContext';
 import { age, formatDate, humanize } from '../format';
 import {
@@ -15,6 +15,7 @@ import {
   ErrorAlert,
   QueryView,
   TextAreaField,
+  TextField,
 } from './ui';
 
 const EMAIL_OPTIONS: { value: EmailPreference; label: string; help: string }[] = [
@@ -198,6 +199,166 @@ export function MyGuardiansCard({
           </form>
         )}
       </Dialog>
+    </Card>
+  );
+}
+
+/**
+ * Mobile number and SMS alerts. A number is used only after the owner enters the code sent to it.
+ * Texts are reserved for important events and never contain health information.
+ */
+export function SmsCard() {
+  const user = useUser();
+  const { reloadProfile } = useAuth();
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const request = useMutation({
+    mutationFn: (phone: string) =>
+      api<{ phone: string; expiresInMinutes: number }>('/auth/me/phone', {
+        method: 'POST',
+        body: { phone },
+      }),
+    onSuccess: (r) => setSentTo(r.phone),
+  });
+  const verify = useMutation({
+    mutationFn: (code: string) => api('/auth/me/phone/verify', { method: 'POST', body: { code } }),
+    onSuccess: async () => {
+      setSentTo(null);
+      setEditing(false);
+      await reloadProfile();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => api('/auth/me/phone', { method: 'DELETE' }),
+    onSuccess: () => reloadProfile(),
+  });
+  const pref = useMutation({
+    mutationFn: (smsNotifications: SmsPreference) =>
+      api('/auth/me/preferences', { method: 'PATCH', body: { smsNotifications } }),
+    onSuccess: () => reloadProfile(),
+  });
+
+  const showNumberForm = !sentTo && (!user.phone || editing);
+
+  return (
+    <Card title="SMS alerts">
+      <p className="muted">
+        Text messages are sent only for important events – such as a critical result, an appointment
+        change or a medication ready to collect – and only say that something needs your attention.
+        No health information is ever sent by SMS. Non-urgent texts wait until morning.
+      </p>
+
+      {user.phone && !editing && !sentTo && (
+        <div className="stack" style={{ gap: '0.75rem' }}>
+          <div className="row-between">
+            <span>
+              Mobile number <strong>{user.phone}</strong> <Badge tone="success">Verified</Badge>
+            </span>
+            <span className="row" style={{ gap: '0.5rem' }}>
+              <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
+                Change
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={remove.isPending}
+                onClick={() => {
+                  if (window.confirm('Remove your mobile number and stop all SMS alerts?'))
+                    remove.mutate();
+                }}
+              >
+                Remove
+              </Button>
+            </span>
+          </div>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={user.smsNotifications === 'IMPORTANT'}
+              disabled={pref.isPending}
+              onChange={(e) => pref.mutate(e.currentTarget.checked ? 'IMPORTANT' : 'OFF')}
+            />
+            <span>Text me about important events</span>
+          </label>
+        </div>
+      )}
+
+      {showNumberForm && (
+        <form
+          className="stack"
+          style={{ gap: '0.75rem' }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const phone = new FormData(e.currentTarget).get('phone');
+            if (typeof phone === 'string') request.mutate(phone);
+          }}
+        >
+          <TextField
+            label="Mobile number"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
+            required
+            minLength={6}
+            maxLength={30}
+            placeholder="+383 44 123 456"
+            hint="Kosovo numbers can be entered without the country code, e.g. 044 123 456."
+          />
+          <div className="form-actions">
+            {editing && (
+              <Button variant="secondary" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" loading={request.isPending}>
+              Send verification code
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {sentTo && (
+        <form
+          className="stack"
+          style={{ gap: '0.75rem' }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const code = new FormData(e.currentTarget).get('code');
+            if (typeof code === 'string') verify.mutate(code.trim());
+          }}
+        >
+          <Alert tone="info" title={`We sent a 6-digit code to ${sentTo}`}>
+            It expires in 10 minutes. Never share it with anyone, including Pacient staff.
+          </Alert>
+          <TextField
+            label="Verification code"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="\d{6}"
+            required
+            maxLength={6}
+          />
+          <div className="form-actions">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSentTo(null);
+                verify.reset();
+              }}
+            >
+              Use another number
+            </Button>
+            <Button type="submit" loading={verify.isPending}>
+              Verify number
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <ErrorAlert error={request.error ?? verify.error ?? remove.error ?? pref.error} />
+      {(verify.isSuccess || pref.isSuccess) && !sentTo && <Alert tone="success" title="Saved" />}
     </Card>
   );
 }

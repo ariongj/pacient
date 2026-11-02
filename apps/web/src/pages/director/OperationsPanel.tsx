@@ -18,16 +18,16 @@ function since(iso: string | null | undefined): string {
   return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} days`;
 }
 
-/** Email outbox health (Ministry only): counts by status over the last 7 days, no content. */
-function EmailDelivery() {
+/** Outbox health (Ministry only): counts by status over the last 7 days, never content. */
+function Delivery({ channel }: { channel: 'email' | 'sms' }) {
   const q = useQuery({
-    queryKey: ['stats', 'email'],
-    queryFn: () => api<EmailHealth>('/stats/email'),
+    queryKey: ['stats', channel],
+    queryFn: () => api<EmailHealth>(`/stats/${channel}`),
     refetchInterval: 60_000,
   });
   return (
     <div className="stack" style={{ marginTop: '1rem' }}>
-      <h3>Email delivery (last 7 days)</h3>
+      <h3>{channel === 'email' ? 'Email' : 'SMS'} delivery (last 7 days)</h3>
       <QueryView query={q}>
         {(h) => {
           const pending = (h.PENDING?.count ?? 0) + (h.SENDING?.count ?? 0);
@@ -55,9 +55,9 @@ function EmailDelivery() {
                 />
               </Grid>
               <p className="muted" style={{ margin: 0 }}>
-                Activation, password-reset and notification emails are queued and retried
-                automatically. If SMTP is not configured on the server, emails stay waiting until it
-                is.
+                {channel === 'email'
+                  ? 'Activation, password-reset and notification emails are queued and retried automatically. If SMTP is not configured on the server, emails stay waiting until it is.'
+                  : 'Verification codes and important alerts are queued and retried automatically; non-urgent texts wait for the end of quiet hours. If no SMS provider is configured, texts stay waiting until one is.'}
               </p>
             </>
           );
@@ -135,7 +135,12 @@ export function OperationsPanel({ reportsPath }: { reportsPath: string }) {
           tone={overdueTasks > 0 ? 'danger' : undefined}
         />
       </Grid>
-      {isMinistry && <EmailDelivery />}
+      {isMinistry && (
+        <>
+          <Delivery channel="email" />
+          <Delivery channel="sms" />
+        </>
+      )}
     </Card>
   );
 }

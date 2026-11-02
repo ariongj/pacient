@@ -118,7 +118,27 @@ export const guardianRelationshipEnum = pgEnum('guardian_relationship', [
 /** FULL: the record, appointments and messages. APPOINTMENTS: scheduling and contact details only. */
 export const proxyScopeEnum = pgEnum('proxy_scope', ['FULL', 'APPOINTMENTS']);
 export const emailPreferenceEnum = pgEnum('email_preference', ['ALL', 'IMPORTANT', 'OFF']);
+/** Delivery state of queued email and SMS messages. */
 export const emailStatusEnum = pgEnum('email_status', ['PENDING', 'SENDING', 'SENT', 'FAILED']);
+/** SMS costs money and reaches lock screens: opt-in, important notifications only. */
+export const smsPreferenceEnum = pgEnum('sms_preference', ['IMPORTANT', 'OFF']);
+export const labOrderStatusEnum = pgEnum('lab_order_status', [
+  'ORDERED',
+  'RECEIVED',
+  'IN_PROGRESS',
+  'RESULTED',
+  'CANCELLED',
+]);
+export const labPriorityEnum = pgEnum('lab_priority', ['ROUTINE', 'URGENT', 'STAT']);
+export const integrationKindEnum = pgEnum('integration_kind', ['LAB']);
+export const messageDirectionEnum = pgEnum('message_direction', ['INBOUND', 'OUTBOUND']);
+export const integrationMessageStatusEnum = pgEnum('integration_message_status', [
+  'ACCEPTED',
+  'REJECTED',
+  'NEEDS_REVIEW',
+  'RESOLVED',
+  'IGNORED',
+]);
 export const tokenPurposeEnum = pgEnum('token_purpose', ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET']);
 /** Clinical notes are drafted, then signed; signed notes change only through addenda. */
 export const noteStatusEnum = pgEnum('note_status', ['DRAFT', 'SIGNED']);
@@ -225,6 +245,10 @@ export const users = pgTable(
     mfaLastUsedStep: integer('mfa_last_used_step'),
     /** Which in-app notifications are also sent by email (content is always generic). */
     emailNotifications: emailPreferenceEnum('email_notifications').notNull().default('IMPORTANT'),
+    /** Mobile number (E.164) for SMS notifications; used only once verified with a code. */
+    phone: varchar('phone', { length: 20 }),
+    phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
+    smsNotifications: smsPreferenceEnum('sms_notifications').notNull().default('OFF'),
     ...timestamps,
   },
   (t) => [
@@ -554,6 +578,15 @@ export const labResults = pgTable(
     flag: labFlagEnum('flag').notNull().default('NORMAL'),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
     status: resultStatusEnum('status').notNull().default('FINAL'),
+    /** The order this result answers (results from a laboratory system always have one). */
+    orderId: uuid('order_id').references(() => labOrders.id, { onDelete: 'set null' }),
+    /** LOINC or local test code as sent by the laboratory. */
+    testCode: varchar('test_code', { length: 40 }),
+    /** MANUAL (entered by a clinician) or LIS (received from a laboratory system). */
+    source: varchar('source', { length: 10 }).notNull().default('MANUAL'),
+    /** When a laboratory corrects a result, the original is kept and points to its replacement. */
+    supersededById: uuid('superseded_by_id'),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
     /** Closed-loop follow-up: the ordering clinician owns the result until acknowledged. */
     acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
     acknowledgedById: uuid('acknowledged_by_id').references(() => users.id, {
@@ -960,6 +993,136 @@ export const emailOutbox = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('email_outbox_due_idx').on(t.status, t.nextAttemptAt)],
+);
+
+/** Phone-number ownership check before any SMS is sent. Codes are hashed and attempt-limited. */
+export const phoneVerifications = pgTable(
+  'phone_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('phone_verifications_user_idx').on(t.userId, t.createdAt)],
+);
+
+/** SMS outbox – same guarantees as the email outbox (transactional, encrypted, retried). */
+export const smsOutbox = pgTable(
+  'sms_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    toPhone: varchar('to_phone', { length: 20 }).notNull(),
+    template: varchar('template', { length: 60 }).notNull(),
+    bodySealed: text('body_sealed'),
+    status: emailStatusEnum('status').notNull().default('PENDING'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: varchar('last_error', { length: 500 }),
+    providerMessageId: varchar('provider_message_id', { length: 100 }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sms_outbox_due_idx').on(t.status, t.nextAttemptAt)],
+);
+
+/** Laboratory orders. The placer order number is what the laboratory system echoes back. */
+export const labOrders = pgTable(
+  'lab_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    placerOrderNumber: varchar('placer_order_number', { length: 30 }).notNull(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    testCode: varchar('test_code', { length: 40 }).notNull(),
+    testName: varchar('test_name', { length: 200 }).notNull(),
+    specimen: varchar('specimen', { length: 60 }),
+    priority: labPriorityEnum('priority').notNull().default('ROUTINE'),
+    clinicalNotes: text('clinical_notes'),
+    status: labOrderStatusEnum('status').notNull().default('ORDERED'),
+    /** The laboratory system that took the order, and its own (filler) order number. */
+    labClientId: uuid('lab_client_id').references(() => integrationClients.id, {
+      onDelete: 'set null',
+    }),
+    fillerOrderNumber: varchar('filler_order_number', { length: 60 }),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    resultedAt: timestamp('resulted_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('lab_orders_placer_uq').on(t.placerOrderNumber),
+    index('lab_orders_facility_status_idx').on(t.facilityId, t.status),
+    index('lab_orders_patient_idx').on(t.patientId),
+  ],
+);
+
+/** External systems (e.g. a laboratory information system) authenticated by API key. */
+export const integrationClients = pgTable(
+  'integration_clients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 120 }).notNull(),
+    kind: integrationKindEnum('kind').notNull().default('LAB'),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    /** SHA-256 of the API key; the key itself is shown once at creation. */
+    apiKeyHash: varchar('api_key_hash', { length: 64 }).notNull(),
+    apiKeyPrefix: varchar('api_key_prefix', { length: 12 }).notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('integration_clients_key_uq').on(t.apiKeyHash)],
+);
+
+/**
+ * Every message exchanged with an integration client. Inbound messages are idempotent by control
+ * id; messages that cannot be matched safely wait in a review queue instead of being guessed.
+ */
+export const integrationMessages = pgTable(
+  'integration_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => integrationClients.id, { onDelete: 'cascade' }),
+    direction: messageDirectionEnum('direction').notNull(),
+    messageType: varchar('message_type', { length: 20 }).notNull(),
+    controlId: varchar('control_id', { length: 64 }).notNull(),
+    status: integrationMessageStatusEnum('status').notNull(),
+    error: varchar('error', { length: 1000 }),
+    patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'set null' }),
+    orderId: uuid('order_id').references(() => labOrders.id, { onDelete: 'set null' }),
+    resultCount: integer('result_count').notNull().default(0),
+    /** The raw message (contains health data) – encrypted at rest. */
+    rawSealed: text('raw_sealed'),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNote: varchar('review_note', { length: 500 }),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('integration_messages_control_uq').on(t.clientId, t.direction, t.controlId),
+    index('integration_messages_status_idx').on(t.status, t.receivedAt),
+  ],
 );
 
 /* ------------------------------------------------------------------------------------------------

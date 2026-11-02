@@ -75,6 +75,14 @@ export const AuditAction = {
   PROXY_ACCESS_DENIED: 'guardian.access_denied',
   ENCOUNTER_CONFIDENTIALITY_CHANGED: 'clinical.encounter.confidentiality_changed',
   EMAIL_PREFERENCE_CHANGED: 'user.email_preference.changed',
+  PHONE_VERIFIED: 'user.phone.verified',
+  PHONE_REMOVED: 'user.phone.removed',
+  LAB_ORDER_CREATED: 'lab.order.created',
+  LAB_ORDER_CANCELLED: 'lab.order.cancelled',
+  LAB_RESULTS_RECEIVED: 'lab.results.received',
+  LAB_MESSAGE_REVIEWED: 'lab.message.reviewed',
+  INTEGRATION_CLIENT_CREATED: 'integration.client.created',
+  INTEGRATION_CLIENT_REVOKED: 'integration.client.revoked',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

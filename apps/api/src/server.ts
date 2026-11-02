@@ -4,10 +4,12 @@ import { pool } from './db/client.js';
 import { stopListening } from './lib/events.js';
 import { closeAllStreams } from './modules/events/events.routes.js';
 import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
+import { startSmsWorker, stopSmsWorker } from './modules/sms/outbox.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
 startEmailWorker();
+startSmsWorker();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -18,6 +20,7 @@ function shutdown(signal: string) {
   // Long-lived event streams would otherwise keep the server open; clients reconnect elsewhere.
   closeAllStreams();
   stopEmailWorker();
+  stopSmsWorker();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

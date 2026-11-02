@@ -1,14 +1,14 @@
 import { Router, type CookieOptions, type Response } from 'express';
 import { z } from 'zod';
 import { isProd } from '../../config/env.js';
-import { unauthorized } from '../../lib/errors.js';
+import { badRequest, unauthorized } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { PasswordSchema } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authLimiter, refreshLimiter } from '../../middleware/rate-limit.js';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { emailPreferenceEnum, users } from '../../db/schema.js';
+import { emailPreferenceEnum, smsPreferenceEnum, users } from '../../db/schema.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import * as auth from './auth.service.js';
 import * as mfa from './mfa.service.js';
@@ -146,22 +146,38 @@ authRouter.get('/me', authenticate, async (req, res) => {
 });
 
 /** Email notification preference: ALL, IMPORTANT only, or OFF (security emails are always sent). */
+/**
+ * Notification preferences. Email: ALL / IMPORTANT / OFF. SMS: IMPORTANT / OFF, and only with a
+ * verified mobile number. Security emails (activation, password reset) are always sent.
+ */
 authRouter.patch('/me/preferences', authenticate, async (req, res) => {
   const ctx = requireAuth(req);
-  const { emailNotifications } = parse(
-    z.object({ emailNotifications: z.enum(emailPreferenceEnum.enumValues) }),
+  const input = parse(
+    z
+      .object({
+        emailNotifications: z.enum(emailPreferenceEnum.enumValues).optional(),
+        smsNotifications: z.enum(smsPreferenceEnum.enumValues).optional(),
+      })
+      .refine((v) => v.emailNotifications || v.smsNotifications, 'Nothing to change'),
     req.body,
   );
-  await db.update(users).set({ emailNotifications }).where(eq(users.id, ctx.userId));
+  if (input.smsNotifications === 'IMPORTANT') {
+    const [u] = await db
+      .select({ verified: users.phoneVerifiedAt })
+      .from(users)
+      .where(eq(users.id, ctx.userId));
+    if (!u?.verified) throw badRequest('Verify a mobile number before turning on SMS');
+  }
+  await db.update(users).set(input).where(eq(users.id, ctx.userId));
   await audit({
     action: AuditAction.EMAIL_PREFERENCE_CHANGED,
     actor: ctx,
     resourceType: 'user',
     resourceId: ctx.userId,
     meta: requestMeta(req),
-    metadata: { emailNotifications },
+    metadata: input,
   });
-  res.json({ emailNotifications });
+  res.json(input);
 });
 
 authRouter.post('/change-password', authenticate, authLimiter, async (req, res) => {

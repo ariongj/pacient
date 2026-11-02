@@ -33,6 +33,7 @@ import { eventsRouter } from './modules/events/events.routes.js';
 import { fhirRouter } from './modules/fhir/fhir.routes.js';
 import { directoryRouter } from './modules/directory/directory.routes.js';
 import { guardiansRouter } from './modules/guardians/guardians.routes.js';
+import { phoneRouter } from './modules/sms/phone.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -110,6 +111,7 @@ export function createApp(): Express {
 
   const api = express.Router();
   api.use(apiLimiter);
+  api.use('/auth/me/phone', phoneRouter);
   api.use('/auth', authRouter);
   api.use('/facilities', facilitiesRouter);
   api.use('/staff', staffRouter);

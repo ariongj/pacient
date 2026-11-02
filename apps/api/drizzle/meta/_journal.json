@@ -57,6 +57,13 @@
       "when": 1793585464246,
       "tag": "0007_thread_starter",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793630637800,
+      "tag": "0008_sms_and_lab_integration",
+      "breakpoints": true
     }
   ]
 }

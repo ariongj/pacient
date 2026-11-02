@@ -34,6 +34,27 @@ const EnvSchema = z.object({
   /** e.g. smtps://user:pass@smtp.example.org:465 or smtp://localhost:1025 (Mailpit). */
   SMTP_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   EMAIL_FROM: z.string().default('Pacient <no-reply@pacient.local>'),
+  /** twilio (real delivery), log (development), memory (tests). Defaults depend on NODE_ENV. */
+  SMS_PROVIDER: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['twilio', 'log', 'memory']).optional(),
+  ),
+  TWILIO_ACCOUNT_SID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  TWILIO_AUTH_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** Sender: an E.164 number or an approved alphanumeric sender id. */
+  SMS_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(20).optional()),
+  /** Country code used to normalise local numbers such as 044 123 456 (default Kosovo, +383). */
+  SMS_DEFAULT_COUNTRY_CODE: z
+    .string()
+    .regex(/^\+[1-9][0-9]{0,3}$/)
+    .default('+383'),
+  /** Non-urgent SMS are held during quiet hours (local time), e.g. "22-7". Empty disables. */
+  SMS_QUIET_HOURS: z
+    .string()
+    .regex(/^(\d{1,2}-\d{1,2})?$/)
+    .default('22-7'),
+  SMS_TIMEZONE: z.string().default('Europe/Belgrade'),
+  SMS_WORKER: z.enum(['true', 'false']).default('true'),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(
@@ -44,8 +65,10 @@ const EnvSchema = z.object({
 
 export type Env = Omit<
   z.infer<typeof EnvSchema>,
-  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT'
+  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT' | 'SMS_PROVIDER'
 > & {
+  /** 'held' = queue only, no delivery (production without SMS provider settings). */
+  SMS_PROVIDER: 'twilio' | 'log' | 'memory' | 'held';
   MFA_ENCRYPTION_KEY: string;
   REQUIRE_STAFF_MFA: boolean;
   /** 'held' = queue only, no delivery (production without SMTP settings). */
@@ -71,6 +94,21 @@ function loadEnv(): Env {
         : data.NODE_ENV === 'production'
           ? 'held'
           : 'log');
+  const twilioReady = Boolean(data.TWILIO_ACCOUNT_SID && data.TWILIO_AUTH_TOKEN && data.SMS_FROM);
+  const smsProvider: Env['SMS_PROVIDER'] =
+    data.SMS_PROVIDER ??
+    (data.NODE_ENV === 'test'
+      ? 'memory'
+      : twilioReady
+        ? 'twilio'
+        : data.NODE_ENV === 'production'
+          ? 'held'
+          : 'log');
+  if (smsProvider === 'twilio' && !twilioReady) {
+    throw new Error(
+      'Invalid environment configuration:\n  - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and SMS_FROM are required for SMS',
+    );
+  }
   if (emailTransport === 'smtp' && !data.SMTP_URL) {
     throw new Error(
       'Invalid environment configuration:\n  - SMTP_URL is required for email delivery',
@@ -89,6 +127,7 @@ function loadEnv(): Env {
       ? data.REQUIRE_STAFF_MFA === 'true'
       : data.NODE_ENV === 'production',
     EMAIL_TRANSPORT: emailTransport,
+    SMS_PROVIDER: smsProvider,
   };
 }
 

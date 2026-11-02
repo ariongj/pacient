@@ -4,6 +4,7 @@ import { badRequest } from '../../lib/errors.js';
 import { parse, requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { outboxHealth } from '../email/outbox.js';
+import { smsHealth } from '../sms/outbox.js';
 import { facilityStats, nationalStats } from './stats.service.js';
 
 const FacilityQuery = z.object({ facilityId: z.string().uuid().optional() });
@@ -23,6 +24,11 @@ statsRouter.get('/facility', requireRole('DIRECTOR', 'MINISTRY'), async (req, re
 /** Email delivery health (counts by status over 7 days; no message content). */
 statsRouter.get('/email', requireRole('MINISTRY'), async (_req, res) => {
   res.json(await outboxHealth());
+});
+
+/** SMS delivery health (counts by status over 7 days; no message content). */
+statsRouter.get('/sms', requireRole('MINISTRY'), async (_req, res) => {
+  res.json(await smsHealth());
 });
 
 statsRouter.get('/national', requireRole('MINISTRY'), async (_req, res) => {

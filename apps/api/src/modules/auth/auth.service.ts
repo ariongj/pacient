@@ -6,6 +6,7 @@ import { facilities, oneTimeTokens, patients, refreshTokens, users } from '../..
 import { badRequest, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { getDummyHash, hashPassword, verifyPassword } from '../../lib/password.js';
+import { maskPhone } from '../../lib/phone.js';
 import {
   generateOpaqueToken,
   hashToken,
@@ -318,6 +319,9 @@ export async function getProfile(ctx: AuthContext) {
       lastLoginAt: users.lastLoginAt,
       mfaEnabledAt: users.mfaEnabledAt,
       emailNotifications: users.emailNotifications,
+      smsNotifications: users.smsNotifications,
+      phone: users.phone,
+      phoneVerifiedAt: users.phoneVerifiedAt,
       facility: {
         id: facilities.id,
         name: facilities.name,
@@ -329,8 +333,10 @@ export async function getProfile(ctx: AuthContext) {
     .leftJoin(facilities, eq(facilities.id, users.facilityId))
     .where(eq(users.id, ctx.userId));
   if (!row) throw unauthorized();
+  const { phone, phoneVerifiedAt, ...rest } = row;
   return {
-    ...row,
+    ...rest,
+    phone: phone && phoneVerifiedAt ? maskPhone(phone) : null,
     facility: row.facility?.id ? row.facility : null,
     patientId: ctx.patientId,
     mfaEnabled: Boolean(row.mfaEnabledAt),

@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { publish } from '../../lib/events.js';
 import { enqueueEmail } from '../email/outbox.js';
+import { enqueueSms } from '../sms/outbox.js';
 import {
   careAssignments,
   guardianships,
@@ -47,10 +48,22 @@ export async function notifyUsers(
       email: users.email,
       fullName: users.fullName,
       pref: users.emailNotifications,
+      phone: users.phone,
+      phoneVerifiedAt: users.phoneVerifiedAt,
+      smsPref: users.smsNotifications,
     })
     .from(users)
     .where(and(inArray(users.id, ids), eq(users.isActive, true), isNotNull(users.passwordHash)));
   for (const r of recipients) {
+    // SMS: opt-in, verified numbers only, important notifications only, generic text.
+    if (n.important && r.smsPref === 'IMPORTANT' && r.phone && r.phoneVerifiedAt) {
+      await enqueueSms(executor, {
+        to: r.phone,
+        userId: r.id,
+        template: 'notification',
+        body: `Pacient: ${n.title}. Sign in to view.`,
+      });
+    }
     if (r.pref === 'ALL' || (r.pref === 'IMPORTANT' && n.important)) {
       await enqueueEmail(executor, {
         to: r.email,

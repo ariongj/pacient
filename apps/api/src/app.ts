@@ -25,6 +25,11 @@ import { messagingRouter } from './modules/messaging/messaging.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { referralsRouter } from './modules/referrals/referrals.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
+import { careTasksRouter } from './modules/care-tasks/care-tasks.routes.js';
+import { pharmacyRouter } from './modules/pharmacy/pharmacy.routes.js';
+import { channelsRouter } from './modules/channels/channels.routes.js';
+import { eventsRouter } from './modules/events/events.routes.js';
+import { fhirRouter } from './modules/fhir/fhir.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -102,6 +107,11 @@ export function createApp(): Express {
   api.use('/emergency-access', emergencyRouter);
   api.use('/announcements', announcementsRouter);
   api.use('/reports', reportsRouter);
+  api.use('/pharmacy', pharmacyRouter);
+  api.use('/care-tasks', careTasksRouter);
+  api.use('/channels', channelsRouter);
+  api.use('/events', eventsRouter);
+  api.use('/fhir', fhirRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler);

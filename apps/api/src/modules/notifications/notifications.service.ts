@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
+import { publish } from '../../lib/events.js';
 import { careAssignments, notifications, patients, users, type Role } from '../../db/schema.js';
 
 export interface NotificationInput {
@@ -26,6 +27,8 @@ export async function notifyUsers(
       link: n.link ?? null,
     })),
   );
+  // Delivered live (after commit when inside a transaction).
+  await publish(ids, { type: 'notification' }, executor);
 }
 
 /** Notifies the patient's portal account, if they have one. */
@@ -53,6 +56,33 @@ export async function notifyCareTeam(
     .where(and(eq(careAssignments.patientId, patientId), isNull(careAssignments.endedAt)));
   await notifyUsers(
     rows.map((r) => r.doctorId).filter((id) => id !== exceptUserId),
+    n,
+    executor,
+  );
+}
+
+/** Notifies care-team members of the patient who have the given role (e.g. all nurses). */
+export async function notifyCareTeamRole(
+  patientId: string,
+  role: Role,
+  n: NotificationInput,
+  executor: Executor = db,
+  exceptUserId?: string,
+) {
+  const rows = await executor
+    .select({ id: users.id })
+    .from(careAssignments)
+    .innerJoin(users, eq(users.id, careAssignments.doctorId))
+    .where(
+      and(
+        eq(careAssignments.patientId, patientId),
+        isNull(careAssignments.endedAt),
+        eq(users.role, role),
+        eq(users.isActive, true),
+      ),
+    );
+  await notifyUsers(
+    rows.map((r) => r.id).filter((id) => id !== exceptUserId),
     n,
     executor,
   );

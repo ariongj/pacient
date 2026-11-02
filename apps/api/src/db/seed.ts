@@ -26,7 +26,12 @@ import {
   referrals,
   users,
   vitalSigns,
+  careTasks,
+  channelMessages,
+  channels,
+  medicationAdministrations,
 } from './schema.js';
+import { ensureDefaultChannels } from '../modules/channels/channels.routes.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
 
@@ -699,12 +704,249 @@ async function main() {
     },
   ]);
 
+  /* ---------------------------------------------------------- nursing, pharmacy, front desk */
+  const NURSE_NAMES = [
+    'Mimoza Hoxha',
+    'Blerina Shala',
+    'Kaltrina Berisha',
+    'Drilon Krasniqi',
+    'Fitore Gashi',
+  ];
+  const staffByFacility = new Map<
+    string,
+    { nurse: string; pharmacist: string; reception: string }
+  >();
+  let staffSeq = 0;
+  for (const [i, f] of facilityRows.entries()) {
+    const slug = f.code.toLowerCase();
+    const uniq = (base: string) =>
+      i === 0 ? `${base}@pacient.local` : `${base}.${slug}@pacient.local`;
+    const [nurse, pharmacist, reception] = await db
+      .insert(users)
+      .values([
+        {
+          email: uniq('nurse'),
+          fullName: NURSE_NAMES[staffSeq++ % NURSE_NAMES.length]!,
+          role: 'NURSE' as const,
+          facilityId: f.id,
+          specialty: 'Registered Nurse',
+          licenseNumber: `KNC-${20000 + i}`,
+          ...activeAccount,
+        },
+        {
+          email: uniq('pharmacist'),
+          fullName: `Mr. ${pick(FIRST_M)} ${pick(LAST)}`,
+          role: 'PHARMACIST' as const,
+          facilityId: f.id,
+          specialty: 'Hospital Pharmacist',
+          licenseNumber: `KPC-${30000 + i}`,
+          ...activeAccount,
+        },
+        {
+          email: uniq('reception'),
+          fullName: `${pick(FIRST_F)} ${pick(LAST)}`,
+          role: 'RECEPTION' as const,
+          facilityId: f.id,
+          ...activeAccount,
+        },
+      ])
+      .returning({ id: users.id });
+    staffByFacility.set(f.id, {
+      nurse: nurse!.id,
+      pharmacist: pharmacist!.id,
+      reception: reception!.id,
+    });
+
+    // The nurse joins the care team of the first patients of the facility.
+    for (const pid of (patientsByFacility.get(f.id) ?? []).slice(0, 12)) {
+      await db
+        .insert(careAssignments)
+        .values({
+          patientId: pid,
+          doctorId: nurse!.id,
+          assignedById: directorsByFacility.get(f.id)!,
+          startedAt: daysAgo(60),
+        })
+        .onConflictDoNothing();
+    }
+    await ensureDefaultChannels(f.id);
+  }
+  await ensureDefaultChannels(null);
+
+  const uccStaff = staffByFacility.get(ucc!.id)!;
+
+  // Pharmacy queue at UCC: recent prescriptions awaiting verification, one with an allergy alert
+  // (the demo patient has a confirmed penicillin allergy).
+  await db.insert(prescriptions).values({
+    patientId: demoPatientId,
+    doctorId: demoDoctor.id,
+    medication: 'Amoxicillin 500 mg capsules',
+    dosage: '500 mg',
+    frequency: 'three times daily for 7 days',
+    route: 'oral',
+    startDate: isoDate(new Date()),
+    status: 'ACTIVE',
+    pharmacyStatus: 'PENDING',
+    createdAt: new Date(Date.now() - 40 * 60_000),
+  });
+  for (const pid of uccPatients.slice(1, 5)) {
+    const c = pick(CONDITIONS.filter((x) => x.rx));
+    await db.insert(prescriptions).values({
+      patientId: pid,
+      doctorId: pick(uccDocs).id,
+      ...c.rx!,
+      route: 'oral',
+      startDate: isoDate(new Date()),
+      status: 'ACTIVE',
+      pharmacyStatus: pick(['PENDING', 'PENDING', 'VERIFIED'] as const),
+      verifiedAt: null,
+      createdAt: new Date(Date.now() - int(10, 300) * 60_000),
+    });
+  }
+  // Mark everything older than today as already through the pharmacy.
+  await db.execute(sql`UPDATE prescriptions SET pharmacy_status = 'DISPENSED',
+      created_at = start_date::timestamptz + interval '9 hours',
+      verified_at = start_date::timestamptz + interval '11 hours',
+      dispensed_at = start_date::timestamptz + interval '14 hours',
+      dispensed_quantity = '30 tablets'
+    WHERE start_date < current_date AND pharmacy_status = 'PENDING'`);
+
+  // Medication administration and care tasks for the demo patient.
+  const [amlodipine] = (
+    await db.execute<{
+      id: string;
+    }>(sql`SELECT id FROM prescriptions WHERE patient_id = ${demoPatientId}
+      AND medication = 'Amlodipine' AND status = 'ACTIVE' LIMIT 1`)
+  ).rows;
+  if (amlodipine) {
+    await db.insert(medicationAdministrations).values([
+      {
+        prescriptionId: amlodipine.id,
+        patientId: demoPatientId,
+        administeredById: uccStaff.nurse,
+        status: 'GIVEN',
+        doseGiven: '5 mg',
+        administeredAt: daysAgo(1),
+      },
+      {
+        prescriptionId: amlodipine.id,
+        patientId: demoPatientId,
+        administeredById: uccStaff.nurse,
+        status: 'WITHHELD',
+        reason: 'Systolic BP 98 mmHg before dose; doctor informed',
+        administeredAt: daysAgo(2),
+      },
+    ]);
+  }
+  await db.insert(careTasks).values([
+    {
+      patientId: demoPatientId,
+      facilityId: ucc!.id,
+      createdById: demoDoctor.id,
+      assignedRole: 'NURSE',
+      title: 'Repeat blood pressure in both arms',
+      details: 'Record seated readings after 5 minutes rest.',
+      priority: 'URGENT',
+      dueAt: new Date(Date.now() + 2 * 3_600_000),
+    },
+    {
+      patientId: demoPatientId,
+      facilityId: ucc!.id,
+      createdById: demoDoctor.id,
+      assignedRole: 'NURSE',
+      title: 'Teach home BP monitoring technique',
+      priority: 'ROUTINE',
+      dueAt: new Date(Date.now() + 26 * 3_600_000),
+    },
+    {
+      patientId: uccPatients[2]!,
+      facilityId: ucc!.id,
+      createdById: uccDocs[1]!.id,
+      assignedRole: 'NURSE',
+      title: 'Wound dressing change',
+      priority: 'ROUTINE',
+      dueAt: new Date(Date.now() - 3 * 3_600_000),
+    },
+  ]);
+
+  // Today's front-desk schedule at UCC.
+  for (const [k, pid] of uccPatients.slice(6, 12).entries()) {
+    const at = new Date();
+    at.setHours(8 + k, k % 2 ? 30 : 0, 0, 0);
+    await db.insert(appointments).values({
+      patientId: pid,
+      doctorId: uccDocs[k % uccDocs.length]!.id,
+      facilityId: ucc!.id,
+      scheduledAt: at,
+      durationMinutes: 20,
+      reason: pick(['Follow-up', 'Prescription review', 'New symptoms', 'Lab results discussion']),
+      status: k < 2 ? 'CHECKED_IN' : 'CONFIRMED',
+      createdById: uccStaff.reception,
+    });
+  }
+
+  // Channel conversations.
+  const uccChannels = await db.select().from(channels).where(eq(channels.facilityId, ucc!.id));
+  const national = (await db.select().from(channels).where(eq(channels.scope, 'NATIONAL')))[0]!;
+  const byName = (n: string) => uccChannels.find((c) => c.name === n)!;
+  await db.insert(channelMessages).values([
+    {
+      channelId: byName('all-staff').id,
+      authorId: directorsByFacility.get(ucc!.id)!,
+      body: 'Good morning everyone. Fire drill this Thursday at 10:00 – please review the evacuation plan on your ward.',
+      createdAt: daysAgo(1),
+    },
+    {
+      channelId: byName('pharmacy').id,
+      authorId: uccStaff.pharmacist,
+      body: 'Heads-up: amoxicillin 500 mg capsules are low until Friday. Please consider alternatives where clinically appropriate.',
+      isUrgent: true,
+      createdAt: new Date(Date.now() - 3 * 3_600_000),
+    },
+    {
+      channelId: byName('pharmacy').id,
+      authorId: demoDoctor.id,
+      body: 'Thanks – noted. I will check the queue for anything that needs changing.',
+      createdAt: new Date(Date.now() - 2 * 3_600_000),
+    },
+    {
+      channelId: byName('front-desk').id,
+      authorId: uccStaff.reception,
+      body: 'Waiting room is busy this morning; two walk-ins are waiting for triage.',
+      createdAt: new Date(Date.now() - 50 * 60_000),
+    },
+    {
+      channelId: byName('clinical').id,
+      authorId: uccStaff.nurse,
+      body: 'Ward round starts at 09:30 today instead of 09:00.',
+      createdAt: new Date(Date.now() - 4 * 3_600_000),
+    },
+    {
+      channelId: national.id,
+      authorId: minister!.id,
+      body: 'Directors: please make sure all staff have set up two-step sign-in by the end of the month. Compliance is on the national dashboard.',
+      createdAt: daysAgo(2),
+    },
+    {
+      channelId: national.id,
+      authorId: directorsByFacility.get(rhpz!.id)!,
+      body: 'Prizren is at 80%. Remaining staff are scheduled for set-up sessions this week.',
+      createdAt: daysAgo(1),
+    },
+  ]);
+  await db.execute(
+    sql`UPDATE channels c SET last_message_at = (SELECT max(m.created_at) FROM channel_messages m WHERE m.channel_id = c.id)`,
+  );
+
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
-  Ministry : minister@pacient.local
-  Director : director@pacient.local   (University Clinical Center Prishtina)
-  Doctor   : doctor@pacient.local     (Family Medicine, UCC Prishtina)
-  Patient  : patient@pacient.local    (Arta Krasniqi)
+  Ministry   : minister@pacient.local
+  Director   : director@pacient.local    (University Clinical Center Prishtina)
+  Doctor     : doctor@pacient.local      (Family Medicine, UCC Prishtina)
+  Nurse      : nurse@pacient.local       (UCC Prishtina)
+  Pharmacist : pharmacist@pacient.local  (UCC Prishtina)
+  Reception  : reception@pacient.local   (UCC Prishtina)
+  Patient    : patient@pacient.local     (Arta Krasniqi)
 `);
 }
 

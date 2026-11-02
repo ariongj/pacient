@@ -12,7 +12,11 @@ import {
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { hasActiveCareAssignment, resolveClinicalReadAccess } from '../access/policy.js';
+import {
+  getPatientOrThrow,
+  hasActiveCareAssignment,
+  resolveClinicalReadAccess,
+} from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
 
@@ -39,14 +43,23 @@ const StatusSchema = z.object({ status: z.enum(appointmentStatusEnum.enumValues)
 const IdParam = z.object({ id: z.string().uuid() });
 
 /**
- * Allowed status transitions per role. Patients can only cancel; doctors run their own schedule.
+ * Allowed status transitions per role. Patients can only cancel; doctors run their own schedule;
+ * reception manages the front desk (confirm, check in, no-show); nurses can check patients in.
  */
-const TRANSITIONS: Record<'PATIENT' | 'DOCTOR', Partial<Record<Status, Status[]>>> = {
+type Actor = 'PATIENT' | 'DOCTOR' | 'RECEPTION' | 'NURSE';
+const TRANSITIONS: Record<Actor, Partial<Record<Status, Status[]>>> = {
   PATIENT: { REQUESTED: ['CANCELLED'], CONFIRMED: ['CANCELLED'] },
   DOCTOR: {
     REQUESTED: ['CONFIRMED', 'CANCELLED'],
-    CONFIRMED: ['COMPLETED', 'CANCELLED', 'NO_SHOW'],
+    CONFIRMED: ['CHECKED_IN', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
+    CHECKED_IN: ['COMPLETED', 'NO_SHOW'],
   },
+  RECEPTION: {
+    REQUESTED: ['CONFIRMED', 'CANCELLED'],
+    CONFIRMED: ['CHECKED_IN', 'CANCELLED', 'NO_SHOW'],
+    CHECKED_IN: ['CONFIRMED'],
+  },
+  NURSE: { CONFIRMED: ['CHECKED_IN'] },
 };
 
 const doctor = aliasedTable(users, 'doctor');
@@ -58,6 +71,8 @@ function scopeFilter(ctx: AuthContext): SQL {
     case 'DOCTOR':
       return eq(appointments.doctorId, ctx.userId);
     case 'DIRECTOR':
+    case 'RECEPTION':
+    case 'NURSE':
       return eq(appointments.facilityId, ctx.facilityId!);
     default:
       throw forbidden();
@@ -83,7 +98,10 @@ async function assertNoOverlap(doctorId: string, start: Date, minutes: number, e
 }
 
 export const appointmentsRouter = Router();
-appointmentsRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR', 'DIRECTOR'));
+appointmentsRouter.use(
+  authenticate,
+  requireRole('PATIENT', 'DOCTOR', 'NURSE', 'DIRECTOR', 'RECEPTION'),
+);
 
 appointmentsRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
@@ -118,7 +136,7 @@ appointmentsRouter.get('/', async (req, res) => {
   res.json({ items: rows });
 });
 
-appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) => {
+appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR', 'RECEPTION'), async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(CreateSchema, req.body);
 
@@ -135,6 +153,17 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
       throw forbidden('You can only book appointments with doctors in your care team');
     }
     status = 'REQUESTED';
+  } else if (ctx.role === 'RECEPTION') {
+    // The front desk books any doctor of the facility for patients registered there.
+    if (!input.patientId || !input.doctorId)
+      throw badRequest('patientId and doctorId are required');
+    patientId = input.patientId;
+    doctorId = input.doctorId;
+    const patient = await getPatientOrThrow(patientId);
+    if (patient.primaryFacilityId !== ctx.facilityId) {
+      throw forbidden('The patient is not registered at your facility');
+    }
+    status = 'CONFIRMED';
   } else {
     if (!input.patientId) throw badRequest('patientId is required');
     patientId = input.patientId;
@@ -148,6 +177,9 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
     .from(users)
     .where(and(eq(users.id, doctorId), eq(users.role, 'DOCTOR')));
   if (!doc?.isActive || !doc.facilityId) throw badRequest('Doctor not available');
+  if (ctx.role === 'RECEPTION' && doc.facilityId !== ctx.facilityId) {
+    throw badRequest('Choose a doctor of your facility');
+  }
 
   const scheduledAt = new Date(input.scheduledAt);
   if (status === 'CONFIRMED') await assertNoOverlap(doctorId, scheduledAt, input.durationMinutes);
@@ -184,6 +216,17 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
         tx,
       );
     } else {
+      if (ctx.role === 'RECEPTION') {
+        await notifyUsers(
+          [doctorId],
+          {
+            type: 'appointment',
+            title: 'An appointment was booked for you',
+            link: '/doctor/schedule',
+          },
+          tx,
+        );
+      }
       await notifyPatient(
         patientId,
         {
@@ -199,66 +242,79 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR'), async (req, res) 
   res.status(201).json(row);
 });
 
-appointmentsRouter.patch('/:id/status', requireRole('PATIENT', 'DOCTOR'), async (req, res) => {
-  const ctx = requireAuth(req);
-  const { id } = parse(IdParam, req.params);
-  const { status } = parse(StatusSchema, req.body);
+appointmentsRouter.patch(
+  '/:id/status',
+  requireRole('PATIENT', 'DOCTOR', 'RECEPTION', 'NURSE'),
+  async (req, res) => {
+    const ctx = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const { status } = parse(StatusSchema, req.body);
 
-  const [appt] = await db
-    .select()
-    .from(appointments)
-    .where(and(eq(appointments.id, id), scopeFilter(ctx)));
-  if (!appt) throw notFound('Appointment not found');
+    const [appt] = await db
+      .select()
+      .from(appointments)
+      .where(and(eq(appointments.id, id), scopeFilter(ctx)));
+    if (!appt) throw notFound('Appointment not found');
 
-  const allowed = TRANSITIONS[ctx.role as 'PATIENT' | 'DOCTOR'][appt.status] ?? [];
-  if (!allowed.includes(status)) {
-    throw badRequest(`Cannot change an appointment from ${appt.status} to ${status}`);
-  }
-  if (status === 'CONFIRMED') {
-    await assertNoOverlap(appt.doctorId, appt.scheduledAt, appt.durationMinutes, appt.id);
-  }
-
-  const row = await db.transaction(async (tx) => {
-    const [updated] = await tx
-      .update(appointments)
-      .set({ status })
-      .where(eq(appointments.id, id))
-      .returning();
-    await audit(
-      {
-        action: AuditAction.APPOINTMENT_UPDATED,
-        actor: ctx,
-        resourceType: 'appointment',
-        resourceId: id,
-        patientId: appt.patientId,
-        meta: requestMeta(req),
-        metadata: { from: appt.status, to: status },
-      },
-      tx,
-    );
-    const label = status.toLowerCase().replace('_', '-');
-    if (ctx.role === 'DOCTOR') {
-      await notifyPatient(
-        appt.patientId,
-        {
-          type: 'appointment',
-          title: `Your appointment was ${label}`,
-          link: '/portal/appointments',
-        },
-        tx,
-      );
-    } else {
-      await notifyUsers(
-        [appt.doctorId],
-        {
-          type: 'appointment',
-          title: `A patient ${label} an appointment`,
-          link: '/doctor/schedule',
-        },
-        tx,
-      );
+    const allowed = TRANSITIONS[ctx.role as Actor][appt.status] ?? [];
+    if (!allowed.includes(status)) {
+      throw badRequest(`Cannot change an appointment from ${appt.status} to ${status}`);
     }
-    return updated!;
-  });
-  res.json(row);
-});
+    if (status === 'CONFIRMED') {
+      await assertNoOverlap(appt.doctorId, appt.scheduledAt, appt.durationMinutes, appt.id);
+    }
+
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(appointments)
+        .set({ status })
+        .where(eq(appointments.id, id))
+        .returning();
+      await audit(
+        {
+          action: AuditAction.APPOINTMENT_UPDATED,
+          actor: ctx,
+          resourceType: 'appointment',
+          resourceId: id,
+          patientId: appt.patientId,
+          meta: requestMeta(req),
+          metadata: { from: appt.status, to: status },
+        },
+        tx,
+      );
+      const label = status.toLowerCase().replace('_', '-');
+      if (status === 'CHECKED_IN') {
+        // Arrival is front-desk logistics: tell the doctor, not the patient.
+        if (ctx.role !== 'DOCTOR') {
+          await notifyUsers(
+            [appt.doctorId],
+            { type: 'appointment', title: 'Your patient has arrived', link: '/doctor/schedule' },
+            tx,
+          );
+        }
+      } else if (ctx.role !== 'PATIENT') {
+        await notifyPatient(
+          appt.patientId,
+          {
+            type: 'appointment',
+            title: `Your appointment was ${label}`,
+            link: '/portal/appointments',
+          },
+          tx,
+        );
+      } else {
+        await notifyUsers(
+          [appt.doctorId],
+          {
+            type: 'appointment',
+            title: `A patient ${label} an appointment`,
+            link: '/doctor/schedule',
+          },
+          tx,
+        );
+      }
+      return updated!;
+    });
+    res.json(row);
+  },
+);

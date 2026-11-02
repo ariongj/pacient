@@ -41,6 +41,7 @@ export async function createUser(role: Role, facilityId: string | null = null, e
       passwordHash: await passwordHash,
       passwordChangedAt: new Date(),
       ...(role === 'DOCTOR' ? { licenseNumber: 'LIC-1', specialty: 'Family Medicine' } : {}),
+      ...(role === 'NURSE' || role === 'PHARMACIST' ? { licenseNumber: 'LIC-2' } : {}),
       ...extra,
     })
     .returning();
@@ -77,67 +78,56 @@ export async function login(email: string, password = PASSWORD) {
 
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-/** A small world with every tier: two facilities, staff, and patients with care relationships. */
+/** A small world with every role: two facilities, staff, and patients with care relationships. */
 export async function createWorld() {
   const facility = await createFacility();
   const otherFacility = await createFacility();
-  const ministry = await createUser('MINISTRY');
-  const director = await createUser('DIRECTOR', facility.id);
-  const otherDirector = await createUser('DIRECTOR', otherFacility.id);
-  const doctor = await createUser('DOCTOR', facility.id);
-  const colleague = await createUser('DOCTOR', facility.id);
-  const outsideDoctor = await createUser('DOCTOR', otherFacility.id);
-  const patientUser = await createUser('PATIENT');
-  const patient = await createPatient(facility.id, { userId: patientUser.id, doctorId: doctor.id });
-  const otherPatientUser = await createUser('PATIENT');
-  const otherPatient = await createPatient(facility.id, { userId: otherPatientUser.id });
+  const users = {
+    ministry: await createUser('MINISTRY'),
+    director: await createUser('DIRECTOR', facility.id),
+    otherDirector: await createUser('DIRECTOR', otherFacility.id),
+    doctor: await createUser('DOCTOR', facility.id),
+    colleague: await createUser('DOCTOR', facility.id),
+    outsideDoctor: await createUser('DOCTOR', otherFacility.id),
+    nurse: await createUser('NURSE', facility.id),
+    pharmacist: await createUser('PHARMACIST', facility.id),
+    outsidePharmacist: await createUser('PHARMACIST', otherFacility.id),
+    reception: await createUser('RECEPTION', facility.id),
+    patientUser: await createUser('PATIENT'),
+    otherPatientUser: await createUser('PATIENT'),
+  };
+  const patient = await createPatient(facility.id, {
+    userId: users.patientUser.id,
+    doctorId: users.doctor.id,
+  });
+  const otherPatient = await createPatient(facility.id, { userId: users.otherPatientUser.id });
 
-  const [
-    tMinistry,
-    tDirector,
-    tOtherDirector,
-    tDoctor,
-    tColleague,
-    tOutside,
-    tPatient,
-    tOtherPatient,
-  ] = await Promise.all(
-    [
-      ministry,
-      director,
-      otherDirector,
-      doctor,
-      colleague,
-      outsideDoctor,
-      patientUser,
-      otherPatientUser,
-    ].map((u) => login(u.email)),
-  );
+  const keys = Object.keys(users) as (keyof typeof users)[];
+  const tokenList = await Promise.all(keys.map((k) => login(users[k].email)));
+  const byKey = Object.fromEntries(keys.map((k, i) => [k, tokenList[i]!])) as Record<
+    keyof typeof users,
+    string
+  >;
 
   return {
     facility,
     otherFacility,
-    users: {
-      ministry,
-      director,
-      otherDirector,
-      doctor,
-      colleague,
-      outsideDoctor,
-      patientUser,
-      otherPatientUser,
-    },
+    users,
     patient,
     otherPatient,
     tokens: {
-      ministry: tMinistry!,
-      director: tDirector!,
-      otherDirector: tOtherDirector!,
-      doctor: tDoctor!,
-      colleague: tColleague!,
-      outsideDoctor: tOutside!,
-      patient: tPatient!,
-      otherPatient: tOtherPatient!,
+      ministry: byKey.ministry,
+      director: byKey.director,
+      otherDirector: byKey.otherDirector,
+      doctor: byKey.doctor,
+      colleague: byKey.colleague,
+      outsideDoctor: byKey.outsideDoctor,
+      nurse: byKey.nurse,
+      pharmacist: byKey.pharmacist,
+      outsidePharmacist: byKey.outsidePharmacist,
+      reception: byKey.reception,
+      patient: byKey.patientUser,
+      otherPatient: byKey.otherPatientUser,
     },
   };
 }

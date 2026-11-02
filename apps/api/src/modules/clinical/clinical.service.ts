@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   allergies,
@@ -7,8 +7,10 @@ import {
   encounterAddenda,
   encounters,
   facilities,
+  careTasks,
   immunizations,
   labResults,
+  medicationAdministrations,
   patients,
   prescriptions,
   users,
@@ -110,6 +112,10 @@ export function listPrescriptions(patientId: string) {
       startDate: prescriptions.startDate,
       endDate: prescriptions.endDate,
       status: prescriptions.status,
+      pharmacyStatus: prescriptions.pharmacyStatus,
+      pharmacistNote: prescriptions.pharmacistNote,
+      verifiedAt: prescriptions.verifiedAt,
+      dispensedAt: prescriptions.dispensedAt,
       doctorId: prescriptions.doctorId,
       doctorName,
       createdAt: prescriptions.createdAt,
@@ -273,6 +279,56 @@ export function listImmunizations(patientId: string) {
     .innerJoin(facilities, eq(facilities.id, immunizations.facilityId))
     .where(eq(immunizations.patientId, patientId))
     .orderBy(desc(immunizations.administeredAt));
+}
+
+export function listAdministrations(patientId: string) {
+  return db
+    .select({
+      id: medicationAdministrations.id,
+      prescriptionId: medicationAdministrations.prescriptionId,
+      medication: prescriptions.medication,
+      dosage: prescriptions.dosage,
+      status: medicationAdministrations.status,
+      doseGiven: medicationAdministrations.doseGiven,
+      reason: medicationAdministrations.reason,
+      notes: medicationAdministrations.notes,
+      administeredAt: medicationAdministrations.administeredAt,
+      recordedBy: doctorName,
+    })
+    .from(medicationAdministrations)
+    .innerJoin(prescriptions, eq(prescriptions.id, medicationAdministrations.prescriptionId))
+    .innerJoin(users, eq(users.id, medicationAdministrations.administeredById))
+    .where(eq(medicationAdministrations.patientId, patientId))
+    .orderBy(desc(medicationAdministrations.administeredAt))
+    .limit(500);
+}
+
+export function listCareTasks(patientId: string) {
+  return db
+    .select({
+      id: careTasks.id,
+      title: careTasks.title,
+      details: careTasks.details,
+      priority: careTasks.priority,
+      status: careTasks.status,
+      dueAt: careTasks.dueAt,
+      assignedRole: careTasks.assignedRole,
+      assignedToId: careTasks.assignedToId,
+      assignedToName: sql<
+        string | null
+      >`(SELECT u.full_name FROM users u WHERE u.id = ${careTasks.assignedToId})`,
+      createdByName: doctorName,
+      completedAt: careTasks.completedAt,
+      completionNote: careTasks.completionNote,
+      completedByName: sql<
+        string | null
+      >`(SELECT u.full_name FROM users u WHERE u.id = ${careTasks.completedById})`,
+      createdAt: careTasks.createdAt,
+    })
+    .from(careTasks)
+    .innerJoin(users, eq(users.id, careTasks.createdById))
+    .where(eq(careTasks.patientId, patientId))
+    .orderBy(sql`CASE ${careTasks.status} WHEN 'OPEN' THEN 0 ELSE 1 END`, careTasks.dueAt);
 }
 
 /** The patient summary ("chart"): everything a clinician needs at a glance. */

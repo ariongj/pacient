@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { and, asc, count, eq, ilike, inArray, ne, or, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { facilities, users, type Role } from '../../db/schema.js';
+import { facilities, STAFF_ROLES, users, type Role } from '../../db/schema.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
@@ -14,16 +14,23 @@ import { revokeAllSessions } from '../auth/auth.service.js';
 /**
  * Staff management follows the chain of command:
  *  - MINISTRY appoints Ministry officials and facility Directors.
- *  - DIRECTOR onboards Doctors (and co-directors) for their own facility only.
+ *  - DIRECTOR onboards the facility team (doctors, nurses, pharmacists, reception, co-directors)
+ *    for their own facility only.
  */
+const FACILITY_TEAM: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
 const INVITABLE_BY: Record<Role, Role[]> = {
   MINISTRY: ['MINISTRY', 'DIRECTOR'],
-  DIRECTOR: ['DOCTOR', 'DIRECTOR'],
+  DIRECTOR: FACILITY_TEAM,
   DOCTOR: [],
+  NURSE: [],
+  PHARMACIST: [],
+  RECEPTION: [],
   PATIENT: [],
 };
+/** Regulated professions must be registered with their professional licence number. */
+const LICENSED: Role[] = ['DOCTOR', 'NURSE', 'PHARMACIST'];
 
-const StaffRole = z.enum(['MINISTRY', 'DIRECTOR', 'DOCTOR']);
+const StaffRole = z.enum(STAFF_ROLES);
 
 const InviteSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -62,10 +69,7 @@ const staffColumns = {
 function canManage(ctx: AuthContext, target: { role: Role; facilityId: string | null }) {
   if (ctx.role === 'MINISTRY') return target.role === 'MINISTRY' || target.role === 'DIRECTOR';
   if (ctx.role === 'DIRECTOR') {
-    return (
-      target.facilityId === ctx.facilityId &&
-      (target.role === 'DOCTOR' || target.role === 'DIRECTOR')
-    );
+    return target.facilityId === ctx.facilityId && FACILITY_TEAM.includes(target.role);
   }
   return false;
 }
@@ -76,7 +80,7 @@ staffRouter.use(authenticate, requireRole('MINISTRY', 'DIRECTOR'));
 staffRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
   const q = parse(ListQuery, req.query);
-  const filters: SQL[] = [inArray(users.role, ['MINISTRY', 'DIRECTOR', 'DOCTOR'])];
+  const filters: SQL[] = [inArray(users.role, [...STAFF_ROLES])];
   if (ctx.role === 'DIRECTOR') filters.push(eq(users.facilityId, ctx.facilityId!));
   else if (q.facilityId) filters.push(eq(users.facilityId, q.facilityId));
   if (q.role) filters.push(eq(users.role, q.role));
@@ -113,7 +117,7 @@ staffRouter.post('/invitations', async (req, res) => {
   }
 
   let facilityId: string | null = null;
-  if (input.role === 'DIRECTOR' || input.role === 'DOCTOR') {
+  if (FACILITY_TEAM.includes(input.role)) {
     // Directors can only staff their own facility, regardless of what the request says.
     facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId : (input.facilityId ?? null);
     if (!facilityId) throw badRequest('facilityId is required for facility staff');
@@ -123,8 +127,10 @@ staffRouter.post('/invitations', async (req, res) => {
       .where(eq(facilities.id, facilityId));
     if (!facility?.isActive) throw badRequest('Facility does not exist or is inactive');
   }
-  if (input.role === 'DOCTOR' && !input.licenseNumber) {
-    throw badRequest('A medical license number is required for doctors');
+  if (LICENSED.includes(input.role) && !input.licenseNumber) {
+    throw badRequest(
+      'A professional licence number is required for doctors, nurses and pharmacists',
+    );
   }
 
   const result = await db.transaction(async (tx) => {

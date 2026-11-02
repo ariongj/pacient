@@ -34,7 +34,17 @@ const Query = z
   );
 
 type ReportQuery = z.infer<typeof Query>;
-const ReportName = z.object({ report: z.enum(['diagnoses', 'activity']) });
+export const REPORT_NAMES = [
+  'activity',
+  'diagnoses',
+  'medications',
+  'pharmacy',
+  'vaccinations',
+  'referrals',
+  'appointments',
+  'workforce',
+] as const;
+const ReportName = z.object({ report: z.enum(REPORT_NAMES) });
 
 function scopeFor(ctx: AuthContext, q: ReportQuery) {
   if (ctx.role === 'DIRECTOR') return { facilityId: ctx.facilityId!, region: undefined };
@@ -119,7 +129,232 @@ async function activityReport(ctx: AuthContext, q: ReportQuery) {
   };
 }
 
-const REPORTS = { diagnoses: diagnosesReport, activity: activityReport };
+type Row = Record<string, unknown>;
+const num = (v: unknown) => Number(v ?? 0);
+const pct = (part: unknown, whole: unknown) =>
+  num(whole) ? Math.round((num(part) / num(whole)) * 1000) / 10 : null;
+const hours = (v: unknown) =>
+  v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10;
+
+/** Most prescribed medicines by region (active ingredient = first word of the product name). */
+async function medicationsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.region, initcap(split_part(lower(p.medication), ' ', 1)) AS medication,
+      count(*)::int AS prescriptions, count(DISTINCT p.patient_id)::int AS patients
+    FROM prescriptions p
+    JOIN users u ON u.id = p.doctor_id
+    JOIN facilities f ON f.id = u.facility_id
+    WHERE p.created_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+      AND ${facilityFilter('f', scope)}
+    GROUP BY 1, 2 ORDER BY prescriptions DESC, 1, 2 LIMIT 500`);
+  return {
+    columns: ['region', 'medication', 'prescriptions', 'patients'],
+    rows: result.rows.map((r) => ({
+      ...r,
+      patients: suppress(num(r.patients)),
+      suppressed: num(r.patients) < SMALL_CELL_THRESHOLD,
+    })),
+  };
+}
+
+/** Pharmacy performance: volumes, returns and turnaround per facility. */
+async function pharmacyReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(p.id)::int AS prescriptions,
+      count(p.id) FILTER (WHERE p.pharmacy_status = 'PENDING')::int AS "awaitingVerification",
+      count(p.id) FILTER (WHERE p.pharmacy_status IN ('VERIFIED', 'DISPENSED'))::int AS verified,
+      count(p.id) FILTER (WHERE p.pharmacy_status = 'RETURNED')::int AS returned,
+      count(p.id) FILTER (WHERE p.pharmacy_status = 'DISPENSED')::int AS dispensed,
+      avg(extract(epoch FROM (p.verified_at - p.created_at)) / 3600)
+        FILTER (WHERE p.verified_at IS NOT NULL AND p.pharmacy_status <> 'RETURNED') AS "avgHoursToVerify",
+      avg(extract(epoch FROM (p.dispensed_at - p.created_at)) / 3600)
+        FILTER (WHERE p.dispensed_at IS NOT NULL AND p.verified_at IS NOT NULL) AS "avgHoursToDispense"
+    FROM facilities f
+    LEFT JOIN users u ON u.facility_id = f.id AND u.role = 'DOCTOR'
+    LEFT JOIN prescriptions p ON p.doctor_id = u.id AND p.created_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'prescriptions',
+      'awaitingVerification',
+      'verified',
+      'returned',
+      'returnRatePct',
+      'dispensed',
+      'avgHoursToVerify',
+      'avgHoursToDispense',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      returnRatePct: pct(r.returned, r.prescriptions),
+      avgHoursToVerify: hours(r.avgHoursToVerify),
+      avgHoursToDispense: hours(r.avgHoursToDispense),
+    })),
+  };
+}
+
+/** Vaccination doses and people vaccinated, by vaccine and region. */
+async function vaccinationsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.region, i.vaccine, count(*)::int AS doses, count(DISTINCT i.patient_id)::int AS people
+    FROM immunizations i JOIN facilities f ON f.id = i.facility_id
+    WHERE i.administered_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+      AND ${facilityFilter('f', scope)}
+    GROUP BY 1, 2 ORDER BY doses DESC, 1, 2 LIMIT 500`);
+  return {
+    columns: ['region', 'vaccine', 'doses', 'people'],
+    rows: result.rows.map((r) => ({
+      ...r,
+      people: suppress(num(r.people)),
+      suppressed: num(r.people) < SMALL_CELL_THRESHOLD,
+    })),
+  };
+}
+
+/** Referral flow by receiving facility, including response time and acceptance rate. */
+async function referralsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(r.id)::int AS received,
+      count(r.id) FILTER (WHERE r.priority = 'URGENT')::int AS urgent,
+      count(r.id) FILTER (WHERE r.status = 'PENDING')::int AS pending,
+      count(r.id) FILTER (WHERE r.status IN ('ACCEPTED', 'COMPLETED'))::int AS accepted,
+      count(r.id) FILTER (WHERE r.status = 'DECLINED')::int AS declined,
+      count(r.id) FILTER (WHERE r.status = 'COMPLETED')::int AS completed,
+      avg(extract(epoch FROM (r.responded_at - r.created_at)) / 3600)
+        FILTER (WHERE r.responded_at IS NOT NULL AND r.status <> 'CANCELLED') AS "avgHoursToRespond",
+      (SELECT count(*)::int FROM referrals s WHERE s.from_facility_id = f.id
+        AND s.created_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}) AS sent
+    FROM facilities f
+    LEFT JOIN referrals r ON r.to_facility_id = f.id AND r.created_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'sent',
+      'received',
+      'urgent',
+      'pending',
+      'accepted',
+      'declined',
+      'completed',
+      'acceptanceRatePct',
+      'avgHoursToRespond',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      acceptanceRatePct: pct(r.accepted, num(r.accepted) + num(r.declined)),
+      avgHoursToRespond: hours(r.avgHoursToRespond),
+    })),
+  };
+}
+
+/** Appointment outcomes and no-show rates per facility. */
+async function appointmentsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(a.id)::int AS booked,
+      count(a.id) FILTER (WHERE a.status = 'COMPLETED')::int AS completed,
+      count(a.id) FILTER (WHERE a.status = 'NO_SHOW')::int AS "noShows",
+      count(a.id) FILTER (WHERE a.status = 'CANCELLED')::int AS cancelled,
+      count(a.id) FILTER (WHERE a.status IN ('REQUESTED', 'CONFIRMED', 'CHECKED_IN'))::int AS open,
+      avg(extract(epoch FROM (a.scheduled_at - a.created_at)) / 86400)
+        FILTER (WHERE a.scheduled_at > a.created_at) AS "avgLeadDays"
+    FROM facilities f
+    LEFT JOIN appointments a ON a.facility_id = f.id AND a.scheduled_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'booked',
+      'completed',
+      'noShows',
+      'noShowRatePct',
+      'cancelled',
+      'open',
+      'avgLeadDays',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      noShowRatePct: pct(r.noShows, num(r.completed) + num(r.noShows)),
+      avgLeadDays: hours(r.avgLeadDays),
+    })),
+  };
+}
+
+/** Workforce and security posture per facility (point in time; the period does not apply). */
+async function workforceReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(u.id) FILTER (WHERE u.role = 'DIRECTOR')::int AS directors,
+      count(u.id) FILTER (WHERE u.role = 'DOCTOR')::int AS doctors,
+      count(u.id) FILTER (WHERE u.role = 'NURSE')::int AS nurses,
+      count(u.id) FILTER (WHERE u.role = 'PHARMACIST')::int AS pharmacists,
+      count(u.id) FILTER (WHERE u.role = 'RECEPTION')::int AS reception,
+      count(u.id)::int AS "activeStaff",
+      count(u.id) FILTER (WHERE u.mfa_enabled_at IS NOT NULL)::int AS "withTwoStep",
+      count(u.id) FILTER (WHERE u.password_changed_at IS NULL)::int AS "pendingInvitations",
+      (SELECT count(*)::int FROM patients p WHERE p.primary_facility_id = f.id) AS patients,
+      (SELECT count(*)::int FROM care_tasks t WHERE t.facility_id = f.id AND t.status = 'OPEN' AND t.due_at < now()) AS "overdueCareTasks"
+    FROM facilities f
+    LEFT JOIN users u ON u.facility_id = f.id AND u.is_active
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'directors',
+      'doctors',
+      'nurses',
+      'pharmacists',
+      'reception',
+      'activeStaff',
+      'twoStepPct',
+      'pendingInvitations',
+      'patients',
+      'patientsPerDoctor',
+      'overdueCareTasks',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      twoStepPct: pct(r.withTwoStep, r.activeStaff),
+      patientsPerDoctor: num(r.doctors) ? Math.round(num(r.patients) / num(r.doctors)) : null,
+    })),
+  };
+}
+
+const REPORTS: Record<
+  (typeof REPORT_NAMES)[number],
+  (ctx: AuthContext, q: ReportQuery) => Promise<{ columns: string[]; rows: unknown[] }>
+> = {
+  activity: activityReport,
+  diagnoses: diagnosesReport,
+  medications: medicationsReport,
+  pharmacy: pharmacyReport,
+  vaccinations: vaccinationsReport,
+  referrals: referralsReport,
+  appointments: appointmentsReport,
+  workforce: workforceReport,
+};
 
 /** CSV with protection against spreadsheet formula injection. */
 export function toCsv(columns: string[], rows: Record<string, unknown>[]): string {

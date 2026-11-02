@@ -21,10 +21,33 @@ import {
  * ---------------------------------------------------------------------------------------------- */
 
 /**
- * Access tiers, from widest (national, aggregate-only) to narrowest (a single patient's own data).
- * MINISTRY -> DIRECTOR (one facility) -> DOCTOR (patients in their care) -> PATIENT (self).
+ * Roles are distinct responsibilities, not a ladder:
+ *  - MINISTRY (national, aggregate only) and DIRECTOR (one facility, operational) manage the system;
+ *  - DOCTOR and NURSE treat patients in their care team;
+ *  - PHARMACIST works the facility's medication queue with the context it needs;
+ *  - RECEPTION handles identity, contact details and scheduling, never clinical content;
+ *  - PATIENT sees their own released record.
  */
-export const roleEnum = pgEnum('role', ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'PATIENT']);
+export const roleEnum = pgEnum('role', [
+  'MINISTRY',
+  'DIRECTOR',
+  'DOCTOR',
+  'PATIENT',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+]);
+export const STAFF_ROLES = [
+  'MINISTRY',
+  'DIRECTOR',
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+] as const;
+export const FACILITY_ROLES = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'] as const;
+/** Roles that may be members of a patient's care team (and therefore read the clinical record). */
+export const CARE_TEAM_ROLES = ['DOCTOR', 'NURSE'] as const;
 export const facilityTypeEnum = pgEnum('facility_type', [
   'UNIVERSITY_CLINICAL_CENTER',
   'REGIONAL_HOSPITAL',
@@ -69,7 +92,23 @@ export const appointmentStatusEnum = pgEnum('appointment_status', [
   'CANCELLED',
   'COMPLETED',
   'NO_SHOW',
+  'CHECKED_IN',
 ]);
+export const pharmacyStatusEnum = pgEnum('pharmacy_status', [
+  'PENDING',
+  'VERIFIED',
+  'RETURNED',
+  'DISPENSED',
+]);
+export const administrationStatusEnum = pgEnum('administration_status', [
+  'GIVEN',
+  'WITHHELD',
+  'REFUSED',
+  'OMITTED',
+]);
+export const taskStatusEnum = pgEnum('task_status', ['OPEN', 'DONE', 'CANCELLED']);
+export const taskPriorityEnum = pgEnum('task_priority', ['ROUTINE', 'URGENT']);
+export const channelScopeEnum = pgEnum('channel_scope', ['FACILITY', 'NATIONAL']);
 export const tokenPurposeEnum = pgEnum('token_purpose', ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET']);
 /** Clinical notes are drafted, then signed; signed notes change only through addenda. */
 export const noteStatusEnum = pgEnum('note_status', ['DRAFT', 'SIGNED']);
@@ -418,9 +457,20 @@ export const prescriptions = pgTable(
     startDate: date('start_date', { mode: 'string' }).notNull(),
     endDate: date('end_date', { mode: 'string' }),
     status: prescriptionStatusEnum('status').notNull().default('ACTIVE'),
+    /** Pharmacist verification and dispensing: prescriber, pharmacist and nurse duties stay distinct. */
+    pharmacyStatus: pharmacyStatusEnum('pharmacy_status').notNull().default('PENDING'),
+    verifiedById: uuid('verified_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    pharmacistNote: text('pharmacist_note'),
+    dispensedById: uuid('dispensed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    dispensedAt: timestamp('dispensed_at', { withTimezone: true }),
+    dispensedQuantity: varchar('dispensed_quantity', { length: 100 }),
     ...timestamps,
   },
-  (t) => [index('prescriptions_patient_idx').on(t.patientId, t.status)],
+  (t) => [
+    index('prescriptions_patient_idx').on(t.patientId, t.status),
+    index('prescriptions_pharmacy_idx').on(t.pharmacyStatus, t.createdAt),
+  ],
 );
 
 export const allergies = pgTable(
@@ -712,6 +762,122 @@ export const announcements = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }),
   },
   (t) => [index('announcements_published_idx').on(t.publishedAt)],
+);
+
+/**
+ * Medication administration record (MAR). Administration is never inferred from a prescription or
+ * a dispense: each dose given, withheld, refused or omitted is recorded with its author and reason.
+ */
+export const medicationAdministrations = pgTable(
+  'medication_administrations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    prescriptionId: uuid('prescription_id')
+      .notNull()
+      .references(() => prescriptions.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    administeredById: uuid('administered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    status: administrationStatusEnum('status').notNull(),
+    doseGiven: varchar('dose_given', { length: 100 }),
+    reason: varchar('reason', { length: 500 }),
+    notes: text('notes'),
+    administeredAt: timestamp('administered_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('medication_administrations_patient_idx').on(t.patientId, t.administeredAt),
+    index('medication_administrations_rx_idx').on(t.prescriptionId),
+  ],
+);
+
+/** Care tasks: every task has an owner (a person or a role) and an explicit state. */
+export const careTasks = pgTable(
+  'care_tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    assignedToId: uuid('assigned_to_id').references(() => users.id, { onDelete: 'set null' }),
+    // No database default: a new enum value cannot be used in the migration that adds it.
+    assignedRole: roleEnum('assigned_role').notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    details: text('details'),
+    priority: taskPriorityEnum('priority').notNull().default('ROUTINE'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    status: taskStatusEnum('status').notNull().default('OPEN'),
+    completedById: uuid('completed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    completionNote: text('completion_note'),
+    ...timestamps,
+  },
+  (t) => [
+    index('care_tasks_facility_idx').on(t.facilityId, t.status, t.dueAt),
+    index('care_tasks_patient_idx').on(t.patientId),
+  ],
+);
+
+/**
+ * Team channels for staff communication. Facility channels are visible to facility staff whose role
+ * is listed; national channels connect the Ministry with directors (or other roles) across
+ * facilities. Channels are for coordination, not for clinical documentation.
+ */
+export const channels = pgTable(
+  'channels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    scope: channelScopeEnum('scope').notNull(),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 80 }).notNull(),
+    description: varchar('description', { length: 300 }),
+    allowedRoles: roleEnum('allowed_roles').array().notNull(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    isArchived: boolean('is_archived').notNull().default(false),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('channels_facility_idx').on(t.facilityId)],
+);
+
+export const channelMessages = pgTable(
+  'channel_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    body: text('body').notNull(),
+    isUrgent: boolean('is_urgent').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('channel_messages_channel_idx').on(t.channelId, t.createdAt)],
+);
+
+export const channelReads = pgTable(
+  'channel_reads',
+  {
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('channel_reads_pk').on(t.channelId, t.userId)],
 );
 
 /* ------------------------------------------------------------------------------------------------

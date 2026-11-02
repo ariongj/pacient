@@ -59,6 +59,17 @@ export const AuditAction = {
   EMERGENCY_ACCESS_REVIEWED: 'care.emergency_access.reviewed',
   ANNOUNCEMENT_PUBLISHED: 'announcement.published',
   REPORT_EXPORTED: 'report.exported',
+  PHARMACY_CONTEXT_VIEWED: 'pharmacy.context.viewed',
+  PRESCRIPTION_VERIFIED: 'pharmacy.prescription.verified',
+  PRESCRIPTION_RETURNED: 'pharmacy.prescription.returned',
+  PRESCRIPTION_DISPENSED: 'pharmacy.prescription.dispensed',
+  PRESCRIPTION_RESUBMITTED: 'clinical.prescription.resubmitted',
+  MEDICATION_ADMINISTERED: 'clinical.medication.administration_recorded',
+  CARE_TASK_CREATED: 'care.task.created',
+  CARE_TASK_UPDATED: 'care.task.updated',
+  CHANNEL_CREATED: 'channel.created',
+  CHANNEL_MESSAGE_POSTED: 'channel.message.posted',
+  FHIR_EXPORTED: 'patient.record.fhir_exported',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

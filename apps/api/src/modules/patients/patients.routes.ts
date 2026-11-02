@@ -1,9 +1,22 @@
 import { Router } from 'express';
-import { and, asc, count, eq, exists, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
   bloodTypeEnum,
+  CARE_TEAM_ROLES,
   careAssignments,
   emergencyAccessGrants,
   patients,
@@ -108,58 +121,63 @@ patientsRouter.use(authenticate);
 
 /* ---------------------------------------------- list / search -------------------------------- */
 
-patientsRouter.get('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
-  const ctx = requireAuth(req);
-  const q = parse(ListQuery, req.query);
-  const filters: SQL[] = [];
+patientsRouter.get(
+  '/',
+  requireRole('DOCTOR', 'NURSE', 'DIRECTOR', 'RECEPTION'),
+  async (req, res) => {
+    const ctx = requireAuth(req);
+    const q = parse(ListQuery, req.query);
+    const filters: SQL[] = [];
 
-  const searchFilter = q.search
-    ? or(
-        ilike(patients.firstName, `%${q.search}%`),
-        ilike(patients.lastName, `%${q.search}%`),
-        ilike(sql`${patients.firstName} || ' ' || ${patients.lastName}`, `%${q.search}%`),
-        eq(patients.nationalId, q.search),
-      )!
-    : undefined;
+    const searchFilter = q.search
+      ? or(
+          ilike(patients.firstName, `%${q.search}%`),
+          ilike(patients.lastName, `%${q.search}%`),
+          ilike(sql`${patients.firstName} || ' ' || ${patients.lastName}`, `%${q.search}%`),
+          eq(patients.nationalId, q.search),
+        )!
+      : undefined;
 
-  if (ctx.role === 'DOCTOR' && q.scope === 'mine') {
-    filters.push(inCareOf(ctx.userId));
-    if (searchFilter) filters.push(searchFilter);
-  } else {
-    // Search never crosses the facility boundary: an identity match elsewhere must not disclose
-    // that a person is a patient of another institution.
-    filters.push(eq(patients.primaryFacilityId, ctx.facilityId!));
-    if (searchFilter) filters.push(searchFilter);
-  }
+    if ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && q.scope === 'mine') {
+      filters.push(inCareOf(ctx.userId));
+      if (searchFilter) filters.push(searchFilter);
+    } else {
+      // Search never crosses the facility boundary: an identity match elsewhere must not disclose
+      // that a person is a patient of another institution.
+      filters.push(eq(patients.primaryFacilityId, ctx.facilityId!));
+      if (searchFilter) filters.push(searchFilter);
+    }
 
-  const where = and(...filters);
-  const inCare = ctx.role === 'DOCTOR' ? inCareOf(ctx.userId) : sql<boolean>`false`;
+    const where = and(...filters);
+    const inCare =
+      ctx.role === 'DOCTOR' || ctx.role === 'NURSE' ? inCareOf(ctx.userId) : sql<boolean>`false`;
 
-  const [rows, [total]] = await Promise.all([
-    db
-      .select({ ...listColumns, inMyCare: inCare })
-      .from(patients)
-      .where(where)
-      .orderBy(asc(patients.lastName), asc(patients.firstName))
-      .limit(toOffset(q).limit)
-      .offset(toOffset(q).offset),
-    db.select({ total: count() }).from(patients).where(where),
-  ]);
+    const [rows, [total]] = await Promise.all([
+      db
+        .select({ ...listColumns, inMyCare: inCare })
+        .from(patients)
+        .where(where)
+        .orderBy(asc(patients.lastName), asc(patients.firstName))
+        .limit(toOffset(q).limit)
+        .offset(toOffset(q).offset),
+      db.select({ total: count() }).from(patients).where(where),
+    ]);
 
-  if (q.search) {
-    await audit({
-      action: AuditAction.PATIENT_SEARCHED,
-      actor: ctx,
-      meta: requestMeta(req),
-      metadata: { scope: q.scope, resultCount: total?.total ?? 0 },
-    });
-  }
-  res.json(paginated(rows, total?.total ?? 0, q));
-});
+    if (q.search) {
+      await audit({
+        action: AuditAction.PATIENT_SEARCHED,
+        actor: ctx,
+        meta: requestMeta(req),
+        metadata: { scope: q.scope, resultCount: total?.total ?? 0 },
+      });
+    }
+    res.json(paginated(rows, total?.total ?? 0, q));
+  },
+);
 
 /* ---------------------------------------------- registration --------------------------------- */
 
-patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
+patientsRouter.post('/', requireRole('DOCTOR', 'DIRECTOR', 'RECEPTION'), async (req, res) => {
   const ctx = requireAuth(req);
   const { createPortalAccount, confirmedNotDuplicate, ...input } = parse(RegisterSchema, req.body);
   if (createPortalAccount && !input.email) {
@@ -270,34 +288,38 @@ patientsRouter.get('/:id', async (req, res) => {
   res.json({ ...rest, hasPortalAccount: Boolean(userId), inMyCare });
 });
 
-patientsRouter.patch('/:id', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
-  const ctx = requireAuth(req);
-  const { id } = parse(IdParam, req.params);
-  const patch = parse(DemographicsPatch, req.body);
-  await assertDemographicsAccess(ctx, id);
-  const updated = await db.transaction(async (tx) => {
-    const [row] = await tx.update(patients).set(patch).where(eq(patients.id, id)).returning();
-    await audit(
-      {
-        action: AuditAction.PATIENT_DEMOGRAPHICS_UPDATED,
-        actor: ctx,
-        resourceType: 'patient',
-        resourceId: id,
-        patientId: id,
-        meta: requestMeta(req),
-        metadata: { fields: Object.keys(patch) },
-      },
-      tx,
-    );
-    return row!;
-  });
-  const { userId, ...rest } = updated;
-  res.json({ ...rest, hasPortalAccount: Boolean(userId) });
-});
+patientsRouter.patch(
+  '/:id',
+  requireRole('DOCTOR', 'NURSE', 'DIRECTOR', 'RECEPTION'),
+  async (req, res) => {
+    const ctx = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const patch = parse(DemographicsPatch, req.body);
+    await assertDemographicsAccess(ctx, id);
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx.update(patients).set(patch).where(eq(patients.id, id)).returning();
+      await audit(
+        {
+          action: AuditAction.PATIENT_DEMOGRAPHICS_UPDATED,
+          actor: ctx,
+          resourceType: 'patient',
+          resourceId: id,
+          patientId: id,
+          meta: requestMeta(req),
+          metadata: { fields: Object.keys(patch) },
+        },
+        tx,
+      );
+      return row!;
+    });
+    const { userId, ...rest } = updated;
+    res.json({ ...rest, hasPortalAccount: Boolean(userId) });
+  },
+);
 
 patientsRouter.post(
   '/:id/portal-invitation',
-  requireRole('DOCTOR', 'DIRECTOR'),
+  requireRole('DOCTOR', 'NURSE', 'DIRECTOR', 'RECEPTION'),
   async (req, res) => {
     const ctx = requireAuth(req);
     const { id } = parse(IdParam, req.params);
@@ -345,6 +367,7 @@ patientsRouter.get('/:id/care-team', async (req, res) => {
     .select({
       doctorId: users.id,
       fullName: users.fullName,
+      role: users.role,
       specialty: users.specialty,
       facilityId: users.facilityId,
       startedAt: careAssignments.startedAt,
@@ -361,65 +384,77 @@ patientsRouter.get('/:id/care-team', async (req, res) => {
  *  - A DOCTOR may add themself for patients registered at their own facility.
  *  - A DIRECTOR may assign any active doctor of their facility to a patient of their facility.
  */
-patientsRouter.post('/:id/care-team', requireRole('DOCTOR', 'DIRECTOR'), async (req, res) => {
-  const ctx = requireAuth(req);
-  const { id } = parse(IdParam, req.params);
-  const body = parse(CareTeamBody, req.body ?? {});
-  const patient = await getPatientOrThrow(id);
-  if (patient.primaryFacilityId !== ctx.facilityId) {
-    throw forbidden('Patients from other facilities can only be accessed via emergency access');
-  }
+/**
+ * Add a clinician (doctor or nurse) to the care team.
+ *  - Doctors and nurses may add themselves for patients registered at their own facility.
+ *  - A director may assign any active doctor or nurse of their facility.
+ */
+patientsRouter.post(
+  '/:id/care-team',
+  requireRole('DOCTOR', 'NURSE', 'DIRECTOR'),
+  async (req, res) => {
+    const ctx = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(CareTeamBody, req.body ?? {});
+    const patient = await getPatientOrThrow(id);
+    if (patient.primaryFacilityId !== ctx.facilityId) {
+      throw forbidden('Patients from other facilities can only be shared through a referral');
+    }
 
-  const doctorId = ctx.role === 'DOCTOR' ? ctx.userId : body.doctorId;
-  if (!doctorId) throw badRequest('doctorId is required');
-  if (ctx.role === 'DOCTOR' && body.doctorId && body.doctorId !== ctx.userId) {
-    throw forbidden('Doctors can only add themselves to a care team');
-  }
-  const [doctor] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(
-      and(
-        eq(users.id, doctorId),
-        eq(users.role, 'DOCTOR'),
-        eq(users.facilityId, ctx.facilityId!),
-        eq(users.isActive, true),
-      ),
-    );
-  if (!doctor) throw badRequest('Doctor not found in your facility');
-  if (await hasActiveCareAssignment(doctorId, id)) {
-    throw conflict('Doctor is already part of the care team');
-  }
+    const selfService = ctx.role === 'DOCTOR' || ctx.role === 'NURSE';
+    const memberId = selfService ? ctx.userId : body.doctorId;
+    if (!memberId) throw badRequest('doctorId (the clinician to assign) is required');
+    if (selfService && body.doctorId && body.doctorId !== ctx.userId) {
+      throw forbidden('Clinicians can only add themselves to a care team');
+    }
+    const [member] = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, memberId),
+          inArray(users.role, [...CARE_TEAM_ROLES]),
+          eq(users.facilityId, ctx.facilityId!),
+          eq(users.isActive, true),
+        ),
+      );
+    if (!member) throw badRequest('Doctor or nurse not found in your facility');
+    if (await hasActiveCareAssignment(memberId, id)) {
+      throw conflict('Already part of the care team');
+    }
 
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(careAssignments)
-      .values({ patientId: id, doctorId, assignedById: ctx.userId })
-      .returning();
-    await audit(
-      {
-        action: AuditAction.CARE_ASSIGNED,
-        actor: ctx,
-        resourceType: 'care_assignment',
-        resourceId: row!.id,
-        patientId: id,
-        meta: requestMeta(req),
-        metadata: { doctorId },
-      },
-      tx,
-    );
-  });
-  res.status(201).json({ patientId: id, doctorId });
-});
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(careAssignments)
+        .values({ patientId: id, doctorId: memberId, assignedById: ctx.userId })
+        .returning();
+      await audit(
+        {
+          action: AuditAction.CARE_ASSIGNED,
+          actor: ctx,
+          resourceType: 'care_assignment',
+          resourceId: row!.id,
+          patientId: id,
+          meta: requestMeta(req),
+          metadata: { memberId, memberRole: member.role },
+        },
+        tx,
+      );
+    });
+    res.status(201).json({ patientId: id, doctorId: memberId, role: member.role });
+  },
+);
 
 patientsRouter.delete(
   '/:id/care-team/:doctorId',
-  requireRole('DOCTOR', 'DIRECTOR'),
+  requireRole('DOCTOR', 'NURSE', 'DIRECTOR'),
   async (req, res) => {
     const ctx = requireAuth(req);
     const { id, doctorId } = parse(CareTeamParams, req.params);
     const patient = await getPatientOrThrow(id);
-    if (ctx.role === 'DOCTOR' && doctorId !== ctx.userId) throw forbidden();
+    if ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && doctorId !== ctx.userId) {
+      throw forbidden();
+    }
     if (ctx.role === 'DIRECTOR' && patient.primaryFacilityId !== ctx.facilityId) throw forbidden();
 
     const ended = await db.transaction(async (tx) => {

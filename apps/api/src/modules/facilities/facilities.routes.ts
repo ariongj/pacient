@@ -7,6 +7,7 @@ import { notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { ensureDefaultChannels } from '../channels/channels.routes.js';
 
 const FacilityInput = z.object({
   code: z
@@ -69,6 +70,7 @@ facilitiesRouter.post('/', requireRole('MINISTRY'), async (req, res) => {
   const input = parse(FacilityInput, req.body);
   const created = await db.transaction(async (tx) => {
     const [row] = await tx.insert(facilities).values(input).returning();
+    await ensureDefaultChannels(row!.id, tx);
     await audit(
       {
         action: AuditAction.FACILITY_CREATED,

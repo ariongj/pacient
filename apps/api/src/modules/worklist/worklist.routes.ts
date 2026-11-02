@@ -7,6 +7,7 @@ import {
   encounters,
   labResults,
   patients,
+  prescriptions,
 } from '../../db/schema.js';
 import { requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
@@ -91,9 +92,34 @@ worklistRouter.get('/', async (req, res) => {
       .limit(100),
   ]);
 
+  // Prescriptions the pharmacy sent back: the prescriber must act (amend and resubmit, or cancel).
+  const returnedPrescriptions = await db
+    .select({
+      id: prescriptions.id,
+      patientId: prescriptions.patientId,
+      patientName,
+      medication: prescriptions.medication,
+      dosage: prescriptions.dosage,
+      frequency: prescriptions.frequency,
+      pharmacistNote: prescriptions.pharmacistNote,
+      returnedAt: prescriptions.verifiedAt,
+    })
+    .from(prescriptions)
+    .innerJoin(patients, eq(patients.id, prescriptions.patientId))
+    .where(
+      and(
+        eq(prescriptions.doctorId, ctx.userId),
+        eq(prescriptions.pharmacyStatus, 'RETURNED'),
+        eq(prescriptions.status, 'ACTIVE'),
+      ),
+    )
+    .orderBy(desc(prescriptions.verifiedAt))
+    .limit(100);
+
   res.json({
     unacknowledgedResults: results,
     openCorrectionRequests: corrections,
     draftNotes: drafts,
+    returnedPrescriptions,
   });
 });

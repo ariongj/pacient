@@ -1,6 +1,8 @@
 import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { pool } from './db/client.js';
+import { stopListening } from './lib/events.js';
+import { closeAllStreams } from './modules/events/events.routes.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
@@ -11,9 +13,11 @@ const server = app.listen(env.PORT, () => {
 /** Graceful shutdown: stop accepting connections, finish in-flight requests, close the pool. */
 function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down');
+  // Long-lived event streams would otherwise keep the server open; clients reconnect elsewhere.
+  closeAllStreams();
   server.close(() => {
-    pool
-      .end()
+    stopListening()
+      .then(() => pool.end())
       .then(() => process.exit(0))
       .catch(() => process.exit(1));
   });

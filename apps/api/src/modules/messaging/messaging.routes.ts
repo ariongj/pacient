@@ -31,7 +31,7 @@ async function loadThread(ctx: AuthContext, id: string) {
   if (!thread) throw notFound('Conversation not found');
   const isParticipant =
     (ctx.role === 'PATIENT' && thread.patientId === ctx.patientId) ||
-    (ctx.role === 'DOCTOR' && thread.doctorId === ctx.userId);
+    ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && thread.doctorId === ctx.userId);
   if (!isParticipant) throw notFound('Conversation not found');
   return thread;
 }
@@ -50,19 +50,20 @@ async function notifyRecipient(
     await notifyUsers([thread.doctorId], {
       type: 'message',
       title: 'New message from a patient',
-      link: `/doctor/messages?thread=${thread.id}`,
+      link: `/messages?thread=${thread.id}`,
     });
   } else {
     await notifyPatient(thread.patientId, {
       type: 'message',
-      title: 'New message from your doctor',
+      title: 'New message from your care team',
       link: `/portal/messages?thread=${thread.id}`,
     });
   }
 }
 
 export const messagingRouter = Router();
-messagingRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR'));
+// Patients message the clinicians of their care team (doctors or nurses).
+messagingRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR', 'NURSE'));
 
 messagingRouter.get('/threads', async (req, res) => {
   const ctx = requireAuth(req);
@@ -205,7 +206,7 @@ messagingRouter.post('/threads/:id/messages', async (req, res) => {
   res.status(201).json(message);
 });
 
-messagingRouter.post('/threads/:id/close', requireRole('DOCTOR'), async (req, res) => {
+messagingRouter.post('/threads/:id/close', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   await loadThread(ctx, id);

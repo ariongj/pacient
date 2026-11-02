@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
+import type { Role } from '../../db/schema.js';
 import {
   allergies,
   allergySeverityEnum,
@@ -12,8 +13,12 @@ import {
   encounters,
   encounterTypeEnum,
   labFlagEnum,
+  careTasks,
   immunizations,
   labResults,
+  medicationAdministrations,
+  administrationStatusEnum,
+  taskPriorityEnum,
   patients,
   prescriptions,
   prescriptionStatusEnum,
@@ -28,11 +33,19 @@ import { PaginationSchema } from '../../lib/pagination.js';
 import { authenticate } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
+  hasActiveCareAssignment,
+  WRITERS,
   resolveClinicalReadAccess,
   type ClinicalAccessBasis,
 } from '../access/policy.js';
 import { audit, AuditAction, type AuditActionValue } from '../audit/audit.service.js';
-import { notifyCareTeam, notifyPatient } from '../notifications/notifications.service.js';
+import {
+  notifyCareTeam,
+  notifyFacilityRole,
+  notifyCareTeamRole,
+  notifyPatient,
+  notifyUsers,
+} from '../notifications/notifications.service.js';
 import * as clinical from './clinical.service.js';
 
 const PatientParam = z.object({ patientId: z.string().uuid() });
@@ -193,10 +206,11 @@ async function ensureEncounter(encounterId: string | null | undefined, patientId
 }
 
 /** Common preamble: authenticate the patient param and resolve write access. */
-async function writeContext(req: Request) {
+/** Common preamble for writes; by default only doctors author entries. */
+async function writeContext(req: Request, roles: Role[] = WRITERS.doctorOnly) {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  await assertClinicalWriteAccess(ctx, patientId, requestMeta(req));
+  await assertClinicalWriteAccess(ctx, patientId, requestMeta(req), roles);
   return { ctx, patientId };
 }
 
@@ -235,6 +249,8 @@ const listEndpoints: Record<
   vitals: (id) => clinical.listVitals(id, 200),
   'lab-results': (id, view) => clinical.listLabResults(id, view),
   immunizations: (id) => clinical.listImmunizations(id),
+  'medication-administrations': (id) => clinical.listAdministrations(id),
+  'care-tasks': (id) => clinical.listCareTasks(id),
 };
 
 for (const [section, loader] of Object.entries(listEndpoints)) {
@@ -469,6 +485,16 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
       .values({ ...input, patientId, doctorId: ctx.userId })
       .returning();
     await auditChange(req, ctx, patientId, 'prescription', created!.id, tx);
+    await notifyFacilityRole(
+      ctx.facilityId!,
+      ['PHARMACIST'],
+      {
+        type: 'pharmacy',
+        title: 'New prescription awaiting verification',
+        link: '/pharmacy',
+      },
+      tx,
+    );
     return created!;
   });
   res.status(201).json(row);
@@ -508,7 +534,8 @@ clinicalRouter.patch('/prescriptions/:entryId', async (req, res) => {
 /* ---------------------------------------------- allergies ------------------------------------ */
 
 clinicalRouter.post('/allergies', async (req, res) => {
-  const { ctx, patientId } = await writeContext(req);
+  // Nurses record observations, reported allergies and vaccinations they give.
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
   const input = parse(AllergyInput, req.body);
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -593,7 +620,8 @@ clinicalRouter.put('/allergy-assessment', async (req, res) => {
 /* ---------------------------------------------- vitals & results ----------------------------- */
 
 clinicalRouter.post('/vitals', async (req, res) => {
-  const { ctx, patientId } = await writeContext(req);
+  // Nurses record observations, reported allergies and vaccinations they give.
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
   const input = parse(VitalsInput, req.body);
   await ensureEncounter(input.encounterId, patientId);
   const row = await db.transaction(async (tx) => {
@@ -627,7 +655,8 @@ const ImmunizationInput = z.object({
 });
 
 clinicalRouter.post('/immunizations', async (req, res) => {
-  const { ctx, patientId } = await writeContext(req);
+  // Nurses record observations, reported allergies and vaccinations they give.
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
   const input = parse(ImmunizationInput, req.body);
   await ensureEncounter(input.encounterId, patientId);
   const row = await db.transaction(async (tx) => {
@@ -642,6 +671,192 @@ clinicalRouter.post('/immunizations', async (req, res) => {
       })
       .returning();
     await auditChange(req, ctx, patientId, 'immunization', created!.id, tx);
+    return created!;
+  });
+  res.status(201).json(row);
+});
+
+/* ---------------------------------------------- medication administration (MAR) ------------ */
+
+const AdministrationInput = z
+  .object({
+    prescriptionId: z.string().uuid(),
+    status: z.enum(administrationStatusEnum.enumValues),
+    doseGiven: z.string().trim().max(100).optional().nullable(),
+    reason: z.string().trim().max(500).optional().nullable(),
+    notes: z.string().trim().max(2000).optional().nullable(),
+    administeredAt: isoDateTime
+      .optional()
+      .refine(
+        (d) => !d || new Date(d) <= new Date(Date.now() + 5 * 60_000),
+        'Cannot be in the future',
+      ),
+  })
+  .refine((v) => v.status === 'GIVEN' || (v.reason && v.reason.length >= 3), {
+    message: 'A reason is required when a dose is withheld, refused or omitted',
+    path: ['reason'],
+  });
+
+/**
+ * Each dose is recorded explicitly – given, withheld, refused or omitted – by the clinician at the
+ * bedside, and only against a prescription the pharmacy has verified. Entries are append-only.
+ */
+clinicalRouter.post('/medication-administrations', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
+  const input = parse(AdministrationInput, req.body);
+  const [rx] = await db
+    .select()
+    .from(prescriptions)
+    .where(and(eq(prescriptions.id, input.prescriptionId), eq(prescriptions.patientId, patientId)));
+  if (!rx) throw notFound('Prescription not found for this patient');
+  if (rx.status !== 'ACTIVE') throw conflict('The prescription is not active');
+  if (rx.pharmacyStatus !== 'VERIFIED' && rx.pharmacyStatus !== 'DISPENSED') {
+    throw conflict('The prescription has not been verified by the pharmacy yet');
+  }
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(medicationAdministrations)
+      .values({
+        ...input,
+        administeredAt: input.administeredAt ? new Date(input.administeredAt) : new Date(),
+        patientId,
+        administeredById: ctx.userId,
+      })
+      .returning();
+    await auditChange(
+      req,
+      ctx,
+      patientId,
+      'medication_administration',
+      created!.id,
+      tx,
+      AuditAction.MEDICATION_ADMINISTERED,
+      {
+        status: input.status,
+      },
+    );
+    return created!;
+  });
+  res.status(201).json(row);
+});
+
+/** After the pharmacy returns a prescription, the prescriber can correct the plan and resubmit. */
+clinicalRouter.post('/prescriptions/:entryId/resubmit', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req);
+  const { entryId } = parse(EntryParams, req.params);
+  const input = parse(
+    z.object({
+      dosage: z.string().trim().min(1).max(100).optional(),
+      frequency: z.string().trim().min(1).max(100).optional(),
+      instructions: z.string().trim().max(2000).optional().nullable(),
+      note: z.string().trim().min(3).max(1000),
+    }),
+    req.body,
+  );
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(prescriptions)
+      .set({
+        ...(input.dosage ? { dosage: input.dosage } : {}),
+        ...(input.frequency ? { frequency: input.frequency } : {}),
+        ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+        pharmacyStatus: 'PENDING',
+        pharmacistNote: null,
+        verifiedById: null,
+        verifiedAt: null,
+      })
+      .where(
+        and(
+          eq(prescriptions.id, entryId),
+          eq(prescriptions.patientId, patientId),
+          eq(prescriptions.pharmacyStatus, 'RETURNED'),
+          eq(prescriptions.status, 'ACTIVE'),
+        ),
+      )
+      .returning();
+    if (!updated) throw notFound('No returned prescription to resubmit');
+    await auditChange(
+      req,
+      ctx,
+      patientId,
+      'prescription',
+      entryId,
+      tx,
+      AuditAction.PRESCRIPTION_RESUBMITTED,
+      {
+        note: input.note,
+      },
+    );
+    await notifyFacilityRole(
+      ctx.facilityId!,
+      ['PHARMACIST'],
+      { type: 'pharmacy', title: 'A returned prescription was resubmitted', link: '/pharmacy' },
+      tx,
+    );
+    return updated;
+  });
+  res.json(row);
+});
+
+/* ---------------------------------------------- care tasks ---------------------------------- */
+
+const CareTaskInput = z.object({
+  title: z.string().trim().min(3).max(200),
+  details: z.string().trim().max(4000).optional().nullable(),
+  priority: z.enum(taskPriorityEnum.enumValues).default('ROUTINE'),
+  dueAt: isoDateTime.optional().nullable(),
+  assignedRole: z.enum(['NURSE', 'DOCTOR']).default('NURSE'),
+  assignedToId: z.string().uuid().optional().nullable(),
+});
+
+clinicalRouter.post('/care-tasks', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
+  const input = parse(CareTaskInput, req.body);
+  if (input.assignedToId) {
+    const [member] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, input.assignedToId));
+    if (
+      !member ||
+      member.role !== input.assignedRole ||
+      !(await hasActiveCareAssignment(input.assignedToId, patientId))
+    ) {
+      throw badRequest(
+        `The assignee must be a ${input.assignedRole.toLowerCase()} in the patient's care team`,
+      );
+    }
+  }
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(careTasks)
+      .values({
+        ...input,
+        dueAt: input.dueAt ? new Date(input.dueAt) : null,
+        patientId,
+        facilityId: ctx.facilityId!,
+        createdById: ctx.userId,
+      })
+      .returning();
+    await auditChange(
+      req,
+      ctx,
+      patientId,
+      'care_task',
+      created!.id,
+      tx,
+      AuditAction.CARE_TASK_CREATED,
+      {
+        priority: input.priority,
+      },
+    );
+    const n = {
+      type: 'task',
+      title: input.priority === 'URGENT' ? 'New URGENT care task' : 'New care task',
+      link: '/tasks',
+    };
+    if (input.assignedToId) await notifyUsers([input.assignedToId], n, tx);
+    else await notifyCareTeamRole(patientId, input.assignedRole, n, tx, ctx.userId);
     return created!;
   });
   res.status(201).json(row);

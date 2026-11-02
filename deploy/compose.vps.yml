@@ -37,6 +37,10 @@ services:
       # but holds email in its outbox until SMTP is configured.
       SMTP_URL: ${SMTP_URL:-}
       EMAIL_FROM: ${EMAIL_FROM:-Pacient <no-reply@pacient.local>}
+      # SMS alerts (Twilio). Without these the API starts and holds texts in the SMS outbox.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      SMS_FROM: ${SMS_FROM:-}
       TRUST_PROXY: 1
     networks: [database]
     mem_limit: 512m

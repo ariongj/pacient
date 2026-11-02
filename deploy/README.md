@@ -86,4 +86,41 @@ isolated test database; also preserve the exact image/commit and private configu
 volume `pacienti_pacienti-db` is persistent. Never use `docker compose down -v` on this deployment.
 Reverting an image does not revert a database migration. Do not assume the server's existing
 backup job includes this new PostgreSQL service until that coverage and off-server restore are
-explicitly verified; no backup schedule is changed by this deployment preparation.
+explicitly verified; no backup schedule is changed by this deployment preparation. Use
+`deploy/backup.sh` and `deploy/restore-verify.sh` (below) for both.
+
+## Backups and restore verification
+
+`deploy/backup.sh` takes a consistent `pg_dump` (custom format, one snapshot, safe while the API
+runs), encrypts it with [age](https://age-encryption.org) to a public key, writes a SHA-256
+checksum and deletes dumps older than `BACKUP_RETENTION_DAYS` (default 14). It refuses to write an
+unencrypted dump of health data. Keep the private key off the server, so a compromised server
+cannot read old backups.
+
+```bash
+age-keygen -o backup-key.txt        # on an offline/admin machine; keep it safe
+PACIENT_COMPOSE=deploy/compose.vps.yml BACKUP_DIR=/var/backups/pacient \
+  BACKUP_AGE_RECIPIENT=age1… deploy/backup.sh
+```
+
+Schedule it (for example a nightly systemd timer or cron entry) and copy the files off-server. The
+script exits non-zero on any failure so the scheduler can alert.
+
+`deploy/restore-verify.sh` proves a backup is usable: it checks the checksum, decrypts, restores
+into a throw-away database, checks the migration history, row counts of key tables and that the
+audit log is still append-only, prints the recovery point (newest audit entry) and drops the
+scratch database. Run it on a separate verification server at least monthly and after every
+schema migration:
+
+```bash
+ADMIN_DATABASE_URL=postgres://postgres@verify-host/postgres BACKUP_AGE_IDENTITY=backup-key.txt \
+  deploy/restore-verify.sh /var/backups/pacient/pacient-20261102T020000Z.dump.age
+```
+
+## SMS and laboratory connections
+
+SMS alerts use Twilio when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `SMS_FROM` are set;
+otherwise the API starts and keeps texts in its outbox (visible to the Ministry under operations).
+Laboratory systems connect over HTTPS to `/api/v1/integrations/lab` with an API key that the
+facility director creates under **Lab connections**; no inbound connection into the laboratory
+network is needed.

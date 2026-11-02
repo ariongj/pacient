@@ -1,0 +1,25 @@
+# Database and mail catcher for local development with `npm run dev` (the app itself runs on Node).
+# Started automatically by `npm run setup` when no PostgreSQL is reachable on localhost:5432.
+name: pacient-dev
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pacient
+      POSTGRES_PASSWORD: pacient
+      POSTGRES_DB: pacient
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pacient -d pacient']
+      interval: 3s
+      retries: 30
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+volumes:
+  dev-db:

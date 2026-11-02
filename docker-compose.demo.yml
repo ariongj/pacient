@@ -1,0 +1,68 @@
+# Try Pacient on your own computer with synthetic demo data – only Docker Desktop is needed:
+#
+#   docker compose -f docker-compose.demo.yml up --build
+#
+# Then open http://localhost:8080 (app) and http://localhost:8025 (emails it sends).
+# Demo accounts are printed in the api log and listed in the README. Stop with Ctrl+C; remove the
+# demo database with: docker compose -f docker-compose.demo.yml down -v
+#
+# DEMO ONLY: fixed secrets, development mode, synthetic data. Never use this for real patients.
+name: pacient-demo
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pacient
+      POSTGRES_PASSWORD: pacient
+      POSTGRES_DB: pacient
+    volumes:
+      - demo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pacient -d pacient']
+      interval: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - '127.0.0.1:8025:8025'
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    # Apply migrations, load demo data on first start (skipped when data exists), then serve.
+    command: ['sh', '-c', 'node dist/db/migrate.js && node dist/db/seed.js && node dist/server.js']
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgres://pacient:pacient@db:5432/pacient
+      JWT_ACCESS_SECRET: demo-only-jwt-secret-do-not-use-in-production-0001
+      MFA_ENCRYPTION_KEY: demo-only-encryption-key-do-not-use-in-production-0001
+      CORS_ORIGINS: http://localhost:8080
+      WEB_APP_URL: http://localhost:8080
+      TRUST_PROXY: 1
+      REQUIRE_STAFF_MFA: 'false'
+      SMTP_URL: smtp://mailpit:1025
+      EMAIL_FROM: Pacient Demo <no-reply@pacient.local>
+      SMS_PROVIDER: log
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      retries: 60
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports:
+      - '127.0.0.1:8080:8080'
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  demo-db:

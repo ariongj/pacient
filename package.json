@@ -2,7 +2,7 @@
   "name": "pacient",
   "private": true,
   "version": "0.1.0",
-  "description": "Pacient \u2013 national electronic health record platform with Ministry, Director, Doctor and Patient portals",
+  "description": "Pacient – national electronic health record platform with Ministry, Director, Doctor and Patient portals",
   "workspaces": [
     "apps/*"
   ],
@@ -11,6 +11,8 @@
   },
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
+    "setup": "node scripts/setup-local.mjs",
+    "demo": "docker compose -f docker-compose.demo.yml up --build",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

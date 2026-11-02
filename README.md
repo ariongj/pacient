@@ -36,6 +36,20 @@ ORU^R01. Results are filed automatically only when order number, national ID and
 match; anything else waits in the director's review queue. Corrected results supersede the old
 value and reopen review; critical results alert the ordering doctor immediately.
 
+**Documents:** scanned letters, reports, photos and signed consent forms are attached to the
+record, checked (file type, optional ClamAV malware scan), stored encrypted and never deleted
+(wrong uploads are marked "entered in error"). Patients see documents once they are shared and can
+add their own, e.g. results from a clinic abroad.
+
+**Consent:** patients (and guardians) decide in the portal whether their record is shared when they
+are referred to another facility and whether de-identified data may be used for approved research;
+doctors record treatment consent in person or with a signed form. Consent history is append-only,
+and referring a patient who withdrew sharing requires recording their renewed agreement.
+
+**Result cover and escalation:** doctors name a colleague who covers their results while they are
+away. Critical results nobody has acknowledged escalate after 30 minutes to the care team and
+cover, and after 2 hours also to the director (without patient details).
+
 All staff accounts use **two-step sign-in** (authenticator app with recovery codes) — mandatory in
 production. Every account can reset a forgotten password through a single-use emailed link.
 

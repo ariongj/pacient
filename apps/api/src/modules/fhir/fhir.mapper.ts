@@ -1,7 +1,8 @@
 /**
  * Mapping from Pacient's model to HL7 FHIR R4 resources. The output is a pragmatic subset aimed at
  * patient-record exchange (Patient, Organization, Practitioner, Encounter, Condition,
- * MedicationRequest, MedicationAdministration, AllergyIntolerance, Observation, Immunization).
+ * MedicationRequest, MedicationAdministration, AllergyIntolerance, Observation, Immunization,
+ * DocumentReference).
  * Before production exchange, validate against the profiles agreed with partners (e.g. IPS).
  */
 type R = Record<string, unknown>;
@@ -435,5 +436,64 @@ export function immunizationResource(
     lotNumber: i.lotNumber ?? undefined,
     site: i.site ? { text: i.site } : undefined,
     protocolApplied: i.doseNumber ? [{ doseNumberPositiveInt: i.doseNumber }] : undefined,
+  });
+}
+
+const DOCUMENT_TYPES: Record<string, { code: string; display: string }> = {
+  REFERRAL_LETTER: { code: '57133-1', display: 'Referral note' },
+  DISCHARGE_SUMMARY: { code: '18842-5', display: 'Discharge summary' },
+  IMAGING_REPORT: { code: '18748-4', display: 'Diagnostic imaging study' },
+  LAB_REPORT: { code: '11502-2', display: 'Laboratory report' },
+  CONSENT_FORM: { code: '59284-0', display: 'Consent document' },
+  CLINICAL_PHOTO: { code: '72170-4', display: 'Photographic image' },
+  PATIENT_PROVIDED: { code: '51855-5', display: 'Patient note' },
+  OTHER: { code: '34133-9', display: 'Summary of episode note' },
+};
+
+/** Document metadata with a link to the authenticated content endpoint (content is not inlined). */
+export function documentReferenceResource(
+  d: {
+    id: string;
+    encounterId: string | null;
+    category: string;
+    title: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    status: string;
+    createdAt: string | Date;
+    uploadedById: string;
+    uploadedByRole: string;
+  },
+  patientId: string,
+  contentUrl: string,
+): R {
+  const type = DOCUMENT_TYPES[d.category] ?? DOCUMENT_TYPES.OTHER!;
+  return clean({
+    resourceType: 'DocumentReference',
+    id: d.id,
+    status: d.status === 'ENTERED_IN_ERROR' ? 'entered-in-error' : 'current',
+    type: { coding: [{ system: SYSTEMS.loinc, ...type }], text: d.category },
+    subject: ref('Patient', patientId),
+    date: iso(d.createdAt),
+    author: [
+      ref(
+        d.uploadedByRole === 'PATIENT' ? 'Patient' : 'Practitioner',
+        d.uploadedByRole === 'PATIENT' ? patientId : d.uploadedById,
+      ),
+    ],
+    description: d.title,
+    context: d.encounterId ? { encounter: [ref('Encounter', d.encounterId)] } : undefined,
+    content: [
+      {
+        attachment: {
+          contentType: d.mimeType,
+          size: d.sizeBytes,
+          title: d.title,
+          url: contentUrl,
+          extension: [{ url: 'urn:pacient:sha256', valueString: d.sha256 }],
+        },
+      },
+    ],
   });
 }

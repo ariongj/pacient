@@ -55,6 +55,10 @@ const EnvSchema = z.object({
     .default('22-7'),
   SMS_TIMEZONE: z.string().default('Europe/Belgrade'),
   SMS_WORKER: z.enum(['true', 'false']).default('true'),
+  /** Malware scanning of uploaded documents: 'clamav' (clamd over TCP) or 'off'. */
+  DOCUMENT_SCANNER: z.enum(['off', 'clamav']).default('off'),
+  CLAMAV_HOST: z.string().optional(),
+  CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(
@@ -112,6 +116,11 @@ function loadEnv(): Env {
   if (emailTransport === 'smtp' && !data.SMTP_URL) {
     throw new Error(
       'Invalid environment configuration:\n  - SMTP_URL is required for email delivery',
+    );
+  }
+  if (data.DOCUMENT_SCANNER === 'clamav' && !data.CLAMAV_HOST) {
+    throw new Error(
+      'Invalid environment configuration:\n  - CLAMAV_HOST is required when DOCUMENT_SCANNER=clamav',
     );
   }
   if (data.NODE_ENV === 'production' && !data.MFA_ENCRYPTION_KEY) {

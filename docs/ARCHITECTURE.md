@@ -101,6 +101,9 @@ entered-in-error) or are amended by addenda.
 | Appointments | `GET/POST /appointments`, `PATCH /appointments/:id/status`                                                                                                                                                                                                                                                                                                                                                       |
 | Portal       | `GET /portal/access-log`, `PATCH /portal/contact`                                                                                                                                                                                                                                                                                                                                                                |
 | Laboratory   | `GET /lab-catalog`, `GET/POST /patients/:id/lab-orders`, `POST /patients/:id/lab-orders/:oid/cancel`; LIS (API key): `GET /integrations/lab/{orders,ping}`, `POST /integrations/lab/orders/:placer/receive`, `POST /integrations/lab/results`; director: `GET/POST /integrations/clients`, `POST /integrations/clients/:id/revoke`, `GET /integrations/messages[/:id]`, `POST /integrations/messages/:id/review` |
+| Documents    | `GET/POST /patients/:id/documents` (raw PDF/JPEG/PNG body), `GET /patients/:id/documents/:did/content`, `PATCH /patients/:id/documents/:did`, `POST /patients/:id/documents/:did/entered-in-error`                                                                                                                                                                                                               |
+| Consent      | `GET/POST /patients/:id/consents` (referrals check cross-facility sharing consent)                                                                                                                                                                                                                                                                                                                               |
+| Cover        | `GET/POST /cover`, `GET /cover/colleagues`, `POST /cover/:id/cancel`, `GET /cover/escalations` (director)                                                                                                                                                                                                                                                                                                        |
 | SMS          | `POST /auth/me/phone`, `POST /auth/me/phone/verify`, `DELETE /auth/me/phone`, `PATCH /auth/me/preferences`, `GET /stats/sms` (Ministry)                                                                                                                                                                                                                                                                          |
 | Worklist     | `GET /worklist` (doctor)                                                                                                                                                                                                                                                                                                                                                                                         |
 | Reporting    | `GET /stats/facility`, `GET /stats/national`, `GET /audit-logs`                                                                                                                                                                                                                                                                                                                                                  |
@@ -186,3 +189,29 @@ message). `npm run lab:simulate` plays the laboratory in development.
 `deploy/backup.sh` (encrypted custom-format `pg_dump`, checksum, retention) and
 `deploy/restore-verify.sh` (restore into a scratch database, check migrations, key tables and the
 audit log triggers, report the recovery point). See [deploy/README.md](../deploy/README.md).
+
+## Documents
+
+Metadata in `patient_documents`, bytes in `document_contents` (bytea, `iv ‖ tag ‖ ciphertext`,
+AES-256-GCM with a key derived for documents only). Upload: role check before reading the body →
+size limit → magic-byte check → optional clamd INSTREAM scan → SHA-256 → encrypt → insert metadata,
+content and audit in one transaction. FHIR `$everything` includes `DocumentReference` entries that
+link to the content endpoint. At larger scale the content table can move to S3-compatible object
+storage without changing the API.
+
+## Consent
+
+`consent_records` is an append-only history (trigger-protected); the latest unexpired row per
+patient and type (per procedure for treatment) is the current decision. Defaults: cross-facility
+sharing applies unless withdrawn; research is opt-in. Each row stores the wording version the
+patient saw (`modules/consent/texts.ts`).
+
+## Result cover and escalation
+
+`cover_arrangements` give the cover doctor care-team access to the absent doctor's care-team
+patients during the window (`access/policy.ts`), copy result alerts to them and add their results
+to the cover doctor's worklist. `cover/escalation.ts` runs every minute: unacknowledged critical
+results escalate at 30 minutes (ordering doctor, cover, care-team doctors) and 2 hours (plus the
+facility director, without patient details). `result_escalations` has a unique (result, level)
+key and inserts use `ON CONFLICT DO NOTHING … RETURNING`, so several API instances never notify
+twice.

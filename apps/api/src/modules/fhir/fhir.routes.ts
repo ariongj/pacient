@@ -8,6 +8,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { assertDemographicsAccess, resolveClinicalReadAccess } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import * as clinical from '../clinical/clinical.service.js';
+import { listDocuments } from '../documents/documents.service.js';
 import * as fhir from './fhir.mapper.js';
 
 /**
@@ -60,6 +61,7 @@ fhirRouter.get('/metadata', (_req, res) => {
             'AllergyIntolerance',
             'Observation',
             'Immunization',
+            'DocumentReference',
             'Organization',
             'Practitioner',
           ].map((type) => ({
@@ -96,6 +98,7 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
     vitals,
     labs,
     vaccines,
+    documents,
   ] = await Promise.all([
     db.select().from(patients).where(eq(patients.id, id)),
     clinical.listEncounters(id, { page: 1, pageSize: 10_000 }, view),
@@ -106,6 +109,7 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
     clinical.listVitals(id, 10_000, view),
     clinical.listLabResults(id, view),
     clinical.listImmunizations(id, view),
+    listDocuments(id, view),
   ]);
 
   const facilityIds = new Set<string>([
@@ -117,6 +121,7 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
     ...diagnoses.map((d) => d.doctorId),
     ...prescriptions.map((p) => p.doctorId),
     ...labs.map((l) => l.orderedById),
+    ...documents.filter((d) => d.uploadedByRole !== 'PATIENT').map((d) => d.uploadedById),
   ]);
   const [orgs, practitioners] = await Promise.all([
     db
@@ -136,6 +141,7 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
       : Promise.resolve([]),
   ]);
 
+  const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
   const resources = [
     fhir.patientResource(patient!),
     ...orgs.map(fhir.organizationResource),
@@ -148,6 +154,9 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
     ...vitals.flatMap((v) => fhir.vitalObservations(v, id)),
     ...labs.map((l) => fhir.labObservation(l, id)),
     ...vaccines.map((v) => fhir.immunizationResource(v, id)),
+    ...documents.map((d) =>
+      fhir.documentReferenceResource(d, id, `${apiBase}/patients/${id}/documents/${d.id}/content`),
+    ),
   ];
 
   await audit({

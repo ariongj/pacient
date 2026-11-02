@@ -129,3 +129,48 @@ export async function downloadFile(path: string, filename: string, query?: Query
 
 /** @deprecated use downloadFile */
 export const downloadJson = (path: string, filename: string) => downloadFile(path, filename);
+
+/**
+ * Upload a file as the raw request body (documents). Same authentication, refresh and guardian
+ * handling as `api()`; metadata goes in the query string and the file name in X-File-Name.
+ */
+export async function apiUpload<T>(path: string, file: Blob, fileName: string, query?: Query) {
+  const sendFile = () => {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': file.type,
+      'X-File-Name': encodeURIComponent(fileName),
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (actingFor) headers['X-Acting-For'] = actingFor;
+    return fetch(buildUrl(path, query), {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: file,
+    });
+  };
+  let res = await sendFile();
+  if (res.status === 401) {
+    if (await refreshSession()) res = await sendFile();
+    else onSessionExpired?.();
+  }
+  if (!res.ok) {
+    let payload: { error?: { code?: string; message?: string; details?: unknown } } = {};
+    try {
+      payload = await res.json();
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(
+      res.status,
+      payload.error?.code ?? 'ERROR',
+      payload.error?.message ??
+        (res.status === 413
+          ? 'The file is too large (maximum 10 MB)'
+          : `Upload failed (${res.status})`),
+      payload.error?.details,
+    );
+  }
+  return (await res.json()) as T;
+}

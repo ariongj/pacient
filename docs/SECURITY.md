@@ -123,6 +123,16 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   filed only when the order number, national ID and date of birth match; otherwise the message is
   held for a director, who sees only the identifiers needed to decide. Raw messages are stored
   sealed (AES-256-GCM) for audit and are never returned by the API.
+- Documents: only PDF/JPEG/PNG whose content matches the declared type, 10 MiB limit, optional
+  ClamAV scan (an unreachable scanner refuses the upload rather than storing it unscanned), content
+  encrypted with AES-256-GCM under a purpose-specific key, SHA-256 verified on every read, served
+  with `nosniff` and a sandboxing CSP, every opening audited and shown in the patient's access log.
+- Consent history is append-only (database trigger). Withdrawn cross-facility sharing blocks
+  referrals to other facilities until renewed agreement is recorded; emergency access within the
+  facility is unaffected (vital interests) and remains reviewed.
+- Result cover grants care-team access only during the cover window, only for the absent doctor's
+  care-team patients, and is audited (`via: COVER`). Escalations to directors carry no patient
+  identity or values.
 - Backups are encrypted to an offline age key before they leave `pg_dump`; the backup script refuses
   to write unencrypted dumps, and restores are verified in a throw-away database.
 - Dependencies are audited in CI (`npm audit --omit=dev --audit-level=high`).

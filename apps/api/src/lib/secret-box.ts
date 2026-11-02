@@ -26,3 +26,32 @@ export function open(sealed: string): string {
     'utf8',
   );
 }
+
+/**
+ * Authenticated encryption for binary content (patient documents). A separate key is derived for
+ * each purpose so a document key can never decrypt TOTP seeds and vice versa.
+ * Format: iv (12 bytes) ‖ tag (16 bytes) ‖ ciphertext.
+ */
+const bufferKeys = new Map<string, Buffer>();
+function keyFor(purpose: string): Buffer {
+  let k = bufferKeys.get(purpose);
+  if (!k) {
+    k = createHash('sha256').update(`pacient-${purpose}:${env.MFA_ENCRYPTION_KEY}`).digest();
+    bufferKeys.set(purpose, k);
+  }
+  return k;
+}
+
+export function sealBuffer(plain: Buffer, purpose = 'documents'): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', keyFor(purpose), iv);
+  const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ct]);
+}
+
+export function openBuffer(sealed: Buffer, purpose = 'documents'): Buffer {
+  if (sealed.length < 28) throw new Error('Sealed content is truncated');
+  const decipher = createDecipheriv('aes-256-gcm', keyFor(purpose), sealed.subarray(0, 12));
+  decipher.setAuthTag(sealed.subarray(12, 28));
+  return Buffer.concat([decipher.update(sealed.subarray(28)), decipher.final()]);
+}

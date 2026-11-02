@@ -41,6 +41,10 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       SMS_FROM: ${SMS_FROM:-}
+      # Malware scanning of uploaded documents (clamd). Set DOCUMENT_SCANNER=clamav and CLAMAV_HOST.
+      DOCUMENT_SCANNER: ${DOCUMENT_SCANNER:-off}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
       TRUST_PROXY: 1
     networks: [database]
     mem_limit: 512m

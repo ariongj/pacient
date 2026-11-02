@@ -25,7 +25,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Guardian / proxy: verified, explicit, patient-specific, scoped, expiring, revocable    |   ✅   | `modules/guardians`, `X-Acting-For`                                     |
 | Confidential minor records follow applicable law                                       |   🟡   | per-visit "confidential from guardians"; age rules per jurisdiction ⏳  |
 | Lab/radiology, billing, IT support roles                                               |   ⏳   |                                                                         |
-| Purpose/consent and data-sensitivity in policy decisions                               |   ⏳   |                                                                         |
+| Purpose/consent and data-sensitivity in policy decisions                               |   🟡   | consent gates cross-facility referral; research consent recorded        |
 | Periodic access review                                                                 |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
 | Cross-institution sharing only through an explicit arrangement                         |   ✅   | referrals: acceptance creates the care relationship                     |
 
@@ -44,7 +44,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Vaccination history, referrals, notifications, announcements          |    ✅     |
 | Proxy / guardian access with "viewing as" switcher                    |    ✅     |
 | Email notifications without health information; user preferences      |    ✅     |
-| Consent settings, documents                                           |    ⏳     |
+| Consent settings, documents                                           |    ✅     |
 
 ## Clinical record integrity (§5)
 
@@ -70,7 +70,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Director visibility of overdue follow-up                                | ✅ (exceptions panel) |
 | Structured orders (LOINC catalogue, specimen, priority), order tracking |          ✅           |
 | Critical results alert the ordering clinician (in-app, email, SMS)      |          ✅           |
-| Backup result owners / escalation when the owner is unavailable         |          ⏳           |
+| Backup result owners (cover) and timed escalation of critical results   |          ✅           |
 | Amended results reopening review (superseded value kept and shown)      |          ✅           |
 | LIS integration (HL7 v2 ORM/ORU, ACKs, idempotent, identity-matched)    |          ✅           |
 | Mismatched results held for human review, never auto-filed              |          ✅           |
@@ -87,7 +87,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Transactional event delivery (NOTIFY inside the transaction) for live updates |               ✅               |
 | Durable outbox for email and SMS; integration message log                     |               ✅               |
 | FHIR R4 export (Patient/$everything, ICD-10, LOINC/UCUM)                      | ✅ (validate partner profiles) |
-| Private object store for documents, upload scanning                           |               ⏳               |
+| Encrypted document storage, type checks, ClamAV upload scanning               |               ✅               |
 
 ## Security, privacy and reporting (§7)
 
@@ -117,8 +117,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 1. **Validated drug-interaction database** for pharmacy decision support; barcode administration.
 2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
-3. **Backup result owners** and timed escalation of unacknowledged critical results (B05).
-4. **Consent records** and jurisdiction-specific rules for adolescent confidentiality (B06).
+3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
+4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
 5. **Identity merge/unmerge** with lineage (B02).
 6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
    needed) and add RIS/PACS (B07).

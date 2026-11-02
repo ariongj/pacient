@@ -24,6 +24,7 @@ import { announcementsRouter } from './modules/announcements/announcements.route
 import { emergencyRouter } from './modules/emergency/emergency.routes.js';
 import { messagingRouter } from './modules/messaging/messaging.routes.js';
 import { consentRouter } from './modules/consent/consent.routes.js';
+import { mergeRouter } from './modules/merge/merge.routes.js';
 import { coverRouter } from './modules/cover/cover.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
@@ -133,6 +134,7 @@ export function createApp(): Express {
   api.use('/audit-logs', auditRouter);
   api.use('/worklist', worklistRouter);
   api.use('/cover', coverRouter);
+  api.use('/patient-merges', mergeRouter);
   api.use('/notifications', notificationsRouter);
   api.use('/messages', messagingRouter);
   api.use('/referrals', referralsRouter);

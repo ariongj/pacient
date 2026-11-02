@@ -93,6 +93,8 @@ export const AuditAction = {
   COVER_CREATED: 'cover.created',
   COVER_CANCELLED: 'cover.cancelled',
   RESULT_ESCALATED: 'lab.result.escalated',
+  PATIENT_MERGED: 'patient.merged',
+  PATIENT_UNMERGED: 'patient.unmerged',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

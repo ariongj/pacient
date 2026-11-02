@@ -1255,3 +1255,30 @@ th.num {
 .lab-progress li[aria-current='step'] {
   font-weight: 600;
 }
+
+/* Language switch (Shqip / English) */
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.lang-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+.lang-switch button.active {
+  background: var(--primary);
+  color: #fff;
+}
+.lang-switch button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}

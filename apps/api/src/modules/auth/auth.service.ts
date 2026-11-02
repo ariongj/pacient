@@ -320,6 +320,7 @@ export async function getProfile(ctx: AuthContext) {
       mfaEnabledAt: users.mfaEnabledAt,
       emailNotifications: users.emailNotifications,
       smsNotifications: users.smsNotifications,
+      locale: users.locale,
       phone: users.phone,
       phoneVerifiedAt: users.phoneVerifiedAt,
       facility: {

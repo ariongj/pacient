@@ -1,3 +1,4 @@
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type { Profile } from '../../api/types';
@@ -31,6 +32,9 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
             +
           </span>
           <strong>Pacient</strong>
+          <span style={{ marginLeft: 'auto' }}>
+            <LanguageSwitcher />
+          </span>
         </div>
         {children}
       </main>

@@ -1,3 +1,4 @@
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import { useEffect } from 'react';
 import {
   Navigate,
@@ -109,6 +110,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/patients', label: 'Registered patients', icon: 'user' },
         { to: '/director/referrals', label: 'Referrals', icon: 'share' },
         { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
+        { to: '/director/duplicates', label: 'Duplicate records', icon: 'user' },
       ],
     },
     {
@@ -267,6 +269,7 @@ export function Layout() {
             <span className="live-dot" aria-hidden="true" />
             <span className="live-text">{LIVE_TEXT[live]}</span>
           </span>
+          <LanguageSwitcher compact />
           <NotificationBell />
           <span className="avatar" aria-hidden="true">
             {initials}

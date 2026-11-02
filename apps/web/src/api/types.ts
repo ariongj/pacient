@@ -15,6 +15,7 @@ export interface Profile {
   mfaEnabled: boolean;
   emailNotifications: EmailPreference;
   smsNotifications: SmsPreference;
+  locale: 'sq' | 'en';
   /** Masked mobile number (e.g. "+383 •••• 801"), or null. */
   phone: string | null;
   /** Staff must enrol in two-step sign-in before using their workspace. */

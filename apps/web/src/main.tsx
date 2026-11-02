@@ -5,6 +5,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { ApiError } from './api/client';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { LocaleProvider } from './i18n';
+import { LocaleSync } from './i18n/LanguageSwitcher';
 import './styles.css';
 
 const queryClient = new QueryClient({
@@ -23,7 +25,10 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AuthProvider>
-          <App />
+          <LocaleProvider>
+            <LocaleSync />
+            <App />
+          </LocaleProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

@@ -1,3 +1,4 @@
+import { DirectorDuplicates } from './pages/director/DirectorDuplicates';
 import { PortalDocuments } from './pages/patient/PortalDocuments';
 import { PortalConsents } from './pages/patient/PortalConsents';
 import { DoctorCover } from './pages/doctor/DoctorCover';
@@ -142,6 +143,7 @@ export function App() {
             </RequireRole>
           }
         />
+        <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"
           element={

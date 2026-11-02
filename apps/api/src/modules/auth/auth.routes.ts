@@ -157,8 +157,9 @@ authRouter.patch('/me/preferences', authenticate, async (req, res) => {
       .object({
         emailNotifications: z.enum(emailPreferenceEnum.enumValues).optional(),
         smsNotifications: z.enum(smsPreferenceEnum.enumValues).optional(),
+        locale: z.enum(['sq', 'en']).optional(),
       })
-      .refine((v) => v.emailNotifications || v.smsNotifications, 'Nothing to change'),
+      .refine((v) => v.emailNotifications || v.smsNotifications || v.locale, 'Nothing to change'),
     req.body,
   );
   if (input.smsNotifications === 'IMPORTANT') {

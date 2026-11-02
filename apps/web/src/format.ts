@@ -1,17 +1,32 @@
-const dateFmt = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-});
-const dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
-const monthFmt = new Intl.DateTimeFormat('en-GB', { month: 'short' });
+import { intlLocale, t } from './i18n';
+
+const cache = new Map<string, Intl.DateTimeFormat>();
+function fmt(key: string, options: Intl.DateTimeFormatOptions) {
+  const id = `${intlLocale()}|${key}`;
+  let f = cache.get(id);
+  if (!f) {
+    f = new Intl.DateTimeFormat(intlLocale(), options);
+    cache.set(id, f);
+  }
+  return f;
+}
+const dateFmt = {
+  format: (d: Date) => fmt('date', { day: '2-digit', month: 'short', year: 'numeric' }).format(d),
+};
+const dateTimeFmt = {
+  format: (d: Date) =>
+    fmt('datetime', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d),
+};
+const timeFmt = {
+  format: (d: Date) => fmt('time', { hour: '2-digit', minute: '2-digit' }).format(d),
+};
+const monthFmt = { format: (d: Date) => fmt('month', { month: 'short' }).format(d) };
 
 export const formatDate = (v: string | null | undefined) => (v ? dateFmt.format(new Date(v)) : '—');
 export const formatDateTime = (v: string | null | undefined) =>
@@ -32,13 +47,13 @@ export function age(dateOfBirth: string): number {
 export function humanize(value: string | null | undefined): string {
   if (!value) return '—';
   const s = value.replace(/[_.-]+/g, ' ').toLowerCase();
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return t(s.charAt(0).toUpperCase() + s.slice(1));
 }
 
 export const fullName = (p: { firstName: string; lastName: string }) =>
   `${p.firstName} ${p.lastName}`;
 
-export const formatNumber = (n: number) => new Intl.NumberFormat('en-GB').format(n);
+export const formatNumber = (n: number) => new Intl.NumberFormat(intlLocale()).format(n);
 
 /** Human-readable descriptions of audit actions, used in the patient access log and audit views. */
 export const ACTION_LABELS: Record<string, string> = {
@@ -120,4 +135,4 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.phone.verified': 'Mobile number verified',
   'user.phone.removed': 'Mobile number removed',
 };
-export const actionLabel = (a: string) => ACTION_LABELS[a] ?? humanize(a);
+export const actionLabel = (a: string) => (ACTION_LABELS[a] ? t(ACTION_LABELS[a]) : humanize(a));

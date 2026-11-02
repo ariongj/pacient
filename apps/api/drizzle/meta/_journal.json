@@ -71,6 +71,13 @@
       "when": 1793650721014,
       "tag": "0009_documents_consent_cover",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793653000160,
+      "tag": "0010_albanian_and_patient_merge",
+      "breakpoints": true
     }
   ]
 }

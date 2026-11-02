@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   customType,
   date,
@@ -246,6 +247,8 @@ export const users = pgTable(
     mfaLastUsedStep: integer('mfa_last_used_step'),
     /** Which in-app notifications are also sent by email (content is always generic). */
     emailNotifications: emailPreferenceEnum('email_notifications').notNull().default('IMPORTANT'),
+    /** Interface and message language: sq (Albanian) or en (English). */
+    locale: varchar('locale', { length: 5 }).notNull().default('sq'),
     /** Mobile number (E.164) for SMS notifications; used only once verified with a code. */
     phone: varchar('phone', { length: 20 }),
     phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
@@ -330,6 +333,11 @@ export const patients = pgTable(
     primaryFacilityId: uuid('primary_facility_id')
       .notNull()
       .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** Set when this record was a duplicate merged into another one (it is then read-only). */
+    mergedIntoId: uuid('merged_into_id').references((): AnyPgColumn => patients.id, {
+      onDelete: 'restrict',
+    }),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -1282,6 +1290,42 @@ export const resultEscalations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('result_escalations_uq').on(t.labResultId, t.level)],
+);
+
+/**
+ * Lineage of patient merges. The duplicate record is kept (marked merged) and every row moved to
+ * the surviving record is listed in `movedRows`, so a wrong merge can be undone exactly.
+ */
+export const patientMerges = pgTable(
+  'patient_merges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    survivorId: uuid('survivor_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    mergedId: uuid('merged_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    /** table name → ids of rows moved from the duplicate to the survivor. */
+    movedRows: jsonb('moved_rows').$type<Record<string, string[]>>().notNull(),
+    /** Demographics of both records at the time of the merge. */
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    mergedById: uuid('merged_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    mergedAt: timestamp('merged_at', { withTimezone: true }).notNull().defaultNow(),
+    unmergedById: uuid('unmerged_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    unmergedAt: timestamp('unmerged_at', { withTimezone: true }),
+    unmergeReason: varchar('unmerge_reason', { length: 500 }),
+  },
+  (t) => [
+    index('patient_merges_survivor_idx').on(t.survivorId),
+    uniqueIndex('patient_merges_active_uq')
+      .on(t.mergedId)
+      .where(sql`${t.unmergedAt} IS NULL`),
+  ],
 );
 
 /* ------------------------------------------------------------------------------------------------

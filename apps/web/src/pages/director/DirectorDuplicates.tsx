@@ -138,15 +138,21 @@ function MergeDialog({
     <Dialog open onClose={onClose} title={t('Compare and merge records')} wide>
       <QueryView query={compare}>
         {(data) => {
-          // Default survivor: the record with a portal account, otherwise the one with more entries.
+          // Default survivor: the record with a portal account, otherwise the one with more
+          // entries, otherwise the one registered first (later registrations are usually the
+          // duplicate).
           const defaultSide: 'a' | 'b' =
             data.a.hasPortalAccount !== data.b.hasPortalAccount
               ? data.a.hasPortalAccount
                 ? 'a'
                 : 'b'
-              : data.b.totalRecords > data.a.totalRecords
-                ? 'b'
-                : 'a';
+              : data.a.totalRecords !== data.b.totalRecords
+                ? data.b.totalRecords > data.a.totalRecords
+                  ? 'b'
+                  : 'a'
+                : data.b.createdAt < data.a.createdAt
+                  ? 'b'
+                  : 'a';
           const side = survivorSide ?? defaultSide;
           const survivor = side === 'a' ? data.a : data.b;
           const duplicate = side === 'a' ? data.b : data.a;

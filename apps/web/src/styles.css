@@ -623,9 +623,13 @@ textarea {
   min-height: 40px;
   width: 100%;
 }
-input[type='checkbox'] {
+input[type='checkbox'],
+input[type='radio'] {
   width: auto;
   min-height: auto;
+  padding: 0;
+  flex: none;
+  accent-color: var(--primary);
 }
 textarea {
   resize: vertical;

@@ -5,6 +5,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   sql,
   type AnyColumn,
   type SQL,
@@ -170,7 +171,8 @@ export function listVitals(patientId: string, limit = 50, view: ViewOptions = CL
 }
 
 export function listLabResults(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
-  const filters: SQL[] = [eq(labResults.patientId, patientId)];
+  // Only current versions: a result replaced by a correction is kept for the record but not listed.
+  const filters: SQL[] = [eq(labResults.patientId, patientId), isNull(labResults.supersededById)];
   if (view.patientView) filters.push(isNotNull(labResults.releasedAt));
   if (view.hideConfidential) filters.push(notConfidential(labResults.encounterId));
   return db
@@ -188,6 +190,13 @@ export function listLabResults(patientId: string, view: ViewOptions = CLINICIAN_
       releasedAt: labResults.releasedAt,
       orderedById: labResults.orderedById,
       orderedBy: doctorName,
+      orderId: labResults.orderId,
+      testCode: labResults.testCode,
+      source: labResults.source,
+      /** For corrected results: the value it replaced. */
+      previousValue: sql<
+        string | null
+      >`(SELECT p.value FROM lab_results p WHERE p.superseded_by_id = ${labResults.id} LIMIT 1)`,
     })
     .from(labResults)
     .innerJoin(users, eq(users.id, labResults.orderedById))

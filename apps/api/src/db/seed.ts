@@ -31,10 +31,19 @@ import {
   guardianships,
   channels,
   medicationAdministrations,
+  integrationClients,
+  labOrders,
 } from './schema.js';
+import { hashToken } from '../lib/tokens.js';
+import { catalogByCode } from '../modules/lab/catalog.js';
+import { ingestOru } from '../modules/lab/ingest.js';
+import { newPlacerOrderNumber } from '../modules/lab/orders.routes.js';
+import { buildOru } from '../ops/oru.js';
 import { ensureDefaultChannels } from '../modules/channels/channels.routes.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
+/** Development-only key of the seeded laboratory connection. */
+export const DEMO_LAB_API_KEY = 'pk_dev_ucc_laboratory_demo_key_not_for_production';
 
 /** Deterministic PRNG so every seed produces the same dataset. */
 function mulberry32(seed: number) {
@@ -1057,6 +1066,105 @@ async function main() {
     sql`UPDATE channels c SET last_message_at = (SELECT max(m.created_at) FROM channel_messages m WHERE m.channel_id = c.id)`,
   );
 
+  /* ------------------------------------------------------------- laboratory connection demo */
+  // A laboratory system connected to UCC with a fixed development key, so `npm run lab:simulate`
+  // works out of the box. The seed refuses to run in production, so this key never exists there.
+  const [labClient] = await db
+    .insert(integrationClients)
+    .values({
+      name: 'UCC Central Laboratory (LIS)',
+      facilityId: ucc!.id,
+      apiKeyHash: hashToken(DEMO_LAB_API_KEY),
+      apiKeyPrefix: DEMO_LAB_API_KEY.slice(0, 10),
+      createdById: directorsByFacility.get(ucc!.id)!,
+    })
+    .returning();
+  const [demoPatient] = await db.select().from(patients).where(eq(patients.id, demoPatientId));
+  const newOrder = async (
+    testCode: string,
+    priority: 'ROUTINE' | 'URGENT' | 'STAT',
+    notes: string,
+    ageHours: number,
+  ) => {
+    const t = catalogByCode(testCode)!;
+    const [row] = await db
+      .insert(labOrders)
+      .values({
+        placerOrderNumber: newPlacerOrderNumber(),
+        patientId: demoPatientId,
+        orderedById: demoDoctor.id,
+        facilityId: ucc!.id,
+        testCode: t.code,
+        testName: t.name,
+        specimen: t.specimen,
+        priority,
+        clinicalNotes: notes,
+        createdAt: new Date(Date.now() - ageHours * 3_600_000),
+      })
+      .returning();
+    return row!;
+  };
+  // Results that already came back through the interface (filed by the real ingestion path).
+  const resulted = await newOrder('4548-4', 'ROUTINE', 'Diabetes follow-up', 30);
+  await db
+    .update(labOrders)
+    .set({ status: 'RECEIVED', labClientId: labClient!.id, receivedAt: daysAgo(1) })
+    .where(eq(labOrders.id, resulted.id));
+  const labIdentity = {
+    nationalId: demoPatient!.nationalId,
+    firstName: demoPatient!.firstName,
+    lastName: demoPatient!.lastName,
+    dateOfBirth: demoPatient!.dateOfBirth,
+  };
+  const client = { id: labClient!.id, name: labClient!.name, facilityId: ucc!.id };
+  await ingestOru(
+    client,
+    buildOru({
+      controlId: 'SEED0001',
+      placerOrderNumber: resulted.placerOrderNumber,
+      fillerOrderNumber: 'UCC-LAB-20931',
+      patient: labIdentity,
+      observations: [
+        {
+          code: '4548-4',
+          name: 'Haemoglobin A1c',
+          value: '7.4',
+          unit: '%',
+          referenceRange: '4.0-5.6',
+          flag: 'H',
+        },
+      ],
+    }),
+  );
+  // Orders waiting for the laboratory – run `npm run lab:simulate` to have them resulted.
+  await newOrder('2160-0', 'ROUTINE', 'Kidney function before starting an ACE inhibitor', 3);
+  await newOrder('2823-3', 'URGENT', 'Muscle weakness, on diuretics', 1);
+  // A message the laboratory sent with a date of birth that does not match: held for review.
+  const mismatched = await newOrder('718-7', 'ROUTINE', 'Fatigue', 26);
+  await db
+    .update(labOrders)
+    .set({ status: 'RECEIVED', labClientId: labClient!.id, receivedAt: daysAgo(1) })
+    .where(eq(labOrders.id, mismatched.id));
+  await ingestOru(
+    client,
+    buildOru({
+      controlId: 'SEED0002',
+      placerOrderNumber: mismatched.placerOrderNumber,
+      fillerOrderNumber: 'UCC-LAB-20977',
+      patient: { ...labIdentity, dateOfBirth: labIdentity.dateOfBirth.replace(/-\d{2}$/, '-28') },
+      observations: [
+        {
+          code: '718-7',
+          name: 'Haemoglobin',
+          value: '118',
+          unit: 'g/L',
+          referenceRange: '120-160',
+          flag: 'L',
+        },
+      ],
+    }),
+  );
+
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Ministry   : minister@pacient.local
@@ -1066,6 +1174,9 @@ Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Pharmacist : pharmacist@pacient.local  (UCC Prishtina)
   Reception  : reception@pacient.local   (UCC Prishtina)
   Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)
+
+Laboratory simulator (development only):
+  LAB_API_KEY=${DEMO_LAB_API_KEY} npm run lab:simulate
 `);
 }
 

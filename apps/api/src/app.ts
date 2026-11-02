@@ -34,6 +34,9 @@ import { fhirRouter } from './modules/fhir/fhir.routes.js';
 import { directoryRouter } from './modules/directory/directory.routes.js';
 import { guardiansRouter } from './modules/guardians/guardians.routes.js';
 import { phoneRouter } from './modules/sms/phone.routes.js';
+import { integrationsAdminRouter } from './modules/integrations/admin.routes.js';
+import { labApiRouter } from './modules/integrations/lab-api.routes.js';
+import { labCatalogRouter, labOrdersRouter } from './modules/lab/orders.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -116,6 +119,7 @@ export function createApp(): Express {
   api.use('/facilities', facilitiesRouter);
   api.use('/staff', staffRouter);
   api.use('/patients/:id/guardians', guardiansRouter);
+  api.use('/patients/:patientId/lab-orders', labOrdersRouter);
   api.use('/patients/:patientId', clinicalRouter);
   api.use('/patients', patientsRouter);
   api.use('/appointments', appointmentsRouter);
@@ -135,6 +139,11 @@ export function createApp(): Express {
   api.use('/events', eventsRouter);
   api.use('/fhir', fhirRouter);
   api.use('/directory', directoryRouter);
+  api.use('/lab-catalog', labCatalogRouter);
+  // Machine-to-machine API for laboratory systems (API-key authenticated). Mounted before the staff
+  // router so laboratory requests never reach staff authentication.
+  api.use('/integrations/lab', labApiRouter);
+  api.use('/integrations', integrationsAdminRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler);

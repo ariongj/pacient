@@ -39,7 +39,13 @@ worklistRouter.get('/', async (req, res) => {
       })
       .from(labResults)
       .innerJoin(patients, eq(patients.id, labResults.patientId))
-      .where(and(eq(labResults.orderedById, ctx.userId), isNull(labResults.acknowledgedAt)))
+      .where(
+        and(
+          eq(labResults.orderedById, ctx.userId),
+          isNull(labResults.acknowledgedAt),
+          isNull(labResults.supersededById),
+        ),
+      )
       .orderBy(
         sql`CASE ${labResults.flag} WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'LOW' THEN 1 ELSE 2 END`,
         asc(labResults.collectedAt),

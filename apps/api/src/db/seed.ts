@@ -159,7 +159,12 @@ const CONDITIONS = [
     status: 'ACTIVE',
     rx: { medication: 'Omeprazole', dosage: '20 mg', frequency: 'një herë në ditë para mëngjesit' },
   },
-  { code: 'F41.1', description: 'Çrregullim i ankthit të përgjithësuar', status: 'ACTIVE', rx: null },
+  {
+    code: 'F41.1',
+    description: 'Çrregullim i ankthit të përgjithësuar',
+    status: 'ACTIVE',
+    rx: null,
+  },
   {
     code: 'D50.9',
     description: 'Anemi nga mungesa e hekurit, e paspecifikuar',
@@ -894,7 +899,12 @@ async function main() {
       facilityId: ucc!.id,
       scheduledAt: at,
       durationMinutes: 20,
-      reason: pick(['Kontroll', 'Rishikim i recetës', 'Simptoma të reja', 'Diskutim i rezultateve të analizave']),
+      reason: pick([
+        'Kontroll',
+        'Rishikim i recetës',
+        'Simptoma të reja',
+        'Diskutim i rezultateve të analizave',
+      ]),
       status: k < 2 ? 'CHECKED_IN' : 'CONFIRMED',
       createdById: uccStaff.reception,
     });

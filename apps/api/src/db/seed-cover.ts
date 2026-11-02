@@ -38,7 +38,7 @@ export async function seedCover({
     facilityId,
     startsAt: new Date(now - day),
     endsAt: new Date(now + 5 * day),
-    note: 'Annual leave – please review results and urgent messages',
+    note: 'Pushim vjetor – ju lutem shqyrtoni rezultatet dhe mesazhet urgjente',
     createdById: pick.doctorId,
   });
   // A critical potassium for one of the colleague's patients, unreviewed for three hours.

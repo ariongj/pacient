@@ -34,8 +34,8 @@ export async function seedConsents({
       type: 'TREATMENT',
       decision: 'GRANTED',
       method: 'IN_PERSON',
-      procedure: 'Minor skin excision',
-      note: 'Benefits, risks (bleeding, infection, scarring) and alternatives explained; questions answered.',
+      procedure: 'Ekscizion i vogël i lëkurës',
+      note: 'U shpjeguan përfitimet, rreziqet (gjakderdhje, infeksion, mbresë) dhe alternativat; pyetjeve iu dha përgjigje.',
       wordingVersion: CONSENT_WORDING_VERSION,
       recordedById: demoDoctorId,
       createdAt: daysAgo(12),
@@ -65,7 +65,7 @@ export async function seedConsents({
     method: other.userId ? 'PORTAL' : 'IN_PERSON',
     note: other.userId
       ? null
-      : 'Patient asked at the clinic that the record stays at this facility.',
+      : 'Pacienti kërkoi në klinikë që kartela të mbetet vetëm në këtë institucion.',
     wordingVersion: CONSENT_WORDING_VERSION,
     recordedById: other.userId ?? demoDoctorId,
     createdAt: daysAgo(20),

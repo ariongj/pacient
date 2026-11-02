@@ -243,13 +243,13 @@ const listEndpoints: Record<
   string,
   (patientId: string, view: clinical.ViewOptions) => Promise<unknown[]>
 > = {
-  diagnoses: (id) => clinical.listDiagnoses(id),
-  prescriptions: (id) => clinical.listPrescriptions(id),
+  diagnoses: (id, view) => clinical.listDiagnoses(id, view),
+  prescriptions: (id, view) => clinical.listPrescriptions(id, view),
   allergies: (id) => clinical.listAllergies(id),
-  vitals: (id) => clinical.listVitals(id, 200),
+  vitals: (id, view) => clinical.listVitals(id, 200, view),
   'lab-results': (id, view) => clinical.listLabResults(id, view),
-  immunizations: (id) => clinical.listImmunizations(id),
-  'medication-administrations': (id) => clinical.listAdministrations(id),
+  immunizations: (id, view) => clinical.listImmunizations(id, view),
+  'medication-administrations': (id, view) => clinical.listAdministrations(id, view),
   'care-tasks': (id) => clinical.listCareTasks(id),
 };
 
@@ -353,6 +353,41 @@ clinicalRouter.patch('/encounters/:entryId', async (req, res) => {
       {
         fields: Object.keys(patch),
         version: updated.version,
+      },
+    );
+    return updated;
+  });
+  res.json(row);
+});
+
+/**
+ * Marks a visit confidential from guardians (e.g. adolescent sexual or mental health care, as the
+ * applicable law allows). Allowed after signing: it changes who may see the note, not its content.
+ */
+clinicalRouter.post('/encounters/:entryId/confidentiality', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req);
+  const { entryId } = parse(EntryParams, req.params);
+  const { confidential } = parse(z.object({ confidential: z.boolean() }), req.body);
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(encounters)
+      .set({ confidentialFromGuardians: confidential })
+      .where(and(eq(encounters.id, entryId), eq(encounters.patientId, patientId)))
+      .returning({
+        id: encounters.id,
+        confidentialFromGuardians: encounters.confidentialFromGuardians,
+      });
+    if (!updated) throw notFound('Encounter not found');
+    await auditChange(
+      req,
+      ctx,
+      patientId,
+      'encounter',
+      entryId,
+      tx,
+      AuditAction.ENCOUNTER_CONFIDENTIALITY_CHANGED,
+      {
+        confidential,
       },
     );
     return updated;
@@ -853,6 +888,7 @@ clinicalRouter.post('/care-tasks', async (req, res) => {
     const n = {
       type: 'task',
       title: input.priority === 'URGENT' ? 'New URGENT care task' : 'New care task',
+      important: input.priority === 'URGENT',
       link: '/tasks',
     };
     if (input.assignedToId) await notifyUsers([input.assignedToId], n, tx);
@@ -934,10 +970,23 @@ clinicalRouter.post('/lab-results/:entryId/release', async (req, res) => {
       .where(eq(labResults.id, entryId))
       .returning();
     await auditChange(req, ctx, patientId, 'lab_result', entryId, tx, AuditAction.RESULT_RELEASED);
+    // Results from a visit that is confidential from guardians are not announced to guardians.
+    const [visit] = existing.encounterId
+      ? await tx
+          .select({ confidential: encounters.confidentialFromGuardians })
+          .from(encounters)
+          .where(eq(encounters.id, existing.encounterId))
+      : [];
     await notifyPatient(
       patientId,
-      { type: 'result', title: 'A new test result is available', link: '/portal/results' },
+      {
+        type: 'result',
+        title: 'A new test result is available',
+        link: '/portal/results',
+        important: true,
+      },
       tx,
+      { guardians: visit?.confidential ? 'none' : 'full' },
     );
     return updated!;
   });
@@ -974,7 +1023,9 @@ clinicalRouter.post('/correction-requests', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
   const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
-  if (basis !== 'SELF') throw forbidden('Only the patient can submit a correction request');
+  if (basis !== 'SELF' && basis !== 'GUARDIAN') {
+    throw forbidden('Only the patient (or their guardian) can submit a correction request');
+  }
   const input = parse(CorrectionInput, req.body);
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -1041,6 +1092,7 @@ clinicalRouter.patch('/correction-requests/:entryId', async (req, res) => {
       {
         type: 'correction',
         title: 'Your correction request was answered',
+        important: true,
         link: '/portal/account',
       },
       tx,

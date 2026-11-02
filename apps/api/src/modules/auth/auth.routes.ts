@@ -6,6 +6,10 @@ import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { PasswordSchema } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authLimiter, refreshLimiter } from '../../middleware/rate-limit.js';
+import { eq } from 'drizzle-orm';
+import { db } from '../../db/client.js';
+import { emailPreferenceEnum, users } from '../../db/schema.js';
+import { audit, AuditAction } from '../audit/audit.service.js';
 import * as auth from './auth.service.js';
 import * as mfa from './mfa.service.js';
 
@@ -139,6 +143,25 @@ authRouter.post('/activate', authLimiter, async (req, res) => {
 
 authRouter.get('/me', authenticate, async (req, res) => {
   res.json(await auth.getProfile(requireAuth(req)));
+});
+
+/** Email notification preference: ALL, IMPORTANT only, or OFF (security emails are always sent). */
+authRouter.patch('/me/preferences', authenticate, async (req, res) => {
+  const ctx = requireAuth(req);
+  const { emailNotifications } = parse(
+    z.object({ emailNotifications: z.enum(emailPreferenceEnum.enumValues) }),
+    req.body,
+  );
+  await db.update(users).set({ emailNotifications }).where(eq(users.id, ctx.userId));
+  await audit({
+    action: AuditAction.EMAIL_PREFERENCE_CHANGED,
+    actor: ctx,
+    resourceType: 'user',
+    resourceId: ctx.userId,
+    meta: requestMeta(req),
+    metadata: { emailNotifications },
+  });
+  res.json({ emailNotifications });
 });
 
 authRouter.post('/change-password', authenticate, authLimiter, async (req, res) => {

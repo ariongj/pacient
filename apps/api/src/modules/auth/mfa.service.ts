@@ -10,7 +10,7 @@ import { open, seal } from '../../lib/secret-box.js';
 import { generateOpaqueToken, hashToken, verifyMfaChallenge } from '../../lib/tokens.js';
 import { generateTotpSecret, otpauthUrl, verifyTotp } from '../../lib/totp.js';
 import { audit, AuditAction, auditSafe } from '../audit/audit.service.js';
-import { notifier } from '../notifications/notifier.js';
+import { enqueueEmail } from '../email/outbox.js';
 import {
   completeLogin,
   mfaRequiredFor,
@@ -215,16 +215,21 @@ export async function requestPasswordReset(email: string, meta: RequestMeta) {
   if (!user || !user.isActive || !user.passwordHash) return;
 
   const token = generateOpaqueToken();
-  await db.insert(oneTimeTokens).values({
-    userId: user.id,
-    purpose: 'PASSWORD_RESET',
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
+  await db.transaction(async (tx) => {
+    await tx.insert(oneTimeTokens).values({
+      userId: user.id,
+      purpose: 'PASSWORD_RESET',
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
+    });
+    await enqueueEmail(tx, {
+      to: user.email,
+      userId: user.id,
+      template: 'password_reset',
+      name: user.fullName,
+      url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
+    });
   });
-  await notifier.sendPasswordReset(
-    user,
-    `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
-  );
   await auditSafe({
     action: AuditAction.PASSWORD_RESET_REQUESTED,
     actor: { userId: user.id, role: user.role, facilityId: user.facilityId },

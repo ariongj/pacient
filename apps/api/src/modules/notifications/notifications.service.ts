@@ -1,7 +1,15 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { publish } from '../../lib/events.js';
-import { careAssignments, notifications, patients, users, type Role } from '../../db/schema.js';
+import { enqueueEmail } from '../email/outbox.js';
+import {
+  careAssignments,
+  guardianships,
+  notifications,
+  patients,
+  users,
+  type Role,
+} from '../../db/schema.js';
 
 export interface NotificationInput {
   type: string;
@@ -9,6 +17,8 @@ export interface NotificationInput {
   title: string;
   body?: string;
   link?: string;
+  /** Important notifications are also emailed to users whose preference is "important only". */
+  important?: boolean;
 }
 
 export async function notifyUsers(
@@ -29,19 +39,79 @@ export async function notifyUsers(
   );
   // Delivered live (after commit when inside a transaction).
   await publish(ids, { type: 'notification' }, executor);
+
+  // Email copies, per each user's preference. Only activated, active accounts are emailed.
+  const recipients = await executor
+    .select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+      pref: users.emailNotifications,
+    })
+    .from(users)
+    .where(and(inArray(users.id, ids), eq(users.isActive, true), isNotNull(users.passwordHash)));
+  for (const r of recipients) {
+    if (r.pref === 'ALL' || (r.pref === 'IMPORTANT' && n.important)) {
+      await enqueueEmail(executor, {
+        to: r.email,
+        userId: r.id,
+        template: 'notification',
+        name: r.fullName,
+        title: n.title,
+        link: n.link ?? null,
+      });
+    }
+  }
 }
 
-/** Notifies the patient's portal account, if they have one. */
+export interface PatientNotifyOptions {
+  /**
+   * Which guardians are also notified: 'full' (default) – guardians with full scope; 'all' – also
+   * appointments-only guardians (used for appointment notices); 'none' – e.g. for anything linked
+   * to a visit that is confidential from guardians.
+   */
+  guardians?: 'full' | 'all' | 'none';
+}
+
+/** Notifies the patient's own portal account (if any) and their active guardians. */
 export async function notifyPatient(
   patientId: string,
   n: NotificationInput,
   executor: Executor = db,
+  options: PatientNotifyOptions = {},
 ) {
   const [row] = await executor
     .select({ userId: patients.userId })
     .from(patients)
     .where(eq(patients.id, patientId));
   await notifyUsers([row?.userId], n, executor);
+
+  const mode = options.guardians ?? (n.type === 'appointment' ? 'all' : 'full');
+  if (mode === 'none') return;
+  const now = new Date();
+  const guardians = await executor
+    .select({ userId: guardianships.guardianUserId })
+    .from(guardianships)
+    .where(
+      and(
+        eq(guardianships.patientId, patientId),
+        isNull(guardianships.revokedAt),
+        lte(guardianships.validFrom, now),
+        gt(guardianships.validUntil, now),
+        mode === 'full' ? eq(guardianships.scope, 'FULL') : undefined,
+      ),
+    );
+  if (guardians.length) {
+    // Guardians' links open the portal acting for the child.
+    const link = n.link
+      ? `${n.link}${n.link.includes('?') ? '&' : '?'}for=${patientId}`
+      : undefined;
+    await notifyUsers(
+      guardians.map((g) => g.userId).filter((id) => id !== row?.userId),
+      { ...n, title: `${n.title} (family member)`, link },
+      executor,
+    );
+  }
 }
 
 export async function notifyCareTeam(

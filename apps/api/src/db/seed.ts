@@ -28,6 +28,7 @@ import {
   vitalSigns,
   careTasks,
   channelMessages,
+  guardianships,
   channels,
   medicationAdministrations,
 } from './schema.js';
@@ -326,6 +327,7 @@ async function main() {
       fullName: 'Arta Krasniqi',
       role: 'PATIENT',
       facilityId: null,
+      emailNotifications: 'ALL',
       ...activeAccount,
     })
     .returning();
@@ -885,6 +887,123 @@ async function main() {
     });
   }
 
+  // Guardian access: Arta is the verified parent of Lea (10). One of Lea's visits is confidential.
+  const [lea] = await db
+    .insert(patients)
+    .values({
+      nationalId: '1199000001',
+      firstName: 'Lea',
+      lastName: 'Krasniqi',
+      dateOfBirth: '2016-05-10',
+      sex: 'FEMALE',
+      bloodType: 'B+',
+      municipality: 'Prishtinë',
+      address: 'Prishtinë',
+      allergyAssessment: 'NO_KNOWN_ALLERGIES',
+      primaryFacilityId: ucc!.id,
+    })
+    .returning();
+  const paediatrician = uccDocs.find((d) => d.id !== demoDoctor.id) ?? demoDoctor;
+  await db.insert(careAssignments).values([
+    {
+      patientId: lea!.id,
+      doctorId: demoDoctor.id,
+      assignedById: demoDoctor.id,
+      startedAt: daysAgo(900),
+    },
+    {
+      patientId: lea!.id,
+      doctorId: paediatrician.id,
+      assignedById: demoDoctor.id,
+      startedAt: daysAgo(300),
+    },
+  ]);
+  await db.insert(guardianships).values({
+    patientId: lea!.id,
+    guardianUserId: portalUser!.id,
+    relationship: 'PARENT',
+    scope: 'FULL',
+    evidence: 'Birth certificate 4411/2016 (checked at reception)',
+    verifiedById: uccStaff.reception,
+    validFrom: daysAgo(900),
+    validUntil: new Date(Date.UTC(2034, 4, 10)),
+  });
+  const [leaVisit] = await db
+    .insert(encounters)
+    .values({
+      patientId: lea!.id,
+      doctorId: paediatrician.id,
+      facilityId: ucc!.id,
+      type: 'OUTPATIENT',
+      reason: 'Fever and sore throat',
+      notes:
+        'Temperature 38.4 °C, red tonsils without exudate. Viral pharyngitis likely. Fluids, paracetamol, review if worse.',
+      startedAt: daysAgo(12),
+      endedAt: daysAgo(12),
+      noteStatus: 'SIGNED',
+      signedAt: daysAgo(12),
+      signedById: paediatrician.id,
+    })
+    .returning();
+  await db.insert(diagnoses).values({
+    patientId: lea!.id,
+    encounterId: leaVisit!.id,
+    doctorId: paediatrician.id,
+    icd10Code: 'J02.9',
+    description: 'Acute pharyngitis, unspecified',
+    status: 'RESOLVED',
+    diagnosedAt: daysAgo(12),
+    resolvedAt: daysAgo(5),
+  });
+  await db.insert(immunizations).values([
+    {
+      patientId: lea!.id,
+      vaccine: 'MMR (measles, mumps, rubella)',
+      doseNumber: 2,
+      administeredAt: daysAgo(1500),
+      administeredById: demoDoctor.id,
+      facilityId: ucc!.id,
+      site: 'Left arm',
+    },
+    {
+      patientId: lea!.id,
+      vaccine: 'DTaP-IPV booster',
+      doseNumber: 1,
+      administeredAt: daysAgo(800),
+      administeredById: demoDoctor.id,
+      facilityId: ucc!.id,
+      site: 'Right arm',
+    },
+  ]);
+  await db.insert(encounters).values({
+    patientId: lea!.id,
+    doctorId: paediatrician.id,
+    facilityId: ucc!.id,
+    type: 'OUTPATIENT',
+    reason: 'Confidential consultation',
+    notes: 'Seen alone at the young person’s request.',
+    startedAt: daysAgo(40),
+    endedAt: daysAgo(40),
+    noteStatus: 'SIGNED',
+    signedAt: daysAgo(40),
+    signedById: paediatrician.id,
+    confidentialFromGuardians: true,
+  });
+  {
+    const at = new Date(Date.now() + 9 * 86_400_000);
+    at.setUTCHours(14, 0, 0, 0);
+    await db.insert(appointments).values({
+      patientId: lea!.id,
+      doctorId: paediatrician.id,
+      facilityId: ucc!.id,
+      scheduledAt: at,
+      durationMinutes: 20,
+      reason: 'School-entry check-up',
+      status: 'CONFIRMED',
+      createdById: uccStaff.reception,
+    });
+  }
+
   // Channel conversations.
   const uccChannels = await db.select().from(channels).where(eq(channels.facilityId, ucc!.id));
   const national = (await db.select().from(channels).where(eq(channels.scope, 'NATIONAL')))[0]!;
@@ -946,7 +1065,7 @@ Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Nurse      : nurse@pacient.local       (UCC Prishtina)
   Pharmacist : pharmacist@pacient.local  (UCC Prishtina)
   Reception  : reception@pacient.local   (UCC Prishtina)
-  Patient    : patient@pacient.local     (Arta Krasniqi)
+  Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)
 `);
 }
 

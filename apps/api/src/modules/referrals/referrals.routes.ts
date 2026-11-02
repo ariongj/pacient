@@ -14,7 +14,11 @@ import {
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { assertClinicalWriteAccess, hasActiveCareAssignment } from '../access/policy.js';
+import {
+  assertClinicalWriteAccess,
+  assertFullProxyScope,
+  hasActiveCareAssignment,
+} from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import {
   notifyFacilityRole,
@@ -142,7 +146,15 @@ function assertReceiver(
 }
 
 export const referralsRouter = Router();
-referralsRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR', 'DIRECTOR'));
+referralsRouter.use(
+  authenticate,
+  requireRole('PATIENT', 'DOCTOR', 'DIRECTOR'),
+  (req, _res, next) => {
+    // Referral summaries are clinical: guardians need full scope.
+    assertFullProxyScope(requireAuth(req));
+    next();
+  },
+);
 
 referralsRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
@@ -207,6 +219,7 @@ referralsRouter.post('/', requireRole('DOCTOR'), async (req, res) => {
     const n = {
       type: 'referral',
       title: input.priority === 'URGENT' ? 'New URGENT referral received' : 'New referral received',
+      important: input.priority === 'URGENT',
       link: '/referrals',
     };
     if (input.toDoctorId)
@@ -222,6 +235,7 @@ referralsRouter.post('/', requireRole('DOCTOR'), async (req, res) => {
       {
         type: 'referral',
         title: 'You have been referred to another facility',
+        important: true,
         link: '/portal/referrals',
       },
       tx,
@@ -287,7 +301,12 @@ referralsRouter.post('/:id/accept', requireRole('DOCTOR', 'DIRECTOR'), async (re
     );
     await notifyUsers(
       [r.fromDoctorId],
-      { type: 'referral', title: 'Your referral was accepted', link: '/doctor/referrals' },
+      {
+        type: 'referral',
+        title: 'Your referral was accepted',
+        important: true,
+        link: '/doctor/referrals',
+      },
       tx,
     );
     if (ctx.role === 'DIRECTOR') {
@@ -296,6 +315,7 @@ referralsRouter.post('/:id/accept', requireRole('DOCTOR', 'DIRECTOR'), async (re
         {
           type: 'referral',
           title: 'A referred patient was assigned to you',
+          important: true,
           link: '/doctor/referrals',
         },
         tx,
@@ -303,7 +323,12 @@ referralsRouter.post('/:id/accept', requireRole('DOCTOR', 'DIRECTOR'), async (re
     }
     await notifyPatient(
       r.patientId,
-      { type: 'referral', title: 'Your referral was accepted', link: '/portal/referrals' },
+      {
+        type: 'referral',
+        title: 'Your referral was accepted',
+        important: true,
+        link: '/portal/referrals',
+      },
       tx,
     );
   });
@@ -335,12 +360,22 @@ referralsRouter.post('/:id/decline', requireRole('DOCTOR', 'DIRECTOR'), async (r
     );
     await notifyUsers(
       [r.fromDoctorId],
-      { type: 'referral', title: 'Your referral was declined', link: '/doctor/referrals' },
+      {
+        type: 'referral',
+        title: 'Your referral was declined',
+        important: true,
+        link: '/doctor/referrals',
+      },
       tx,
     );
     await notifyPatient(
       r.patientId,
-      { type: 'referral', title: 'A referral was declined', link: '/portal/referrals' },
+      {
+        type: 'referral',
+        title: 'A referral was declined',
+        important: true,
+        link: '/portal/referrals',
+      },
       tx,
     );
   });

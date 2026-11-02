@@ -70,6 +70,11 @@ export const AuditAction = {
   CHANNEL_CREATED: 'channel.created',
   CHANNEL_MESSAGE_POSTED: 'channel.message.posted',
   FHIR_EXPORTED: 'patient.record.fhir_exported',
+  GUARDIAN_ADDED: 'guardian.added',
+  GUARDIAN_REVOKED: 'guardian.revoked',
+  PROXY_ACCESS_DENIED: 'guardian.access_denied',
+  ENCOUNTER_CONFIDENTIALITY_CHANGED: 'clinical.encounter.confidentiality_changed',
+  EMAIL_PREFERENCE_CHANGED: 'user.email_preference.changed',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

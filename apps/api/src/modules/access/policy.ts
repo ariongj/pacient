@@ -18,12 +18,14 @@ import { AuditAction, auditSafe } from '../audit/audit.service.js';
  * | PHARMACIST | never in full – medication context only, via the pharmacy queue | via pharmacy queue only | –            |
  * | RECEPTION  | never                                                         | own facility's patients   | –            |
  * | PATIENT    | own record (read-only; released results, signed notes)        | own                       | –            |
+ * | GUARDIAN   | a PATIENT account acting for a child under a verified, unexpired guardianship: like the
+ * |            | patient's own view, minus confidential visits; appointments-only scope sees no clinical data |
  *
  * (*) with small-cell suppression. Institution (facility) boundaries are never bypassed – not even
  * by emergency access; the only cross-facility path is an accepted referral. Grants and denials are
  * written to the audit trail, and patients can see who accessed their record.
  */
-export type ClinicalAccessBasis = 'SELF' | 'CARE_TEAM' | 'EMERGENCY';
+export type ClinicalAccessBasis = 'SELF' | 'GUARDIAN' | 'CARE_TEAM' | 'EMERGENCY';
 
 /** Who may author each kind of clinical entry (always in addition to having read access). */
 export const WRITERS = {
@@ -103,7 +105,11 @@ export async function resolveClinicalReadAccess(
   const patient = await getPatientOrThrow(patientId);
   switch (ctx.role) {
     case 'PATIENT':
-      if (ctx.patientId === patientId) return 'SELF';
+      if (ctx.patientId === patientId) {
+        if (!ctx.proxy) return 'SELF';
+        if (ctx.proxy.scope === 'FULL') return 'GUARDIAN';
+        throw await deny(ctx, patientId, meta, 'Your guardian access covers appointments only');
+      }
       throw await deny(ctx, patientId, meta);
     case 'DOCTOR':
     case 'NURSE':
@@ -186,4 +192,11 @@ export async function assertDemographicsAccess(ctx: AuthContext, patientId: stri
       break;
   }
   throw forbidden();
+}
+
+/** Guardians with appointments-only scope may not use messaging, referrals or clinical data. */
+export function assertFullProxyScope(ctx: AuthContext) {
+  if (ctx.proxy && ctx.proxy.scope !== 'FULL') {
+    throw forbidden('Your guardian access covers appointments only');
+  }
 }

@@ -1,4 +1,14 @@
-import { and, count, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   allergies,
@@ -25,12 +35,22 @@ import type { ClinicalAccessBasis } from '../access/policy.js';
  * signed notes only; clinicians see the working record, including drafts and unreleased results.
  */
 export interface ViewOptions {
+  /** Patient-facing view: released results and signed notes only. */
   patientView: boolean;
+  /** Guardian view: additionally hide confidential visits and everything recorded during them. */
+  hideConfidential: boolean;
 }
 export const viewFor = (basis: ClinicalAccessBasis): ViewOptions => ({
-  patientView: basis === 'SELF',
+  patientView: basis === 'SELF' || basis === 'GUARDIAN',
+  hideConfidential: basis === 'GUARDIAN',
 });
-const CLINICIAN_VIEW: ViewOptions = { patientView: false };
+const CLINICIAN_VIEW: ViewOptions = { patientView: false, hideConfidential: false };
+
+/** Excludes entries recorded during a visit marked confidential from guardians. */
+const notConfidential = (encounterIdColumn: SQL | AnyColumn) =>
+  sql`NOT EXISTS (SELECT 1 FROM encounters ce WHERE ce.id = ${encounterIdColumn} AND ce.confidential_from_guardians)`;
+const scoped = (base: SQL, encounterIdColumn: AnyColumn, view: ViewOptions) =>
+  view.hideConfidential ? and(base, notConfidential(encounterIdColumn))! : base;
 
 const doctorName = users.fullName;
 
@@ -79,7 +99,7 @@ export function listAllergies(patientId: string) {
     .orderBy(desc(allergies.recordedAt));
 }
 
-export function listDiagnoses(patientId: string) {
+export function listDiagnoses(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   return db
     .select({
       id: diagnoses.id,
@@ -95,11 +115,11 @@ export function listDiagnoses(patientId: string) {
     })
     .from(diagnoses)
     .innerJoin(users, eq(users.id, diagnoses.doctorId))
-    .where(eq(diagnoses.patientId, patientId))
+    .where(scoped(eq(diagnoses.patientId, patientId), diagnoses.encounterId, view))
     .orderBy(desc(diagnoses.diagnosedAt));
 }
 
-export function listPrescriptions(patientId: string) {
+export function listPrescriptions(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   return db
     .select({
       id: prescriptions.id,
@@ -122,11 +142,11 @@ export function listPrescriptions(patientId: string) {
     })
     .from(prescriptions)
     .innerJoin(users, eq(users.id, prescriptions.doctorId))
-    .where(eq(prescriptions.patientId, patientId))
+    .where(scoped(eq(prescriptions.patientId, patientId), prescriptions.encounterId, view))
     .orderBy(desc(prescriptions.startDate));
 }
 
-export function listVitals(patientId: string, limit = 50) {
+export function listVitals(patientId: string, limit = 50, view: ViewOptions = CLINICIAN_VIEW) {
   return db
     .select({
       id: vitalSigns.id,
@@ -144,7 +164,7 @@ export function listVitals(patientId: string, limit = 50) {
     })
     .from(vitalSigns)
     .innerJoin(users, eq(users.id, vitalSigns.recordedById))
-    .where(eq(vitalSigns.patientId, patientId))
+    .where(scoped(eq(vitalSigns.patientId, patientId), vitalSigns.encounterId, view))
     .orderBy(desc(vitalSigns.recordedAt))
     .limit(limit);
 }
@@ -152,6 +172,7 @@ export function listVitals(patientId: string, limit = 50) {
 export function listLabResults(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   const filters: SQL[] = [eq(labResults.patientId, patientId)];
   if (view.patientView) filters.push(isNotNull(labResults.releasedAt));
+  if (view.hideConfidential) filters.push(notConfidential(labResults.encounterId));
   return db
     .select({
       id: labResults.id,
@@ -180,7 +201,9 @@ export async function listEncounters(
   page: Pagination,
   view: ViewOptions = CLINICIAN_VIEW,
 ) {
-  const where = eq(encounters.patientId, patientId);
+  const where = view.hideConfidential
+    ? and(eq(encounters.patientId, patientId), eq(encounters.confidentialFromGuardians, false))
+    : eq(encounters.patientId, patientId);
   const [rows, [total]] = await Promise.all([
     db
       .select({
@@ -189,6 +212,7 @@ export async function listEncounters(
         reason: encounters.reason,
         notes: encounters.notes,
         noteStatus: encounters.noteStatus,
+        confidentialFromGuardians: encounters.confidentialFromGuardians,
         signedAt: encounters.signedAt,
         version: encounters.version,
         startedAt: encounters.startedAt,
@@ -260,7 +284,7 @@ export async function listEncounters(
   return paginated(items, total?.total ?? 0, page);
 }
 
-export function listImmunizations(patientId: string) {
+export function listImmunizations(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   return db
     .select({
       id: immunizations.id,
@@ -277,11 +301,11 @@ export function listImmunizations(patientId: string) {
     .from(immunizations)
     .innerJoin(users, eq(users.id, immunizations.administeredById))
     .innerJoin(facilities, eq(facilities.id, immunizations.facilityId))
-    .where(eq(immunizations.patientId, patientId))
+    .where(scoped(eq(immunizations.patientId, patientId), immunizations.encounterId, view))
     .orderBy(desc(immunizations.administeredAt));
 }
 
-export function listAdministrations(patientId: string) {
+export function listAdministrations(patientId: string, view: ViewOptions = CLINICIAN_VIEW) {
   return db
     .select({
       id: medicationAdministrations.id,
@@ -298,7 +322,9 @@ export function listAdministrations(patientId: string) {
     .from(medicationAdministrations)
     .innerJoin(prescriptions, eq(prescriptions.id, medicationAdministrations.prescriptionId))
     .innerJoin(users, eq(users.id, medicationAdministrations.administeredById))
-    .where(eq(medicationAdministrations.patientId, patientId))
+    .where(
+      scoped(eq(medicationAdministrations.patientId, patientId), prescriptions.encounterId, view),
+    )
     .orderBy(desc(medicationAdministrations.administeredAt))
     .limit(500);
 }
@@ -346,12 +372,12 @@ export async function getClinicalSummary(patientId: string, view: ViewOptions = 
   ] = await Promise.all([
     getDemographics(patientId),
     listAllergies(patientId),
-    listDiagnoses(patientId),
-    listPrescriptions(patientId),
-    listVitals(patientId, 10),
+    listDiagnoses(patientId, view),
+    listPrescriptions(patientId, view),
+    listVitals(patientId, 10, view),
     listLabResults(patientId, view),
     listEncounters(patientId, { page: 1, pageSize: 5 }, view),
-    listImmunizations(patientId),
+    listImmunizations(patientId, view),
   ]);
   const [openCorrections] = await db
     .select({ total: count() })
@@ -390,12 +416,12 @@ export async function exportFullRecord(patientId: string, view: ViewOptions = CL
   ] = await Promise.all([
     getDemographics(patientId),
     listAllergies(patientId),
-    listDiagnoses(patientId),
-    listPrescriptions(patientId),
-    listVitals(patientId, 10_000),
+    listDiagnoses(patientId, view),
+    listPrescriptions(patientId, view),
+    listVitals(patientId, 10_000, view),
     listLabResults(patientId, view),
     listEncounters(patientId, { page: 1, pageSize: 10_000 }, view),
-    listImmunizations(patientId),
+    listImmunizations(patientId, view),
   ]);
   return {
     exportedAt: new Date().toISOString(),

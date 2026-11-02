@@ -328,6 +328,7 @@ pharmacyRouter.post('/prescriptions/:id/return', async (req, res) => {
       {
         type: 'pharmacy',
         title: 'A prescription was returned by the pharmacy',
+        important: true,
         link: `/doctor/patients/${rx.patientId}`,
       },
       tx,
@@ -371,6 +372,7 @@ pharmacyRouter.post('/prescriptions/:id/dispense', async (req, res) => {
       {
         type: 'pharmacy',
         title: 'Your medication is ready at the pharmacy',
+        important: true,
         link: '/portal/history',
       },
       tx,

@@ -7,8 +7,18 @@ export interface AuthContext {
   userId: string;
   role: Role;
   facilityId: string | null;
-  /** Set for PATIENT accounts: the patient record the portal user owns. */
+  /**
+   * Set for PATIENT accounts: the patient record being accessed – the user's own record, or, when
+   * a guardian is acting for a child, the child's record (see `proxy`).
+   */
   patientId: string | null;
+  /** Present when a guardian is acting for someone else's record. */
+  proxy?: {
+    guardianshipId: string;
+    scope: 'FULL' | 'APPOINTMENTS';
+    /** The guardian's own patient record, if they have one. */
+    ownPatientId: string | null;
+  };
 }
 
 declare module 'express-serve-static-core' {

@@ -2,7 +2,7 @@ import { env, isProd } from '../../config/env.js';
 import type { Executor } from '../../db/client.js';
 import { oneTimeTokens, users, type Role } from '../../db/schema.js';
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
-import { notifier } from '../notifications/notifier.js';
+import { enqueueEmail } from '../email/outbox.js';
 
 const ACTIVATION_TTL_HOURS = 72;
 
@@ -29,6 +29,8 @@ export async function createInvitedUser(tx: Executor, account: NewAccount, invit
       facilityId: account.facilityId,
       specialty: account.specialty ?? null,
       licenseNumber: account.licenseNumber ?? null,
+      // Patients (and guardians) get every notification by email by default; staff the important ones.
+      emailNotifications: account.role === 'PATIENT' ? 'ALL' : 'IMPORTANT',
     })
     .returning();
   if (!user) throw new Error('Failed to create user');
@@ -43,7 +45,14 @@ export async function createInvitedUser(tx: Executor, account: NewAccount, invit
   });
 
   const activationUrl = `${env.WEB_APP_URL}/activate?token=${encodeURIComponent(token)}`;
-  await notifier.sendActivationLink(user, activationUrl);
+  // Delivered by the outbox worker only if this transaction commits.
+  await enqueueEmail(tx, {
+    to: user.email,
+    userId: user.id,
+    template: 'activation',
+    name: user.fullName,
+    url: activationUrl,
+  });
 
   return {
     user,

@@ -222,6 +222,7 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR', 'RECEPTION'), asyn
           {
             type: 'appointment',
             title: 'An appointment was booked for you',
+            important: true,
             link: '/doctor/schedule',
           },
           tx,
@@ -232,6 +233,7 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR', 'RECEPTION'), asyn
         {
           type: 'appointment',
           title: 'An appointment was booked for you',
+          important: true,
           link: '/portal/appointments',
         },
         tx,
@@ -298,6 +300,7 @@ appointmentsRouter.patch(
           {
             type: 'appointment',
             title: `Your appointment was ${label}`,
+            important: true,
             link: '/portal/appointments',
           },
           tx,

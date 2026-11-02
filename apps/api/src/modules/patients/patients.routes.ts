@@ -531,6 +531,7 @@ patientsRouter.post('/:id/emergency-access', requireRole('DOCTOR'), async (req, 
       {
         type: 'emergency_access',
         title: 'Emergency access used – review required',
+        important: true,
         link: '/director/emergency-access',
       },
       tx,

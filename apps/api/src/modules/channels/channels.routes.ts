@@ -294,7 +294,12 @@ channelsRouter.post('/:id/messages', async (req, res) => {
     if (input.isUrgent) {
       await notifyUsers(
         recipients.filter((u) => u !== ctx.userId),
-        { type: 'channel', title: `Urgent message in #${channel.name}`, link: `/channels?c=${id}` },
+        {
+          type: 'channel',
+          title: `Urgent message in #${channel.name}`,
+          important: true,
+          link: `/channels?c=${id}`,
+        },
         tx,
       );
     }

@@ -8,6 +8,8 @@ import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { ContactPatchSchema } from '../patients/patients.routes.js';
+import { assertFullProxyScope } from '../access/policy.js';
+import { activeDependants } from '../guardians/guardians.routes.js';
 
 /**
  * Patient self-service. Clinical data is read through `/patients/:id/*` (the access policy grants
@@ -21,9 +23,16 @@ function ownPatientId(patientId: string | null): string {
   return patientId;
 }
 
+/** Records this account may open on behalf of someone else (children, people under guardianship). */
+portalRouter.get('/dependants', async (req, res) => {
+  const ctx = requireAuth(req);
+  res.json({ items: await activeDependants(ctx.userId) });
+});
+
 /** Transparency: every time someone else accessed or changed the patient's record. */
 portalRouter.get('/access-log', async (req, res) => {
   const ctx = requireAuth(req);
+  assertFullProxyScope(ctx);
   const patientId = ownPatientId(ctx.patientId);
   const page = parse(PaginationSchema, req.query);
   const where = and(

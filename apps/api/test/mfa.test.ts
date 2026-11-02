@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { testOutbox } from '../src/modules/notifications/notifier.js';
+import { processOutboxOnce } from '../src/modules/email/outbox.js';
+import { sentEmails } from '../src/modules/email/transport.js';
 import { currentStep, totpAt } from '../src/lib/totp.js';
 import { api, bearer, createUser, login, PASSWORD } from './helpers.js';
 
@@ -113,11 +114,14 @@ describe('password reset', () => {
     const cookie = (loginRes.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
 
     await api().post('/api/v1/auth/forgot-password').send({ email: user.email });
-    const mail = testOutbox
-      .filter((m) => m.to === user.email && m.kind === 'PASSWORD_RESET')
+    while ((await processOutboxOnce()) > 0) {
+      /* deliver everything due */
+    }
+    const mail = sentEmails
+      .filter((m) => m.to === user.email && m.subject.includes('Reset'))
       .at(-1);
     expect(mail).toBeDefined();
-    const token = new URL(mail!.url).searchParams.get('token')!;
+    const token = new URL(mail!.text.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
 
     const reset = await api()
       .post('/api/v1/auth/reset-password')

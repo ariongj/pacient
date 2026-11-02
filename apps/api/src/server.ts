@@ -3,9 +3,11 @@ import { createApp } from './app.js';
 import { pool } from './db/client.js';
 import { stopListening } from './lib/events.js';
 import { closeAllStreams } from './modules/events/events.routes.js';
+import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
+startEmailWorker();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -15,6 +17,7 @@ function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down');
   // Long-lived event streams would otherwise keep the server open; clients reconnect elsewhere.
   closeAllStreams();
+  stopEmailWorker();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

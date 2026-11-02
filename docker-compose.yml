@@ -25,6 +25,9 @@ services:
       CORS_ORIGINS: http://localhost:8080
       WEB_APP_URL: http://localhost:8080
       TRUST_PROXY: 1
+      # Development: deliver to Mailpit (web UI on http://localhost:8025). Production: your SMTP relay.
+      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
+      EMAIL_FROM: ${EMAIL_FROM:-Pacient <no-reply@pacient.local>}
     depends_on:
       db: { condition: service_healthy }
 
@@ -41,6 +44,13 @@ services:
       - '8080:8080'
     depends_on:
       - api
+    restart: unless-stopped
+
+  # Local mail catcher: every email the API sends appears at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - '8025:8025'
     restart: unless-stopped
 
 volumes:

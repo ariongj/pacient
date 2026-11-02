@@ -99,13 +99,13 @@ fhirRouter.get('/Patient/:id/\\$everything', authenticate, async (req, res) => {
   ] = await Promise.all([
     db.select().from(patients).where(eq(patients.id, id)),
     clinical.listEncounters(id, { page: 1, pageSize: 10_000 }, view),
-    clinical.listDiagnoses(id),
-    clinical.listPrescriptions(id),
-    clinical.listAdministrations(id),
+    clinical.listDiagnoses(id, view),
+    clinical.listPrescriptions(id, view),
+    clinical.listAdministrations(id, view),
     clinical.listAllergies(id),
-    clinical.listVitals(id, 10_000),
+    clinical.listVitals(id, 10_000, view),
     clinical.listLabResults(id, view),
-    clinical.listImmunizations(id),
+    clinical.listImmunizations(id, view),
   ]);
 
   const facilityIds = new Set<string>([

@@ -109,6 +109,16 @@ export const administrationStatusEnum = pgEnum('administration_status', [
 export const taskStatusEnum = pgEnum('task_status', ['OPEN', 'DONE', 'CANCELLED']);
 export const taskPriorityEnum = pgEnum('task_priority', ['ROUTINE', 'URGENT']);
 export const channelScopeEnum = pgEnum('channel_scope', ['FACILITY', 'NATIONAL']);
+export const guardianRelationshipEnum = pgEnum('guardian_relationship', [
+  'PARENT',
+  'LEGAL_GUARDIAN',
+  'FOSTER_CARER',
+  'OTHER_AUTHORISED',
+]);
+/** FULL: the record, appointments and messages. APPOINTMENTS: scheduling and contact details only. */
+export const proxyScopeEnum = pgEnum('proxy_scope', ['FULL', 'APPOINTMENTS']);
+export const emailPreferenceEnum = pgEnum('email_preference', ['ALL', 'IMPORTANT', 'OFF']);
+export const emailStatusEnum = pgEnum('email_status', ['PENDING', 'SENDING', 'SENT', 'FAILED']);
 export const tokenPurposeEnum = pgEnum('token_purpose', ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET']);
 /** Clinical notes are drafted, then signed; signed notes change only through addenda. */
 export const noteStatusEnum = pgEnum('note_status', ['DRAFT', 'SIGNED']);
@@ -213,6 +223,8 @@ export const users = pgTable(
     mfaEnabledAt: timestamp('mfa_enabled_at', { withTimezone: true }),
     /** Last accepted TOTP time-step, so a code cannot be replayed within its window. */
     mfaLastUsedStep: integer('mfa_last_used_step'),
+    /** Which in-app notifications are also sent by email (content is always generic). */
+    emailNotifications: emailPreferenceEnum('email_notifications').notNull().default('IMPORTANT'),
     ...timestamps,
   },
   (t) => [
@@ -379,6 +391,11 @@ export const encounters = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     noteStatus: noteStatusEnum('note_status').notNull().default('DRAFT'),
+    /**
+     * Confidential consultations (e.g. adolescent sexual or mental health) are hidden from guardians
+     * together with everything recorded during them, as applicable law requires.
+     */
+    confidentialFromGuardians: boolean('confidential_from_guardians').notNull().default(false),
     signedAt: timestamp('signed_at', { withTimezone: true }),
     signedById: uuid('signed_by_id').references(() => users.id, { onDelete: 'restrict' }),
     /** Optimistic concurrency: every edit must present the version it was based on. */
@@ -698,6 +715,8 @@ export const messageThreads = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     subject: varchar('subject', { length: 200 }).notNull(),
+    /** Who opened the conversation (patient, guardian or clinician) – drives guardian visibility. */
+    startedById: uuid('started_by_id').references(() => users.id, { onDelete: 'set null' }),
     status: threadStatusEnum('status').notNull().default('OPEN'),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -878,6 +897,69 @@ export const channelReads = pgTable(
     lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('channel_reads_pk').on(t.channelId, t.userId)],
+);
+
+/**
+ * Proxy access (blueprint §3): verified, explicit, patient-specific authority with scope and expiry.
+ * There is no household-wide sharing – each child is linked to each guardian individually, after a
+ * staff member has checked the evidence. For minors the authority ends at the 18th birthday.
+ */
+export const guardianships = pgTable(
+  'guardianships',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    guardianUserId: uuid('guardian_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    relationship: guardianRelationshipEnum('relationship').notNull(),
+    scope: proxyScopeEnum('scope').notNull().default('FULL'),
+    /** What was checked, e.g. "Birth certificate no. 123/2015" or "Court order 45/2024". */
+    evidence: varchar('evidence', { length: 300 }).notNull(),
+    verifiedById: uuid('verified_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    validFrom: timestamp('valid_from', { withTimezone: true }).notNull().defaultNow(),
+    validUntil: timestamp('valid_until', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedById: uuid('revoked_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    revokeReason: varchar('revoke_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('guardianships_guardian_idx').on(t.guardianUserId),
+    index('guardianships_patient_idx').on(t.patientId),
+    uniqueIndex('guardianships_active_uq')
+      .on(t.patientId, t.guardianUserId)
+      .where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
+/**
+ * Transactional email outbox. Messages are enqueued in the same transaction as the change that
+ * caused them and delivered by a background worker with retries. Subject and body are encrypted at
+ * rest (they may contain single-use links) and erased once delivered.
+ */
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    toEmail: varchar('to_email', { length: 254 }).notNull(),
+    template: varchar('template', { length: 60 }).notNull(),
+    subjectSealed: text('subject_sealed'),
+    textSealed: text('text_sealed'),
+    htmlSealed: text('html_sealed'),
+    status: emailStatusEnum('status').notNull().default('PENDING'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: varchar('last_error', { length: 500 }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('email_outbox_due_idx').on(t.status, t.nextAttemptAt)],
 );
 
 /* ------------------------------------------------------------------------------------------------

@@ -317,6 +317,7 @@ export async function getProfile(ctx: AuthContext) {
       specialty: users.specialty,
       lastLoginAt: users.lastLoginAt,
       mfaEnabledAt: users.mfaEnabledAt,
+      emailNotifications: users.emailNotifications,
       facility: {
         id: facilities.id,
         name: facilities.name,

@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { aliasedTable, and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { aliasedTable, and, desc, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { messages, messageThreads, patients, users } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { hasActiveCareAssignment } from '../access/policy.js';
+import { assertFullProxyScope, hasActiveCareAssignment } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
 
@@ -26,13 +26,37 @@ const IdParam = z.object({ id: z.string().uuid() });
 
 const doctor = aliasedTable(users, 'doctor');
 
+/**
+ * Guardians see the conversations they started, and clinician-started conversations when the child
+ * has no portal account of their own. A young person's own conversations stay private.
+ */
+function guardianVisible(ctx: AuthContext): SQL {
+  return or(
+    eq(messageThreads.startedById, ctx.userId),
+    and(
+      eq(messageThreads.startedById, messageThreads.doctorId),
+      sql`(SELECT p.user_id FROM patients p WHERE p.id = ${messageThreads.patientId}) IS NULL`,
+    ),
+  )!;
+}
+
+function visibleTo(ctx: AuthContext): SQL {
+  if (ctx.role === 'PATIENT') {
+    const own = eq(
+      messageThreads.patientId,
+      ctx.patientId ?? '00000000-0000-0000-0000-000000000000',
+    );
+    return ctx.proxy ? and(own, guardianVisible(ctx))! : own;
+  }
+  return eq(messageThreads.doctorId, ctx.userId);
+}
+
 async function loadThread(ctx: AuthContext, id: string) {
-  const [thread] = await db.select().from(messageThreads).where(eq(messageThreads.id, id));
+  const [thread] = await db
+    .select()
+    .from(messageThreads)
+    .where(and(eq(messageThreads.id, id), visibleTo(ctx)));
   if (!thread) throw notFound('Conversation not found');
-  const isParticipant =
-    (ctx.role === 'PATIENT' && thread.patientId === ctx.patientId) ||
-    ((ctx.role === 'DOCTOR' || ctx.role === 'NURSE') && thread.doctorId === ctx.userId);
-  if (!isParticipant) throw notFound('Conversation not found');
   return thread;
 }
 
@@ -44,7 +68,7 @@ async function assertCanMessage(doctorId: string, patientId: string) {
 
 async function notifyRecipient(
   ctx: AuthContext,
-  thread: { id: string; patientId: string; doctorId: string },
+  thread: { id: string; patientId: string; doctorId: string; startedById: string | null },
 ) {
   if (ctx.role === 'PATIENT') {
     await notifyUsers([thread.doctorId], {
@@ -53,24 +77,39 @@ async function notifyRecipient(
       link: `/messages?thread=${thread.id}`,
     });
   } else {
-    await notifyPatient(thread.patientId, {
+    const n = {
       type: 'message',
       title: 'New message from your care team',
       link: `/portal/messages?thread=${thread.id}`,
-    });
+      important: true,
+    };
+    // Reply to whoever is on the patient side of this conversation.
+    const [p] = await db
+      .select({ userId: patients.userId })
+      .from(patients)
+      .where(eq(patients.id, thread.patientId));
+    if (
+      thread.startedById &&
+      thread.startedById !== thread.doctorId &&
+      thread.startedById !== p?.userId
+    ) {
+      await notifyUsers([thread.startedById], { ...n, link: `${n.link}&for=${thread.patientId}` });
+    } else {
+      await notifyPatient(thread.patientId, n, db, { guardians: p?.userId ? 'none' : 'full' });
+    }
   }
 }
 
 export const messagingRouter = Router();
-// Patients message the clinicians of their care team (doctors or nurses).
-messagingRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR', 'NURSE'));
+// Patients message the clinicians of their care team (doctors or nurses). Guardians need full scope.
+messagingRouter.use(authenticate, requireRole('PATIENT', 'DOCTOR', 'NURSE'), (req, _res, next) => {
+  assertFullProxyScope(requireAuth(req));
+  next();
+});
 
 messagingRouter.get('/threads', async (req, res) => {
   const ctx = requireAuth(req);
-  const where =
-    ctx.role === 'PATIENT'
-      ? eq(messageThreads.patientId, ctx.patientId ?? '00000000-0000-0000-0000-000000000000')
-      : eq(messageThreads.doctorId, ctx.userId);
+  const where = visibleTo(ctx);
   const rows = await db
     .select({
       id: messageThreads.id,
@@ -115,7 +154,7 @@ messagingRouter.post('/threads', async (req, res) => {
   const thread = await db.transaction(async (tx) => {
     const [t] = await tx
       .insert(messageThreads)
-      .values({ patientId, doctorId, subject: input.subject })
+      .values({ patientId, doctorId, subject: input.subject, startedById: ctx.userId })
       .returning();
     await tx.insert(messages).values({ threadId: t!.id, senderId: ctx.userId, body: input.body });
     await audit(

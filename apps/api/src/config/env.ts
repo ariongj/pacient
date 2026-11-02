@@ -26,15 +26,29 @@ const EnvSchema = z.object({
     z.string().min(32).optional(),
   ),
   /** Require staff (doctors, directors, Ministry) to use two-step sign-in. Defaults to on in production. */
+  /** smtp (real delivery), log (development), memory (tests). Defaults depend on NODE_ENV. */
+  EMAIL_TRANSPORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['smtp', 'log', 'memory']).optional(),
+  ),
+  /** e.g. smtps://user:pass@smtp.example.org:465 or smtp://localhost:1025 (Mailpit). */
+  SMTP_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  EMAIL_FROM: z.string().default('Pacient <no-reply@pacient.local>'),
+  /** Run the email delivery worker in this process (disable on read-only replicas). */
+  EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(
     (v) => (v === '' ? undefined : v),
     z.enum(['true', 'false']).optional(),
   ),
 });
 
-export type Env = Omit<z.infer<typeof EnvSchema>, 'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA'> & {
+export type Env = Omit<
+  z.infer<typeof EnvSchema>,
+  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT'
+> & {
   MFA_ENCRYPTION_KEY: string;
   REQUIRE_STAFF_MFA: boolean;
+  EMAIL_TRANSPORT: 'smtp' | 'log' | 'memory';
 };
 
 function loadEnv(): Env {
@@ -45,6 +59,18 @@ function loadEnv(): Env {
     throw new Error(`Invalid environment configuration:\n${issues.join('\n')}`);
   }
   const data = parsed.data;
+  const emailTransport =
+    data.EMAIL_TRANSPORT ??
+    (data.NODE_ENV === 'test'
+      ? 'memory'
+      : data.SMTP_URL || data.NODE_ENV === 'production'
+        ? 'smtp'
+        : 'log');
+  if (emailTransport === 'smtp' && !data.SMTP_URL) {
+    throw new Error(
+      'Invalid environment configuration:\n  - SMTP_URL is required for email delivery',
+    );
+  }
   if (data.NODE_ENV === 'production' && !data.MFA_ENCRYPTION_KEY) {
     throw new Error(
       'Invalid environment configuration:\n  - MFA_ENCRYPTION_KEY is required in production',
@@ -57,6 +83,7 @@ function loadEnv(): Env {
     REQUIRE_STAFF_MFA: data.REQUIRE_STAFF_MFA
       ? data.REQUIRE_STAFF_MFA === 'true'
       : data.NODE_ENV === 'production',
+    EMAIL_TRANSPORT: emailTransport,
   };
 }
 

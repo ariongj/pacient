@@ -32,6 +32,7 @@ import { channelsRouter } from './modules/channels/channels.routes.js';
 import { eventsRouter } from './modules/events/events.routes.js';
 import { fhirRouter } from './modules/fhir/fhir.routes.js';
 import { directoryRouter } from './modules/directory/directory.routes.js';
+import { guardiansRouter } from './modules/guardians/guardians.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -81,7 +82,7 @@ export function createApp(): Express {
       origin: env.CORS_ORIGINS,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Acting-For'],
       exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
     }),
   );
@@ -112,6 +113,7 @@ export function createApp(): Express {
   api.use('/auth', authRouter);
   api.use('/facilities', facilitiesRouter);
   api.use('/staff', staffRouter);
+  api.use('/patients/:id/guardians', guardiansRouter);
   api.use('/patients/:patientId', clinicalRouter);
   api.use('/patients', patientsRouter);
   api.use('/appointments', appointmentsRouter);

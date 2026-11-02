@@ -5,8 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN npm ci --workspace @pacient/api --include-workspace-root=false
-COPY tsconfig.base.json* ./
+RUN npm ci --workspace @pacient/api --include-workspace-root=true
 COPY apps/api apps/api
 RUN npm run build -w @pacient/api && npm prune --omit=dev --workspace @pacient/api
 

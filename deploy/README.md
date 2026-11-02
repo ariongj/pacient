@@ -1,0 +1,85 @@
+# GitHub Pages frontend + VPS API
+
+This is a controlled pilot, not an approved clinical production system. Do not enter real patient data.
+Deploy only the compiled frontend to Pages. Database contents, server settings, secrets and backend
+runtime stay on the VPS. The source repository's existing visibility is not changed by this workflow.
+
+## Routing and authentication
+
+- Use HTTPS sibling domains for the frontend and API, e.g. `pacienti.itdks.tech` and
+  `pacienti-api.itdks.tech`. The frontend remains hosted by GitHub Pages using its custom domain.
+- Do not use `ariongj.github.io` with an `itdks.tech` API for this deployment: these are different
+  sites and the Strict refresh cookie will not work. Do not relax the cookie to solve this.
+- Set `VITE_API_BASE_URL` at build time. Credentialed fetch, SSE and CORS support separate origins.
+- `WEB_APP_URL` is the frontend's full HTTPS URL; `CORS_ORIGINS` is its exact origin.
+- The public artifact includes a GitHub Pages `404.html` fallback for direct SPA links. Those
+  deep links render the application but retain GitHub's HTTP 404 status.
+- Source maps are disabled. `prepare-pages.mjs` restricts artifact file types and checks for
+  common secret/source-map markers; this is not a substitute for a complete secret scan.
+
+## Isolated verification on the VPS
+
+Run from `/home/codex/Pacienti`:
+
+```sh
+VERIFY_UID=$(id -u) VERIFY_GID=$(id -g) docker compose -f deploy/compose.verify.yml up --abort-on-container-exit --exit-code-from verify
+docker compose -f deploy/compose.verify.yml down
+```
+
+The test PostgreSQL database is temporary, has no published port and is separate from every app.
+Tests recreate only its schema. Never point these tests at a production database.
+
+## VPS deployment
+
+Check port 18840 and existing service state before deploying. Do not start the root development
+Compose file: use this isolated deployment instead.
+
+```sh
+python3 deploy/init-env.py --web-url https://pacienti.itdks.tech
+docker compose --env-file .env.vps -f deploy/compose.vps.yml build migrate
+docker compose --env-file .env.vps -f deploy/compose.vps.yml up -d
+curl --fail http://127.0.0.1:18840/health/ready
+```
+
+`init-env.py` creates fresh private secrets with permissions 0600 and refuses to replace an
+existing file. Do not print, commit, upload or include `.env.vps` in a public package. Keep a
+separately protected recovery copy of the database password, JWT secret and MFA encryption key.
+
+The API initially binds only to localhost. PostgreSQL is on an internal Docker network and has
+no host port. Resource limits and log rotation apply only to Pacienti's new services. After
+the approved API DNS record resolves, add a dedicated HTTPS route to the existing proxy using
+its verified network path, validate it, and perform a graceful reload (not a service restart).
+Preserve all existing routes and keep a protected copy of the prior proxy configuration.
+
+Create the first Ministry account only for the owner's confirmed email and with a private
+activation handoff. Do not seed the published development passwords or disable staff MFA.
+The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH` command refuses if any
+account already exists, creates a single-use 72-hour invitation, and writes its URL only to a
+new 0600 file. Run it inside the API image with a temporary private bind mount; do not expose
+that directory through HTTP. The owner chooses their password through the activation page.
+Email delivery is not implemented in the supplied application; activation/reset delivery must
+be configured or handled through an explicitly authorized private setup process before use.
+
+## Pages deployment
+
+Only after the API is reachable over trusted HTTPS and CORS/session behavior is verified:
+
+1. Enable GitHub Pages with GitHub Actions as the publishing source.
+2. Set repository variables `PACIENTI_API_BASE_URL` (HTTPS URL ending `/api/v1`) and
+   `PACIENTI_WEB_DOMAIN` (approved frontend hostname).
+3. Set the DNS CNAME for that hostname to `ariongj.github.io` and configure the Pages custom domain.
+4. Set `PACIENTI_DEPLOY_ENABLED=true` and run **Pacient frontend**.
+5. Verify HTTPS, login, MFA, session restoration, role boundaries, SSE, direct-route reload,
+   exports, logout and mobile layout on the actual frontend domain.
+
+The workflow is deliberately disabled until the enable variable is set. It publishes only
+`apps/web/dist`, never the repository root, API code or operational configuration.
+
+## Recovery and rollback
+
+Before a later database migration, take a consistent `pg_dump` and verify a restore in an
+isolated test database; also preserve the exact image/commit and private configuration. Database
+volume `pacienti_pacienti-db` is persistent. Never use `docker compose down -v` on this deployment.
+Reverting an image does not revert a database migration. Do not assume the server's existing
+backup job includes this new PostgreSQL service until that coverage and off-server restore are
+explicitly verified; no backup schedule is changed by this deployment preparation.

@@ -1,0 +1,33 @@
+name: pacienti-verification
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pacient
+      POSTGRES_PASSWORD: isolated-test-only
+      POSTGRES_DB: pacient_test
+    tmpfs:
+      - /var/lib/postgresql/data:size=512m
+    mem_limit: 768m
+    cpus: 1
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pacient -d pacient_test']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  verify:
+    image: node:22-bookworm-slim
+    user: '${VERIFY_UID:-1000}:${VERIFY_GID:-1000}'
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      DATABASE_URL: postgres://pacient:isolated-test-only@db:5432/pacient_test
+      npm_config_cache: /tmp/npm-cache
+      VITE_API_BASE_URL: https://pacienti-api.itdks.tech/api/v1
+      WEB_BASE_PATH: /
+    command: ['sh', '-c', 'npm ci && npm run typecheck && npm run build && node deploy/verify-bootstrap.mjs && npm test && node deploy/prepare-pages.mjs']
+    mem_limit: 3g
+    cpus: 2
+    depends_on:
+      db: { condition: service_healthy }

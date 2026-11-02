@@ -7,3 +7,5 @@ coverage/
 !.env.example
 .DS_Store
 *.tsbuildinfo
+__pycache__/
+.private/

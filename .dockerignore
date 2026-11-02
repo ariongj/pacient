@@ -1,5 +1,8 @@
 **/node_modules
 **/dist
 **/coverage
-**/.env
+**/.env*
+**/*.log
+**/*.tar.gz
+**/.private
 .git

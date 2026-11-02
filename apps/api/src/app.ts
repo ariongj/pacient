@@ -6,6 +6,7 @@ import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { pool } from './db/client.js';
 import { logger } from './lib/logger.js';
+import { forbidden } from './lib/errors.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { apiLimiter } from './middleware/rate-limit.js';
 import { requestId } from './middleware/request-id.js';
@@ -60,10 +61,26 @@ export function createApp(): Express {
     }),
   );
   app.use(
+    // SameSite cookies protect against other sites, not sibling subdomains.
+    // Reject unapproved browser origins before any state-changing handler runs.
+    (req, _res, next) => {
+      const origin = req.headers.origin;
+      if (
+        !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+        origin !== undefined &&
+        !env.CORS_ORIGINS.includes(origin)
+      ) {
+        next(forbidden('Request origin is not allowed'));
+        return;
+      }
+      next();
+    },
+  );
+  app.use(
     cors({
       origin: env.CORS_ORIGINS,
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
       exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
     }),

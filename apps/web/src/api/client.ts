@@ -6,7 +6,7 @@
  * - On a 401 the client refreshes once (single-flight, so parallel requests share one refresh) and
  *   retries. Concurrent refreshes would otherwise trip the server's token-reuse detection.
  */
-const BASE = '/api/v1';
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(
@@ -31,7 +31,7 @@ export function setSessionExpiredHandler(handler: () => void) {
 }
 
 export function refreshSession(): Promise<boolean> {
-  refreshInFlight ??= fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin' })
+  refreshInFlight ??= fetch(`${API_BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
     .then(async (res) => {
       if (!res.ok) {
         accessToken = null;
@@ -61,7 +61,7 @@ function buildUrl(path: string, query?: Query) {
     if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   }
   const qs = params.toString();
-  return `${BASE}${path}${qs ? `?${qs}` : ''}`;
+  return `${API_BASE}${path}${qs ? `?${qs}` : ''}`;
 }
 
 async function send(path: string, opts: RequestOptions): Promise<Response> {
@@ -71,7 +71,7 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
   return fetch(buildUrl(path, opts.query), {
     method: opts.method ?? 'GET',
     headers,
-    credentials: 'same-origin',
+    credentials: 'include',
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
 }

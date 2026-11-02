@@ -1,0 +1,66 @@
+name: pacienti
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pacient
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set the private database password}
+      POSTGRES_DB: pacient
+    volumes:
+      - pacienti-db:/var/lib/postgresql/data
+    networks: [database]
+    mem_limit: 1g
+    cpus: 1
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pacient -d pacient']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: &logging
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+  migrate:
+    image: ${PACIENTI_IMAGE:-pacienti-api:local}
+    build: { context: .., dockerfile: apps/api/Dockerfile }
+    command: ['node', 'dist/db/migrate.js']
+    environment: &environment
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://pacient:${POSTGRES_PASSWORD:?Set the private database password}@db:5432/pacient
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set the private JWT secret}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set the private MFA key}
+      CORS_ORIGINS: ${WEB_ORIGIN:?Set the exact HTTPS frontend origin}
+      WEB_APP_URL: ${WEB_APP_URL:?Set the public HTTPS frontend URL}
+      REQUIRE_STAFF_MFA: 'true'
+      TRUST_PROXY: 1
+    networks: [database]
+    mem_limit: 512m
+    cpus: 1
+    depends_on:
+      db: { condition: service_healthy }
+    logging: *logging
+  api:
+    image: ${PACIENTI_IMAGE:-pacienti-api:local}
+    environment: *environment
+    networks: [database, outbound]
+    # Loopback only until the dedicated HTTPS proxy route is verified.
+    # Never bind this to 0.0.0.0 or expose PostgreSQL publicly.
+    ports:
+      - '${PACIENTI_BIND_ADDRESS:-127.0.0.1}:${PACIENTI_PORT:-18840}:4000'
+    mem_limit: 1g
+    cpus: 1.5
+    read_only: true
+    tmpfs: ['/tmp:size=64m,noexec,nosuid']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    logging: *logging
+networks:
+  database:
+    internal: true
+  outbound: {}
+volumes:
+  pacienti-db: {}

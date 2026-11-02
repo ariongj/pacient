@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 
 export type LiveStatus = 'connecting' | 'live' | 'offline';
 
@@ -25,7 +25,7 @@ export function useLiveEvents(enabled: boolean): LiveStatus {
       try {
         const { ticket } = await api<{ ticket: string }>('/events/ticket', { method: 'POST' });
         if (stopped) return;
-        source = new EventSource(`/api/v1/events?ticket=${encodeURIComponent(ticket)}`);
+        source = new EventSource(`${API_BASE}/events?ticket=${encodeURIComponent(ticket)}`);
         source.onopen = () => {
           attempt = 0;
           setStatus('live');

@@ -1,3 +1,4 @@
+import { t, tn } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -23,24 +24,25 @@ import { ACTION_LABELS, actionLabel, formatDateTime, humanize } from '../../form
 const EMERGENCY = 'care.emergency_access.granted';
 const DENIED = 'patient.record.access_denied';
 
-const ACTION_OPTIONS = Object.entries(ACTION_LABELS)
-  .map(([value, label]) => ({ value, label }))
-  .sort((a, b) => a.label.localeCompare(b.label));
+const actionOptions = () =>
+  Object.entries(ACTION_LABELS)
+    .map(([value, label]) => ({ value, label: t(label) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
 /** Short, human-readable summary of the event metadata (never clinical content). */
 function metadataSummary(meta: Record<string, unknown> | null): string {
   if (!meta) return '—';
   const parts: string[] = [];
-  if (typeof meta.reason === 'string') parts.push(`Reason: ${meta.reason}`);
-  if (typeof meta.section === 'string') parts.push(`Section: ${meta.section}`);
-  if (typeof meta.basis === 'string') parts.push(`Basis: ${humanize(meta.basis)}`);
-  if (typeof meta.role === 'string') parts.push(`Role: ${humanize(meta.role)}`);
-  if (typeof meta.status === 'string') parts.push(`Status: ${humanize(meta.status)}`);
+  if (typeof meta.reason === 'string') parts.push(`${t('Reason')}: ${meta.reason}`);
+  if (typeof meta.section === 'string') parts.push(`${t('Section')}: ${humanize(meta.section)}`);
+  if (typeof meta.basis === 'string') parts.push(`${t('Basis')}: ${humanize(meta.basis)}`);
+  if (typeof meta.role === 'string') parts.push(`${t('Role')}: ${humanize(meta.role)}`);
+  if (typeof meta.status === 'string') parts.push(`${t('Status')}: ${humanize(meta.status)}`);
   if (typeof meta.from === 'string' && typeof meta.to === 'string') {
     parts.push(`${humanize(meta.from)} → ${humanize(meta.to)}`);
   }
-  if (Array.isArray(meta.fields)) parts.push(`Fields: ${meta.fields.join(', ')}`);
-  if (typeof meta.resultCount === 'number') parts.push(`Results: ${meta.resultCount}`);
+  if (Array.isArray(meta.fields)) parts.push(`${t('Fields')}: ${meta.fields.join(', ')}`);
+  if (typeof meta.resultCount === 'number') parts.push(`${t('Results')}: ${meta.resultCount}`);
   return parts.length ? parts.join(' · ') : '—';
 }
 
@@ -76,16 +78,19 @@ export function AuditLogPage() {
   return (
     <>
       <PageHeader
-        title="Audit review"
+        title={t('Audit review')}
         subtitle={
           user.role === 'DIRECTOR'
-            ? `Activity by staff of ${user.facility?.name ?? 'your facility'}`
-            : 'All security and record-access events across the network'
+            ? t('Activity by staff of {facility}', {
+                facility: user.facility?.name ?? t('your facility'),
+              })
+            : t('All security and record-access events across the network')
         }
       />
       <Alert tone="info">
-        The audit trail is append-only. Review emergency (break-glass) access and denied access
-        attempts regularly.
+        {t(
+          'The audit trail is append-only. Review emergency (break-glass) access and denied access attempts regularly.',
+        )}
       </Alert>
       <Card>
         <div className="row" style={{ marginBottom: '0.75rem' }}>
@@ -97,7 +102,7 @@ export function AuditLogPage() {
               applyFilters({ action: action === EMERGENCY ? '' : EMERGENCY, from, to })
             }
           >
-            Emergency access
+            {t('Emergency access')}
           </Button>
           <Button
             size="sm"
@@ -105,11 +110,11 @@ export function AuditLogPage() {
             aria-pressed={action === DENIED}
             onClick={() => applyFilters({ action: action === DENIED ? '' : DENIED, from, to })}
           >
-            Denied access
+            {t('Denied access')}
           </Button>
           {(action || from || to) && (
             <Button size="sm" variant="ghost" onClick={() => applyFilters({})}>
-              Clear filters
+              {t('Clear filters')}
             </Button>
           )}
         </div>
@@ -124,36 +129,36 @@ export function AuditLogPage() {
           }}
         >
           <SelectField
-            label="Event"
+            label={t('Event')}
             name="action"
-            placeholder="All events"
-            options={ACTION_OPTIONS}
+            placeholder={t('All events')}
+            options={actionOptions()}
             defaultValue={action}
           />
-          <TextField label="From" name="from" type="date" defaultValue={from} />
-          <TextField label="To" name="to" type="date" defaultValue={to} />
+          <TextField label={t('From')} name="from" type="date" defaultValue={from} />
+          <TextField label={t('To')} name="to" type="date" defaultValue={to} />
           <Button type="submit" variant="secondary">
-            Apply
+            {t('Apply')}
           </Button>
         </form>
         <QueryView query={query}>
           {(data) =>
             data.items.length === 0 ? (
-              <EmptyState title="No audit events match these filters" />
+              <EmptyState title={t('No audit events match these filters')} />
             ) : (
               <>
-                <p className="muted">{data.total} events</p>
-                <Table caption="Audit events, newest first">
+                <p className="muted">{tn(data.total, '{count} event', '{count} events')}</p>
+                <Table caption={t('Audit events, newest first')}>
                   <thead>
                     <tr>
-                      <th scope="col">Time</th>
-                      <th scope="col">Actor</th>
-                      <th scope="col">Event</th>
-                      <th scope="col">Outcome</th>
-                      <th scope="col">Resource</th>
-                      <th scope="col">Patient</th>
+                      <th scope="col">{t('Time')}</th>
+                      <th scope="col">{t('Actor')}</th>
+                      <th scope="col">{t('Event')}</th>
+                      <th scope="col">{t('Outcome')}</th>
+                      <th scope="col">{t('Resource')}</th>
+                      <th scope="col">{t('Patient')}</th>
                       <th scope="col">IP</th>
-                      <th scope="col">Details</th>
+                      <th scope="col">{t('Details')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -161,7 +166,7 @@ export function AuditLogPage() {
                       <tr key={e.id}>
                         <td>{formatDateTime(e.occurredAt)}</td>
                         <td>
-                          {e.actorName ?? <span className="muted">Unknown / anonymous</span>}
+                          {e.actorName ?? <span className="muted">{t('Unknown / anonymous')}</span>}
                           {e.actorRole && <div className="muted">{humanize(e.actorRole)}</div>}
                         </td>
                         <td>{actionLabel(e.action)}</td>

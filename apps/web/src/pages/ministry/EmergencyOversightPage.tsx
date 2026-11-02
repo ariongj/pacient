@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -18,12 +19,13 @@ export function EmergencyOversightPage() {
   return (
     <>
       <PageHeader
-        title="Emergency access oversight"
-        subtitle="Break-glass use and review compliance across all facilities"
+        title={t('Emergency access oversight')}
+        subtitle={t('Break-glass use and review compliance across all facilities')}
       />
-      <Alert tone="info" title="Aggregate data only.">
-        Facility directors review each emergency access. The Ministry sees counts per facility, with
-        no identifiable patient data.
+      <Alert tone="info" title={t('Aggregate data only.')}>
+        {t(
+          'Facility directors review each emergency access. The Ministry sees counts per facility, with no identifiable patient data.',
+        )}
       </Alert>
       <QueryView query={q}>
         {(d) => {
@@ -33,36 +35,36 @@ export function EmergencyOversightPage() {
             <div className="stack">
               <Grid min={180}>
                 <Stat
-                  label={`Emergency accesses (${d.periodDays} days)`}
+                  label={t('Emergency accesses ({days} days)', { days: d.periodDays })}
                   value={formatNumber(sum('total'))}
                 />
                 <Stat
-                  label="Awaiting review"
+                  label={t('Awaiting review')}
                   value={formatNumber(sum('unreviewed'))}
                   tone={sum('unreviewed') > 0 ? 'warning' : undefined}
                 />
                 <Stat
-                  label="Overdue reviews (> 7 days)"
+                  label={t('Overdue reviews (> 7 days)')}
                   value={formatNumber(sum('overdueReviews'))}
                   tone={sum('overdueReviews') > 0 ? 'danger' : undefined}
                 />
                 <Stat
-                  label="Judged inappropriate"
+                  label={t('Judged inappropriate')}
                   value={formatNumber(sum('inappropriate'))}
                   tone={sum('inappropriate') > 0 ? 'danger' : undefined}
                 />
               </Grid>
-              <Card title={`By facility (last ${d.periodDays} days)`}>
-                <Table caption="Emergency access review compliance by facility">
+              <Card title={t('By facility (last {days} days)', { days: d.periodDays })}>
+                <Table caption={t('Emergency access review compliance by facility')}>
                   <thead>
                     <tr>
-                      <th>Facility</th>
-                      <th>Region</th>
-                      <th className="num">Total</th>
-                      <th className="num">Awaiting review</th>
-                      <th className="num">Overdue</th>
-                      <th className="num">Inappropriate</th>
-                      <th className="num">Needs follow-up</th>
+                      <th>{t('Facility')}</th>
+                      <th>{t('Region')}</th>
+                      <th className="num">{t('Total')}</th>
+                      <th className="num">{t('Awaiting review')}</th>
+                      <th className="num">{t('Overdue')}</th>
+                      <th className="num">{t('Inappropriate')}</th>
+                      <th className="num">{t('Needs follow-up')}</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useEffect,
@@ -124,12 +125,14 @@ export function ChannelConversation({
           <h2 id="channel-title">#{channel.name}</h2>
           {channel.description && (
             <p className="muted" style={{ margin: '0.15rem 0 0.4rem' }}>
-              {channel.description}
+              {t(channel.description)}
             </p>
           )}
           <div className="row" style={{ gap: '0.3rem' }}>
             <Badge tone="info">
-              {channel.scope === 'NATIONAL' ? 'National' : (channel.facilityName ?? 'Facility')}
+              {channel.scope === 'NATIONAL'
+                ? t('National')
+                : (channel.facilityName ?? t('Facility'))}
             </Badge>
             {channel.allowedRoles.map((r) => (
               <Badge key={r}>{humanize(r)}</Badge>
@@ -142,12 +145,16 @@ export function ChannelConversation({
             size="sm"
             loading={archive.isPending}
             onClick={() => {
-              if (window.confirm(`Archive #${channel.name}? Members will no longer see it.`)) {
+              if (
+                window.confirm(
+                  t('Archive #{name}? Members will no longer see it.', { name: channel.name }),
+                )
+              ) {
                 archive.mutate();
               }
             }}
           >
-            Archive channel
+            {t('Archive channel')}
           </Button>
         )}
       </div>
@@ -159,7 +166,7 @@ export function ChannelConversation({
         style={{ marginTop: '0.75rem', minHeight: 260 }}
         role="log"
         aria-live="polite"
-        aria-label={`Messages in #${channel.name}`}
+        aria-label={t('Messages in #{name}', { name: channel.name })}
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -168,7 +175,7 @@ export function ChannelConversation({
         {canLoadMore && (
           <div style={{ textAlign: 'center' }}>
             <Button variant="ghost" size="sm" onClick={loadEarlier} loading={loadingEarlier}>
-              Load earlier messages
+              {t('Load earlier messages')}
             </Button>
           </div>
         )}
@@ -178,7 +185,7 @@ export function ChannelConversation({
           <ErrorAlert error={history.error} />
         ) : messages.length === 0 ? (
           <p className="muted" style={{ textAlign: 'center' }}>
-            No messages yet. Start the conversation.
+            {t('No messages yet. Start the conversation.')}
           </p>
         ) : (
           messages.map((m, i) => {
@@ -216,12 +223,12 @@ export function ChannelConversation({
                   )}
                   {m.isUrgent && (
                     <div style={{ marginBottom: '0.25rem' }}>
-                      <Badge tone="danger">Urgent</Badge>
+                      <Badge tone="danger">{t('Urgent')}</Badge>
                     </div>
                   )}
                   {m.body}
                   <div className="bubble-meta">
-                    {mine ? `You · ${formatTime(m.createdAt)}` : formatTime(m.createdAt)}
+                    {mine ? `${t('You')} · ${formatTime(m.createdAt)}` : formatTime(m.createdAt)}
                   </div>
                 </div>
               </div>
@@ -231,11 +238,11 @@ export function ChannelConversation({
       </div>
 
       {channel.isArchived ? (
-        <p className="muted">This channel is archived.</p>
+        <p className="muted">{t('This channel is archived.')}</p>
       ) : (
         <form onSubmit={onSubmit} style={{ marginTop: '0.75rem' }}>
           <div className="field">
-            <label htmlFor="channel-composer">Message #{channel.name}</label>
+            <label htmlFor="channel-composer">{t('Message #{name}', { name: channel.name })}</label>
             <textarea
               id="channel-composer"
               rows={3}
@@ -246,7 +253,7 @@ export function ChannelConversation({
               aria-describedby="composer-hint"
             />
             <small id="composer-hint" className="muted">
-              Enter to send · Shift+Enter for a new line
+              {t('Enter to send · Shift+Enter for a new line')}
             </small>
           </div>
           <div className="row-between">
@@ -256,10 +263,10 @@ export function ChannelConversation({
                 checked={urgent}
                 onChange={(e) => setUrgent(e.target.checked)}
               />
-              Mark as urgent – notifies everyone in the channel
+              {t('Mark as urgent – notifies everyone in the channel')}
             </label>
             <Button type="submit" loading={send.isPending} disabled={!body.trim()}>
-              Send
+              {t('Send')}
             </Button>
           </div>
           <ErrorAlert error={send.error} />

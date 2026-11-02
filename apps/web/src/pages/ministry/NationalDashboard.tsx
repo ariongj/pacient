@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -26,58 +27,60 @@ export function NationalDashboard() {
   return (
     <>
       <PageHeader
-        title="National overview"
-        subtitle="Health network activity across all facilities"
+        title={t('National overview')}
+        subtitle={t('Health network activity across all facilities')}
       />
-      <Alert tone="info" title="Aggregate data only.">
-        The Ministry has no access to identifiable patient records.
+      <Alert tone="info" title={t('Aggregate data only.')}>
+        {t('The Ministry has no access to identifiable patient records.')}
       </Alert>
       <QueryView query={query}>
         {(s) => {
-          const t = s.totals;
-          const adoption = t.patients ? Math.round((t.portalUsers / t.patients) * 100) : 0;
+          const tot = s.totals;
+          const adoption = tot.patients ? Math.round((tot.portalUsers / tot.patients) * 100) : 0;
           return (
             <div className="stack">
               <Grid min={180}>
-                <Stat label="Active facilities" value={formatNumber(t.facilities)} />
-                <Stat label="Registered patients" value={formatNumber(t.patients)} />
+                <Stat label={t('Active facilities')} value={formatNumber(tot.facilities)} />
+                <Stat label={t('Registered patients')} value={formatNumber(tot.patients)} />
                 <Stat
-                  label="Portal adoption"
+                  label={t('Portal adoption')}
                   value={`${adoption}%`}
-                  hint={`${formatNumber(t.portalUsers)} patients with portal accounts`}
+                  hint={t('{count} patients with portal accounts', {
+                    count: formatNumber(tot.portalUsers),
+                  })}
                 />
-                <Stat label="Active doctors" value={formatNumber(t.doctors)} />
-                <Stat label="Encounters (30 days)" value={formatNumber(t.encounters30d)} />
+                <Stat label={t('Active doctors')} value={formatNumber(tot.doctors)} />
+                <Stat label={t('Encounters (30 days)')} value={formatNumber(tot.encounters30d)} />
                 <Stat
-                  label="Emergency access (30 days)"
-                  value={formatNumber(t.emergencyAccess30d)}
-                  tone={t.emergencyAccess30d > 0 ? 'danger' : undefined}
+                  label={t('Emergency access (30 days)')}
+                  value={formatNumber(tot.emergencyAccess30d)}
+                  tone={tot.emergencyAccess30d > 0 ? 'danger' : undefined}
                   hint={
-                    t.emergencyAccess30d > 0 ? (
+                    tot.emergencyAccess30d > 0 ? (
                       <Link to="/ministry/audit?action=care.emergency_access.granted">
-                        Review events
+                        {t('Review events')}
                       </Link>
                     ) : (
-                      'Break-glass record openings'
+                      t('Break-glass record openings')
                     )
                   }
                 />
               </Grid>
 
               <div className="two-col">
-                <Card title="Encounters by month (national)">
+                <Card title={t('Encounters by month (national)')}>
                   <BarChart
-                    title="National encounters per month, last 12 months"
+                    title={t('National encounters per month, last 12 months')}
                     data={monthlyBars(s.encountersByMonth)}
                   />
                 </Card>
-                <Card title="Top diagnoses (patients, 12 months)">
+                <Card title={t('Top diagnoses (patients, 12 months)')}>
                   {s.topDiagnoses.length === 0 ? (
-                    <EmptyState title="No diagnoses recorded" />
+                    <EmptyState title={t('No diagnoses recorded')} />
                   ) : (
                     <>
                       <RankedBars
-                        label="Top diagnoses nationally"
+                        label={t('Top diagnoses nationally')}
                         rows={s.topDiagnoses.map((d) => ({
                           key: d.icd10Code,
                           label: d.description,
@@ -87,26 +90,28 @@ export function NationalDashboard() {
                         }))}
                       />
                       <p className="muted">
-                        Counts below {s.smallCellThreshold} are hidden to protect patient privacy.
+                        {t('Counts below {n} are hidden to protect patient privacy.', {
+                          n: s.smallCellThreshold,
+                        })}
                       </p>
                     </>
                   )}
                 </Card>
               </div>
 
-              <Card title="By region">
-                <Table caption="Facilities, patients and encounters by region">
+              <Card title={t('By region')}>
+                <Table caption={t('Facilities, patients and encounters by region')}>
                   <thead>
                     <tr>
-                      <th scope="col">Region</th>
+                      <th scope="col">{t('Region')}</th>
                       <th scope="col" className="num">
-                        Facilities
+                        {t('Facilities')}
                       </th>
                       <th scope="col" className="num">
-                        Patients
+                        {t('Patients')}
                       </th>
                       <th scope="col" className="num">
-                        Encounters (30d)
+                        {t('Encounters (30d)')}
                       </th>
                     </tr>
                   </thead>
@@ -123,22 +128,22 @@ export function NationalDashboard() {
                 </Table>
               </Card>
 
-              <Card title="Facilities">
-                <Table caption="Activity per facility">
+              <Card title={t('Facilities')}>
+                <Table caption={t('Activity per facility')}>
                   <thead>
                     <tr>
-                      <th scope="col">Facility</th>
-                      <th scope="col">Type</th>
-                      <th scope="col">Region</th>
-                      <th scope="col">Director</th>
+                      <th scope="col">{t('Facility')}</th>
+                      <th scope="col">{t('Type')}</th>
+                      <th scope="col">{t('Region')}</th>
+                      <th scope="col">{t('Director')}</th>
                       <th scope="col" className="num">
-                        Patients
+                        {t('Patients')}
                       </th>
                       <th scope="col" className="num">
-                        Doctors
+                        {t('Doctors')}
                       </th>
                       <th scope="col" className="num">
-                        Encounters (30d)
+                        {t('Encounters (30d)')}
                       </th>
                     </tr>
                   </thead>
@@ -151,13 +156,15 @@ export function NationalDashboard() {
                           {!f.isActive && (
                             <>
                               {' '}
-                              <Badge>Inactive</Badge>
+                              <Badge>{t('Inactive')}</Badge>
                             </>
                           )}
                         </td>
                         <td>{humanize(f.type)}</td>
                         <td>{f.region}</td>
-                        <td>{f.directorName ?? <Badge tone="warning">No director</Badge>}</td>
+                        <td>
+                          {f.directorName ?? <Badge tone="warning">{t('No director')}</Badge>}
+                        </td>
                         <td className="num">{formatNumber(f.patients)}</td>
                         <td className="num">{formatNumber(f.doctors)}</td>
                         <td className="num">{formatNumber(f.encounters30d)}</td>
@@ -173,26 +180,29 @@ export function NationalDashboard() {
       <div className="stack" style={{ marginTop: '1rem' }}>
         <OperationsPanel reportsPath="/ministry/reports" />
         <Grid min={260}>
-          <Card title="Emergency access oversight">
+          <Card title={t('Emergency access oversight')}>
             <p className="muted">
-              Break-glass use and how promptly facilities review it, without identifiable data.
+              {t(
+                'Break-glass use and how promptly facilities review it, without identifiable data.',
+              )}
             </p>
-            <Link to="/ministry/emergency-access">Open oversight</Link>
+            <Link to="/ministry/emergency-access">{t('Open oversight')}</Link>
           </Card>
-          <Card title="Reports">
+          <Card title={t('Reports')}>
             <p className="muted">
-              Eight aggregate reports – activity, diseases, medicines, pharmacy, vaccinations,
-              referrals, appointments and workforce – with charts, CSV and print.
+              {t(
+                'Eight aggregate reports – activity, diseases, medicines, pharmacy, vaccinations, referrals, appointments and workforce – with charts, CSV and print.',
+              )}
             </p>
-            <Link to="/ministry/reports">Open reports</Link>
+            <Link to="/ministry/reports">{t('Open reports')}</Link>
           </Card>
-          <Card title="Team channels">
-            <p className="muted">Coordinate with facility directors in national channels.</p>
-            <Link to="/channels">Open channels</Link>
+          <Card title={t('Team channels')}>
+            <p className="muted">{t('Coordinate with facility directors in national channels.')}</p>
+            <Link to="/channels">{t('Open channels')}</Link>
           </Card>
-          <Card title="Announcements">
-            <p className="muted">Publish national notices to staff and patients.</p>
-            <Link to="/ministry/announcements">Manage announcements</Link>
+          <Card title={t('Announcements')}>
+            <p className="muted">{t('Publish national notices to staff and patients.')}</p>
+            <Link to="/ministry/announcements">{t('Manage announcements')}</Link>
           </Card>
         </Grid>
         <AnnouncementsCard />

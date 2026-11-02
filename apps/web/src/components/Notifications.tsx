@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -7,6 +8,44 @@ import { formatDateTime } from '../format';
 import { Button, Card, EmptyState, PageHeader, Pagination, QueryView } from './ui';
 
 type NotificationPage = Page<AppNotification> & { unreadCount: number };
+
+/**
+ * Notification titles are stored in English by older API versions; show them in the interface
+ * language, including the suffixes the API appends for guardians and covering doctors.
+ */
+const PATTERNS: [RegExp, string, string[]][] = [
+  [
+    /^A critical result has waited (.+) for review – contact (.+)$/,
+    'A critical result has waited {time} for review – contact {doctor}',
+    ['time', 'doctor'],
+  ],
+  [
+    /^You are covering results for (.+) from (.+) to (.+)$/,
+    'You are covering results for {doctor} from {from} to {to}',
+    ['doctor', 'from', 'to'],
+  ],
+  [
+    /^(.+) will cover your results from (.+) to (.+)$/,
+    '{doctor} will cover your results from {from} to {to}',
+    ['doctor', 'from', 'to'],
+  ],
+];
+
+export function notificationText(text: string): string {
+  const family = /^(.*) \(family member\)$/.exec(text);
+  if (family) return `${notificationText(family[1]!)} ${t('(family member)')}`;
+  const cover = /^(.*) \(covering for (.+)\)$/.exec(text);
+  if (cover)
+    return `${notificationText(cover[1]!)} ${t('(covering for {name})', { name: cover[2]! })}`;
+  for (const [re, key, names] of PATTERNS) {
+    const m = re.exec(text);
+    if (m) {
+      const vars = Object.fromEntries(names.map((n, i) => [n, t(m[i + 1]!)]));
+      return t(key, vars);
+    }
+  }
+  return t(text);
+}
 
 function useMarkRead() {
   const queryClient = useQueryClient();
@@ -61,7 +100,9 @@ export function NotificationBell() {
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((v) => !v)}
-        aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+        aria-label={
+          unread ? t('Notifications, {count} unread', { count: unread }) : t('Notifications')
+        }
       >
         <span aria-hidden="true">🔔</span>
         {unread > 0 && (
@@ -71,12 +112,12 @@ export function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="notif-panel" role="region" aria-label="Notifications">
+        <div className="notif-panel" role="region" aria-label={t('Notifications')}>
           <div className="row-between" style={{ padding: '0.6rem 0.9rem' }}>
-            <strong>Notifications</strong>
+            <strong>{t('Notifications')}</strong>
             {unread > 0 && (
               <Button variant="ghost" size="sm" onClick={() => markRead.mutate('all')}>
-                Mark all read
+                {t('Mark all read')}
               </Button>
             )}
           </div>
@@ -94,7 +135,7 @@ export function NotificationBell() {
                           setOpen(false);
                         }}
                       >
-                        {n.title}
+                        {notificationText(n.title)}
                         <div className="muted" style={{ fontWeight: 400, fontSize: '0.8rem' }}>
                           {formatDateTime(n.createdAt)}
                         </div>
@@ -103,13 +144,13 @@ export function NotificationBell() {
                   ))}
                 </ul>
               ) : (
-                <EmptyState title="You're all caught up" />
+                <EmptyState title={t('You’re all caught up')} />
               )
             }
           </QueryView>
           <div style={{ padding: '0.6rem 0.9rem' }}>
             <Link to="/notifications" onClick={() => setOpen(false)}>
-              See all notifications
+              {t('See all notifications')}
             </Link>
           </div>
         </div>
@@ -128,14 +169,14 @@ export function NotificationsPage() {
   return (
     <>
       <PageHeader
-        title="Notifications"
+        title={t('Notifications')}
         actions={
           <Button
             variant="secondary"
             onClick={() => markRead.mutate('all')}
             loading={markRead.isPending}
           >
-            Mark all as read
+            {t('Mark all as read')}
           </Button>
         }
       />
@@ -150,19 +191,23 @@ export function NotificationsPage() {
                       <span>
                         {n.link ? (
                           <Link to={n.link} onClick={() => !n.readAt && markRead.mutate(n.id)}>
-                            {n.readAt ? n.title : <strong>{n.title}</strong>}
+                            {n.readAt ? (
+                              notificationText(n.title)
+                            ) : (
+                              <strong>{notificationText(n.title)}</strong>
+                            )}
                           </Link>
                         ) : (
-                          n.title
+                          notificationText(n.title)
                         )}
-                        {n.body && <div className="muted">{n.body}</div>}
+                        {n.body && <div className="muted">{notificationText(n.body)}</div>}
                         <div className="muted" style={{ fontSize: '0.8rem' }}>
                           {formatDateTime(n.createdAt)}
                         </div>
                       </span>
                       {!n.readAt && (
                         <Button variant="ghost" size="sm" onClick={() => markRead.mutate(n.id)}>
-                          Mark read
+                          {t('Mark read')}
                         </Button>
                       )}
                     </li>
@@ -171,7 +216,7 @@ export function NotificationsPage() {
                 <Pagination page={d.page} totalPages={d.totalPages} onChange={setPage} />
               </>
             ) : (
-              <EmptyState title="No notifications yet" />
+              <EmptyState title={t('No notifications yet')} />
             )
           }
         </QueryView>

@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -72,17 +73,18 @@ function CareTeamDialog({
     <Dialog
       open={patient !== null}
       onClose={onClose}
-      title={patient ? `Care team · ${fullName(patient)}` : 'Care team'}
+      title={patient ? `${t('Care team')} · ${fullName(patient)}` : t('Care team')}
     >
       <div className="stack">
         <p className="muted">
-          Doctors in the care team can open this patient’s clinical record. Every change is audited
-          and visible to the patient.
+          {t(
+            'Doctors in the care team can open this patient’s clinical record. Every change is audited and visible to the patient.',
+          )}
         </p>
         {team.isPending ? (
           <Loading />
         ) : members.length === 0 ? (
-          <EmptyState title="No doctors assigned yet" />
+          <EmptyState title={t('No doctors assigned yet')} />
         ) : (
           <ul className="list">
             {members.map((m) => (
@@ -91,7 +93,8 @@ function CareTeamDialog({
                   <strong>{m.fullName}</strong>
                   <span className="muted">
                     {' '}
-                    · {m.specialty ?? 'Doctor'} · since {formatDate(m.startedAt)}
+                    · {m.specialty ? t(m.specialty) : t('Doctor')} ·{' '}
+                    {t('since {date}', { date: formatDate(m.startedAt) })}
                   </span>
                 </span>
                 <Button
@@ -99,9 +102,9 @@ function CareTeamDialog({
                   variant="secondary"
                   loading={remove.isPending && remove.variables === m.doctorId}
                   onClick={() => remove.mutate(m.doctorId)}
-                  aria-label={`Remove ${m.fullName} from care team`}
+                  aria-label={t('Remove {name} from care team', { name: m.fullName })}
                 >
-                  Remove
+                  {t('Remove')}
                 </Button>
               </li>
             ))}
@@ -109,28 +112,28 @@ function CareTeamDialog({
         )}
         <form onSubmit={onAssign}>
           <SelectField
-            label="Assign a doctor"
+            label={t('Assign a doctor')}
             name="doctorId"
             required
             placeholder={
               doctors.isPending
-                ? 'Loading doctors…'
+                ? t('Loading doctors…')
                 : available.length
-                  ? 'Select a doctor'
-                  : 'No other active doctors'
+                  ? t('Select a doctor')
+                  : t('No other active doctors')
             }
             options={available.map((d) => ({
               value: d.id,
-              label: `${d.fullName}${d.specialty ? ` — ${d.specialty}` : ''}`,
+              label: `${d.fullName}${d.specialty ? ` — ${t(d.specialty)}` : ''}`,
             }))}
           />
           <ErrorAlert error={assign.error ?? remove.error ?? team.error ?? doctors.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={onClose}>
-              Close
+              {t('Close')}
             </Button>
             <Button type="submit" loading={assign.isPending} disabled={available.length === 0}>
-              Assign doctor
+              {t('Assign doctor')}
             </Button>
           </div>
         </form>
@@ -159,43 +162,45 @@ function PortalInviteDialog({
     onClose();
   };
   return (
-    <Dialog open={patient !== null} onClose={close} title="Invite to patient portal">
+    <Dialog open={patient !== null} onClose={close} title={t('Invite to patient portal')}>
       {patient && (
         <div className="stack">
           {invite.isSuccess ? (
             <>
-              <Alert tone="success" title="Invitation created.">
-                The patient chooses their own password through a single-use link.
+              <Alert tone="success" title={t('Invitation created.')}>
+                {t('The patient chooses their own password through a single-use link.')}
               </Alert>
               {invite.data?.activationUrl ? (
                 <TextField
-                  label="Activation link (development only — sent by email in production)"
+                  label={t('Activation link (development only — sent by email in production)')}
                   readOnly
                   value={invite.data.activationUrl}
                   onFocus={(e) => e.currentTarget.select()}
                 />
               ) : (
                 <p className="muted">
-                  The activation link was sent to the patient’s email address.
+                  {t('The activation link was sent to the patient’s email address.')}
                 </p>
               )}
               <div className="form-actions">
-                <Button onClick={close}>Done</Button>
+                <Button onClick={close}>{t('Done')}</Button>
               </div>
             </>
           ) : (
             <>
               <p>
-                Create an online portal account for <strong>{fullName(patient)}</strong>. The
-                invitation goes to the email address on file; add one first if it is missing.
+                {t('Create an online portal account for {name}.', { name: fullName(patient) })}{' '}
+                {t(
+                  'The invitation goes to the email address on file; add one first if it is missing.',
+                )}
               </p>
               <ErrorAlert error={invite.error} />
               <div className="form-actions">
                 <Button variant="secondary" onClick={close}>
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button loading={invite.isPending} onClick={() => invite.mutate(patient.id)}>
-                  Send invitation
+                  {t('Send invitation')}
                 </Button>
               </div>
             </>
@@ -223,9 +228,11 @@ export function DirectorPatients() {
   return (
     <>
       <PageHeader
-        title="Registered patients"
-        subtitle="Demographics and care-team assignments only — clinical records are visible to the care team"
-        actions={<Button onClick={() => setRegistering(true)}>Register patient</Button>}
+        title={t('Registered patients')}
+        subtitle={t(
+          'Demographics and care-team assignments only — clinical records are visible to the care team',
+        )}
+        actions={<Button onClick={() => setRegistering(true)}>{t('Register patient')}</Button>}
       />
       <Card>
         <form
@@ -238,32 +245,32 @@ export function DirectorPatients() {
           }}
         >
           <TextField
-            label="Search by name or national ID"
+            label={t('Search by name or national ID')}
             name="search"
             type="search"
             defaultValue={search}
           />
           <Button type="submit" variant="secondary">
-            Search
+            {t('Search')}
           </Button>
         </form>
         <QueryView query={query}>
           {(data) =>
             data.items.length === 0 ? (
-              <EmptyState title="No patients found" />
+              <EmptyState title={t('No patients found')} />
             ) : (
               <>
                 <p className="muted">{data.total} patients</p>
-                <Table caption="Patients registered at this facility">
+                <Table caption={t('Patients registered at this facility')}>
                   <thead>
                     <tr>
-                      <th scope="col">Name</th>
-                      <th scope="col">National ID</th>
-                      <th scope="col">Date of birth</th>
-                      <th scope="col">Sex</th>
-                      <th scope="col">Portal</th>
+                      <th scope="col">{t('Name')}</th>
+                      <th scope="col">{t('National ID')}</th>
+                      <th scope="col">{t('Date of birth')}</th>
+                      <th scope="col">{t('Sex')}</th>
+                      <th scope="col">{t('Portal')}</th>
                       <th scope="col">
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -283,26 +290,26 @@ export function DirectorPatients() {
                         <td>{humanize(p.sex)}</td>
                         <td>
                           {p.hasPortalAccount ? (
-                            <Badge tone="success">Active</Badge>
+                            <Badge tone="success">{t('Active')}</Badge>
                           ) : (
-                            <Badge>None</Badge>
+                            <Badge>{t('None')}</Badge>
                           )}
                         </td>
                         <td>
                           <div className="row">
                             <Button size="sm" variant="secondary" onClick={() => setCareTeamFor(p)}>
-                              Care team
+                              {t('Care team')}
                             </Button>
                             <Button
                               size="sm"
                               variant="secondary"
                               onClick={() => setGuardiansFor(p)}
                             >
-                              Guardians
+                              {t('Guardians')}
                             </Button>
                             {!p.hasPortalAccount && (
                               <Button size="sm" variant="ghost" onClick={() => setInviteFor(p)}>
-                                Invite to portal
+                                {t('Invite to portal')}
                               </Button>
                             )}
                           </div>
@@ -321,7 +328,7 @@ export function DirectorPatients() {
       <Dialog
         open={registering}
         onClose={() => setRegistering(false)}
-        title="Register patient"
+        title={t('Register patient')}
         wide
       >
         <RegisterPatientForm onDone={() => setRegistering(false)} />
@@ -331,7 +338,7 @@ export function DirectorPatients() {
       <Dialog
         open={guardiansFor !== null}
         onClose={() => setGuardiansFor(null)}
-        title={guardiansFor ? `Guardians – ${fullName(guardiansFor)}` : 'Guardians'}
+        title={guardiansFor ? `${t('Guardians')} – ${fullName(guardiansFor)}` : t('Guardians')}
         wide
       >
         {guardiansFor && (

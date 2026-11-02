@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import { useEffect } from 'react';
 import {
@@ -185,7 +186,7 @@ function RecordSwitcher() {
   if (!dependants.length) return null;
   return (
     <div className="record-switcher">
-      <label htmlFor="record-switcher">Viewing the record of</label>
+      <label htmlFor="record-switcher">{t('Viewing the record of')}</label>
       <select
         id="record-switcher"
         value={acting?.patientId ?? ''}
@@ -194,7 +195,7 @@ function RecordSwitcher() {
           navigate('/portal');
         }}
       >
-        {user.patientId && <option value="">Me – {user.fullName}</option>}
+        {user.patientId && <option value="">{t('Me – {name}', { name: user.fullName })}</option>}
         {dependants.map((d) => (
           <option key={d.patientId} value={d.patientId}>
             {d.firstName} {d.lastName}
@@ -252,7 +253,7 @@ export function Layout() {
   return (
     <div className="shell">
       <a href="#main" className="skip-link">
-        Skip to main content
+        {t('Skip to main content')}
       </a>
       <header className="topbar">
         <div className="brand">
@@ -260,14 +261,14 @@ export function Layout() {
             +
           </span>
           <span>
-            <strong>Pacient</strong>
-            <span className="brand-sub">{ROLE_LABEL[user.role]}</span>
+            <strong>{t('Pacient')}</strong>
+            <span className="brand-sub">{t(ROLE_LABEL[user.role])}</span>
           </span>
         </div>
         <div className="topbar-user">
-          <span className={`live live-${live}`} role="status" title="Real-time updates">
+          <span className={`live live-${live}`} role="status" title={t('Real-time updates')}>
             <span className="live-dot" aria-hidden="true" />
-            <span className="live-text">{LIVE_TEXT[live]}</span>
+            <span className="live-text">{t(LIVE_TEXT[live])}</span>
           </span>
           <LanguageSwitcher compact />
           <NotificationBell />
@@ -278,11 +279,15 @@ export function Layout() {
             <strong>{user.fullName}</strong>
             <span className="muted">
               {user.facility ? user.facility.name : humanize(user.role)}
-              {user.specialty ? ` · ${user.specialty}` : ''}
+              {user.specialty ? ` · ${t(user.specialty)}` : ''}
             </span>
           </span>
           {user.role !== 'PATIENT' && (
-            <NavLink to="/account" className="btn btn-ghost btn-sm" aria-label="Account settings">
+            <NavLink
+              to="/account"
+              className="btn btn-ghost btn-sm"
+              aria-label={t('Account settings')}
+            >
               <Icon name="settings" size={16} />
             </NavLink>
           )}
@@ -294,22 +299,22 @@ export function Layout() {
               navigate('/login', { replace: true });
             }}
           >
-            <Icon name="logout" size={16} /> <span className="hide-sm">Sign out</span>
+            <Icon name="logout" size={16} /> <span className="hide-sm">{t('Sign out')}</span>
           </button>
         </div>
       </header>
       <div className="body">
-        <nav className="sidenav" aria-label="Main">
+        <nav className="sidenav" aria-label={t('Main')}>
           {user.role === 'PATIENT' && <RecordSwitcher />}
           {nav.map((section, i) => (
             <div key={section.title ?? i} className="nav-section">
-              {section.title && <div className="nav-title">{section.title}</div>}
+              {section.title && <div className="nav-title">{t(section.title)}</div>}
               <ul>
                 {section.items.map((item) => (
                   <li key={item.to}>
                     <NavLink to={item.to} end={item.end}>
                       <Icon name={item.icon} />
-                      <span>{item.label}</span>
+                      <span>{t(item.label)}</span>
                     </NavLink>
                   </li>
                 ))}
@@ -322,13 +327,17 @@ export function Layout() {
             <div className="acting-banner" role="status">
               <div>
                 <strong>
-                  Viewing {acting.firstName} {acting.lastName}’s record
+                  {t('Viewing {name}’s record', {
+                    name: `${acting.firstName} ${acting.lastName}`,
+                  })}
                 </strong>{' '}
-                as their {RELATIONSHIP[acting.relationship] ?? 'guardian'}
-                {acting.scope === 'APPOINTMENTS' ? ' (appointments only)' : ''}.{' '}
+                {t('as their {relationship}', {
+                  relationship: t(RELATIONSHIP[acting.relationship] ?? 'guardian'),
+                })}
+                {acting.scope === 'APPOINTMENTS' ? ` ${t('(appointments only)')}` : ''}.{' '}
                 <span className="muted">
-                  Everything you open is recorded in their access log. Your access ends{' '}
-                  {formatDate(acting.validUntil)}.
+                  {t('Everything you open is recorded in their access log.')}{' '}
+                  {t('Your access ends {date}.', { date: formatDate(acting.validUntil) })}
                 </span>
               </div>
               {user.patientId && (
@@ -340,17 +349,18 @@ export function Layout() {
                     navigate('/portal');
                   }}
                 >
-                  Back to my record
+                  {t('Back to my record')}
                 </button>
               )}
             </div>
           )}
           {user.role === 'PATIENT' && !user.patientId && !acting ? (
             <div className="empty">
-              <strong>No health record is linked to this account yet</strong>
+              <strong>{t('No health record is linked to this account yet')}</strong>
               <p className="muted">
-                If you look after a child or another person, ask their health facility to register
-                you as their guardian.
+                {t(
+                  'If you look after a child or another person, ask their health facility to register you as their guardian.',
+                )}
               </p>
             </div>
           ) : (
@@ -359,9 +369,9 @@ export function Layout() {
         </main>
       </div>
       <footer className="footer muted">
-        Pacient · Access to health records is logged and audited.
+        Pacient · {t('Access to health records is logged and audited.')}
         {user.role === 'PATIENT' &&
-          ' In an emergency call 112 — this portal is not monitored around the clock.'}
+          ` ${t('In an emergency call 112 — this portal is not monitored around the clock.')}`}
       </footer>
     </div>
   );

@@ -134,5 +134,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'integration.client.revoked': 'Laboratory connection revoked',
   'user.phone.verified': 'Mobile number verified',
   'user.phone.removed': 'Mobile number removed',
+  'patient.merged': 'Duplicate records merged',
+  'patient.unmerged': 'Record merge undone',
 };
 export const actionLabel = (a: string) => (ACTION_LABELS[a] ? t(ACTION_LABELS[a]) : humanize(a));

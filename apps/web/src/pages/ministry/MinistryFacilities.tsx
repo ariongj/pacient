@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -63,45 +64,56 @@ function FacilityForm({ facility, onDone }: { facility?: Facility; onDone: () =>
     <form onSubmit={onSubmit}>
       <div className="form-grid">
         <TextField
-          label="Code"
+          label={t('Code')}
           name="code"
           required
           defaultValue={facility?.code}
           pattern="[A-Za-z0-9-]{2,32}"
-          hint="Letters, digits and dashes, e.g. RH-FE"
+          hint={t('Letters, digits and dashes, e.g. RH-FE')}
         />
-        <TextField label="Name" name="name" required minLength={2} defaultValue={facility?.name} />
+        <TextField
+          label={t('Name')}
+          name="name"
+          required
+          minLength={2}
+          defaultValue={facility?.name}
+        />
         <SelectField
-          label="Type"
+          label={t('Type')}
           name="type"
           required
           options={enumOptions(FACILITY_TYPES)}
           defaultValue={facility?.type ?? 'FAMILY_MEDICINE_CENTER'}
         />
         <TextField
-          label="Region"
+          label={t('Region')}
           name="region"
           required
           minLength={2}
           defaultValue={facility?.region}
         />
         <TextField
-          label="Municipality"
+          label={t('Municipality')}
           name="municipality"
           required
           minLength={2}
           defaultValue={facility?.municipality}
         />
-        <TextField label="Address" name="address" defaultValue={facility?.address ?? ''} />
-        <TextField label="Phone" name="phone" type="tel" defaultValue={facility?.phone ?? ''} />
+        <TextField label={t('Address')} name="address" defaultValue={facility?.address ?? ''} />
+        <TextField
+          label={t('Phone')}
+          name="phone"
+          type="tel"
+          defaultValue={facility?.phone ?? ''}
+        />
       </div>
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          {facility ? 'Save changes' : 'Create facility'}
+          {facility ? t('Save changes') : t('Create facility')}
         </Button>
       </div>
     </form>
@@ -132,9 +144,9 @@ export function MinistryFacilities() {
   return (
     <>
       <PageHeader
-        title="Facilities"
-        subtitle="Hospitals and health centres in the national network"
-        actions={<Button onClick={() => setCreating(true)}>Add facility</Button>}
+        title={t('Facilities')}
+        subtitle={t('Hospitals and health centres in the national network')}
+        actions={<Button onClick={() => setCreating(true)}>{t('Add facility')}</Button>}
       />
       <Card>
         <form
@@ -146,31 +158,31 @@ export function MinistryFacilities() {
           }}
         >
           <TextField
-            label="Search by name or code"
+            label={t('Search by name or code')}
             name="search"
             type="search"
             defaultValue={search}
           />
           <Button type="submit" variant="secondary">
-            Search
+            {t('Search')}
           </Button>
         </form>
         <ErrorAlert error={toggle.error} />
         <QueryView query={query}>
           {({ items }) =>
             items.length === 0 ? (
-              <EmptyState title="No facilities found" />
+              <EmptyState title={t('No facilities found')} />
             ) : (
-              <Table caption="Facilities">
+              <Table caption={t('Facilities')}>
                 <thead>
                   <tr>
-                    <th scope="col">Facility</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Location</th>
-                    <th scope="col">Phone</th>
-                    <th scope="col">Status</th>
+                    <th scope="col">{t('Facility')}</th>
+                    <th scope="col">{t('Type')}</th>
+                    <th scope="col">{t('Location')}</th>
+                    <th scope="col">{t('Phone')}</th>
+                    <th scope="col">{t('Status')}</th>
                     <th scope="col">
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('Actions')}</span>
                     </th>
                   </tr>
                 </thead>
@@ -191,24 +203,24 @@ export function MinistryFacilities() {
                       <td>{f.phone ?? '—'}</td>
                       <td>
                         {f.isActive ? (
-                          <Badge tone="success">Active</Badge>
+                          <Badge tone="success">{t('Active')}</Badge>
                         ) : (
-                          <Badge>Inactive</Badge>
+                          <Badge>{t('Inactive')}</Badge>
                         )}
                       </td>
                       <td>
                         <div className="row">
                           <Button size="sm" variant="secondary" onClick={() => setEditing(f)}>
-                            Edit
+                            {t('Edit')}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             loading={toggle.isPending && toggle.variables?.id === f.id}
                             onClick={() => toggle.mutate(f)}
-                            aria-label={`${f.isActive ? 'Deactivate' : 'Activate'} ${f.name}`}
+                            aria-label={`${f.isActive ? t('Deactivate') : t('Activate')} ${f.name}`}
                           >
-                            {f.isActive ? 'Deactivate' : 'Activate'}
+                            {f.isActive ? t('Deactivate') : t('Activate')}
                           </Button>
                         </div>
                       </td>
@@ -221,13 +233,13 @@ export function MinistryFacilities() {
         </QueryView>
       </Card>
 
-      <Dialog open={creating} onClose={() => setCreating(false)} title="Add facility" wide>
+      <Dialog open={creating} onClose={() => setCreating(false)} title={t('Add facility')} wide>
         <FacilityForm onDone={() => setCreating(false)} />
       </Dialog>
       <Dialog
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title={`Edit ${editing?.name ?? 'facility'}`}
+        title={t('Edit {name}', { name: editing?.name ?? t('facility') })}
         wide
       >
         {editing && (

@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../../api/client';
@@ -44,23 +45,25 @@ export function NewChannelDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="New channel">
+    <Dialog open={open} onClose={onClose} title={t('New channel')}>
       <form onSubmit={onSubmit}>
         <TextField
-          label="Name"
+          label={t('Name')}
           name="name"
           required
           pattern="[a-z0-9][a-z0-9\-]{1,40}"
-          hint="Lowercase letters, digits and dashes, e.g. night-shift"
+          hint={t('Lowercase letters, digits and dashes, e.g. night-shift')}
           maxLength={41}
         />
-        <TextField label="Description" name="description" maxLength={300} />
+        <TextField label={t('Description')} name="description" maxLength={300} />
         <fieldset>
-          <legend>Who can see and post</legend>
+          <legend>{t('Who can see and post')}</legend>
           <p className="muted" style={{ marginTop: 0 }}>
             {user.role === 'MINISTRY'
-              ? 'National channel: everyone with these roles, in every facility.'
-              : `Facility channel: staff of ${user.facility?.name ?? 'your facility'} with these roles.`}
+              ? t('National channel: everyone with these roles, in every facility.')
+              : t('Facility channel: staff of {facility} with these roles.', {
+                  facility: user.facility?.name ?? t('your facility'),
+                })}
           </p>
           {options.map((r) => (
             <label key={r} className="checkbox">
@@ -80,10 +83,10 @@ export function NewChannelDialog({
         <ErrorAlert error={create.error} />
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" loading={create.isPending} disabled={!roles.length}>
-            Create channel
+            {t('Create channel')}
           </Button>
         </div>
       </form>

@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { ApiError, api } from '../../api/client';
@@ -58,19 +59,22 @@ export function RegisterPatientForm({ onDone }: { onDone: () => void }) {
     const { patient, activationUrl } = mutation.data;
     return (
       <div className="stack">
-        <Alert tone="success" title={`${patient.firstName} ${patient.lastName} is registered.`}>
-          Assign a doctor from the patient list to open their care relationship.
+        <Alert
+          tone="success"
+          title={t('{name} is registered.', { name: `${patient.firstName} ${patient.lastName}` })}
+        >
+          {t('Assign a doctor from the patient list to open their care relationship.')}
         </Alert>
         {activationUrl && (
           <TextField
-            label="Portal activation link (development only — sent by email in production)"
+            label={t('Portal activation link (development only — sent by email in production)')}
             readOnly
             value={activationUrl}
             onFocus={(e) => e.currentTarget.select()}
           />
         )}
         <div className="form-actions">
-          <Button onClick={onDone}>Done</Button>
+          <Button onClick={onDone}>{t('Done')}</Button>
         </div>
       </div>
     );
@@ -106,55 +110,58 @@ export function RegisterPatientForm({ onDone }: { onDone: () => void }) {
   return (
     <form ref={formRef} onSubmit={onSubmit}>
       <fieldset>
-        <legend>Identity</legend>
+        <legend>{t('Identity')}</legend>
         <div className="form-grid">
           <TextField
-            label="National ID"
+            label={t('National ID')}
             name="nationalId"
             required
             inputMode="numeric"
             pattern="[0-9]{10}"
-            hint="10 digits"
+            hint={t('10 digits')}
             autoComplete="off"
           />
-          <TextField label="First name" name="firstName" required autoComplete="off" />
-          <TextField label="Last name" name="lastName" required autoComplete="off" />
+          <TextField label={t('First name')} name="firstName" required autoComplete="off" />
+          <TextField label={t('Last name')} name="lastName" required autoComplete="off" />
           <TextField
-            label="Date of birth"
+            label={t('Date of birth')}
             name="dateOfBirth"
             type="date"
             required
             max={new Date().toISOString().slice(0, 10)}
           />
           <SelectField
-            label="Sex"
+            label={t('Sex')}
             name="sex"
             required
             options={enumOptions(SEXES)}
             defaultValue="UNKNOWN"
           />
           <SelectField
-            label="Blood type"
+            label={t('Blood type')}
             name="bloodType"
-            options={BLOOD_TYPES.map((b) => ({ value: b, label: b === 'UNKNOWN' ? 'Unknown' : b }))}
+            options={BLOOD_TYPES.map((b) => ({
+              value: b,
+              label: b === 'UNKNOWN' ? t('Unknown') : b,
+            }))}
             defaultValue="UNKNOWN"
           />
         </div>
       </fieldset>
       <fieldset>
-        <legend>Contact</legend>
+        <legend>{t('Contact')}</legend>
         <div className="form-grid">
-          <TextField label="Phone" name="phone" type="tel" autoComplete="off" />
-          <TextField label="Email" name="email" type="email" autoComplete="off" />
-          <TextField label="Address" name="address" autoComplete="off" />
-          <TextField label="Municipality" name="municipality" autoComplete="off" />
+          <TextField label={t('Phone')} name="phone" type="tel" autoComplete="off" />
+          <TextField label={t('Email')} name="email" type="email" autoComplete="off" />
+          <TextField label={t('Address')} name="address" autoComplete="off" />
+          <TextField label={t('Municipality')} name="municipality" autoComplete="off" />
           <TextField
-            label="Emergency contact name"
+            label={t('Emergency contact name')}
             name="emergencyContactName"
             autoComplete="off"
           />
           <TextField
-            label="Emergency contact phone"
+            label={t('Emergency contact phone')}
             name="emergencyContactPhone"
             type="tel"
             autoComplete="off"
@@ -167,9 +174,11 @@ export function RegisterPatientForm({ onDone }: { onDone: () => void }) {
       </fieldset>
 
       {duplicates && (
-        <Alert tone="warning" title="Possible duplicate record">
+        <Alert tone="warning" title={t('Possible duplicate record')}>
           <p>
-            A patient with the same name and date of birth is already registered at this facility:
+            {t(
+              'A patient with the same name and date of birth is already registered at this facility:',
+            )}
           </p>
           <ul>
             {duplicates.map((d) => (
@@ -179,14 +188,16 @@ export function RegisterPatientForm({ onDone }: { onDone: () => void }) {
               </li>
             ))}
           </ul>
-          <p>Verify the person’s identity document. Records are never merged automatically.</p>
+          <p>
+            {t('Verify the person’s identity document. Records are never merged automatically.')}
+          </p>
           <label className="checkbox">
             <input
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
             />{' '}
-            I have verified this is a different person
+            {t('I have verified this is a different person')}
           </label>
         </Alert>
       )}
@@ -194,14 +205,14 @@ export function RegisterPatientForm({ onDone }: { onDone: () => void }) {
 
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button
           type="submit"
           loading={mutation.isPending}
           disabled={duplicates !== null && !confirmed}
         >
-          Register patient
+          {t('Register patient')}
         </Button>
       </div>
     </form>

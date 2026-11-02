@@ -1,3 +1,4 @@
+import { t, tn } from '../../i18n';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -34,26 +35,27 @@ const useEscalations = () =>
 function CriticalResultsCard() {
   const q = useEscalations();
   return (
-    <Card title="Critical results awaiting review">
+    <Card title={t('Critical results awaiting review')}>
       <QueryView query={q}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState title="Nothing waiting">
-              Every critical result at your facility has been reviewed within 30 minutes.
+            <EmptyState title={t('Nothing waiting')}>
+              {t('Every critical result at your facility has been reviewed within 30 minutes.')}
             </EmptyState>
           ) : (
             <>
               <p className="muted">
-                Critical results not acknowledged after 30 minutes. Patient details are only visible
-                to the care team – contact the doctor (or their cover) directly.
+                {t(
+                  'Critical results not acknowledged after 30 minutes. Patient details are only visible to the care team – contact the doctor (or their cover) directly.',
+                )}
               </p>
-              <Table caption="Critical results awaiting review">
+              <Table caption={t('Critical results awaiting review')}>
                 <thead>
                   <tr>
-                    <th>Ordering doctor</th>
-                    <th>Waiting</th>
-                    <th>Escalation</th>
-                    <th>Covered by</th>
+                    <th>{t('Ordering doctor')}</th>
+                    <th>{t('Waiting')}</th>
+                    <th>{t('Escalation')}</th>
+                    <th>{t('Covered by')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -65,11 +67,11 @@ function CriticalResultsCard() {
                       <td>{waited(r.minutesWaiting)}</td>
                       <td>
                         {r.level >= 2 ? (
-                          <Badge tone="danger">Level 2 · director notified</Badge>
+                          <Badge tone="danger">{t('Level 2 · director notified')}</Badge>
                         ) : r.level === 1 ? (
-                          <Badge tone="warning">Level 1 · care team notified</Badge>
+                          <Badge tone="warning">{t('Level 1 · care team notified')}</Badge>
                         ) : (
-                          <Badge tone="warning">Pending</Badge>
+                          <Badge tone="warning">{t('Pending')}</Badge>
                         )}
                       </td>
                       <td>{r.coveredBy.length ? r.coveredBy.join(', ') : '—'}</td>
@@ -94,10 +96,10 @@ function CoverCard() {
   });
   return (
     <Card
-      title="Result cover"
+      title={t('Result cover')}
       actions={
         <Button size="sm" onClick={() => setOpen(true)}>
-          Arrange cover
+          {t('Arrange cover')}
         </Button>
       }
     >
@@ -108,11 +110,11 @@ function CoverCard() {
             return s === 'CURRENT' || s === 'UPCOMING';
           });
           return live.length === 0 ? (
-            <EmptyState title="No doctors away">
-              When a doctor is absent, arrange a colleague to receive their results.
+            <EmptyState title={t('No doctors away')}>
+              {t('When a doctor is absent, arrange a colleague to receive their results.')}
             </EmptyState>
           ) : (
-            <CoverTable items={live} show="both" caption="Current and upcoming cover" />
+            <CoverTable items={live} show="both" caption={t('Current and upcoming cover')} />
           );
         }}
       </QueryView>
@@ -148,25 +150,37 @@ function ActionAlerts() {
       {overdue > 0 && (
         <Alert
           tone="danger"
-          title={`${overdue} critical result(s) unreviewed for more than 2 hours`}
+          title={tn(
+            overdue,
+            '{count} critical result unreviewed for more than 2 hours',
+            '{count} critical results unreviewed for more than 2 hours',
+          )}
         >
-          See “Critical results awaiting review” below and contact the doctors concerned.
+          {t('See “Critical results awaiting review” below and contact the doctors concerned.')}
         </Alert>
       )}
       {unreviewed > 0 && (
         <Alert
           tone="warning"
-          title={`${unreviewed} emergency access event(s) awaiting your review`}
+          title={tn(
+            unreviewed,
+            '{count} emergency access event awaiting your review',
+            '{count} emergency access events awaiting your review',
+          )}
         >
-          <Link to="/director/emergency-access">Review emergency access</Link>
+          <Link to="/director/emergency-access">{t('Review emergency access')}</Link>
         </Alert>
       )}
       {pending.length > 0 && (
         <Alert
           tone="warning"
-          title={`${pending.length} incoming referral(s) awaiting a decision${urgent ? ` (${urgent} urgent)` : ''}`}
+          title={`${tn(
+            pending.length,
+            '{count} incoming referral awaiting a decision',
+            '{count} incoming referrals awaiting a decision',
+          )}${urgent ? ` ${t('({count} urgent)', { count: urgent })}` : ''}`}
         >
-          <Link to="/director/referrals">Open referrals</Link>
+          <Link to="/director/referrals">{t('Open referrals')}</Link>
         </Alert>
       )}
     </>
@@ -182,8 +196,8 @@ export function DirectorDashboard() {
   return (
     <>
       <PageHeader
-        title="Facility dashboard"
-        subtitle={`${user.facility?.name ?? ''} · aggregate and operational data only, no clinical records`}
+        title={t('Facility dashboard')}
+        subtitle={`${user.facility?.name ?? ''} · ${t('aggregate and operational data only, no clinical records')}`}
       />
       <ActionAlerts />
       <div className="stack">

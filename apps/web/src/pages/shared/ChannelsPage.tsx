@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -30,33 +31,36 @@ export function ChannelsPage() {
 
   const groups: { title: string; items: Channel[] }[] = [
     {
-      title: user.facility?.name ?? 'Facility',
+      title: user.facility?.name ?? t('Facility'),
       items: items.filter((c) => c.scope === 'FACILITY'),
     },
-    { title: 'National', items: items.filter((c) => c.scope === 'NATIONAL') },
+    { title: t('National'), items: items.filter((c) => c.scope === 'NATIONAL') },
   ].filter((g) => g.items.length);
 
   return (
     <>
       <PageHeader
-        title="Team channels"
-        subtitle="Real-time coordination with your colleagues"
+        title={t('Team channels')}
+        subtitle={t('Real-time coordination with your colleagues')}
         actions={
-          canCreate ? <Button onClick={() => setCreating(true)}>New channel</Button> : undefined
+          canCreate ? (
+            <Button onClick={() => setCreating(true)}>{t('New channel')}</Button>
+          ) : undefined
         }
       />
       <Alert tone="info">
-        Channels are for coordination. Do not post patient identifiers — use the patient record,
-        care tasks or referrals.
+        {t(
+          'Channels are for coordination. Do not post patient identifiers — use the patient record, care tasks or referrals.',
+        )}
       </Alert>
       <QueryView query={channels}>
         {() =>
           items.length === 0 ? (
-            <EmptyState title="No channels available for your role" />
+            <EmptyState title={t('No channels available for your role')} />
           ) : (
             <div className="split">
               <Card>
-                <nav aria-label="Channels" className="thread-list">
+                <nav aria-label={t('Channels')} className="thread-list">
                   {groups.map((g) => (
                     <div key={g.title} style={{ marginBottom: '0.75rem' }}>
                       <div
@@ -76,7 +80,7 @@ export function ChannelsPage() {
                           key={c.id}
                           type="button"
                           aria-current={c.id === selectedId ? 'true' : undefined}
-                          title={c.description ?? undefined}
+                          title={c.description ? t(c.description) : undefined}
                           onClick={() => select(c.id)}
                         >
                           <span className="row-between">
@@ -86,7 +90,7 @@ export function ChannelsPage() {
                             {c.unreadCount > 0 && (
                               <Badge tone="info">
                                 {c.unreadCount}
-                                <span className="sr-only"> unread</span>
+                                <span className="sr-only"> {t('unread')}</span>
                               </Badge>
                             )}
                           </span>
@@ -95,7 +99,7 @@ export function ChannelsPage() {
                               className="muted"
                               style={{ display: 'block', fontSize: '0.78rem' }}
                             >
-                              {c.description}
+                              {t(c.description)}
                             </span>
                           )}
                         </button>
@@ -112,7 +116,9 @@ export function ChannelsPage() {
                   onArchived={() => setParams({}, { replace: true })}
                 />
               ) : (
-                <EmptyState title="Channel not found">It may have been archived.</EmptyState>
+                <EmptyState title={t('Channel not found')}>
+                  {t('It may have been archived.')}
+                </EmptyState>
               )}
             </div>
           )

@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { api, downloadFile } from '../../api/client';
@@ -31,12 +32,12 @@ const DAY = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 type Preset = '30' | '90' | '365' | 'ytd' | 'custom';
-const PRESETS: { value: Preset; label: string }[] = [
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '365', label: 'Last 12 months' },
-  { value: 'ytd', label: 'Year to date' },
-  { value: 'custom', label: 'Custom period' },
+const presets = (): { value: Preset; label: string }[] => [
+  { value: '30', label: t('Last 30 days') },
+  { value: '90', label: t('Last 90 days') },
+  { value: '365', label: t('Last 12 months') },
+  { value: 'ytd', label: t('Year to date') },
+  { value: 'custom', label: t('Custom period') },
 ];
 
 function periodFor(preset: Preset, customFrom: string, customTo: string) {
@@ -47,12 +48,12 @@ function periodFor(preset: Preset, customFrom: string, customTo: string) {
 }
 
 function validatePeriod(from: string, to: string): string | null {
-  if (!from || !to) return 'Choose both a start and an end date.';
+  if (!from || !to) return t('Choose both a start and an end date.');
   const f = new Date(from).getTime();
-  const t = new Date(to).getTime();
-  if (Number.isNaN(f) || Number.isNaN(t)) return 'Enter valid dates.';
-  if (f > t) return 'The start date must be before the end date.';
-  if (t - f > 2 * 366 * DAY) return 'Reports can cover at most two years. Shorten the period.';
+  const tt = new Date(to).getTime();
+  if (Number.isNaN(f) || Number.isNaN(tt)) return t('Enter valid dates.');
+  if (f > tt) return t('The start date must be before the end date.');
+  if (tt - f > 2 * 366 * DAY) return t('Reports can cover at most two years. Shorten the period.');
   return null;
 }
 
@@ -60,7 +61,7 @@ function DataTable({ name, report }: { name: ReportName; report: GenericReport }
   const columns = report.columns.filter((c) => c !== 'code');
   const hasFacility = report.columns.includes('name');
   return (
-    <Table caption={`${reportDef(name).title} – full data`}>
+    <Table caption={`${t(reportDef(name).title)} – ${t('full data')}`}>
       <thead>
         <tr>
           {columns.map((c) => (
@@ -79,7 +80,9 @@ function DataTable({ name, report }: { name: ReportName; report: GenericReport }
                 <td key={c} className={isTextColumn(c) ? undefined : 'num'}>
                   {formatted === null ? (
                     <abbr
-                      title={`Fewer than ${report.smallCellThreshold} – hidden to protect privacy`}
+                      title={t('Fewer than {n} – hidden to protect privacy', {
+                        n: report.smallCellThreshold,
+                      })}
                     >
                       &lt;{report.smallCellThreshold}
                     </abbr>
@@ -104,8 +107,8 @@ function ReportView({ name, report }: { name: ReportName; report: GenericReport 
   const def = reportDef(name);
   if (!report.rows.length) {
     return (
-      <EmptyState title="No data for these filters">
-        Try a longer period or a different region.
+      <EmptyState title={t('No data for these filters')}>
+        {t('Try a longer period or a different region.')}
       </EmptyState>
     );
   }
@@ -128,13 +131,14 @@ function ReportView({ name, report }: { name: ReportName; report: GenericReport 
           </Card>
         ))}
       </Grid>
-      <Card title="Data">
+      <Card title={t('Data')}>
         <DataTable name={name} report={report} />
         {anySuppressed && (
           <p className="muted" style={{ marginTop: '0.75rem' }}>
-            Patient counts below {report.smallCellThreshold} are shown as “&lt;
-            {report.smallCellThreshold}” so that individuals cannot be identified, including in CSV
-            downloads.
+            {t(
+              'Patient counts below {n} are shown as “<{n}” so that individuals cannot be identified, including in CSV downloads.',
+              { n: report.smallCellThreshold },
+            )}
           </p>
         )}
       </Card>
@@ -184,12 +188,12 @@ export function ReportsPage() {
 
   const selectedFacility = facilities.data?.items.find((f) => f.id === facilityId);
   const scopeText = !isMinistry
-    ? (user.facility?.name ?? 'Your facility')
+    ? (user.facility?.name ?? t('Your facility'))
     : selectedFacility
       ? selectedFacility.name
       : region
-        ? `${region} region`
-        : 'All facilities nationally';
+        ? t('{region} region', { region })
+        : t('All facilities nationally');
 
   async function download() {
     setDownloading(true);
@@ -210,11 +214,11 @@ export function ReportsPage() {
   return (
     <>
       <PageHeader
-        title="Reports"
+        title={t('Reports')}
         subtitle={
           isMinistry
-            ? 'National health network performance – aggregate data only'
-            : `${user.facility?.name ?? 'Facility'} – aggregate and operational data`
+            ? t('National health network performance – aggregate data only')
+            : `${user.facility?.name ?? t('Facility')} – ${t('aggregate and operational data')}`
         }
         actions={
           <>
@@ -224,36 +228,41 @@ export function ReportsPage() {
               loading={downloading}
               disabled={Boolean(periodError)}
             >
-              Download CSV
+              {t('Download CSV')}
             </Button>
             <Button variant="secondary" onClick={() => window.print()} disabled={!report.data}>
-              Print / Save as PDF
+              {t('Print / Save as PDF')}
             </Button>
           </>
         }
       />
 
       <div className="print-only" style={{ marginBottom: '1rem' }}>
-        <h1>Pacient – {def.title}</h1>
+        <h1>Pacient – {t(def.title)}</h1>
         <p>
-          Scope: {scopeText}
+          {t('Scope')}: {scopeText}
           <br />
-          Period:{' '}
-          {def.pointInTime ? 'Point in time (current)' : `${formatDate(from)} – ${formatDate(to)}`}
+          {t('Period')}:{' '}
+          {def.pointInTime
+            ? t('Point in time (current)')
+            : `${formatDate(from)} – ${formatDate(to)}`}
           <br />
-          Generated {formatDateTime(new Date().toISOString())} by {user.fullName}. Aggregate data;
-          small counts suppressed.
+          {t('Generated {date} by {name}. Aggregate data; small counts suppressed.', {
+            date: formatDateTime(new Date().toISOString()),
+            name: user.fullName,
+          })}
         </p>
       </div>
 
       <Alert tone="info">
-        Reports contain counts only – never identifiable patient data. Patient counts below 5 are
-        hidden to protect privacy. Every CSV download is recorded in the audit log.
+        {t(
+          'Reports contain counts only – never identifiable patient data. Patient counts below 5 are hidden to protect privacy. Every CSV download is recorded in the audit log.',
+        )}
       </Alert>
 
       <div className="split">
-        <Card title="Report" className="no-print">
-          <ul className="list" aria-label="Available reports">
+        <Card title={t('Report')} className="no-print">
+          <ul className="list" aria-label={t('Available reports')}>
             {REPORT_DEFS.map((d) => (
               <li key={d.name} style={{ padding: 0, border: 0 }}>
                 <button
@@ -275,9 +284,9 @@ export function ReportsPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  <strong>{d.title}</strong>
+                  <strong>{t(d.title)}</strong>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    {d.description}
+                    {t(d.description)}
                   </div>
                 </button>
               </li>
@@ -289,24 +298,24 @@ export function ReportsPage() {
           <Card className="no-print">
             <div className="form-grid">
               <SelectField
-                label="Period"
+                label={t('Period')}
                 value={preset}
                 onChange={(e) => setPreset(e.target.value as Preset)}
-                options={PRESETS}
+                options={presets()}
                 disabled={def.pointInTime}
-                hint={def.pointInTime ? 'This report shows the current situation.' : undefined}
+                hint={def.pointInTime ? t('This report shows the current situation.') : undefined}
               />
               {preset === 'custom' && !def.pointInTime && (
                 <>
                   <TextField
-                    label="From"
+                    label={t('From')}
                     type="date"
                     value={customFrom}
                     max={customTo}
                     onChange={(e) => setCustomFrom(e.target.value)}
                   />
                   <TextField
-                    label="To"
+                    label={t('To')}
                     type="date"
                     value={customTo}
                     min={customFrom}
@@ -318,20 +327,20 @@ export function ReportsPage() {
               {isMinistry && (
                 <>
                   <SelectField
-                    label="Region"
+                    label={t('Region')}
                     value={region}
                     onChange={(e) => {
                       setRegion(e.target.value);
                       setFacilityId('');
                     }}
-                    placeholder="All regions"
+                    placeholder={t('All regions')}
                     options={regions.map((r) => ({ value: r, label: r }))}
                   />
                   <SelectField
-                    label="Facility"
+                    label={t('Facility')}
                     value={facilityId}
                     onChange={(e) => setFacilityId(e.target.value)}
-                    placeholder="All facilities"
+                    placeholder={t('All facilities')}
                     options={facilityOptions.map((f) => ({
                       value: f.id,
                       label: `${f.name} (${f.code})`,
@@ -344,10 +353,12 @@ export function ReportsPage() {
 
           <div className="row-between">
             <div>
-              <h2>{def.title}</h2>
+              <h2>{t(def.title)}</h2>
               <p className="muted" style={{ margin: 0 }}>
                 {scopeText} ·{' '}
-                {def.pointInTime ? 'current situation' : `${formatDate(from)} – ${formatDate(to)}`}
+                {def.pointInTime
+                  ? t('current situation')
+                  : `${formatDate(from)} – ${formatDate(to)}`}
               </p>
             </div>
           </div>

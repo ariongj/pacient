@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /**
  * Minimal API client.
  *
@@ -102,7 +103,7 @@ export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<R
     throw new ApiError(
       res.status,
       payload.error?.code ?? 'ERROR',
-      payload.error?.message ?? `Request failed (${res.status})`,
+      payload.error?.message ?? t('Request failed ({status})', { status: res.status }),
       payload.error?.details,
     );
   }
@@ -167,8 +168,8 @@ export async function apiUpload<T>(path: string, file: Blob, fileName: string, q
       payload.error?.code ?? 'ERROR',
       payload.error?.message ??
         (res.status === 413
-          ? 'The file is too large (maximum 10 MB)'
-          : `Upload failed (${res.status})`),
+          ? t('The file is too large (maximum 10 MB)')
+          : t('Upload failed ({status})', { status: res.status })),
       payload.error?.details,
     );
   }

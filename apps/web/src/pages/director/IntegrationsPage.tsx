@@ -1,3 +1,4 @@
+import { t, tn } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { API_BASE, api } from '../../api/client';
@@ -54,7 +55,7 @@ interface MessagesPage {
 }
 
 function MessageStatus({ status }: { status: IntegrationMessageStatus }) {
-  return <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>;
+  return <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL[status])}</Badge>;
 }
 
 /** HL7 date (YYYYMMDD…) → readable date, falling back to the raw value. */
@@ -112,42 +113,45 @@ function NewConnectionDialog({ open, onClose }: { open: boolean; onClose: () => 
     <Dialog
       open={open}
       onClose={close}
-      title={created ? 'Connection created' : 'Connect a laboratory system'}
+      title={created ? t('Connection created') : t('Connect a laboratory system')}
       wide
     >
       {!created ? (
         <form onSubmit={onSubmit}>
           <p className="muted">
-            Register the laboratory information system (LIS) that processes this facility’s orders.
-            It receives its own API key and only sees orders placed at your facility.
+            {t(
+              'Register the laboratory information system (LIS) that processes this facility’s orders.',
+            )}{' '}
+            {t('It receives its own API key and only sees orders placed at your facility.')}
           </p>
           <TextField
-            label="System name"
+            label={t('System name')}
             name="name"
             required
             minLength={3}
             maxLength={120}
-            placeholder="e.g. Central Laboratory LIS"
+            placeholder={t('e.g. Central Laboratory LIS')}
           />
           <ErrorAlert error={create.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={close}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Create connection
+              {t('Create connection')}
             </Button>
           </div>
         </form>
       ) : (
         <div className="stack">
-          <Alert tone="warning" title="Copy this key now – it will not be shown again">
-            Only a fingerprint of the key is stored. If it is lost, revoke this connection and
-            create a new one. Share it with the laboratory vendor over a secure channel only.
+          <Alert tone="warning" title={t('Copy this key now – it will not be shown again')}>
+            {t(
+              'Only a fingerprint of the key is stored. If it is lost, revoke this connection and create a new one. Share it with the laboratory vendor over a secure channel only.',
+            )}
           </Alert>
           <div>
             <label htmlFor="new-api-key">
-              <strong>API key for {created.name}</strong>
+              <strong>{t('API key for {name}', { name: created.name })}</strong>
             </label>
             <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <input
@@ -158,38 +162,42 @@ function NewConnectionDialog({ open, onClose }: { open: boolean; onClose: () => 
                 style={{ flex: '1 1 260px', minWidth: 0, fontFamily: 'monospace' }}
               />
               <Button size="sm" onClick={copy}>
-                {copied ? 'Copied ✓' : 'Copy key'}
+                {copied ? `${t('Copied')} ✓` : t('Copy key')}
               </Button>
             </div>
           </div>
           <div>
-            <h3>Setup for the laboratory vendor</h3>
+            <h3>{t('Setup for the laboratory vendor')}</h3>
             <ul className="muted" style={{ overflowWrap: 'anywhere' }}>
               <li>
-                Base URL: <code>{base}</code>
+                {t('Base URL')}: <code>{base}</code>
               </li>
               <li>
-                Every request: <code>Authorization: Bearer &lt;API key&gt;</code>
+                {t('Every request')}: <code>Authorization: Bearer &lt;API key&gt;</code>
               </li>
               <li>
-                <code>GET /orders</code> – new orders as JSON, or <code>?format=hl7</code> for
-                ORM^O01 messages
+                <code>GET /orders</code> –{' '}
+                {t('new orders as JSON, or {param} for ORM^O01 messages', { param: '?format=hl7' })}
               </li>
               <li>
-                <code>POST /orders/&#123;placerOrderNumber&#125;/receive</code> – confirm the order
-                was taken (optional <code>fillerOrderNumber</code>)
+                <code>POST /orders/&#123;placerOrderNumber&#125;/receive</code> –{' '}
+                {t('confirm the order was taken (optional {field})', {
+                  field: 'fillerOrderNumber',
+                })}
               </li>
               <li>
-                <code>POST /results</code> – ORU^R01 with{' '}
-                <code>Content-Type: application/hl7-v2</code>; an HL7 ACK is returned
+                <code>POST /results</code> –{' '}
+                {t('ORU^R01 with {header}; an HL7 ACK is returned', {
+                  header: 'Content-Type: application/hl7-v2',
+                })}
               </li>
               <li>
-                <code>GET /ping</code> – connectivity check
+                <code>GET /ping</code> – {t('connectivity check')}
               </li>
             </ul>
           </div>
           <div className="form-actions">
-            <Button onClick={close}>Done</Button>
+            <Button onClick={close}>{t('Done')}</Button>
           </div>
         </div>
       )}
@@ -212,7 +220,10 @@ function ConnectionsCard() {
   function onRevoke(c: IntegrationClient) {
     if (
       window.confirm(
-        `Revoke "${c.name}"? Its API key stops working immediately and it can no longer receive orders or send results.`,
+        t(
+          'Revoke “{name}”? Its API key stops working immediately and it can no longer receive orders or send results.',
+          { name: c.name },
+        ),
       )
     ) {
       revoke.mutate(c.id);
@@ -221,10 +232,10 @@ function ConnectionsCard() {
 
   return (
     <Card
-      title="Connected systems"
+      title={t('Connected systems')}
       actions={
         <Button size="sm" onClick={() => setCreating(true)}>
-          Connect laboratory
+          {t('Connect laboratory')}
         </Button>
       }
     >
@@ -232,19 +243,21 @@ function ConnectionsCard() {
       <QueryView query={clients}>
         {({ items }) =>
           items.length === 0 ? (
-            <EmptyState title="No laboratory systems connected">
-              Connect your laboratory information system so orders and results flow automatically.
+            <EmptyState title={t('No laboratory systems connected')}>
+              {t(
+                'Connect your laboratory information system so orders and results flow automatically.',
+              )}
             </EmptyState>
           ) : (
-            <Table caption="Connected laboratory systems">
+            <Table caption={t('Connected laboratory systems')}>
               <thead>
                 <tr>
-                  <th>System</th>
-                  <th>Key</th>
-                  <th>Status</th>
-                  <th>Last contact</th>
+                  <th>{t('System')}</th>
+                  <th>{t('Key')}</th>
+                  <th>{t('Status')}</th>
+                  <th>{t('Last contact')}</th>
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('Actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -253,19 +266,21 @@ function ConnectionsCard() {
                   <tr key={c.id}>
                     <td>
                       <strong>{c.name}</strong>
-                      <div className="muted">Added {formatDate(c.createdAt)}</div>
+                      <div className="muted">
+                        {t('Added {date}', { date: formatDate(c.createdAt) })}
+                      </div>
                     </td>
                     <td>
                       <code>{c.apiKeyPrefix}…</code>
                     </td>
                     <td>
                       {c.isActive ? (
-                        <Badge tone="success">Active</Badge>
+                        <Badge tone="success">{t('Active')}</Badge>
                       ) : (
-                        <Badge tone="neutral">Revoked</Badge>
+                        <Badge tone="neutral">{t('Revoked')}</Badge>
                       )}
                     </td>
-                    <td>{c.lastSeenAt ? formatDateTime(c.lastSeenAt) : 'Never'}</td>
+                    <td>{c.lastSeenAt ? formatDateTime(c.lastSeenAt) : t('Never')}</td>
                     <td>
                       {c.isActive && (
                         <Button
@@ -274,7 +289,7 @@ function ConnectionsCard() {
                           loading={revoke.isPending && revoke.variables === c.id}
                           onClick={() => onRevoke(c)}
                         >
-                          Revoke
+                          {t('Revoke')}
                         </Button>
                       )}
                     </td>
@@ -321,27 +336,28 @@ function ReviewDialog({ messageId, onClose }: { messageId: string; onClose: () =
           }}
         >
           <p className="muted">
-            Received {formatDateTime(m.receivedAt)} · control ID <code>{m.controlId}</code>
-            {m.error && <> · {m.error}</>}
+            {t('Received {date}', { date: formatDateTime(m.receivedAt) })} · {t('control ID')}{' '}
+            <code>{m.controlId}</code>
+            {m.error && <> · {t(m.error)}</>}
           </p>
           <Grid min={260}>
             <section aria-labelledby="msg-identifiers">
-              <h3 id="msg-identifiers">What the laboratory sent</h3>
+              <h3 id="msg-identifiers">{t('What the laboratory sent')}</h3>
               <dl className="dl">
                 <div>
-                  <dt>Name</dt>
+                  <dt>{t('Name')}</dt>
                   <dd>{m.identifiers.name || '—'}</dd>
                 </div>
                 <div>
-                  <dt>National ID</dt>
+                  <dt>{t('National ID')}</dt>
                   <dd>{m.identifiers.nationalId || '—'}</dd>
                 </div>
                 <div>
-                  <dt>Date of birth</dt>
+                  <dt>{t('Date of birth')}</dt>
                   <dd>{hl7Date(m.identifiers.dateOfBirth)}</dd>
                 </div>
                 <div>
-                  <dt>Order number</dt>
+                  <dt>{t('Order number')}</dt>
                   <dd>
                     <code>{m.identifiers.placerOrderNumber || '—'}</code>
                   </dd>
@@ -350,12 +366,15 @@ function ReviewDialog({ messageId, onClose }: { messageId: string; onClose: () =
             </section>
             <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <legend>
-                <h3 style={{ margin: 0 }}>Patients at this facility with that national ID</h3>
+                <h3 style={{ margin: 0 }}>
+                  {t('Patients at this facility with that national ID')}
+                </h3>
               </legend>
               {m.candidates.length === 0 ? (
                 <p className="muted">
-                  No matching patient. If the message does not belong here, ignore it and contact
-                  the laboratory.
+                  {t(
+                    'No matching patient. If the message does not belong here, ignore it and contact the laboratory.',
+                  )}
                 </p>
               ) : (
                 <div className="stack" style={{ gap: '0.5rem' }}>
@@ -385,7 +404,10 @@ function ReviewDialog({ messageId, onClose }: { messageId: string; onClose: () =
                           {c.firstName} {c.lastName}
                         </strong>
                         <span className="muted" style={{ display: 'block' }}>
-                          National ID {c.nationalId} · born {formatDate(c.dateOfBirth)}
+                          {t('National ID {id} · born {date}', {
+                            id: c.nationalId,
+                            date: formatDate(c.dateOfBirth),
+                          })}
                         </span>
                       </span>
                     </label>
@@ -395,19 +417,21 @@ function ReviewDialog({ messageId, onClose }: { messageId: string; onClose: () =
             </fieldset>
           </Grid>
           <TextAreaField
-            label="Review note"
+            label={t('Review note')}
             name="note"
             required
             minLength={5}
             maxLength={500}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            hint="Record how you confirmed the identity (e.g. called the laboratory about a date-of-birth typo)."
+            hint={t(
+              'Record how you confirmed the identity (e.g. called the laboratory about a date-of-birth typo).',
+            )}
           />
           <ErrorAlert error={review.error} />
           <div className="form-actions" style={{ flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               variant="secondary"
@@ -415,14 +439,14 @@ function ReviewDialog({ messageId, onClose }: { messageId: string; onClose: () =
               loading={review.isPending && review.variables?.action === 'IGNORE'}
               onClick={() => review.mutate({ action: 'IGNORE', note: note.trim() })}
             >
-              Ignore message
+              {t('Ignore message')}
             </Button>
             <Button
               type="submit"
               disabled={!patientId || !noteOk}
               loading={review.isPending && review.variables?.action === 'FILE'}
             >
-              File to selected patient
+              {t('File to selected patient')}
             </Button>
           </div>
         </form>
@@ -465,12 +489,20 @@ function MessagesCard() {
   return (
     <>
       {needsReview > 0 && (
-        <Alert tone="warning" title={`${needsReview} message(s) held for review`}>
-          These results have not been filed to any record yet. Review them promptly – a clinician
-          may be waiting for them.
+        <Alert
+          tone="warning"
+          title={tn(
+            needsReview,
+            '{count} message held for review',
+            '{count} messages held for review',
+          )}
+        >
+          {t(
+            'These results have not been filed to any record yet. Review them promptly – a clinician may be waiting for them.',
+          )}
         </Alert>
       )}
-      <div role="group" aria-label="Filter messages by status">
+      <div role="group" aria-label={t('Filter messages by status')}>
         <Grid min={150}>
           {STATUSES.map((s) => (
             <button
@@ -488,29 +520,29 @@ function MessagesCard() {
               }}
             >
               <Stat
-                label={STATUS_LABEL[s]}
+                label={t(STATUS_LABEL[s])}
                 value={formatNumber(counts[s] ?? 0)}
                 tone={s === 'NEEDS_REVIEW' && (counts[s] ?? 0) > 0 ? 'warning' : undefined}
-                hint={status === s ? 'Filtered – click to clear' : 'Click to filter'}
+                hint={status === s ? t('Filtered – click to clear') : t('Click to filter')}
               />
             </button>
           ))}
         </Grid>
       </div>
-      <Card title="Message log">
+      <Card title={t('Message log')}>
         <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <SelectField
-            label="Status"
+            label={t('Status')}
             name="status"
             value={status}
             onChange={(e) => filter(e.target.value as IntegrationMessageStatus | '')}
             options={[
-              { value: '', label: 'All statuses' },
-              ...STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
+              { value: '', label: t('All statuses') },
+              ...STATUSES.map((s) => ({ value: s, label: t(STATUS_LABEL[s]) })),
             ]}
           />
           <SelectField
-            label="System"
+            label={t('System')}
             name="clientId"
             value={clientId}
             onChange={(e) => {
@@ -518,7 +550,7 @@ function MessagesCard() {
               setPage(1);
             }}
             options={[
-              { value: '', label: 'All systems' },
+              { value: '', label: t('All systems') },
               ...(clients.data?.items ?? []).map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
@@ -526,21 +558,21 @@ function MessagesCard() {
         <QueryView query={messages}>
           {(data) =>
             data.items.length === 0 ? (
-              <EmptyState title="No messages">
-                Messages appear here as soon as a connected laboratory sends results.
+              <EmptyState title={t('No messages')}>
+                {t('Messages appear here as soon as a connected laboratory sends results.')}
               </EmptyState>
             ) : (
               <>
-                <Table caption="Laboratory messages">
+                <Table caption={t('Laboratory messages')}>
                   <thead>
                     <tr>
-                      <th>Received</th>
-                      <th>System</th>
-                      <th>Type</th>
-                      <th>Control ID</th>
-                      <th>Status</th>
-                      <th>Results</th>
-                      <th>Details</th>
+                      <th>{t('Received')}</th>
+                      <th>{t('System')}</th>
+                      <th>{t('Type')}</th>
+                      <th>{t('Control ID')}</th>
+                      <th>{t('Status')}</th>
+                      <th>{t('Results')}</th>
+                      <th>{t('Details')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -551,7 +583,7 @@ function MessagesCard() {
                         <td>
                           <code>{m.messageType}</code>
                           <div className="muted">
-                            {m.direction === 'INBOUND' ? 'Inbound' : 'Outbound'}
+                            {m.direction === 'INBOUND' ? t('Inbound') : t('Outbound')}
                           </div>
                         </td>
                         <td>
@@ -564,17 +596,17 @@ function MessagesCard() {
                         <td style={{ maxWidth: 300 }}>
                           {m.status === 'NEEDS_REVIEW' ? (
                             <div className="stack" style={{ gap: '0.35rem' }}>
-                              {m.error && <span className="muted">{m.error}</span>}
+                              {m.error && <span className="muted">{t(m.error)}</span>}
                               <Button size="sm" onClick={() => setReviewing(m.id)}>
-                                Review
+                                {t('Review')}
                               </Button>
                             </div>
                           ) : (
                             <>
-                              {m.error && <div className="muted">{m.error}</div>}
+                              {m.error && <div className="muted">{t(m.error)}</div>}
                               {m.reviewNote && (
                                 <div>
-                                  Review: {m.reviewNote}
+                                  {t('Review')}: {m.reviewNote}
                                   {m.reviewedAt && (
                                     <span className="muted"> ({formatDateTime(m.reviewedAt)})</span>
                                   )}
@@ -597,7 +629,7 @@ function MessagesCard() {
       <Dialog
         open={reviewing !== null}
         onClose={() => setReviewing(null)}
-        title="Review held laboratory message"
+        title={t('Review held laboratory message')}
         wide
       >
         {reviewing && <ReviewDialog messageId={reviewing} onClose={() => setReviewing(null)} />}
@@ -610,12 +642,15 @@ export function IntegrationsPage() {
   return (
     <>
       <PageHeader
-        title="Laboratory connections"
-        subtitle="Laboratory systems that receive this facility’s orders and send results back (HL7 v2)"
+        title={t('Laboratory connections')}
+        subtitle={t(
+          'Laboratory systems that receive this facility’s orders and send results back (HL7 v2)',
+        )}
       />
       <p className="muted">
-        Results are filed automatically only when the order number, national ID and date of birth
-        all match; anything else is held here for your review so it never lands in the wrong record.
+        {t(
+          'Results are filed automatically only when the order number, national ID and date of birth all match; anything else is held here for your review so it never lands in the wrong record.',
+        )}
       </p>
       <div className="stack">
         <ConnectionsCard />

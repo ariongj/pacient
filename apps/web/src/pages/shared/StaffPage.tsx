@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -40,13 +41,13 @@ function ActivationLink({ result }: { result: InviteResult }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="stack">
-      <Alert tone="success" title={`${result.user.fullName} has been invited.`}>
-        They choose their own password through a single-use activation link (valid 72 hours).
+      <Alert tone="success" title={t('{name} has been invited.', { name: result.user.fullName })}>
+        {t('They choose their own password through a single-use activation link (valid 72 hours).')}
       </Alert>
       {result.activationUrl ? (
         <>
           <TextField
-            label="Activation link"
+            label={t('Activation link')}
             readOnly
             value={result.activationUrl}
             onFocus={(e) => e.currentTarget.select()}
@@ -59,10 +60,10 @@ function ActivationLink({ result }: { result: InviteResult }) {
                 setCopied(true);
               }}
             >
-              {copied ? 'Copied ✓' : 'Copy link'}
+              {copied ? `${t('Copied')} ✓` : t('Copy link')}
             </Button>
             <span className="muted" role="status">
-              Development only — in production the link is delivered by email.
+              {t('Development only — in production the link is delivered by email.')}
             </span>
           </div>
         </>
@@ -97,7 +98,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
       <div className="stack">
         <ActivationLink result={mutation.data} />
         <div className="form-actions">
-          <Button onClick={onClose}>Done</Button>
+          <Button onClick={onClose}>{t('Done')}</Button>
         </div>
       </div>
     );
@@ -119,21 +120,27 @@ function InviteForm({ onClose }: { onClose: () => void }) {
     <form onSubmit={onSubmit}>
       <div className="form-grid">
         <SelectField
-          label="Role"
+          label={t('Role')}
           name="role"
           required
           value={role}
           onChange={(e) => setRole(e.target.value as StaffRole)}
           options={roleOptions.map((r) => ({ value: r, label: humanize(r) }))}
         />
-        <TextField label="Full name" name="fullName" required minLength={2} autoComplete="off" />
-        <TextField label="Email" name="email" type="email" required autoComplete="off" />
+        <TextField
+          label={t('Full name')}
+          name="fullName"
+          required
+          minLength={2}
+          autoComplete="off"
+        />
+        <TextField label={t('Email')} name="email" type="email" required autoComplete="off" />
         {isMinistry && role === 'DIRECTOR' && (
           <SelectField
-            label="Facility"
+            label={t('Facility')}
             name="facilityId"
             required
-            placeholder={facilities.isPending ? 'Loading facilities…' : 'Select a facility'}
+            placeholder={facilities.isPending ? t('Loading facilities…') : t('Select a facility')}
             options={(facilities.data?.items ?? []).map((f) => ({
               value: f.id,
               label: `${f.name} (${f.code})`,
@@ -143,21 +150,21 @@ function InviteForm({ onClose }: { onClose: () => void }) {
         {licensed && (
           <>
             <TextField
-              label="Professional licence number"
+              label={t('Professional licence number')}
               name="licenseNumber"
               required
               maxLength={60}
             />
             <TextField
-              label="Specialty"
+              label={t('Specialty')}
               name="specialty"
               maxLength={120}
               placeholder={
                 role === 'DOCTOR'
-                  ? 'e.g. Family Medicine'
+                  ? t('e.g. Family Medicine')
                   : role === 'NURSE'
-                    ? 'e.g. Registered Nurse'
-                    : 'e.g. Hospital Pharmacist'
+                    ? t('e.g. Registered Nurse')
+                    : t('e.g. Hospital Pharmacist')
               }
             />
           </>
@@ -165,16 +172,18 @@ function InviteForm({ onClose }: { onClose: () => void }) {
       </div>
       {!isMinistry && (
         <p className="muted">
-          Staff you invite are added to {user.facility?.name ?? 'your facility'}.
+          {t('Staff you invite are added to {facility}.', {
+            facility: user.facility?.name ?? t('your facility'),
+          })}
         </p>
       )}
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Send invitation
+          {t('Send invitation')}
         </Button>
       </div>
     </form>
@@ -199,33 +208,35 @@ function StatusDialog({ member, onClose }: { member: StaffMember | null; onClose
         mutation.reset();
         onClose();
       }}
-      title={deactivating ? 'Deactivate account' : 'Reactivate account'}
+      title={deactivating ? t('Deactivate account') : t('Reactivate account')}
     >
       {member && (
         <div className="stack">
           {deactivating ? (
             <p>
-              Deactivating <strong>{member.fullName}</strong> blocks access immediately: all active
-              sessions are revoked and they can no longer sign in. Their past records and audit
-              history are preserved.
+              {t(
+                'Deactivating {name} blocks access immediately: all active sessions are revoked and they can no longer sign in. Their past records and audit history are preserved.',
+                { name: member.fullName },
+              )}
             </p>
           ) : (
             <p>
-              Reactivating <strong>{member.fullName}</strong> lets them sign in again with their
-              existing password.
+              {t('Reactivating {name} lets them sign in again with their existing password.', {
+                name: member.fullName,
+              })}
             </p>
           )}
           <ErrorAlert error={mutation.error} />
           <div className="form-actions">
             <Button variant="secondary" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               variant={deactivating ? 'danger' : 'primary'}
               loading={mutation.isPending}
               onClick={() => mutation.mutate(member)}
             >
-              {deactivating ? 'Deactivate' : 'Reactivate'}
+              {deactivating ? t('Deactivate') : t('Reactivate')}
             </Button>
           </div>
         </div>
@@ -272,13 +283,15 @@ export function StaffPage() {
   return (
     <>
       <PageHeader
-        title={isMinistry ? 'Directors & officials' : 'Staff'}
+        title={isMinistry ? t('Directors & officials') : t('Staff')}
         subtitle={
           isMinistry
-            ? 'Appoint facility directors and Ministry officials'
-            : `Clinical and management staff of ${user.facility?.name ?? 'your facility'}`
+            ? t('Appoint facility directors and Ministry officials')
+            : t('Clinical and management staff of {facility}', {
+                facility: user.facility?.name ?? t('your facility'),
+              })
         }
-        actions={<Button onClick={() => setInviting(true)}>Invite staff member</Button>}
+        actions={<Button onClick={() => setInviting(true)}>{t('Invite staff member')}</Button>}
       />
       <Card>
         <form
@@ -296,48 +309,48 @@ export function StaffPage() {
           }}
         >
           <TextField
-            label="Search name or email"
+            label={t('Search name or email')}
             name="search"
             type="search"
             defaultValue={filters.search}
           />
           <SelectField
-            label="Role"
+            label={t('Role')}
             name="role"
-            placeholder="All roles"
+            placeholder={t('All roles')}
             options={roleFilterOptions}
             defaultValue={filters.role}
           />
           {isMinistry && (
             <SelectField
-              label="Facility"
+              label={t('Facility')}
               name="facilityId"
-              placeholder="All facilities"
+              placeholder={t('All facilities')}
               defaultValue={filters.facilityId}
               options={(facilities.data?.items ?? []).map((f) => ({ value: f.id, label: f.name }))}
             />
           )}
           <Button type="submit" variant="secondary">
-            Filter
+            {t('Filter')}
           </Button>
         </form>
         <QueryView query={query}>
           {(data) =>
             data.items.length === 0 ? (
-              <EmptyState title="No staff found" />
+              <EmptyState title={t('No staff found')} />
             ) : (
               <>
-                <Table caption="Staff members">
+                <Table caption={t('Staff members')}>
                   <thead>
                     <tr>
-                      <th scope="col">Name</th>
-                      <th scope="col">Role</th>
-                      <th scope="col">Facility</th>
-                      <th scope="col">Specialty / license</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Last sign-in</th>
+                      <th scope="col">{t('Name')}</th>
+                      <th scope="col">{t('Role')}</th>
+                      <th scope="col">{t('Facility')}</th>
+                      <th scope="col">{t('Specialty / license')}</th>
+                      <th scope="col">{t('Status')}</th>
+                      <th scope="col">{t('Last sign-in')}</th>
                       <th scope="col">
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t('Actions')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -346,13 +359,13 @@ export function StaffPage() {
                       <tr key={m.id}>
                         <td>
                           <strong>{m.fullName}</strong>
-                          {m.id === user.id && <span className="muted"> (you)</span>}
+                          {m.id === user.id && <span className="muted"> {t('(you)')}</span>}
                           <div className="muted">{m.email}</div>
                         </td>
                         <td>{humanize(m.role)}</td>
                         <td>{m.facilityName ?? '—'}</td>
                         <td>
-                          {m.specialty ?? '—'}
+                          {m.specialty ? t(m.specialty) : '—'}
                           {m.licenseNumber && (
                             <div>
                               <code>{m.licenseNumber}</code>
@@ -362,11 +375,13 @@ export function StaffPage() {
                         <td>
                           <div className="row">
                             {m.isActive ? (
-                              <Badge tone="success">Active</Badge>
+                              <Badge tone="success">{t('Active')}</Badge>
                             ) : (
-                              <Badge tone="danger">Deactivated</Badge>
+                              <Badge tone="danger">{t('Deactivated')}</Badge>
                             )}
-                            {!m.activated && <Badge tone="warning">Invitation pending</Badge>}
+                            {!m.activated && (
+                              <Badge tone="warning">{t('Invitation pending')}</Badge>
+                            )}
                           </div>
                         </td>
                         <td>{formatDateTime(m.lastLoginAt)}</td>
@@ -376,9 +391,9 @@ export function StaffPage() {
                               size="sm"
                               variant={m.isActive ? 'secondary' : 'ghost'}
                               onClick={() => setStatusTarget(m)}
-                              aria-label={`${m.isActive ? 'Deactivate' : 'Reactivate'} ${m.fullName}`}
+                              aria-label={`${m.isActive ? t('Deactivate') : t('Reactivate')} ${m.fullName}`}
                             >
-                              {m.isActive ? 'Deactivate' : 'Reactivate'}
+                              {m.isActive ? t('Deactivate') : t('Reactivate')}
                             </Button>
                           )}
                         </td>
@@ -393,7 +408,12 @@ export function StaffPage() {
         </QueryView>
       </Card>
 
-      <Dialog open={inviting} onClose={() => setInviting(false)} title="Invite staff member" wide>
+      <Dialog
+        open={inviting}
+        onClose={() => setInviting(false)}
+        title={t('Invite staff member')}
+        wide
+      >
         <InviteForm onClose={() => setInviting(false)} />
       </Dialog>
       <StatusDialog member={statusTarget} onClose={() => setStatusTarget(null)} />

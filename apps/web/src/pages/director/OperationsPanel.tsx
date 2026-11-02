@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -13,9 +14,11 @@ const sum = (rows: GenericReport['rows'], key: string) => rows.reduce((a, r) => 
 function since(iso: string | null | undefined): string {
   if (!iso) return '';
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return t('{count} min', { count: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} days`;
+  return hours < 48
+    ? t('{count} h', { count: hours })
+    : t('{count} days', { count: Math.round(hours / 24) });
 }
 
 /** Outbox health (Ministry only): counts by status over the last 7 days, never content. */
@@ -27,7 +30,9 @@ function Delivery({ channel }: { channel: 'email' | 'sms' }) {
   });
   return (
     <div className="stack" style={{ marginTop: '1rem' }}>
-      <h3>{channel === 'email' ? 'Email' : 'SMS'} delivery (last 7 days)</h3>
+      <h3>
+        {channel === 'email' ? t('Email delivery (last 7 days)') : t('SMS delivery (last 7 days)')}
+      </h3>
       <QueryView query={q}>
         {(h) => {
           const pending = (h.PENDING?.count ?? 0) + (h.SENDING?.count ?? 0);
@@ -35,29 +40,41 @@ function Delivery({ channel }: { channel: 'email' | 'sms' }) {
           return (
             <>
               <Grid min={160}>
-                <Stat label="Delivered" value={formatNumber(h.SENT?.count ?? 0)} tone="success" />
                 <Stat
-                  label="Waiting to send"
-                  value={formatNumber(pending)}
-                  tone={pending > 0 ? 'warning' : undefined}
-                  hint={h.PENDING?.oldest ? `Oldest waiting ${since(h.PENDING.oldest)}` : undefined}
+                  label={t('Delivered')}
+                  value={formatNumber(h.SENT?.count ?? 0)}
+                  tone="success"
                 />
                 <Stat
-                  label="Failed"
+                  label={t('Waiting to send')}
+                  value={formatNumber(pending)}
+                  tone={pending > 0 ? 'warning' : undefined}
+                  hint={
+                    h.PENDING?.oldest
+                      ? t('Oldest waiting {time}', { time: since(h.PENDING.oldest) })
+                      : undefined
+                  }
+                />
+                <Stat
+                  label={t('Failed')}
                   value={
                     <span className="row">
                       {formatNumber(failed)}
-                      {failed > 0 && <Badge tone="danger">Needs attention</Badge>}
+                      {failed > 0 && <Badge tone="danger">{t('Needs attention')}</Badge>}
                     </span>
                   }
                   tone={failed > 0 ? 'danger' : undefined}
-                  hint="Gave up after repeated attempts"
+                  hint={t('Gave up after repeated attempts')}
                 />
               </Grid>
               <p className="muted" style={{ margin: 0 }}>
                 {channel === 'email'
-                  ? 'Activation, password-reset and notification emails are queued and retried automatically. If SMTP is not configured on the server, emails stay waiting until it is.'
-                  : 'Verification codes and important alerts are queued and retried automatically; non-urgent texts wait for the end of quiet hours. If no SMS provider is configured, texts stay waiting until one is.'}
+                  ? t(
+                      'Activation, password-reset and notification emails are queued and retried automatically. If SMTP is not configured on the server, emails stay waiting until it is.',
+                    )
+                  : t(
+                      'Verification codes and important alerts are queued and retried automatically; non-urgent texts wait for the end of quiet hours. If no SMS provider is configured, texts stay waiting until one is.',
+                    )}
               </p>
             </>
           );
@@ -83,7 +100,8 @@ export function OperationsPanel({ reportsPath }: { reportsPath: string }) {
     queryFn: () => api<GenericReport>('/reports/pharmacy', { query: { from } }),
   });
 
-  if (workforce.isPending || pharmacy.isPending) return <Loading label="Loading operations…" />;
+  if (workforce.isPending || pharmacy.isPending)
+    return <Loading label={t('Loading operations…')} />;
   if (workforce.error || pharmacy.error)
     return <ErrorAlert error={workforce.error ?? pharmacy.error} />;
 
@@ -99,38 +117,41 @@ export function OperationsPanel({ reportsPath }: { reportsPath: string }) {
 
   return (
     <Card
-      title="Workforce & operations"
+      title={t('Workforce & operations')}
       actions={
         <span className="row">
-          <Link to="/channels">Team channels</Link>
-          <Link to={reportsPath}>All reports</Link>
+          <Link to="/channels">{t('Team channels')}</Link>
+          <Link to={reportsPath}>{t('All reports')}</Link>
         </span>
       }
     >
       <Grid min={160}>
-        <Stat label="Doctors" value={formatNumber(sum(w, 'doctors'))} />
-        <Stat label="Nurses" value={formatNumber(sum(w, 'nurses'))} />
-        <Stat label="Pharmacists" value={formatNumber(sum(w, 'pharmacists'))} />
-        <Stat label="Reception" value={formatNumber(sum(w, 'reception'))} />
+        <Stat label={t('Doctors')} value={formatNumber(sum(w, 'doctors'))} />
+        <Stat label={t('Nurses')} value={formatNumber(sum(w, 'nurses'))} />
+        <Stat label={t('Pharmacists')} value={formatNumber(sum(w, 'pharmacists'))} />
+        <Stat label={t('Reception')} value={formatNumber(sum(w, 'reception'))} />
         <Stat
-          label="Two-step sign-in"
+          label={t('Two-step sign-in')}
           value={`${adoption}%`}
           tone={adoption >= 95 ? 'success' : adoption >= 60 ? 'warning' : 'danger'}
-          hint={`${formatNumber(Math.round(twoStep))} of ${formatNumber(staff)} active staff`}
+          hint={t('{done} of {total} active staff', {
+            done: formatNumber(Math.round(twoStep)),
+            total: formatNumber(staff),
+          })}
         />
         <Stat
-          label="Awaiting pharmacy verification"
+          label={t('Awaiting pharmacy verification')}
           value={formatNumber(awaiting)}
           tone={awaiting > 10 ? 'warning' : undefined}
-          hint="Prescriptions, last 30 days"
+          hint={t('Prescriptions, last 30 days')}
         />
         <Stat
-          label="Pharmacy return rate"
+          label={t('Pharmacy return rate')}
           value={prescriptions ? `${Math.round((returned / prescriptions) * 1000) / 10}%` : '—'}
-          hint={`${formatNumber(returned)} returned to prescribers (30 days)`}
+          hint={t('{count} returned to prescribers (30 days)', { count: formatNumber(returned) })}
         />
         <Stat
-          label="Overdue care tasks"
+          label={t('Overdue care tasks')}
           value={formatNumber(overdueTasks)}
           tone={overdueTasks > 0 ? 'danger' : undefined}
         />

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { formatMonth, formatNumber } from '../format';
 
 /**
@@ -21,7 +22,7 @@ export function BarChart({
         viewBox={`0 0 100 ${height / 4}`}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`${title}. Values in the table below.`}
+        aria-label={`${title}. ${t('Values in the table below.')}`}
         style={{ height }}
       >
         {data.map((d, i) => {
@@ -170,7 +171,7 @@ export function StackedBars({
   const max = Math.max(1, ...totals);
   return (
     <figure className="chart" style={{ margin: 0 }}>
-      <div role="img" aria-label={`${title}. Values in the table below.`}>
+      <div role="img" aria-label={`${title}. ${t('Values in the table below.')}`}>
         {rows.map((r, ri) => {
           const total = totals[ri] ?? 0;
           const scale = percent ? Math.max(1, total) : max;
@@ -215,7 +216,7 @@ export function StackedBars({
         <caption>{title}</caption>
         <thead>
           <tr>
-            <th scope="col">Category</th>
+            <th scope="col">{t('Category')}</th>
             {series.map((s) => (
               <th key={s.key} scope="col">
                 {s.label}
@@ -267,7 +268,7 @@ export function LineChart({
       <svg
         viewBox={`0 0 ${w} ${h}`}
         role="img"
-        aria-label={`${title}. Values in the table below.`}
+        aria-label={`${title}. ${t('Values in the table below.')}`}
         style={{ width: '100%', height }}
       >
         <line x1={pad} x2={w - pad} y1={h - pad} y2={h - pad} style={{ stroke: 'var(--border)' }} />
@@ -329,7 +330,7 @@ export function Donut({
         width={size}
         height={size}
         role="img"
-        aria-label={`${title}. Values in the legend.`}
+        aria-label={`${title}. ${t('Values in the legend.')}`}
       >
         <circle
           cx={50}

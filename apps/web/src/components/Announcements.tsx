@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { Announcement } from '../api/types';
@@ -12,7 +13,7 @@ export function AnnouncementsCard({ limit = 3 }: { limit?: number }) {
   });
   if (q.data && q.data.items.length === 0) return null;
   return (
-    <Card title="Announcements">
+    <Card title={t('Announcements')}>
       <QueryView query={q}>
         {(d) => (
           <ul className="list">
@@ -21,13 +22,13 @@ export function AnnouncementsCard({ limit = 3 }: { limit?: number }) {
                 <div className="row-between">
                   <strong>{a.title}</strong>
                   <Badge tone="info">
-                    {a.scope === 'NATIONAL' ? 'Ministry of Health' : a.facilityName}
+                    {a.scope === 'NATIONAL' ? t('Ministry of Health') : a.facilityName}
                   </Badge>
                 </div>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{a.body}</p>
                 <div className="muted" style={{ fontSize: '0.8rem' }}>
                   {formatDate(a.publishedAt)}
-                  {a.expiresAt ? ` · until ${formatDate(a.expiresAt)}` : ''}
+                  {a.expiresAt ? ` · ${t('until {date}', { date: formatDate(a.expiresAt) })}` : ''}
                 </div>
               </li>
             ))}

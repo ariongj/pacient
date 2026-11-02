@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -20,20 +21,20 @@ export function FacilityStatsPage() {
   return (
     <>
       <PageHeader
-        title={f?.name ?? 'Facility'}
+        title={f?.name ?? t('Facility')}
         subtitle={
           f
-            ? `${f.code} · ${humanize(f.type)} · ${f.municipality}, ${f.region}${f.isActive ? '' : ' · inactive'}`
+            ? `${f.code} · ${humanize(f.type)} · ${f.municipality}, ${f.region}${f.isActive ? '' : ` · ${t('inactive')}`}`
             : undefined
         }
         actions={
           <Link to="/ministry/facilities" className="btn btn-secondary btn-sm">
-            ← All facilities
+            ← {t('All facilities')}
           </Link>
         }
       />
       <Alert tone="info">
-        Aggregate data only. The Ministry has no access to identifiable patient records.
+        {t('Aggregate data only. The Ministry has no access to identifiable patient records.')}
       </Alert>
       <QueryView query={stats}>{(s) => <FacilityStatsView stats={s} />}</QueryView>
     </>

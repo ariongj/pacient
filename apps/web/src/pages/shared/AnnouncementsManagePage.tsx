@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -49,36 +50,43 @@ function NewAnnouncementForm({ onDone }: { onDone: () => void }) {
   }
   return (
     <form onSubmit={onSubmit}>
-      <TextField label="Title" name="title" required minLength={3} maxLength={200} />
-      <TextAreaField label="Message" name="body" required minLength={3} maxLength={5000} rows={6} />
+      <TextField label={t('Title')} name="title" required minLength={3} maxLength={200} />
+      <TextAreaField
+        label={t('Message')}
+        name="body"
+        required
+        minLength={3}
+        maxLength={5000}
+        rows={6}
+      />
       <div className="form-grid">
         <SelectField
-          label="Audience"
+          label={t('Audience')}
           name="audience"
           required
           defaultValue="EVERYONE"
           options={(Object.keys(AUDIENCE_LABEL) as Announcement['audience'][]).map((a) => ({
             value: a,
-            label: AUDIENCE_LABEL[a],
+            label: t(AUDIENCE_LABEL[a]),
           }))}
         />
         <TextField
-          label="Expires (optional)"
+          label={t('Expires (optional)')}
           name="expiresAt"
           type="datetime-local"
-          hint="Leave empty to keep it until withdrawn."
+          hint={t('Leave empty to keep it until withdrawn.')}
         />
       </div>
       <p className="muted">
-        Do not include personal or clinical information about any patient in announcements.
+        {t('Do not include personal or clinical information about any patient in announcements.')}
       </p>
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Publish
+          {t('Publish')}
         </Button>
       </div>
     </form>
@@ -102,18 +110,24 @@ export function AnnouncementsManagePage() {
   return (
     <>
       <PageHeader
-        title="Announcements"
+        title={t('Announcements')}
         subtitle={
           ministry
-            ? 'National announcements from the Ministry of Health'
-            : `Announcements for ${user.facility?.name ?? 'your facility'}`
+            ? t('National announcements from the Ministry of Health')
+            : t('Announcements for {facility}', {
+                facility: user.facility?.name ?? t('your facility'),
+              })
         }
-        actions={<Button onClick={() => setOpen(true)}>New announcement</Button>}
+        actions={<Button onClick={() => setOpen(true)}>{t('New announcement')}</Button>}
       />
       <Alert tone="info">
         {ministry
-          ? 'Announcements published here are shown nationally to every facility, to staff, patients or both.'
-          : 'Announcements published here are shown only to staff and/or registered patients of your facility.'}
+          ? t(
+              'Announcements published here are shown nationally to every facility, to staff, patients or both.',
+            )
+          : t(
+              'Announcements published here are shown only to staff and/or registered patients of your facility.',
+            )}
       </Alert>
       <ErrorAlert error={withdraw.error} />
       <Card>
@@ -128,20 +142,25 @@ export function AnnouncementsManagePage() {
                       <div className="row-between">
                         <strong>{a.title}</strong>
                         <span className="row">
-                          <Badge tone="info">{AUDIENCE_LABEL[a.audience]}</Badge>
+                          <Badge tone="info">{t(AUDIENCE_LABEL[a.audience])}</Badge>
                           {active ? (
-                            <Badge tone="success">Active</Badge>
+                            <Badge tone="success">{t('Active')}</Badge>
                           ) : (
-                            <Badge tone="neutral">Expired or withdrawn</Badge>
+                            <Badge tone="neutral">{t('Expired or withdrawn')}</Badge>
                           )}
                         </span>
                       </div>
                       <p style={{ whiteSpace: 'pre-wrap' }}>{a.body}</p>
                       <div className="row-between">
                         <span className="muted" style={{ fontSize: '0.85rem' }}>
-                          {a.authorName} · published {formatDateTime(a.publishedAt)}
+                          {a.authorName} ·{' '}
+                          {t('published {date}', { date: formatDateTime(a.publishedAt) })}
                           {a.expiresAt
-                            ? ` · ${active ? 'expires' : 'ended'} ${formatDateTime(a.expiresAt)}`
+                            ? ` · ${
+                                active
+                                  ? t('expires {date}', { date: formatDateTime(a.expiresAt) })
+                                  : t('ended {date}', { date: formatDateTime(a.expiresAt) })
+                              }`
                             : ''}
                         </span>
                         {active && (
@@ -151,13 +170,17 @@ export function AnnouncementsManagePage() {
                             loading={withdraw.isPending && withdraw.variables === a.id}
                             onClick={() => {
                               if (
-                                window.confirm(`Withdraw “${a.title}”? It will no longer be shown.`)
+                                window.confirm(
+                                  t('Withdraw “{title}”? It will no longer be shown.', {
+                                    title: a.title,
+                                  }),
+                                )
                               ) {
                                 withdraw.mutate(a.id);
                               }
                             }}
                           >
-                            Withdraw
+                            {t('Withdraw')}
                           </Button>
                         )}
                       </div>
@@ -166,12 +189,12 @@ export function AnnouncementsManagePage() {
                 })}
               </ul>
             ) : (
-              <EmptyState title="No announcements yet" />
+              <EmptyState title={t('No announcements yet')} />
             )
           }
         </QueryView>
       </Card>
-      <Dialog open={open} onClose={() => setOpen(false)} title="New announcement" wide>
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('New announcement')} wide>
         <NewAnnouncementForm onDone={() => setOpen(false)} />
       </Dialog>
     </>

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   useEffect,
   useId,
@@ -195,7 +196,7 @@ export function Alert({
 
 export function ErrorAlert({ error }: { error: unknown }) {
   if (!error) return null;
-  const message = error instanceof Error ? error.message : 'Something went wrong';
+  const message = error instanceof Error ? t(error.message) : t('Something went wrong');
   const details =
     error instanceof ApiError && Array.isArray(error.details)
       ? (error.details as { path?: string; message?: string }[]).filter((d) => d.message)
@@ -206,7 +207,7 @@ export function ErrorAlert({ error }: { error: unknown }) {
         <ul>
           {details.map((d, i) => (
             <li key={i}>
-              {d.path ? <code>{d.path}</code> : null} {d.message}
+              {d.path ? <code>{d.path}</code> : null} {t(d.message ?? '')}
             </li>
           ))}
         </ul>
@@ -215,11 +216,11 @@ export function ErrorAlert({ error }: { error: unknown }) {
   );
 }
 
-export function Loading({ label = 'Loading…' }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
   return (
     <div className="loading" role="status" aria-live="polite">
       <span className="spinner" aria-hidden="true" />
-      {label}
+      {label ?? t('Loading…')}
     </div>
   );
 }
@@ -434,7 +435,7 @@ export function Dialog({
     >
       <div className="dialog-header">
         <h2 id={titleId}>{title}</h2>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close dialog">
+        <button type="button" className="icon-btn" onClick={onClose} aria-label={t('Close dialog')}>
           ×
         </button>
       </div>
@@ -458,17 +459,17 @@ export function Tabs<T extends string>({
 }) {
   return (
     <div className="tabs" role="tablist" aria-label={label}>
-      {tabs.map((t) => (
+      {tabs.map((tab) => (
         <button
-          key={t.id}
+          key={tab.id}
           type="button"
           role="tab"
-          id={`tab-${t.id}`}
-          aria-selected={active === t.id}
-          aria-controls={`panel-${t.id}`}
-          tabIndex={active === t.id ? 0 : -1}
-          className={`tab ${active === t.id ? 'tab-active' : ''}`}
-          onClick={() => onChange(t.id)}
+          id={`tab-${tab.id}`}
+          aria-selected={active === tab.id}
+          aria-controls={`panel-${tab.id}`}
+          tabIndex={active === tab.id ? 0 : -1}
+          className={`tab ${active === tab.id ? 'tab-active' : ''}`}
+          onClick={() => onChange(tab.id)}
           onKeyDown={(e) => {
             const i = tabs.findIndex((x) => x.id === active);
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
@@ -479,8 +480,8 @@ export function Tabs<T extends string>({
             }
           }}
         >
-          {t.label}
-          {t.count !== undefined && <span className="tab-count">{t.count}</span>}
+          {tab.label}
+          {tab.count !== undefined && <span className="tab-count">{tab.count}</span>}
         </button>
       ))}
     </div>
@@ -517,20 +518,18 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <nav className="pagination" aria-label="Pagination">
+    <nav className="pagination" aria-label={t('Pagination')}>
       <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        ← Previous
+        ← {t('Previous')}
       </Button>
-      <span className="muted">
-        Page {page} of {totalPages}
-      </span>
+      <span className="muted">{t('Page {page} of {pages}', { page, pages: totalPages })}</span>
       <Button
         variant="secondary"
         size="sm"
         disabled={page >= totalPages}
         onClick={() => onChange(page + 1)}
       >
-        Next →
+        {t('Next')} →
       </Button>
     </nav>
   );

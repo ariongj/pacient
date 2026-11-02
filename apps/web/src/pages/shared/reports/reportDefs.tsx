@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import type { ReactNode } from 'react';
 import type { GenericReport, ReportName } from '../../../api/types';
 import { BarChart, Donut, RankedBars, StackedBars } from '../../../components/charts';
@@ -71,7 +72,7 @@ export const COLUMN_LABELS: Record<string, string> = {
   overdueCareTasks: 'Overdue care tasks',
 };
 
-export const columnLabel = (c: string) => COLUMN_LABELS[c] ?? c;
+export const columnLabel = (c: string) => t(COLUMN_LABELS[c] ?? c);
 export const isTextColumn = (c: string) =>
   ['code', 'name', 'region', 'icd10Code', 'description', 'medication', 'vaccine'].includes(c);
 
@@ -79,8 +80,8 @@ export const isTextColumn = (c: string) =>
 export function formatCell(column: string, value: unknown): string | null {
   if (value === null || value === undefined) return SUPPRESSIBLE.has(column) ? null : '—';
   if (column.endsWith('Pct')) return `${value}%`;
-  if (column.startsWith('avgHours')) return `${value} h`;
-  if (column === 'avgLeadDays') return `${value} d`;
+  if (column.startsWith('avgHours')) return t('{count} h', { count: String(value) });
+  if (column === 'avgLeadDays') return t('{count} d', { count: String(value) });
   if (typeof value === 'number') return formatNumber(value);
   return String(value);
 }
@@ -116,27 +117,32 @@ export const REPORT_DEFS: ReportDef[] = [
     description:
       'Encounters, appointments, referrals, vaccinations and emergency access per facility.',
     kpis: (rows) => [
-      { label: 'Encounters', value: formatNumber(sum(rows, 'encounters')) },
-      { label: 'Appointments completed', value: formatNumber(sum(rows, 'appointmentsCompleted')) },
+      { label: t('Encounters'), value: formatNumber(sum(rows, 'encounters')) },
       {
-        label: 'No-shows',
-        value: formatNumber(sum(rows, 'noShows')),
-        hint: `${pct(sum(rows, 'noShows'), sum(rows, 'noShows') + sum(rows, 'appointmentsCompleted'))} of attended + missed`,
+        label: t('Appointments completed'),
+        value: formatNumber(sum(rows, 'appointmentsCompleted')),
       },
-      { label: 'Referrals sent', value: formatNumber(sum(rows, 'referralsSent')) },
-      { label: 'Vaccinations', value: formatNumber(sum(rows, 'vaccinations')) },
       {
-        label: 'Emergency access',
+        label: t('No-shows'),
+        value: formatNumber(sum(rows, 'noShows')),
+        hint: t('{pct} of attended + missed', {
+          pct: pct(sum(rows, 'noShows'), sum(rows, 'noShows') + sum(rows, 'appointmentsCompleted')),
+        }),
+      },
+      { label: t('Referrals sent'), value: formatNumber(sum(rows, 'referralsSent')) },
+      { label: t('Vaccinations'), value: formatNumber(sum(rows, 'vaccinations')) },
+      {
+        label: t('Emergency access'),
         value: formatNumber(sum(rows, 'emergencyAccess')),
         tone: sum(rows, 'emergencyAccess') > 0 ? 'warning' : undefined,
       },
     ],
     charts: (rows) => [
       {
-        title: 'Encounters by facility',
+        title: t('Encounters by facility'),
         node: (
           <RankedBars
-            label="Encounters by facility"
+            label={t('Encounters by facility')}
             rows={[...rows]
               .sort((a, b) => n(b.encounters) - n(a.encounters))
               .map((r) => ({
@@ -148,13 +154,13 @@ export const REPORT_DEFS: ReportDef[] = [
         ),
       },
       {
-        title: 'Referral flow by facility',
+        title: t('Referral flow by facility'),
         node: (
           <StackedBars
-            title="Referrals sent and received by facility"
+            title={t('Referrals sent and received by facility')}
             series={[
-              { key: 'referralsSent', label: 'Sent', color: 'var(--primary)' },
-              { key: 'referralsReceived', label: 'Received', color: 'var(--info)' },
+              { key: 'referralsSent', label: t('Sent'), color: 'var(--primary)' },
+              { key: 'referralsReceived', label: t('Received'), color: 'var(--info)' },
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
@@ -173,20 +179,23 @@ export const REPORT_DEFS: ReportDef[] = [
     title: 'Diagnoses by region',
     description: 'Patients diagnosed per ICD-10 code and region – the core disease-burden view.',
     kpis: (rows) => [
-      { label: 'Diagnosis codes', value: formatNumber(new Set(rows.map((r) => r.icd10Code)).size) },
-      { label: 'Regions', value: formatNumber(new Set(rows.map((r) => r.region)).size) },
       {
-        label: 'Suppressed cells',
+        label: t('Diagnosis codes'),
+        value: formatNumber(new Set(rows.map((r) => r.icd10Code)).size),
+      },
+      { label: t('Regions'), value: formatNumber(new Set(rows.map((r) => r.region)).size) },
+      {
+        label: t('Suppressed cells'),
         value: formatNumber(rows.filter((r) => r.suppressed).length),
-        hint: 'Hidden to protect privacy',
+        hint: t('Hidden to protect privacy'),
       },
     ],
     charts: (rows) => [
       {
-        title: 'Most common diagnoses',
+        title: t('Most common diagnoses'),
         node: (
           <RankedBars
-            label="Most common diagnoses by region"
+            label={t('Most common diagnoses by region')}
             rows={rows.slice(0, 10).map((r, i) => ({
               key: `${r.icd10Code}-${r.region}-${i}`,
               label: `${r.description} · ${r.region}`,
@@ -206,24 +215,24 @@ export const REPORT_DEFS: ReportDef[] = [
     kpis: (rows) => {
       const top = topN(rows, 'medication', 'prescriptions', 1)[0];
       return [
-        { label: 'Prescriptions', value: formatNumber(sum(rows, 'prescriptions')) },
+        { label: t('Prescriptions'), value: formatNumber(sum(rows, 'prescriptions')) },
         {
-          label: 'Distinct medicines',
+          label: t('Distinct medicines'),
           value: formatNumber(new Set(rows.map((r) => r.medication)).size),
         },
         {
-          label: 'Most prescribed',
+          label: t('Most prescribed'),
           value: top ? top[0] : '—',
-          hint: top ? `${formatNumber(top[1])} prescriptions` : undefined,
+          hint: top ? t('{count} prescriptions', { count: formatNumber(top[1]) }) : undefined,
         },
       ];
     },
     charts: (rows) => [
       {
-        title: 'Top medicines',
+        title: t('Top medicines'),
         node: (
           <RankedBars
-            label="Top medicines by prescriptions"
+            label={t('Top medicines by prescriptions')}
             rows={topN(rows, 'medication', 'prescriptions').map(([k, v]) => ({
               key: k,
               label: k,
@@ -233,10 +242,10 @@ export const REPORT_DEFS: ReportDef[] = [
         ),
       },
       {
-        title: 'Prescriptions by region',
+        title: t('Prescriptions by region'),
         node: (
           <Donut
-            title="Prescriptions by region"
+            title={t('Prescriptions by region')}
             data={topN(rows, 'region', 'prescriptions', 6).map(([k, v]) => ({
               label: k,
               value: v,
@@ -253,29 +262,32 @@ export const REPORT_DEFS: ReportDef[] = [
     kpis: (rows) => {
       const verifyAvg = avg(rows, 'avgHoursToVerify');
       return [
-        { label: 'Prescriptions', value: formatNumber(sum(rows, 'prescriptions')) },
+        { label: t('Prescriptions'), value: formatNumber(sum(rows, 'prescriptions')) },
         {
-          label: 'Awaiting verification',
+          label: t('Awaiting verification'),
           value: formatNumber(sum(rows, 'awaitingVerification')),
           tone: sum(rows, 'awaitingVerification') > 0 ? 'warning' : undefined,
         },
-        { label: 'Return rate', value: pct(sum(rows, 'returned'), sum(rows, 'prescriptions')) },
-        { label: 'Avg. time to verify', value: verifyAvg === null ? '—' : `${verifyAvg} h` },
-        { label: 'Dispensed', value: formatNumber(sum(rows, 'dispensed')), tone: 'success' },
+        { label: t('Return rate'), value: pct(sum(rows, 'returned'), sum(rows, 'prescriptions')) },
+        {
+          label: t('Avg. time to verify'),
+          value: verifyAvg === null ? '—' : t('{count} h', { count: verifyAvg }),
+        },
+        { label: t('Dispensed'), value: formatNumber(sum(rows, 'dispensed')), tone: 'success' },
       ];
     },
     charts: (rows) => [
       {
-        title: 'Pharmacy status by facility',
+        title: t('Pharmacy status by facility'),
         node: (
           <StackedBars
-            title="Prescription status by facility"
+            title={t('Prescription status by facility')}
             percent
             series={[
-              { key: 'dispensed', label: 'Dispensed', color: 'var(--success)' },
-              { key: 'verifiedOnly', label: 'Verified, not dispensed', color: 'var(--info)' },
-              { key: 'awaiting', label: 'Awaiting verification', color: 'var(--warning)' },
-              { key: 'returned', label: 'Returned', color: 'var(--danger)' },
+              { key: 'dispensed', label: t('Dispensed'), color: 'var(--success)' },
+              { key: 'verifiedOnly', label: t('Verified, not dispensed'), color: 'var(--info)' },
+              { key: 'awaiting', label: t('Awaiting verification'), color: 'var(--warning)' },
+              { key: 'returned', label: t('Returned'), color: 'var(--danger)' },
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
@@ -290,10 +302,10 @@ export const REPORT_DEFS: ReportDef[] = [
         ),
       },
       {
-        title: 'Average hours to verify',
+        title: t('Average hours to verify'),
         node: (
           <BarChart
-            title="Average hours from prescription to verification, by facility"
+            title={t('Average hours from prescription to verification, by facility')}
             data={rows.map((r) => ({ label: String(r.code), value: n(r.avgHoursToVerify) }))}
           />
         ),
@@ -305,25 +317,28 @@ export const REPORT_DEFS: ReportDef[] = [
     title: 'Vaccinations',
     description: 'Doses given and people vaccinated, by vaccine and region.',
     kpis: (rows) => [
-      { label: 'Doses given', value: formatNumber(sum(rows, 'doses')), tone: 'success' },
-      { label: 'Vaccines', value: formatNumber(new Set(rows.map((r) => r.vaccine)).size) },
-      { label: 'Regions reporting', value: formatNumber(new Set(rows.map((r) => r.region)).size) },
+      { label: t('Doses given'), value: formatNumber(sum(rows, 'doses')), tone: 'success' },
+      { label: t('Vaccines'), value: formatNumber(new Set(rows.map((r) => r.vaccine)).size) },
+      {
+        label: t('Regions reporting'),
+        value: formatNumber(new Set(rows.map((r) => r.region)).size),
+      },
     ],
     charts: (rows) => [
       {
-        title: 'Doses by vaccine',
+        title: t('Doses by vaccine'),
         node: (
           <Donut
-            title="Doses by vaccine"
+            title={t('Doses by vaccine')}
             data={topN(rows, 'vaccine', 'doses', 6).map(([k, v]) => ({ label: k, value: v }))}
           />
         ),
       },
       {
-        title: 'Doses by region',
+        title: t('Doses by region'),
         node: (
           <RankedBars
-            label="Doses by region"
+            label={t('Doses by region')}
             rows={topN(rows, 'region', 'doses').map(([k, v]) => ({ key: k, label: k, value: v }))}
           />
         ),
@@ -339,32 +354,35 @@ export const REPORT_DEFS: ReportDef[] = [
       const declined = sum(rows, 'declined');
       const response = avg(rows, 'avgHoursToRespond');
       return [
-        { label: 'Received', value: formatNumber(sum(rows, 'received')) },
+        { label: t('Received'), value: formatNumber(sum(rows, 'received')) },
         {
-          label: 'Urgent',
+          label: t('Urgent'),
           value: formatNumber(sum(rows, 'urgent')),
           tone: sum(rows, 'urgent') ? 'warning' : undefined,
         },
         {
-          label: 'Pending',
+          label: t('Pending'),
           value: formatNumber(sum(rows, 'pending')),
           tone: sum(rows, 'pending') ? 'warning' : undefined,
         },
-        { label: 'Acceptance rate', value: pct(accepted, accepted + declined) },
-        { label: 'Avg. response time', value: response === null ? '—' : `${response} h` },
+        { label: t('Acceptance rate'), value: pct(accepted, accepted + declined) },
+        {
+          label: t('Avg. response time'),
+          value: response === null ? '—' : t('{count} h', { count: response }),
+        },
       ];
     },
     charts: (rows) => [
       {
-        title: 'Outcomes by receiving facility',
+        title: t('Outcomes by receiving facility'),
         node: (
           <StackedBars
-            title="Referral outcomes by receiving facility"
+            title={t('Referral outcomes by receiving facility')}
             series={[
-              { key: 'completed', label: 'Completed', color: 'var(--success)' },
-              { key: 'acceptedOpen', label: 'Accepted, in progress', color: 'var(--info)' },
-              { key: 'pending', label: 'Pending', color: 'var(--warning)' },
-              { key: 'declined', label: 'Declined', color: 'var(--danger)' },
+              { key: 'completed', label: t('Completed'), color: 'var(--success)' },
+              { key: 'acceptedOpen', label: t('Accepted, in progress'), color: 'var(--info)' },
+              { key: 'pending', label: t('Pending'), color: 'var(--warning)' },
+              { key: 'declined', label: t('Declined'), color: 'var(--danger)' },
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
@@ -388,28 +406,31 @@ export const REPORT_DEFS: ReportDef[] = [
     kpis: (rows) => {
       const lead = avg(rows, 'avgLeadDays');
       return [
-        { label: 'Booked', value: formatNumber(sum(rows, 'booked')) },
-        { label: 'Completed', value: formatNumber(sum(rows, 'completed')), tone: 'success' },
+        { label: t('Booked'), value: formatNumber(sum(rows, 'booked')) },
+        { label: t('Completed'), value: formatNumber(sum(rows, 'completed')), tone: 'success' },
         {
-          label: 'No-show rate',
+          label: t('No-show rate'),
           value: pct(sum(rows, 'noShows'), sum(rows, 'noShows') + sum(rows, 'completed')),
           tone: sum(rows, 'noShows') ? 'warning' : undefined,
         },
-        { label: 'Cancelled', value: formatNumber(sum(rows, 'cancelled')) },
-        { label: 'Avg. lead time', value: lead === null ? '—' : `${lead} days` },
+        { label: t('Cancelled'), value: formatNumber(sum(rows, 'cancelled')) },
+        {
+          label: t('Avg. lead time'),
+          value: lead === null ? '—' : t('{count} days', { count: lead }),
+        },
       ];
     },
     charts: (rows) => [
       {
-        title: 'Appointment outcomes by facility',
+        title: t('Appointment outcomes by facility'),
         node: (
           <StackedBars
-            title="Appointment outcomes by facility"
+            title={t('Appointment outcomes by facility')}
             series={[
-              { key: 'completed', label: 'Completed', color: 'var(--success)' },
-              { key: 'open', label: 'Open', color: 'var(--info)' },
-              { key: 'noShows', label: 'No-show', color: 'var(--danger)' },
-              { key: 'cancelled', label: 'Cancelled', color: 'var(--text-muted)' },
+              { key: 'completed', label: t('Completed'), color: 'var(--success)' },
+              { key: 'open', label: t('Open'), color: 'var(--info)' },
+              { key: 'noShows', label: t('No-show'), color: 'var(--danger)' },
+              { key: 'cancelled', label: t('Cancelled'), color: 'var(--text-muted)' },
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),
@@ -436,21 +457,21 @@ export const REPORT_DEFS: ReportDef[] = [
       const twoStep = rows.reduce((a, r) => a + (n(r.twoStepPct) / 100) * n(r.activeStaff), 0);
       const adoption = staff ? Math.round((twoStep / staff) * 100) : 0;
       return [
-        { label: 'Active staff', value: formatNumber(staff) },
-        { label: 'Doctors', value: formatNumber(sum(rows, 'doctors')) },
-        { label: 'Nurses', value: formatNumber(sum(rows, 'nurses')) },
+        { label: t('Active staff'), value: formatNumber(staff) },
+        { label: t('Doctors'), value: formatNumber(sum(rows, 'doctors')) },
+        { label: t('Nurses'), value: formatNumber(sum(rows, 'nurses')) },
         {
-          label: 'Two-step sign-in',
+          label: t('Two-step sign-in'),
           value: `${adoption}%`,
           tone: adoption >= 95 ? 'success' : adoption >= 60 ? 'warning' : 'danger',
-          hint: 'Share of active staff enrolled',
+          hint: t('Share of active staff enrolled'),
         },
         {
-          label: 'Pending invitations',
+          label: t('Pending invitations'),
           value: formatNumber(sum(rows, 'pendingInvitations')),
         },
         {
-          label: 'Overdue care tasks',
+          label: t('Overdue care tasks'),
           value: formatNumber(sum(rows, 'overdueCareTasks')),
           tone: sum(rows, 'overdueCareTasks') ? 'danger' : undefined,
         },
@@ -458,31 +479,31 @@ export const REPORT_DEFS: ReportDef[] = [
     },
     charts: (rows) => [
       {
-        title: 'Staff by role',
+        title: t('Staff by role'),
         node: (
           <Donut
-            title="Active staff by role"
+            title={t('Active staff by role')}
             data={[
-              { label: 'Doctors', value: sum(rows, 'doctors') },
-              { label: 'Nurses', value: sum(rows, 'nurses') },
-              { label: 'Pharmacists', value: sum(rows, 'pharmacists') },
-              { label: 'Reception', value: sum(rows, 'reception') },
-              { label: 'Directors', value: sum(rows, 'directors') },
+              { label: t('Doctors'), value: sum(rows, 'doctors') },
+              { label: t('Nurses'), value: sum(rows, 'nurses') },
+              { label: t('Pharmacists'), value: sum(rows, 'pharmacists') },
+              { label: t('Reception'), value: sum(rows, 'reception') },
+              { label: t('Directors'), value: sum(rows, 'directors') },
             ]}
           />
         ),
       },
       {
-        title: 'Team composition by facility',
+        title: t('Team composition by facility'),
         node: (
           <StackedBars
-            title="Staff by role and facility"
+            title={t('Staff by role and facility')}
             series={[
-              { key: 'doctors', label: 'Doctors' },
-              { key: 'nurses', label: 'Nurses' },
-              { key: 'pharmacists', label: 'Pharmacists' },
-              { key: 'reception', label: 'Reception' },
-              { key: 'directors', label: 'Directors' },
+              { key: 'doctors', label: t('Doctors') },
+              { key: 'nurses', label: t('Nurses') },
+              { key: 'pharmacists', label: t('Pharmacists') },
+              { key: 'reception', label: t('Reception') },
+              { key: 'directors', label: t('Directors') },
             ]}
             rows={rows.map((r) => ({
               label: facilityLabel(r),

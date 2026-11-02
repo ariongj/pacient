@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -64,41 +65,46 @@ function ReviewDialog({ event, onClose }: { event: EmergencyAccessEvent; onClose
   return (
     <form onSubmit={onSubmit}>
       <p>
-        <strong>{event.doctorName}</strong> opened the record of{' '}
-        <strong>{event.patientName}</strong> on {formatDateTime(event.createdAt)}.
+        {t('{doctor} opened the record of {patient} on {date}.', {
+          doctor: event.doctorName,
+          patient: event.patientName,
+          date: formatDateTime(event.createdAt),
+        })}
       </p>
-      <p className="muted">Stated reason: “{event.reason}”</p>
+      <p className="muted">{t('Stated reason: “{reason}”', { reason: event.reason })}</p>
       <p className="muted">
-        During the access window: {event.recordViews} record view(s), {event.recordChanges} clinical
-        change(s).
+        {t('During the access window: {views} record view(s), {changes} clinical change(s).', {
+          views: event.recordViews,
+          changes: event.recordChanges,
+        })}
       </p>
       <SelectField
-        label="Outcome"
+        label={t('Outcome')}
         name="outcome"
         required
         value={outcome}
         onChange={(e) => setOutcome(e.target.value as ReviewOutcome)}
         options={(Object.keys(OUTCOME_LABEL) as ReviewOutcome[]).map((o) => ({
           value: o,
-          label: OUTCOME_LABEL[o],
+          label: t(OUTCOME_LABEL[o]),
         }))}
-        hint={OUTCOME_HELP[outcome]}
+        hint={t(OUTCOME_HELP[outcome])}
       />
       <TextAreaField
-        label="Review notes"
+        label={t('Review notes')}
         name="notes"
         required
         minLength={5}
         maxLength={2000}
-        hint="Record what you checked (e.g. ward log, conversation with the doctor)."
+        hint={t('Record what you checked (e.g. ward log, conversation with the doctor).')}
       />
       <ErrorAlert error={mutation.error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" loading={mutation.isPending}>
-          Save review
+          {t('Save review')}
         </Button>
       </div>
     </form>
@@ -112,17 +118,17 @@ function EventsTable({
   events: EmergencyAccessEvent[];
   onReview: (e: EmergencyAccessEvent) => void;
 }) {
-  if (!events.length) return <EmptyState title="No emergency access events" />;
+  if (!events.length) return <EmptyState title={t('No emergency access events')} />;
   return (
-    <Table caption="Emergency access events">
+    <Table caption={t('Emergency access events')}>
       <thead>
         <tr>
-          <th>When</th>
-          <th>Doctor</th>
-          <th>Patient</th>
-          <th>Stated reason</th>
-          <th>Activity in window</th>
-          <th>Review</th>
+          <th>{t('When')}</th>
+          <th>{t('Doctor')}</th>
+          <th>{t('Patient')}</th>
+          <th>{t('Stated reason')}</th>
+          <th>{t('Activity in window')}</th>
+          <th>{t('Review')}</th>
         </tr>
       </thead>
       <tbody>
@@ -139,25 +145,25 @@ function EventsTable({
             <td>{e.patientName}</td>
             <td style={{ maxWidth: 280 }}>{e.reason}</td>
             <td>
-              {e.recordViews} view(s)
-              <div className="muted">{e.recordChanges} change(s)</div>
+              {t('{count} view(s)', { count: e.recordViews })}
+              <div className="muted">{t('{count} change(s)', { count: e.recordChanges })}</div>
             </td>
             <td>
               {e.reviewedAt && e.reviewOutcome ? (
                 <>
                   <Badge tone={OUTCOME_TONE[e.reviewOutcome]}>
-                    {OUTCOME_LABEL[e.reviewOutcome]}
+                    {t(OUTCOME_LABEL[e.reviewOutcome])}
                   </Badge>
                   <div className="muted">
-                    {e.reviewedBy ?? 'Reviewer'}, {formatDateTime(e.reviewedAt)}
+                    {e.reviewedBy ?? t('Reviewer')}, {formatDateTime(e.reviewedAt)}
                   </div>
                   {e.reviewNotes && <div>{e.reviewNotes}</div>}
                 </>
               ) : (
                 <div className="stack" style={{ gap: '0.4rem' }}>
-                  <Badge tone="warning">Awaiting review</Badge>
+                  <Badge tone="warning">{t('Awaiting review')}</Badge>
                   <Button size="sm" onClick={() => onReview(e)}>
-                    Review
+                    {t('Review')}
                   </Button>
                 </div>
               )}
@@ -188,24 +194,29 @@ export function EmergencyReviewPage() {
   return (
     <>
       <PageHeader
-        title="Emergency access review"
-        subtitle="Retrospective review of break-glass access by doctors at your facility"
+        title={t('Emergency access review')}
+        subtitle={t('Retrospective review of break-glass access by doctors at your facility')}
       />
       <Alert tone="info">
-        Every emergency access must be reviewed. Check that a genuine emergency justified opening
-        the record. Events not reviewed within 7 days appear as overdue to the Ministry. Detailed
-        activity is available in the{' '}
-        <Link to="/director/audit?action=patient.record.viewed">audit review</Link>.
+        {t(
+          'Every emergency access must be reviewed. Check that a genuine emergency justified opening the record. Events not reviewed within 7 days appear as overdue to the Ministry.',
+        )}{' '}
+        {t('Detailed activity is available in the audit review:')}{' '}
+        <Link to="/director/audit?action=patient.record.viewed">{t('Open audit review')}</Link>
       </Alert>
       <Card>
         <Tabs
-          label="Emergency access filter"
+          label={t('Emergency access filter')}
           active={tab}
           onChange={setTab}
           tabs={[
-            { id: 'unreviewed', label: 'Awaiting review', count: unreviewed.data?.items.length },
-            { id: 'reviewed', label: 'Reviewed' },
-            { id: 'all', label: 'All' },
+            {
+              id: 'unreviewed',
+              label: t('Awaiting review'),
+              count: unreviewed.data?.items.length,
+            },
+            { id: 'reviewed', label: t('Reviewed') },
+            { id: 'all', label: t('All') },
           ]}
         />
         <TabPanel id={tab}>
@@ -217,7 +228,7 @@ export function EmergencyReviewPage() {
       <Dialog
         open={reviewing !== null}
         onClose={() => setReviewing(null)}
-        title="Review emergency access"
+        title={t('Review emergency access')}
       >
         {reviewing && <ReviewDialog event={reviewing} onClose={() => setReviewing(null)} />}
       </Dialog>

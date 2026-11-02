@@ -113,66 +113,66 @@ const LAST = [
 const CONDITIONS = [
   {
     code: 'I10',
-    description: 'Essential (primary) hypertension',
+    description: 'Hipertension esencial (primar)',
     status: 'CHRONIC',
-    rx: { medication: 'Amlodipine', dosage: '5 mg', frequency: 'once daily' },
+    rx: { medication: 'Amlodipine', dosage: '5 mg', frequency: 'një herë në ditë' },
   },
   {
     code: 'E11.9',
-    description: 'Type 2 diabetes mellitus without complications',
+    description: 'Diabet mellitus i tipit 2 pa komplikime',
     status: 'CHRONIC',
-    rx: { medication: 'Metformin', dosage: '850 mg', frequency: 'twice daily' },
+    rx: { medication: 'Metformin', dosage: '850 mg', frequency: 'dy herë në ditë' },
   },
   {
     code: 'E78.5',
-    description: 'Hyperlipidaemia, unspecified',
+    description: 'Hiperlipidemi, e paspecifikuar',
     status: 'CHRONIC',
-    rx: { medication: 'Atorvastatin', dosage: '20 mg', frequency: 'once daily at night' },
+    rx: { medication: 'Atorvastatin', dosage: '20 mg', frequency: 'një herë në ditë, në mbrëmje' },
   },
   {
     code: 'J45.9',
-    description: 'Asthma, unspecified',
+    description: 'Astmë, e paspecifikuar',
     status: 'CHRONIC',
-    rx: { medication: 'Salbutamol inhaler', dosage: '100 mcg', frequency: 'as needed' },
+    rx: { medication: 'Salbutamol inhalator', dosage: '100 mcg', frequency: 'sipas nevojës' },
   },
   {
     code: 'J06.9',
-    description: 'Acute upper respiratory infection, unspecified',
+    description: 'Infeksion akut i rrugëve të sipërme të frymëmarrjes, i paspecifikuar',
     status: 'RESOLVED',
     rx: null,
   },
   {
     code: 'N39.0',
-    description: 'Urinary tract infection, site not specified',
+    description: 'Infeksion i rrugëve urinare, vendndodhja e paspecifikuar',
     status: 'RESOLVED',
-    rx: { medication: 'Nitrofurantoin', dosage: '100 mg', frequency: 'twice daily for 5 days' },
+    rx: { medication: 'Nitrofurantoin', dosage: '100 mg', frequency: 'dy herë në ditë për 5 ditë' },
   },
   {
     code: 'M54.5',
-    description: 'Low back pain',
+    description: 'Dhimbje e pjesës së poshtme të shpinës',
     status: 'ACTIVE',
-    rx: { medication: 'Ibuprofen', dosage: '400 mg', frequency: 'three times daily after meals' },
+    rx: { medication: 'Ibuprofen', dosage: '400 mg', frequency: 'tri herë në ditë pas ngrënies' },
   },
   {
     code: 'K21.9',
-    description: 'Gastro-oesophageal reflux disease without oesophagitis',
+    description: 'Sëmundje e refluksit gastroezofageal pa ezofagit',
     status: 'ACTIVE',
-    rx: { medication: 'Omeprazole', dosage: '20 mg', frequency: 'once daily before breakfast' },
+    rx: { medication: 'Omeprazole', dosage: '20 mg', frequency: 'një herë në ditë para mëngjesit' },
   },
-  { code: 'F41.1', description: 'Generalised anxiety disorder', status: 'ACTIVE', rx: null },
+  { code: 'F41.1', description: 'Çrregullim i ankthit të përgjithësuar', status: 'ACTIVE', rx: null },
   {
     code: 'D50.9',
-    description: 'Iron deficiency anaemia, unspecified',
+    description: 'Anemi nga mungesa e hekurit, e paspecifikuar',
     status: 'ACTIVE',
-    rx: { medication: 'Ferrous sulfate', dosage: '200 mg', frequency: 'once daily' },
+    rx: { medication: 'Sulfat hekuri', dosage: '200 mg', frequency: 'një herë në ditë' },
   },
 ] as const;
 
 const ALLERGENS = [
-  { substance: 'Penicillin', reaction: 'Urticaria', severity: 'MODERATE' },
-  { substance: 'Peanuts', reaction: 'Anaphylaxis', severity: 'LIFE_THREATENING' },
-  { substance: 'Latex', reaction: 'Contact dermatitis', severity: 'MILD' },
-  { substance: 'Sulfonamides', reaction: 'Rash', severity: 'MODERATE' },
+  { substance: 'Penicillin', reaction: 'Urtikarie', severity: 'MODERATE' },
+  { substance: 'Kikirikë', reaction: 'Anafilaksi', severity: 'LIFE_THREATENING' },
+  { substance: 'Lateks', reaction: 'Dermatit kontakti', severity: 'MILD' },
+  { substance: 'Sulfonamides', reaction: 'Skuqje e lëkurës', severity: 'MODERATE' },
 ] as const;
 
 const LABS = [
@@ -184,21 +184,21 @@ const LABS = [
     flag: (v: number) => (v > 5.6 ? 'HIGH' : 'NORMAL'),
   },
   {
-    testName: 'Fasting glucose',
+    testName: 'Glukoza esëll',
     unit: 'mmol/L',
     referenceRange: '3.9–5.5',
     gen: () => (4 + rand() * 5).toFixed(1),
     flag: (v: number) => (v > 5.5 ? 'HIGH' : 'NORMAL'),
   },
   {
-    testName: 'Total cholesterol',
+    testName: 'Kolesteroli total',
     unit: 'mmol/L',
     referenceRange: '< 5.2',
     gen: () => (3.8 + rand() * 3).toFixed(1),
     flag: (v: number) => (v >= 5.2 ? 'HIGH' : 'NORMAL'),
   },
   {
-    testName: 'Haemoglobin',
+    testName: 'Hemoglobina',
     unit: 'g/L',
     referenceRange: '120–160',
     gen: () => String(int(98, 165)),
@@ -216,7 +216,7 @@ const LABS = [
 const FACILITIES = [
   {
     code: 'UCC-PR',
-    name: 'University Clinical Center Prishtina',
+    name: 'Qendra Klinike Universitare e Kosovës',
     type: 'UNIVERSITY_CLINICAL_CENTER',
     region: 'Prishtinë',
     municipality: 'Prishtinë',
@@ -225,7 +225,7 @@ const FACILITIES = [
   },
   {
     code: 'RH-PZ',
-    name: 'Regional Hospital Prizren',
+    name: 'Spitali Regjional i Prizrenit',
     type: 'REGIONAL_HOSPITAL',
     region: 'Prizren',
     municipality: 'Prizren',
@@ -234,7 +234,7 @@ const FACILITIES = [
   },
   {
     code: 'FMC-PE',
-    name: 'Main Family Medicine Center Peja',
+    name: 'Qendra Kryesore e Mjekësisë Familjare Pejë',
     type: 'FAMILY_MEDICINE_CENTER',
     region: 'Pejë',
     municipality: 'Pejë',
@@ -243,7 +243,7 @@ const FACILITIES = [
   },
   {
     code: 'FMC-GJ',
-    name: 'Main Family Medicine Center Gjilan',
+    name: 'Qendra Kryesore e Mjekësisë Familjare Gjilan',
     type: 'FAMILY_MEDICINE_CENTER',
     region: 'Gjilan',
     municipality: 'Gjilan',
@@ -253,12 +253,12 @@ const FACILITIES = [
 ] as const;
 
 const DOCTOR_SPECIALTIES = [
-  'Family Medicine',
-  'Internal Medicine',
-  'Cardiology',
-  'Endocrinology',
-  'Paediatrics',
-  'Pulmonology',
+  'Mjekësi familjare',
+  'Sëmundje të brendshme',
+  'Kardiologji',
+  'Endokrinologji',
+  'Pediatri',
+  'Pulmologji',
 ];
 
 async function main() {
@@ -322,7 +322,7 @@ async function main() {
             fullName: `Dr. ${pick(female ? FIRST_F : FIRST_M)} ${pick(LAST)}`,
             role: 'DOCTOR' as const,
             facilityId: f.id,
-            specialty: k === 0 ? 'Family Medicine' : pick(DOCTOR_SPECIALTIES),
+            specialty: k === 0 ? 'Mjekësi familjare' : pick(DOCTOR_SPECIALTIES),
             licenseNumber: `KMC-${10000 + doctorIndex}`,
             ...activeAccount,
           };
@@ -380,10 +380,10 @@ async function main() {
         await db.insert(immunizations).values([
           {
             patientId,
-            vaccine: 'Influenza (seasonal)',
+            vaccine: 'Grip sezonal (influenca)',
             doseNumber: 1,
             lotNumber: `FLU-${int(100, 999)}`,
-            site: 'Left deltoid',
+            site: 'Deltoidi i majtë',
             administeredAt: daysAgo(int(20, 300)),
             administeredById: doctor.id,
             facilityId: f.id,
@@ -392,10 +392,10 @@ async function main() {
             ? [
                 {
                   patientId,
-                  vaccine: 'Tetanus-diphtheria (Td) booster',
+                  vaccine: 'Tetanus-difteri (Td), dozë përforcuese',
                   doseNumber: 1,
                   lotNumber: 'TD-2219',
-                  site: 'Right deltoid',
+                  site: 'Deltoidi i djathtë',
                   administeredAt: daysAgo(700),
                   administeredById: doctor.id,
                   facilityId: f.id,
@@ -457,8 +457,8 @@ async function main() {
             doctorId: doctor.id,
             facilityId: f.id,
             type: rand() < 0.85 ? 'OUTPATIENT' : pick(['EMERGENCY', 'TELEHEALTH'] as const),
-            reason: `Consultation – ${c.description.toLowerCase()}`,
-            notes: `History taken and examination performed. Assessment consistent with ${c.description.toLowerCase()}. Plan discussed with the patient.`,
+            reason: `Konsultë – ${c.description.toLowerCase()}`,
+            notes: `Anamneza dhe ekzaminimi u kryen. Gjetjet përputhen me ${c.description.toLowerCase()}. Plani u diskutua me pacientin.`,
             startedAt: when,
             endedAt: new Date(when.getTime() + 25 * 60_000),
             noteStatus: signed ? 'SIGNED' : 'DRAFT',
@@ -482,7 +482,7 @@ async function main() {
             encounterId: enc!.id,
             doctorId: doctor.id,
             ...c.rx,
-            route: c.rx.medication.includes('inhaler') ? 'inhaled' : 'oral',
+            route: c.rx.medication.includes('inhalator') ? 'me inhalim' : 'oral',
             startDate: isoDate(when),
             endDate:
               c.status === 'RESOLVED' ? isoDate(new Date(when.getTime() + 7 * 86_400_000)) : null,
@@ -532,7 +532,7 @@ async function main() {
           facilityId: f.id,
           scheduledAt: at,
           durationMinutes: 20,
-          reason: isDemo ? 'Blood pressure follow-up' : 'Routine follow-up',
+          reason: isDemo ? 'Kontroll i tensionit të gjakut' : 'Kontroll i rregullt',
           status: rand() < 0.6 ? 'CONFIRMED' : 'REQUESTED',
           createdById: doctor.id,
         });
@@ -579,7 +579,7 @@ async function main() {
     .values({
       patientId: demoPatientId,
       doctorId: demoDoctor.id,
-      subject: 'Blood pressure readings at home',
+      subject: 'Matjet e tensionit në shtëpi',
       lastMessageAt: daysAgo(1),
       createdAt: daysAgo(2),
     })
@@ -588,14 +588,14 @@ async function main() {
     {
       threadId: thread!.id,
       senderId: portalUser!.id,
-      body: 'Good morning doctor, my home readings this week were around 145/90 in the mornings. Should I change anything before our appointment?',
+      body: 'Mirëmëngjes doktor, matjet në shtëpi këtë javë ishin rreth 145/90 në mëngjes. A duhet të ndryshoj diçka para terminit tonë?',
       createdAt: daysAgo(2),
       readAt: daysAgo(1),
     },
     {
       threadId: thread!.id,
       senderId: demoDoctor.id,
-      body: 'Thank you for tracking them. Keep taking amlodipine as prescribed and bring your log to the visit. If you get a severe headache or chest pain, call 112.',
+      body: 'Faleminderit që i keni ndjekur. Vazhdoni ta merrni amlodipinën siç është përshkruar dhe sillni shënimet në vizitë. Nëse keni dhimbje të fortë koke ose dhimbje gjoksi, telefononi 112.',
       createdAt: daysAgo(1),
     },
   ]);
@@ -607,11 +607,11 @@ async function main() {
     fromFacilityId: ucc!.id,
     toFacilityId: rhpz!.id,
     toDoctorId: rhDocs[0]!.id,
-    specialty: 'Cardiology',
+    specialty: 'Kardiologji',
     priority: 'ROUTINE',
-    reason: 'Hypertension not at target on monotherapy',
+    reason: 'Hipertension i pakontrolluar me monoterapi',
     clinicalSummary:
-      '42-year-old woman with essential hypertension (I10) and hyperlipidaemia. Home BP ~145/90 on amlodipine 5 mg. Requesting cardiology review and echocardiogram.',
+      'Grua 42 vjeçe me hipertension esencial (I10) dhe hiperlipidemi. Tensioni në shtëpi ~145/90 me amlodipinë 5 mg. Kërkohet vlerësim kardiologjik dhe ekokardiografi.',
     status: 'ACCEPTED',
     respondedById: directorsByFacility.get(rhpz!.id)!,
     respondedAt: daysAgo(3),
@@ -635,11 +635,11 @@ async function main() {
     fromDoctorId: rhDocs[1]!.id,
     fromFacilityId: rhpz!.id,
     toFacilityId: ucc!.id,
-    specialty: 'Endocrinology',
+    specialty: 'Endokrinologji',
     priority: 'URGENT',
-    reason: 'Poorly controlled type 2 diabetes',
+    reason: 'Diabet i tipit 2 i kontrolluar dobët',
     clinicalSummary:
-      'HbA1c 9.1% despite metformin 850 mg twice daily. Weight loss and polyuria over the last 2 months. Please assess for insulin initiation.',
+      'HbA1c 9.1% pavarësisht metforminës 850 mg dy herë në ditë. Rënie në peshë dhe poliuri gjatë 2 muajve të fundit. Ju lutem vlerësoni fillimin e insulinës.',
     createdAt: daysAgo(1),
   });
 
@@ -648,7 +648,7 @@ async function main() {
   await db.insert(emergencyAccessGrants).values({
     patientId: uccPatients[5]!,
     doctorId: uccDocs[2]!.id,
-    reason: 'Patient brought in unconscious after a fall; treating doctor off duty.',
+    reason: 'Pacienti u soll pa vetëdije pas një rënieje; mjeku që e trajton nuk ishte në detyrë.',
     createdAt: daysAgo(2),
     expiresAt: new Date(daysAgo(2).getTime() + 4 * 3_600_000),
   });
@@ -658,16 +658,16 @@ async function main() {
       authorId: minister!.id,
       scope: 'NATIONAL',
       audience: 'EVERYONE',
-      title: 'Seasonal flu vaccination campaign',
-      body: 'Free seasonal influenza vaccination is available at every family medicine centre until 31 January. Priority: people over 65, pregnant women and people with chronic conditions.',
+      title: 'Fushata e vaksinimit kundër gripit sezonal',
+      body: 'Vaksinimi falas kundër gripit sezonal ofrohet në çdo qendër të mjekësisë familjare deri më 31 janar. Përparësi kanë personat mbi 65 vjeç, gratë shtatzëna dhe personat me sëmundje kronike.',
       publishedAt: daysAgo(4),
     },
     {
       authorId: minister!.id,
       scope: 'NATIONAL',
       audience: 'STAFF',
-      title: 'Two-step sign-in becomes mandatory for all staff',
-      body: 'From next month every doctor, director and Ministry account must use two-step sign-in. Set it up under Account → Two-step sign-in.',
+      title: 'Verifikimi me dy hapa bëhet i detyrueshëm për gjithë stafin',
+      body: 'Nga muaji i ardhshëm, çdo llogari e mjekëve, drejtorëve dhe Ministrisë duhet të përdorë verifikimin me dy hapa. Konfigurojeni te Llogaria → Verifikimi me dy hapa.',
       publishedAt: daysAgo(2),
     },
     {
@@ -675,8 +675,8 @@ async function main() {
       scope: 'FACILITY',
       facilityId: ucc!.id,
       audience: 'PATIENTS',
-      title: 'New evening clinic hours',
-      body: 'The outpatient clinic is now open until 19:00 on Tuesdays and Thursdays.',
+      title: 'Orari i ri i mbrëmjes në ambulancë',
+      body: 'Ambulanca tani është e hapur deri në orën 19:00 të martën dhe të enjten.',
       publishedAt: daysAgo(1),
     },
   ]);
@@ -685,35 +685,35 @@ async function main() {
     {
       userId: portalUser!.id,
       type: 'message',
-      title: 'New message from your doctor',
+      title: 'Mesazh i ri nga mjeku juaj',
       link: `/portal/messages?thread=${thread!.id}`,
       createdAt: daysAgo(1),
     },
     {
       userId: portalUser!.id,
       type: 'referral',
-      title: 'Your referral was accepted',
+      title: 'Referimi juaj u pranua',
       link: '/portal/referrals',
       createdAt: daysAgo(3),
     },
     {
       userId: demoDoctor.id,
       type: 'referral',
-      title: 'Your referral was accepted',
+      title: 'Referimi juaj u pranua',
       link: '/doctor/referrals',
       createdAt: daysAgo(3),
     },
     {
       userId: directorsByFacility.get(ucc!.id)!,
       type: 'referral',
-      title: 'New URGENT referral received',
+      title: 'U pranua një referim i ri URGJENT',
       link: '/director/referrals',
       createdAt: daysAgo(1),
     },
     {
       userId: directorsByFacility.get(ucc!.id)!,
       type: 'emergency_access',
-      title: 'Emergency access used – review required',
+      title: 'U përdor qasja emergjente – kërkohet shqyrtim',
       link: '/director/emergency-access',
       createdAt: daysAgo(2),
     },
@@ -744,16 +744,16 @@ async function main() {
           fullName: NURSE_NAMES[staffSeq++ % NURSE_NAMES.length]!,
           role: 'NURSE' as const,
           facilityId: f.id,
-          specialty: 'Registered Nurse',
+          specialty: 'Infermiere e diplomuar',
           licenseNumber: `KNC-${20000 + i}`,
           ...activeAccount,
         },
         {
           email: uniq('pharmacist'),
-          fullName: `Mr. ${pick(FIRST_M)} ${pick(LAST)}`,
+          fullName: `${pick(FIRST_M)} ${pick(LAST)}`,
           role: 'PHARMACIST' as const,
           facilityId: f.id,
-          specialty: 'Hospital Pharmacist',
+          specialty: 'Farmacist spitalor',
           licenseNumber: `KPC-${30000 + i}`,
           ...activeAccount,
         },
@@ -795,9 +795,9 @@ async function main() {
   await db.insert(prescriptions).values({
     patientId: demoPatientId,
     doctorId: demoDoctor.id,
-    medication: 'Amoxicillin 500 mg capsules',
+    medication: 'Amoxicillin 500 mg kapsula',
     dosage: '500 mg',
-    frequency: 'three times daily for 7 days',
+    frequency: 'tri herë në ditë për 7 ditë',
     route: 'oral',
     startDate: isoDate(new Date()),
     status: 'ACTIVE',
@@ -823,7 +823,7 @@ async function main() {
       created_at = start_date::timestamptz + interval '9 hours',
       verified_at = start_date::timestamptz + interval '11 hours',
       dispensed_at = start_date::timestamptz + interval '14 hours',
-      dispensed_quantity = '30 tablets'
+      dispensed_quantity = '30 tableta'
     WHERE start_date < current_date AND pharmacy_status = 'PENDING'`);
 
   // Medication administration and care tasks for the demo patient.
@@ -848,7 +848,7 @@ async function main() {
         patientId: demoPatientId,
         administeredById: uccStaff.nurse,
         status: 'WITHHELD',
-        reason: 'Systolic BP 98 mmHg before dose; doctor informed',
+        reason: 'Tensioni sistolik 98 mmHg para dozës; mjeku u njoftua',
         administeredAt: daysAgo(2),
       },
     ]);
@@ -859,8 +859,8 @@ async function main() {
       facilityId: ucc!.id,
       createdById: demoDoctor.id,
       assignedRole: 'NURSE',
-      title: 'Repeat blood pressure in both arms',
-      details: 'Record seated readings after 5 minutes rest.',
+      title: 'Përsëritni matjen e tensionit në të dy krahët',
+      details: 'Regjistroni matjet ulur, pas 5 minutash pushim.',
       priority: 'URGENT',
       dueAt: new Date(Date.now() + 2 * 3_600_000),
     },
@@ -869,7 +869,7 @@ async function main() {
       facilityId: ucc!.id,
       createdById: demoDoctor.id,
       assignedRole: 'NURSE',
-      title: 'Teach home BP monitoring technique',
+      title: 'Mësoni pacientin si ta matë tensionin në shtëpi',
       priority: 'ROUTINE',
       dueAt: new Date(Date.now() + 26 * 3_600_000),
     },
@@ -878,7 +878,7 @@ async function main() {
       facilityId: ucc!.id,
       createdById: uccDocs[1]!.id,
       assignedRole: 'NURSE',
-      title: 'Wound dressing change',
+      title: 'Ndërrimi i fashës së plagës',
       priority: 'ROUTINE',
       dueAt: new Date(Date.now() - 3 * 3_600_000),
     },
@@ -894,7 +894,7 @@ async function main() {
       facilityId: ucc!.id,
       scheduledAt: at,
       durationMinutes: 20,
-      reason: pick(['Follow-up', 'Prescription review', 'New symptoms', 'Lab results discussion']),
+      reason: pick(['Kontroll', 'Rishikim i recetës', 'Simptoma të reja', 'Diskutim i rezultateve të analizave']),
       status: k < 2 ? 'CHECKED_IN' : 'CONFIRMED',
       createdById: uccStaff.reception,
     });
@@ -936,7 +936,7 @@ async function main() {
     guardianUserId: portalUser!.id,
     relationship: 'PARENT',
     scope: 'FULL',
-    evidence: 'Birth certificate 4411/2016 (checked at reception)',
+    evidence: 'Certifikata e lindjes 4411/2016 (kontrolluar në recepsion)',
     verifiedById: uccStaff.reception,
     validFrom: daysAgo(900),
     validUntil: new Date(Date.UTC(2034, 4, 10)),
@@ -948,9 +948,9 @@ async function main() {
       doctorId: paediatrician.id,
       facilityId: ucc!.id,
       type: 'OUTPATIENT',
-      reason: 'Fever and sore throat',
+      reason: 'Temperaturë dhe dhimbje fyti',
       notes:
-        'Temperature 38.4 °C, red tonsils without exudate. Viral pharyngitis likely. Fluids, paracetamol, review if worse.',
+        'Temperatura 38.4 °C, bajame të skuqura pa eksudat. Ka shumë gjasa faringjit viral. Lëngje, paracetamol, rikontroll nëse përkeqësohet.',
       startedAt: daysAgo(12),
       endedAt: daysAgo(12),
       noteStatus: 'SIGNED',
@@ -963,7 +963,7 @@ async function main() {
     encounterId: leaVisit!.id,
     doctorId: paediatrician.id,
     icd10Code: 'J02.9',
-    description: 'Acute pharyngitis, unspecified',
+    description: 'Faringjit akut, i paspecifikuar',
     status: 'RESOLVED',
     diagnosedAt: daysAgo(12),
     resolvedAt: daysAgo(5),
@@ -971,21 +971,21 @@ async function main() {
   await db.insert(immunizations).values([
     {
       patientId: lea!.id,
-      vaccine: 'MMR (measles, mumps, rubella)',
+      vaccine: 'MMR (fruth, shyta, rubeolë)',
       doseNumber: 2,
       administeredAt: daysAgo(1500),
       administeredById: demoDoctor.id,
       facilityId: ucc!.id,
-      site: 'Left arm',
+      site: 'Krahu i majtë',
     },
     {
       patientId: lea!.id,
-      vaccine: 'DTaP-IPV booster',
+      vaccine: 'DTaP-IPV, dozë përforcuese',
       doseNumber: 1,
       administeredAt: daysAgo(800),
       administeredById: demoDoctor.id,
       facilityId: ucc!.id,
-      site: 'Right arm',
+      site: 'Krahu i djathtë',
     },
   ]);
   await db.insert(encounters).values({
@@ -993,8 +993,8 @@ async function main() {
     doctorId: paediatrician.id,
     facilityId: ucc!.id,
     type: 'OUTPATIENT',
-    reason: 'Confidential consultation',
-    notes: 'Seen alone at the young person’s request.',
+    reason: 'Konsultë konfidenciale',
+    notes: 'U vizitua vetëm, me kërkesën e të riut/të resë.',
     startedAt: daysAgo(40),
     endedAt: daysAgo(40),
     noteStatus: 'SIGNED',
@@ -1011,7 +1011,7 @@ async function main() {
       facilityId: ucc!.id,
       scheduledAt: at,
       durationMinutes: 20,
-      reason: 'School-entry check-up',
+      reason: 'Kontroll para fillimit të shkollës',
       status: 'CONFIRMED',
       createdById: uccStaff.reception,
     });
@@ -1025,44 +1025,44 @@ async function main() {
     {
       channelId: byName('all-staff').id,
       authorId: directorsByFacility.get(ucc!.id)!,
-      body: 'Good morning everyone. Fire drill this Thursday at 10:00 – please review the evacuation plan on your ward.',
+      body: 'Mirëmëngjes të gjithëve. Ushtrimi kundër zjarrit do të mbahet këtë të enjte në orën 10:00 – ju lutem rishikoni planin e evakuimit në repartin tuaj.',
       createdAt: daysAgo(1),
     },
     {
       channelId: byName('pharmacy').id,
       authorId: uccStaff.pharmacist,
-      body: 'Heads-up: amoxicillin 500 mg capsules are low until Friday. Please consider alternatives where clinically appropriate.',
+      body: 'Kujdes: kapsulat e amoksicilinës 500 mg janë të pakta deri të premten. Ju lutem shqyrtoni alternativa kur është e përshtatshme klinikisht.',
       isUrgent: true,
       createdAt: new Date(Date.now() - 3 * 3_600_000),
     },
     {
       channelId: byName('pharmacy').id,
       authorId: demoDoctor.id,
-      body: 'Thanks – noted. I will check the queue for anything that needs changing.',
+      body: 'Faleminderit – u shënua. Do ta kontrolloj listën për çdo gjë që duhet ndryshuar.',
       createdAt: new Date(Date.now() - 2 * 3_600_000),
     },
     {
       channelId: byName('front-desk').id,
       authorId: uccStaff.reception,
-      body: 'Waiting room is busy this morning; two walk-ins are waiting for triage.',
+      body: 'Salla e pritjes është e mbushur sot në mëngjes; dy pacientë pa termin presin për triazh.',
       createdAt: new Date(Date.now() - 50 * 60_000),
     },
     {
       channelId: byName('clinical').id,
       authorId: uccStaff.nurse,
-      body: 'Ward round starts at 09:30 today instead of 09:00.',
+      body: 'Vizita në repart sot fillon në orën 09:30 në vend të 09:00.',
       createdAt: new Date(Date.now() - 4 * 3_600_000),
     },
     {
       channelId: national.id,
       authorId: minister!.id,
-      body: 'Directors: please make sure all staff have set up two-step sign-in by the end of the month. Compliance is on the national dashboard.',
+      body: 'Drejtorë: ju lutem sigurohuni që i gjithë stafi ta ketë konfiguruar verifikimin me dy hapa deri në fund të muajit. Përmbushja shihet në panelin kombëtar.',
       createdAt: daysAgo(2),
     },
     {
       channelId: national.id,
       authorId: directorsByFacility.get(rhpz!.id)!,
-      body: 'Prizren is at 80%. Remaining staff are scheduled for set-up sessions this week.',
+      body: 'Prizreni është në 80%. Stafi i mbetur ka sesione konfigurimi të planifikuara këtë javë.',
       createdAt: daysAgo(1),
     },
   ]);
@@ -1076,7 +1076,7 @@ async function main() {
   const [labClient] = await db
     .insert(integrationClients)
     .values({
-      name: 'UCC Central Laboratory (LIS)',
+      name: 'Laboratori Qendror i QKUK (LIS)',
       facilityId: ucc!.id,
       apiKeyHash: hashToken(DEMO_LAB_API_KEY),
       apiKeyPrefix: DEMO_LAB_API_KEY.slice(0, 10),
@@ -1109,7 +1109,7 @@ async function main() {
     return row!;
   };
   // Results that already came back through the interface (filed by the real ingestion path).
-  const resulted = await newOrder('4548-4', 'ROUTINE', 'Diabetes follow-up', 30);
+  const resulted = await newOrder('4548-4', 'ROUTINE', 'Kontroll i diabetit', 30);
   await db
     .update(labOrders)
     .set({ status: 'RECEIVED', labClientId: labClient!.id, receivedAt: daysAgo(1) })
@@ -1131,7 +1131,7 @@ async function main() {
       observations: [
         {
           code: '4548-4',
-          name: 'Haemoglobin A1c',
+          name: 'Hemoglobina A1c',
           value: '7.4',
           unit: '%',
           referenceRange: '4.0-5.6',
@@ -1141,10 +1141,10 @@ async function main() {
     }),
   );
   // Orders waiting for the laboratory – run `npm run lab:simulate` to have them resulted.
-  await newOrder('2160-0', 'ROUTINE', 'Kidney function before starting an ACE inhibitor', 3);
-  await newOrder('2823-3', 'URGENT', 'Muscle weakness, on diuretics', 1);
+  await newOrder('2160-0', 'ROUTINE', 'Funksioni i veshkave para fillimit të një frenuesi ACE', 3);
+  await newOrder('2823-3', 'URGENT', 'Dobësi muskulore, në terapi me diuretikë', 1);
   // A message the laboratory sent with a date of birth that does not match: held for review.
-  const mismatched = await newOrder('718-7', 'ROUTINE', 'Fatigue', 26);
+  const mismatched = await newOrder('718-7', 'ROUTINE', 'Lodhje', 26);
   await db
     .update(labOrders)
     .set({ status: 'RECEIVED', labClientId: labClient!.id, receivedAt: daysAgo(1) })
@@ -1159,7 +1159,7 @@ async function main() {
       observations: [
         {
           code: '718-7',
-          name: 'Haemoglobin',
+          name: 'Hemoglobina',
           value: '118',
           unit: 'g/L',
           referenceRange: '120-160',
@@ -1176,12 +1176,12 @@ async function main() {
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
-  Ministry   : minister@pacient.local
-  Director   : director@pacient.local    (University Clinical Center Prishtina)
-  Doctor     : doctor@pacient.local      (Family Medicine, UCC Prishtina)
-  Nurse      : nurse@pacient.local       (UCC Prishtina)
-  Pharmacist : pharmacist@pacient.local  (UCC Prishtina)
-  Reception  : reception@pacient.local   (UCC Prishtina)
+  Ministry   : minister@pacient.local   (Ministria e Shëndetësisë)
+  Director   : director@pacient.local    (Qendra Klinike Universitare e Kosovës, QKUK)
+  Doctor     : doctor@pacient.local      (Mjekësi familjare, QKUK)
+  Nurse      : nurse@pacient.local       (QKUK)
+  Pharmacist : pharmacist@pacient.local  (QKUK)
+  Reception  : reception@pacient.local   (QKUK)
   Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)
 
 Laboratory simulator (development only):

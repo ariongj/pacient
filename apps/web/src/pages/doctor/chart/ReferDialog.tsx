@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../../api/client';
+import { api, ApiError } from '../../../api/client';
 import type { ClinicalSummary, Facility, Referral } from '../../../api/types';
 import { useUser } from '../../../auth/AuthContext';
 import {
@@ -55,19 +55,57 @@ export function ReferDialog({
     queryFn: () => api<{ items: Facility[] }>('/facilities'),
     enabled: open,
   });
+  // Set when the patient has withdrawn consent to sharing with other facilities: the doctor must
+  // confirm the patient's agreement before the referral can be sent.
+  const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  const [consentMethod, setConsentMethod] = useState<'IN_PERSON' | 'WRITTEN'>('IN_PERSON');
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api<Referral>('/referrals', { method: 'POST', body }),
     onSuccess: (r) => {
       setSent(r);
+      setPending(null);
       void qc.invalidateQueries({ queryKey: ['referrals'] });
+      void qc.invalidateQueries({ queryKey: ['patient', patientId, 'consents'] });
+    },
+    onError: (err, body) => {
+      if (err instanceof ApiError && err.code === 'CONSENT_WITHDRAWN') {
+        const { consentConfirmed: _c, ...rest } = body;
+        setPending(rest);
+      }
     },
   });
+  const consentForms = useQuery({
+    queryKey: ['patient', patientId, 'documents'],
+    queryFn: () =>
+      api<{ items: { id: string; title: string; category: string; status: string }[] }>(
+        `/patients/${patientId}/documents`,
+      ).then((r) => r.items.filter((d) => d.category === 'CONSENT_FORM' && d.status === 'CURRENT')),
+    enabled: Boolean(pending) && consentMethod === 'WRITTEN',
+    retry: false,
+  });
+  const consentBlocked =
+    create.error instanceof ApiError && create.error.code === 'CONSENT_WITHDRAWN';
 
   function close() {
     setSent(null);
+    setPending(null);
     create.reset();
     onClose();
+  }
+
+  function onConfirmConsent(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pending) return;
+    const v = formValues(e.currentTarget);
+    create.mutate({
+      ...pending,
+      consentConfirmed: {
+        method: consentMethod,
+        note: v.consentNote,
+        documentId: consentMethod === 'WRITTEN' ? v.documentId : undefined,
+      },
+    });
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -96,58 +134,125 @@ export function ReferDialog({
           </div>
         </div>
       ) : (
-        <form onSubmit={onSubmit}>
-          <Alert tone="info">
-            Only this summary is shared while the referral is pending. If the receiving facility
-            accepts, the assigned doctor joins the care team and can open the record. All steps are
-            audited and visible to the patient.
-          </Alert>
-          <QueryView query={facilities}>
-            {(d) => (
+        <>
+          {pending && (
+            <form onSubmit={onConfirmConsent}>
+              <Alert tone="warning" title="The patient has withdrawn consent to sharing">
+                This patient asked that their record is not shared with other facilities. Discuss
+                this referral with them. If they agree, record how they agreed – this is added to
+                their consent history and the referral is sent.
+              </Alert>
               <SelectField
-                label="Receiving facility"
-                name="toFacilityId"
+                label="How did the patient agree?"
+                name="consentMethod"
                 required
-                placeholder="Choose a facility"
-                options={d.items
-                  .filter((f) => f.id !== user.facility?.id)
-                  .map((f) => ({ value: f.id, label: `${f.name} (${f.region})` }))}
+                value={consentMethod}
+                onChange={(e) => setConsentMethod(e.currentTarget.value as 'IN_PERSON' | 'WRITTEN')}
+                options={[
+                  { value: 'IN_PERSON', label: 'In person (verbal)' },
+                  { value: 'WRITTEN', label: 'Signed form' },
+                ]}
               />
-            )}
-          </QueryView>
-          <div className="form-grid">
-            <TextField label="Specialty" name="specialty" required minLength={2} maxLength={120} />
-            <SelectField
-              label="Priority"
-              name="priority"
-              defaultValue="ROUTINE"
-              options={[
-                { value: 'ROUTINE', label: 'Routine' },
-                { value: 'URGENT', label: 'Urgent' },
-              ]}
+              {consentMethod === 'WRITTEN' && (
+                <SelectField
+                  label="Signed consent form"
+                  name="documentId"
+                  required
+                  placeholder={
+                    consentForms.isLoading
+                      ? 'Loading documents…'
+                      : consentForms.data?.length
+                        ? 'Choose the signed form'
+                        : 'No consent forms uploaded'
+                  }
+                  options={(consentForms.data ?? []).map((d) => ({ value: d.id, label: d.title }))}
+                />
+              )}
+              <TextAreaField
+                label="What was discussed"
+                name="consentNote"
+                required
+                minLength={10}
+                maxLength={1000}
+                rows={3}
+                hint="e.g. “Discussed in clinic; patient agrees to sharing for this cardiology referral.”"
+              />
+              {!consentBlocked && <ErrorAlert error={create.error} />}
+              <div className="form-actions">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setPending(null);
+                    create.reset();
+                  }}
+                >
+                  Back
+                </Button>
+                <Button type="submit" loading={create.isPending}>
+                  Confirm agreement and send referral
+                </Button>
+              </div>
+            </form>
+          )}
+          <form onSubmit={onSubmit} style={pending ? { display: 'none' } : undefined}>
+            <Alert tone="info">
+              Only this summary is shared while the referral is pending. If the receiving facility
+              accepts, the assigned doctor joins the care team and can open the record. All steps
+              are audited and visible to the patient.
+            </Alert>
+            <QueryView query={facilities}>
+              {(d) => (
+                <SelectField
+                  label="Receiving facility"
+                  name="toFacilityId"
+                  required
+                  placeholder="Choose a facility"
+                  options={d.items
+                    .filter((f) => f.id !== user.facility?.id)
+                    .map((f) => ({ value: f.id, label: `${f.name} (${f.region})` }))}
+                />
+              )}
+            </QueryView>
+            <div className="form-grid">
+              <TextField
+                label="Specialty"
+                name="specialty"
+                required
+                minLength={2}
+                maxLength={120}
+              />
+              <SelectField
+                label="Priority"
+                name="priority"
+                defaultValue="ROUTINE"
+                options={[
+                  { value: 'ROUTINE', label: 'Routine' },
+                  { value: 'URGENT', label: 'Urgent' },
+                ]}
+              />
+            </div>
+            <TextField label="Reason" name="reason" required minLength={5} maxLength={500} />
+            <TextAreaField
+              label="Clinical summary"
+              name="clinicalSummary"
+              required
+              minLength={20}
+              maxLength={10_000}
+              rows={8}
+              defaultValue={summaryTemplate(summary)}
+              hint="Include only what the receiving clinician needs for this referral."
             />
-          </div>
-          <TextField label="Reason" name="reason" required minLength={5} maxLength={500} />
-          <TextAreaField
-            label="Clinical summary"
-            name="clinicalSummary"
-            required
-            minLength={20}
-            maxLength={10_000}
-            rows={8}
-            defaultValue={summaryTemplate(summary)}
-            hint="Include only what the receiving clinician needs for this referral."
-          />
-          <ErrorAlert error={create.error} />
-          <div className="form-actions">
-            <Button variant="secondary" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={create.isPending}>
-              Send referral
-            </Button>
-          </div>
-        </form>
+            <ErrorAlert error={create.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={close}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={create.isPending}>
+                Send referral
+              </Button>
+            </div>
+          </form>
+        </>
       )}
     </Dialog>
   );

@@ -4,6 +4,7 @@ import { careAssignments, emergencyAccessGrants, patients, type Role } from '../
 import { forbidden, notFound } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { AuditAction, auditSafe } from '../audit/audit.service.js';
+import { coverAccessVia } from '../cover/cover.service.js';
 
 /**
  * Access model: roles are distinct responsibilities, not a seniority ladder. Seniority alone never
@@ -13,7 +14,7 @@ import { AuditAction, auditSafe } from '../audit/audit.service.js';
  * |------------|---------------------------------------------------------------|---------------------------|--------------|
  * | MINISTRY   | never                                                         | never                     | national*    |
  * | DIRECTOR   | never                                                         | own facility's patients   | own facility |
- * | DOCTOR     | care team, or same-facility break-glass                       | own facility / care team  | –            |
+ * | DOCTOR     | care team (incl. while covering an absent colleague), or same-facility break-glass | own facility / care team  | –            |
  * | NURSE      | care team (reads; writes observations, allergies, vaccines, MAR) | own facility / care team | –            |
  * | PHARMACIST | never in full – medication context only, via the pharmacy queue | via pharmacy queue only | –            |
  * | RECEPTION  | never                                                         | own facility's patients   | –            |
@@ -96,6 +97,34 @@ async function deny(
   return forbidden(message);
 }
 
+/**
+ * Access through result cover is care-team access on behalf of an absent colleague. It is recorded
+ * in the audit trail (and so in the patient's access log) as such – at most once per doctor and
+ * patient every 10 minutes, so a busy review session does not flood the log.
+ */
+const recentCoverAudits = new Map<string, number>();
+async function auditCoverAccess(
+  ctx: AuthContext,
+  patientId: string,
+  coverFor: string,
+  meta: RequestMeta | undefined,
+) {
+  const key = `${ctx.userId}:${patientId}`;
+  const now = Date.now();
+  if ((recentCoverAudits.get(key) ?? 0) > now - 10 * 60_000) return;
+  recentCoverAudits.set(key, now);
+  if (recentCoverAudits.size > 10_000) recentCoverAudits.clear();
+  await auditSafe({
+    action: AuditAction.PATIENT_RECORD_VIEWED,
+    actor: ctx,
+    resourceType: 'patient',
+    resourceId: patientId,
+    patientId,
+    meta,
+    metadata: { basis: 'CARE_TEAM', via: 'COVER', coverFor },
+  });
+}
+
 /** Resolves *why* the caller may read the clinical record, or audits the denial and throws 403. */
 export async function resolveClinicalReadAccess(
   ctx: AuthContext,
@@ -114,6 +143,13 @@ export async function resolveClinicalReadAccess(
     case 'DOCTOR':
     case 'NURSE':
       if (await hasActiveCareAssignment(ctx.userId, patientId)) return 'CARE_TEAM';
+      if (ctx.role === 'DOCTOR') {
+        const coverFor = await coverAccessVia(ctx.userId, patientId);
+        if (coverFor) {
+          await auditCoverAccess(ctx, patientId, coverFor, meta);
+          return 'CARE_TEAM';
+        }
+      }
       if (
         ctx.role === 'DOCTOR' &&
         patient.primaryFacilityId === ctx.facilityId &&

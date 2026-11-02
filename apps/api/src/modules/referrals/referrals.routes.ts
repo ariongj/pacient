@@ -11,7 +11,7 @@ import {
   referralStatusEnum,
   users,
 } from '../../db/schema.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
@@ -19,7 +19,8 @@ import {
   assertFullProxyScope,
   hasActiveCareAssignment,
 } from '../access/policy.js';
-import { audit, AuditAction } from '../audit/audit.service.js';
+import { audit, AuditAction, auditSafe } from '../audit/audit.service.js';
+import { assertConsentForm, recordConsent, sharingWithdrawn } from '../consent/consent.service.js';
 import {
   notifyFacilityRole,
   notifyPatient,
@@ -41,6 +42,17 @@ const CreateSchema = z.object({
   priority: z.enum(referralPriorityEnum.enumValues).default('ROUTINE'),
   reason: z.string().trim().min(5).max(500),
   clinicalSummary: z.string().trim().min(20).max(10_000),
+  /**
+   * Required when the patient has withdrawn consent to cross-facility sharing: the doctor confirms
+   * they discussed the referral with the patient, which records a new consent decision.
+   */
+  consentConfirmed: z
+    .object({
+      method: z.enum(['IN_PERSON', 'WRITTEN']),
+      note: z.string().trim().min(10).max(1000),
+      documentId: z.string().uuid().optional(),
+    })
+    .optional(),
 });
 const ListQuery = z.object({
   direction: z.enum(['incoming', 'outgoing']).optional(),
@@ -199,10 +211,53 @@ referralsRouter.post('/', requireRole('DOCTOR'), async (req, res) => {
     if (!doc) throw badRequest('Receiving doctor not found at that facility');
   }
 
+  // Consent (blueprint §3): a patient may withdraw consent to sharing with other facilities.
+  // Emergency access and care inside the patient's own facility are not affected (vital interests
+  // and the treating institution's own record), so this check sits only on the cross-facility path.
+  const { consentConfirmed, ...referral } = input;
+  if (await sharingWithdrawn(input.patientId)) {
+    if (!consentConfirmed) {
+      await auditSafe({
+        action: AuditAction.CONSENT_CHECK_BLOCKED,
+        actor: ctx,
+        outcome: 'DENIED',
+        resourceType: 'referral',
+        patientId: input.patientId,
+        meta: requestMeta(req),
+        metadata: { toFacilityId: input.toFacilityId, consent: 'CROSS_FACILITY_SHARING' },
+      });
+      throw new HttpError(
+        409,
+        'CONSENT_WITHDRAWN',
+        'The patient has withdrawn consent to sharing their record with other facilities. Discuss the referral with them and confirm their agreement to continue.',
+        { consentType: 'CROSS_FACILITY_SHARING' },
+      );
+    }
+    if (consentConfirmed.method === 'WRITTEN') {
+      await assertConsentForm(input.patientId, consentConfirmed.documentId);
+    }
+  }
+
   const row = await db.transaction(async (tx) => {
+    if (consentConfirmed && (await sharingWithdrawn(input.patientId, tx))) {
+      await recordConsent(
+        tx,
+        ctx,
+        {
+          patientId: input.patientId,
+          type: 'CROSS_FACILITY_SHARING',
+          decision: 'GRANTED',
+          method: consentConfirmed.method,
+          note: consentConfirmed.note,
+          documentId: consentConfirmed.method === 'WRITTEN' ? consentConfirmed.documentId : null,
+        },
+        requestMeta(req),
+        { context: 'referral', toFacilityId: input.toFacilityId },
+      );
+    }
     const [created] = await tx
       .insert(referrals)
-      .values({ ...input, fromDoctorId: ctx.userId, fromFacilityId: ctx.facilityId! })
+      .values({ ...referral, fromDoctorId: ctx.userId, fromFacilityId: ctx.facilityId! })
       .returning();
     await audit(
       {

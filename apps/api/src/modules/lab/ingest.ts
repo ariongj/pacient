@@ -12,6 +12,7 @@ import {
 } from '../../lib/hl7.js';
 import { seal } from '../../lib/secret-box.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { activeCoverDoctorsFor } from '../cover/cover.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 
 /**
@@ -165,27 +166,23 @@ async function alertDoctor(
   corrected: boolean,
 ) {
   const link = `/doctor/patients/${order.patientId}`;
-  if (critical) {
+  const n = critical
+    ? { type: 'result', title: 'CRITICAL laboratory result – review now', link, important: true }
+    : corrected
+      ? {
+          type: 'result',
+          title: 'A laboratory result was corrected – review again',
+          link,
+          important: true,
+        }
+      : { type: 'result', title: 'New laboratory results to review', link };
+  await notifyUsers([order.orderedById], n, tx);
+  // A colleague covering for an absent ordering doctor gets the same alert.
+  for (const c of await activeCoverDoctorsFor([order.orderedById], tx)) {
+    if (c.coverDoctorId === order.orderedById) continue;
     await notifyUsers(
-      [order.orderedById],
-      { type: 'result', title: 'CRITICAL laboratory result – review now', link, important: true },
-      tx,
-    );
-  } else if (corrected) {
-    await notifyUsers(
-      [order.orderedById],
-      {
-        type: 'result',
-        title: 'A laboratory result was corrected – review again',
-        link,
-        important: true,
-      },
-      tx,
-    );
-  } else {
-    await notifyUsers(
-      [order.orderedById],
-      { type: 'result', title: 'New laboratory results to review', link },
+      [c.coverDoctorId],
+      { ...n, title: `${n.title} (covering for ${c.doctorName})`.slice(0, 200) },
       tx,
     );
   }

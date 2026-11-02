@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, asc, desc, eq, exists, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   careAssignments,
@@ -8,11 +8,16 @@ import {
   labResults,
   patients,
   prescriptions,
+  resultEscalations,
+  users,
 } from '../../db/schema.js';
+import { doctorsCoveredBy } from '../cover/cover.service.js';
 import { requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 
 const patientName = sql<string>`${patients.firstName} || ' ' || ${patients.lastName}`;
+const escalationLevel = sql<number>`coalesce((SELECT max(${resultEscalations.level}) FROM ${resultEscalations} WHERE ${resultEscalations.labResultId} = ${labResults.id}), 0)::int`;
+const criticalFirst = sql`CASE ${labResults.flag} WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'LOW' THEN 1 ELSE 2 END`;
 
 /**
  * A doctor's outstanding work. Follow-up is only "done" when it is explicitly closed – a result
@@ -36,6 +41,7 @@ worklistRouter.get('/', async (req, res) => {
         flag: labResults.flag,
         status: labResults.status,
         collectedAt: labResults.collectedAt,
+        escalationLevel,
       })
       .from(labResults)
       .innerJoin(patients, eq(patients.id, labResults.patientId))
@@ -46,10 +52,7 @@ worklistRouter.get('/', async (req, res) => {
           isNull(labResults.supersededById),
         ),
       )
-      .orderBy(
-        sql`CASE ${labResults.flag} WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'LOW' THEN 1 ELSE 2 END`,
-        asc(labResults.collectedAt),
-      )
+      .orderBy(criticalFirst, asc(labResults.collectedAt))
       .limit(100),
     db
       .select({
@@ -122,8 +125,41 @@ worklistRouter.get('/', async (req, res) => {
     .orderBy(desc(prescriptions.verifiedAt))
     .limit(100);
 
+  // Results of colleagues I am covering for while they are away.
+  const covered = await doctorsCoveredBy(ctx.userId);
+  const coveredResults = covered.length
+    ? await db
+        .select({
+          id: labResults.id,
+          patientId: labResults.patientId,
+          patientName,
+          testName: labResults.testName,
+          value: labResults.value,
+          unit: labResults.unit,
+          flag: labResults.flag,
+          status: labResults.status,
+          collectedAt: labResults.collectedAt,
+          escalationLevel,
+          orderedById: labResults.orderedById,
+          orderedBy: users.fullName,
+        })
+        .from(labResults)
+        .innerJoin(patients, eq(patients.id, labResults.patientId))
+        .innerJoin(users, eq(users.id, labResults.orderedById))
+        .where(
+          and(
+            inArray(labResults.orderedById, covered),
+            isNull(labResults.acknowledgedAt),
+            isNull(labResults.supersededById),
+          ),
+        )
+        .orderBy(criticalFirst, asc(labResults.collectedAt))
+        .limit(100)
+    : [];
+
   res.json({
     unacknowledgedResults: results,
+    coveredResults,
     openCorrectionRequests: corrections,
     draftNotes: drafts,
     returnedPrescriptions,

@@ -1,16 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type {
-  Appointment,
-  CareTask,
-  MessageThreadSummary,
-  Referral,
-  Worklist,
-} from '../../api/types';
+import type { CoverWorklist } from '../../api/cover';
+import type { Appointment, CareTask, MessageThreadSummary, Referral } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import { AnnouncementsCard } from '../../components/Announcements';
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -24,6 +20,16 @@ import {
 } from '../../components/ui';
 import { formatDate, formatDateTime, formatTime, humanize } from '../../format';
 
+/** Shown when an unreviewed critical result has been escalated to colleagues (and the director). */
+function EscalatedBadge({ level }: { level?: number }) {
+  if (!level) return null;
+  return (
+    <span style={{ display: 'block', marginTop: '0.25rem' }}>
+      <Badge tone="danger">{level >= 2 ? 'Escalated to director' : 'Escalated'}</Badge>
+    </span>
+  );
+}
+
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -33,7 +39,10 @@ function startOfToday() {
 export function DoctorHome() {
   const user = useUser();
   const qc = useQueryClient();
-  const worklist = useQuery({ queryKey: ['worklist'], queryFn: () => api<Worklist>('/worklist') });
+  const worklist = useQuery({
+    queryKey: ['worklist'],
+    queryFn: () => api<CoverWorklist>('/worklist'),
+  });
   const from = startOfToday();
   const appointments = useQuery({
     queryKey: ['appointments', 'upcoming', from],
@@ -102,7 +111,9 @@ export function DoctorHome() {
                 hint={
                   w.unacknowledgedResults.some((r) => r.flag === 'CRITICAL')
                     ? 'Includes critical results'
-                    : undefined
+                    : (w.coveredResults ?? []).length
+                      ? `+ ${(w.coveredResults ?? []).length} you are covering`
+                      : undefined
                 }
               />
               <Stat
@@ -214,6 +225,7 @@ export function DoctorHome() {
                         </td>
                         <td>
                           <StatusBadge value={r.flag} />
+                          <EscalatedBadge level={r.escalationLevel} />
                         </td>
                         <td>
                           <StatusBadge value={r.status} />
@@ -235,6 +247,64 @@ export function DoctorHome() {
                 </Table>
               )}
             </Card>
+
+            {(w.coveredResults ?? []).length > 0 && (
+              <Card
+                title={`Covering for ${[...new Set((w.coveredResults ?? []).map((r) => r.orderedBy))].join(', ')}`}
+                actions={<Link to="/doctor/cover">Cover & absence</Link>}
+              >
+                <p className="muted">
+                  Results ordered by colleagues you are covering for. Review them as you would your
+                  own; the ordering doctor sees who acknowledged them.
+                </p>
+                <Table caption="Results of colleagues you are covering for">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Test</th>
+                      <th>Value</th>
+                      <th>Flag</th>
+                      <th>Ordered by</th>
+                      <th>Collected</th>
+                      <th>
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(w.coveredResults ?? []).map((r) => (
+                      <tr key={r.id}>
+                        <td>
+                          <Link to={`/doctor/patients/${r.patientId}?tab=results`}>
+                            {r.patientName}
+                          </Link>
+                        </td>
+                        <td>{r.testName}</td>
+                        <td>
+                          {r.value} {r.unit ?? ''}
+                        </td>
+                        <td>
+                          <StatusBadge value={r.flag} />
+                          <EscalatedBadge level={r.escalationLevel} />
+                        </td>
+                        <td>{r.orderedBy}</td>
+                        <td>{formatDateTime(r.collectedAt)}</td>
+                        <td>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={acknowledge.isPending && acknowledge.variables?.id === r.id}
+                            onClick={() => acknowledge.mutate({ patientId: r.patientId, id: r.id })}
+                          >
+                            Acknowledge
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Card>
+            )}
 
             <div className="two-col">
               <Card title="Open correction requests">

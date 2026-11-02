@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { Appointment, MessageThreadSummary, Referral, Worklist } from '../../api/types';
+import type {
+  Appointment,
+  CareTask,
+  MessageThreadSummary,
+  Referral,
+  Worklist,
+} from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import { AnnouncementsCard } from '../../components/Announcements';
 import {
@@ -45,6 +51,15 @@ export function DoctorHome() {
     queryKey: ['messages', 'threads'],
     queryFn: () => api<{ items: MessageThreadSummary[] }>('/messages/threads'),
   });
+  const tasks = useQuery({
+    queryKey: ['careTasks', 'mine', 'OPEN'],
+    queryFn: () =>
+      api<{ items: CareTask[] }>('/care-tasks', { query: { scope: 'mine', status: 'OPEN' } }),
+  });
+  const openTasks = tasks.data?.items ?? [];
+  const overdueTasks = openTasks.filter(
+    (t) => t.dueAt && new Date(t.dueAt).getTime() < Date.now(),
+  ).length;
   const referralItems = pendingReferrals.data?.items ?? [];
   const urgentReferrals = referralItems.filter((r) => r.priority === 'URGENT').length;
   const unreadMessages = (threads.data?.items ?? []).reduce((n, t) => n + t.unreadCount, 0);
@@ -115,11 +130,54 @@ export function DoctorHome() {
                 label="Unread messages"
                 value={threads.data ? unreadMessages : '…'}
                 tone={unreadMessages ? 'warning' : 'success'}
-                hint={<Link to="/doctor/messages">Open messages</Link>}
+                hint={<Link to="/messages">Open messages</Link>}
+              />
+              <Stat
+                label="Returned by pharmacy"
+                value={w.returnedPrescriptions.length}
+                tone={w.returnedPrescriptions.length ? 'danger' : 'success'}
+              />
+              <Stat
+                label="Open care tasks"
+                value={tasks.data ? openTasks.length : '…'}
+                tone={overdueTasks ? 'danger' : openTasks.length ? 'warning' : 'success'}
+                hint={
+                  <Link to="/tasks">{overdueTasks ? `${overdueTasks} overdue` : 'Open tasks'}</Link>
+                }
               />
             </Grid>
 
             <AnnouncementsCard />
+
+            {w.returnedPrescriptions.length > 0 && (
+              <Card title="Returned by pharmacy">
+                <p className="muted">
+                  The pharmacy could not verify these prescriptions. Amend and resubmit, or stop
+                  them, from the patient’s Medications tab.
+                </p>
+                <ul className="list">
+                  {w.returnedPrescriptions.map((r) => (
+                    <li key={r.id}>
+                      <div className="row-between">
+                        <span>
+                          <strong>{r.medication}</strong> {r.dosage} · {r.frequency} —{' '}
+                          <Link to={`/doctor/patients/${r.patientId}?tab=medications`}>
+                            {r.patientName}
+                          </Link>
+                        </span>
+                        <span className="row">
+                          <StatusBadge value="RETURNED" />
+                          {r.returnedAt && (
+                            <span className="muted">{formatDateTime(r.returnedAt)}</span>
+                          )}
+                        </span>
+                      </div>
+                      {r.pharmacistNote && <div>Pharmacist: {r.pharmacistNote}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
 
             <Card title="Results awaiting review">
               <ErrorAlert error={acknowledge.error} />

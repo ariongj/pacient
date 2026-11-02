@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { api, ApiError } from '../../api/client';
+import { api, ApiError, downloadFile } from '../../api/client';
 import type { ClinicalSummary } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import {
@@ -23,6 +23,9 @@ import { BookAppointmentDialog } from './chart/BookAppointmentDialog';
 import { CareTeamTab } from './chart/CareTeamTab';
 import { CorrectionsTab } from './chart/CorrectionsTab';
 import { ImmunizationsTab } from './chart/ImmunizationsTab';
+import { MarTab } from './chart/MarTab';
+import { useChartRole } from './chart/shared';
+import { TasksTab } from './chart/TasksTab';
 import { MedicationsTab } from './chart/MedicationsTab';
 import { ProblemsTab } from './chart/ProblemsTab';
 import { ReferDialog } from './chart/ReferDialog';
@@ -50,6 +53,8 @@ const TAB_IDS = [
   'visits',
   'problems',
   'medications',
+  'mar',
+  'tasks',
   'allergies',
   'vitals',
   'results',
@@ -65,6 +70,9 @@ export function PatientChart() {
   const [params, setParams] = useSearchParams();
   const [booking, setBooking] = useState(false);
   const [referring, setReferring] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<unknown>(null);
+  const { isDoctor, base } = useChartRole();
   const requested = params.get('tab') as TabId | null;
   const tab: TabId = requested && TAB_IDS.includes(requested) ? requested : 'summary';
 
@@ -97,7 +105,7 @@ export function PatientChart() {
         ) : (
           <ErrorAlert error={err} />
         )}
-        <Link to="/doctor/patients">Back to patients</Link>
+        <Link to={`${base}/patients`}>Back to patients</Link>
       </Card>
     );
   }
@@ -166,25 +174,52 @@ export function PatientChart() {
           </div>
         )}
         {s && (
-          <div className="row" style={{ marginLeft: 'auto' }}>
-            <Button variant="secondary" size="sm" onClick={() => setBooking(true)}>
-              Book appointment
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setReferring(true)}>
-              Refer
-            </Button>
+          <div className="row no-print" style={{ marginLeft: 'auto' }}>
+            {isDoctor && (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => setBooking(true)}>
+                  Book appointment
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setReferring(true)}>
+                  Refer
+                </Button>
+              </>
+            )}
             {p.hasPortalAccount && (
               <Link
                 className="btn btn-secondary btn-sm"
-                to={`/doctor/messages?patientId=${encodeURIComponent(patientId)}`}
+                to={`/messages?patientId=${encodeURIComponent(patientId)}`}
               >
                 Message patient
               </Link>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={exporting}
+              title="HL7 FHIR R4 bundle (Patient/$everything). The export is audited."
+              onClick={async () => {
+                setExporting(true);
+                setExportError(null);
+                try {
+                  await downloadFile(
+                    `/fhir/Patient/${patientId}/$everything`,
+                    `patient-${patientId}.fhir.json`,
+                  );
+                } catch (err) {
+                  setExportError(err);
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              Download FHIR
+            </Button>
           </div>
         )}
       </section>
 
+      <ErrorAlert error={exportError} />
       {s?.accessBasis === 'EMERGENCY' && (
         <Alert tone="danger" title="Emergency access">
           You are viewing this record under break-glass access. It expires automatically, every view
@@ -207,6 +242,8 @@ export function PatientChart() {
               { id: 'visits', label: 'Visits', count: s.counts.encounters },
               { id: 'problems', label: 'Problems', count: s.counts.diagnoses },
               { id: 'medications', label: 'Medications', count: s.counts.prescriptions },
+              { id: 'mar', label: 'Administration' },
+              { id: 'tasks', label: 'Care tasks' },
               { id: 'allergies', label: 'Allergies', count: allergies.length },
               { id: 'vitals', label: 'Vitals' },
               { id: 'results', label: 'Results', count: s.counts.labResults },
@@ -228,6 +265,8 @@ export function PatientChart() {
                 allergies={allergies}
               />
             )}
+            {tab === 'mar' && <MarTab patientId={patientId} />}
+            {tab === 'tasks' && <TasksTab patientId={patientId} />}
             {tab === 'allergies' && (
               <AllergiesTab patientId={patientId} assessment={s.patient.allergyAssessment} />
             )}
@@ -243,17 +282,21 @@ export function PatientChart() {
             {tab === 'corrections' && <CorrectionsTab patientId={patientId} />}
             {tab === 'care-team' && <CareTeamTab patientId={patientId} />}
           </TabPanel>
-          <BookAppointmentDialog
-            patientId={patientId}
-            open={booking}
-            onClose={() => setBooking(false)}
-          />
-          <ReferDialog
-            patientId={patientId}
-            summary={s}
-            open={referring}
-            onClose={() => setReferring(false)}
-          />
+          {isDoctor && (
+            <>
+              <BookAppointmentDialog
+                patientId={patientId}
+                open={booking}
+                onClose={() => setBooking(false)}
+              />
+              <ReferDialog
+                patientId={patientId}
+                summary={s}
+                open={referring}
+                onClose={() => setReferring(false)}
+              />
+            </>
+          )}
         </>
       )}
 

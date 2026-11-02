@@ -18,11 +18,13 @@ import {
   TextField,
 } from '../../components/ui';
 import { age, formatDate, fullName, humanize } from '../../format';
+import { useChartRole } from './chart/shared';
 
 type Scope = 'mine' | 'facility';
 
 export function DoctorPatients() {
   const qc = useQueryClient();
+  const { isDoctor, base } = useChartRole();
   const [scope, setScope] = useState<Scope>('mine');
   const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
@@ -54,9 +56,11 @@ export function DoctorPatients() {
       <PageHeader
         title="Patients"
         actions={
-          <Link to="/doctor/patients/new" className="btn btn-primary btn-md">
-            Register patient
-          </Link>
+          isDoctor ? (
+            <Link to="/doctor/patients/new" className="btn btn-primary btn-md">
+              Register patient
+            </Link>
+          ) : undefined
         }
       />
       <Card>
@@ -127,7 +131,7 @@ export function DoctorPatients() {
                       {data.items.map((p) => (
                         <tr key={p.id}>
                           <td>
-                            <Link to={`/doctor/patients/${p.id}`}>
+                            <Link to={`${base}/patients/${p.id}`}>
                               {p.lastName}, {p.firstName}
                             </Link>
                           </td>

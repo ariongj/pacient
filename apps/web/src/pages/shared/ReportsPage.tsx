@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { api, downloadFile } from '../../api/client';
-import type { ActivityReportRow, DiagnosesReportRow, Facility, Report } from '../../api/types';
+import type { Facility, GenericReport, ReportName } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import {
   Alert,
@@ -9,163 +9,184 @@ import {
   Card,
   EmptyState,
   ErrorAlert,
+  Grid,
   PageHeader,
   QueryView,
   SelectField,
-  TabPanel,
+  Stat,
   Table,
-  Tabs,
   TextField,
 } from '../../components/ui';
-import { formatNumber } from '../../format';
-
-type ReportType = 'activity' | 'diagnoses';
+import { formatDate, formatDateTime } from '../../format';
+import {
+  columnLabel,
+  formatCell,
+  isTextColumn,
+  REPORT_DEFS,
+  reportDef,
+  type Row,
+} from './reports/reportDefs';
 
 const DAY = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
-function Cell({ value }: { value: number | null }) {
-  return value === null ? (
-    <abbr title="Suppressed to protect privacy">&lt;5</abbr>
-  ) : (
-    <>{formatNumber(value)}</>
-  );
+type Preset = '30' | '90' | '365' | 'ytd' | 'custom';
+const PRESETS: { value: Preset; label: string }[] = [
+  { value: '30', label: 'Last 30 days' },
+  { value: '90', label: 'Last 90 days' },
+  { value: '365', label: 'Last 12 months' },
+  { value: 'ytd', label: 'Year to date' },
+  { value: 'custom', label: 'Custom period' },
+];
+
+function periodFor(preset: Preset, customFrom: string, customTo: string) {
+  const today = new Date();
+  if (preset === 'custom') return { from: customFrom, to: customTo };
+  if (preset === 'ytd') return { from: `${today.getFullYear()}-01-01`, to: isoDay(today) };
+  return { from: isoDay(new Date(today.getTime() - Number(preset) * DAY)), to: isoDay(today) };
 }
 
-function ActivityTable({ report }: { report: Report<ActivityReportRow> }) {
-  if (!report.rows.length) return <EmptyState title="No facilities match these filters" />;
-  const total = (k: keyof ActivityReportRow) =>
-    report.rows.reduce((acc, r) => acc + (typeof r[k] === 'number' ? (r[k] as number) : 0), 0);
-  const numeric: [keyof ActivityReportRow, string][] = [
-    ['encounters', 'Encounters'],
-    ['uniquePatients', 'Unique patients'],
-    ['appointmentsCompleted', 'Appointments completed'],
-    ['noShows', 'No-shows'],
-    ['referralsSent', 'Referrals sent'],
-    ['referralsReceived', 'Referrals received'],
-    ['vaccinations', 'Vaccinations'],
-    ['emergencyAccess', 'Emergency access'],
-  ];
+function validatePeriod(from: string, to: string): string | null {
+  if (!from || !to) return 'Choose both a start and an end date.';
+  const f = new Date(from).getTime();
+  const t = new Date(to).getTime();
+  if (Number.isNaN(f) || Number.isNaN(t)) return 'Enter valid dates.';
+  if (f > t) return 'The start date must be before the end date.';
+  if (t - f > 2 * 366 * DAY) return 'Reports can cover at most two years. Shorten the period.';
+  return null;
+}
+
+function DataTable({ name, report }: { name: ReportName; report: GenericReport }) {
+  const columns = report.columns.filter((c) => c !== 'code');
+  const hasFacility = report.columns.includes('name');
   return (
-    <Table caption="Activity by facility">
+    <Table caption={`${reportDef(name).title} – full data`}>
       <thead>
         <tr>
-          <th>Facility</th>
-          <th>Region</th>
-          {numeric.map(([, label]) => (
-            <th key={label} className="num">
-              {label}
+          {columns.map((c) => (
+            <th key={c} scope="col" className={isTextColumn(c) ? undefined : 'num'}>
+              {columnLabel(c)}
             </th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {report.rows.map((r) => (
-          <tr key={r.code}>
-            <td>
-              {r.name} <code>{r.code}</code>
-            </td>
-            <td>{r.region}</td>
-            {numeric.map(([k]) => (
-              <td key={k} className="num">
-                <Cell value={r[k] as number | null} />
-              </td>
-            ))}
+        {report.rows.map((r: Row, i) => (
+          <tr key={`${String(r.code ?? '')}-${i}`}>
+            {columns.map((c) => {
+              const formatted = formatCell(c, r[c]);
+              return (
+                <td key={c} className={isTextColumn(c) ? undefined : 'num'}>
+                  {formatted === null ? (
+                    <abbr title={`Fewer than ${report.smallCellThreshold} – hidden to protect privacy`}>
+                      &lt;{report.smallCellThreshold}
+                    </abbr>
+                  ) : c === 'name' && hasFacility ? (
+                    <>
+                      {formatted} {r.code ? <code>{String(r.code)}</code> : null}
+                    </>
+                  ) : (
+                    formatted
+                  )}
+                </td>
+              );
+            })}
           </tr>
         ))}
-        {report.rows.length > 1 && (
-          <tr>
-            <th scope="row" colSpan={2}>
-              Total
-            </th>
-            {numeric.map(([k]) => (
-              <td key={k} className="num">
-                <strong>{k === 'uniquePatients' ? '—' : formatNumber(total(k))}</strong>
-              </td>
-            ))}
-          </tr>
-        )}
       </tbody>
     </Table>
   );
 }
 
-function DiagnosesTable({ report }: { report: Report<DiagnosesReportRow> }) {
-  if (!report.rows.length) return <EmptyState title="No diagnoses recorded in this period" />;
+function ReportView({ name, report }: { name: ReportName; report: GenericReport }) {
+  const def = reportDef(name);
+  if (!report.rows.length) {
+    return <EmptyState title="No data for these filters">Try a longer period or a different region.</EmptyState>;
+  }
+  const kpis = def.kpis(report.rows);
+  const charts = def.charts(report.rows);
+  const anySuppressed = report.rows.some(
+    (r) => r.suppressed || r.uniquePatients === null || r.patients === null || r.people === null,
+  );
   return (
-    <Table caption="Diagnoses by region">
-      <thead>
-        <tr>
-          <th>Region</th>
-          <th>ICD-10</th>
-          <th>Diagnosis</th>
-          <th className="num">Patients</th>
-        </tr>
-      </thead>
-      <tbody>
-        {report.rows.map((r) => (
-          <tr key={`${r.region}-${r.icd10Code}`}>
-            <td>{r.region}</td>
-            <td>
-              <code>{r.icd10Code}</code>
-            </td>
-            <td>{r.description}</td>
-            <td className="num">
-              <Cell value={r.patients} />
-            </td>
-          </tr>
+    <div className="stack">
+      <div className="kpi-grid">
+        {kpis.map((k) => (
+          <Stat key={k.label} label={k.label} value={k.value} hint={k.hint} tone={k.tone} />
         ))}
-      </tbody>
-    </Table>
+      </div>
+      <Grid min={360}>
+        {charts.map((c) => (
+          <Card key={c.title} title={c.title}>
+            {c.node}
+          </Card>
+        ))}
+      </Grid>
+      <Card title="Data">
+        <DataTable name={name} report={report} />
+        {anySuppressed && (
+          <p className="muted" style={{ marginTop: '0.75rem' }}>
+            Patient counts below {report.smallCellThreshold} are shown as “&lt;{report.smallCellThreshold}”
+            so that individuals cannot be identified, including in CSV downloads.
+          </p>
+        )}
+      </Card>
+    </div>
   );
 }
 
 export function ReportsPage() {
   const user = useUser();
-  const ministry = user.role === 'MINISTRY';
-  const [type, setType] = useState<ReportType>('activity');
-  const [from, setFrom] = useState(() => isoDay(new Date(Date.now() - 90 * DAY)));
-  const [to, setTo] = useState(() => isoDay(new Date()));
+  const isMinistry = user.role === 'MINISTRY';
+  const [name, setName] = useState<ReportName>('activity');
+  const [preset, setPreset] = useState<Preset>('90');
+  const [customFrom, setCustomFrom] = useState(isoDay(new Date(Date.now() - 90 * DAY)));
+  const [customTo, setCustomTo] = useState(isoDay(new Date()));
   const [region, setRegion] = useState('');
   const [facilityId, setFacilityId] = useState('');
-  const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<unknown>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const def = reportDef(name);
+  const { from, to } = periodFor(preset, customFrom, customTo);
+  const periodError = def.pointInTime ? null : validatePeriod(from, to);
 
   const facilities = useQuery({
-    queryKey: ['facilities', 'all'],
+    queryKey: ['facilities', { includeInactive: true }],
     queryFn: () => api<{ items: Facility[] }>('/facilities', { query: { includeInactive: true } }),
-    enabled: ministry,
+    enabled: isMinistry,
   });
   const regions = useMemo(
     () => [...new Set((facilities.data?.items ?? []).map((f) => f.region))].sort(),
     [facilities.data],
   );
-  const facilityOptions = (facilities.data?.items ?? []).filter(
-    (f) => !region || f.region === region,
-  );
+  const facilityOptions = (facilities.data?.items ?? []).filter((f) => !region || f.region === region);
 
-  const rangeError =
-    !from || !to
-      ? 'Choose a start and end date.'
-      : from > to
-        ? 'The start date must be before the end date.'
-        : new Date(to).getTime() - new Date(from).getTime() > 2 * 366 * DAY
-          ? 'The period may not be longer than two years.'
-          : null;
-
-  const query = { from, to, ...(ministry ? { region, facilityId } : {}) };
+  const filters = {
+    ...(def.pointInTime ? {} : { from, to }),
+    ...(isMinistry && region ? { region } : {}),
+    ...(isMinistry && facilityId ? { facilityId } : {}),
+  };
   const report = useQuery({
-    queryKey: ['reports', type, query],
-    queryFn: () =>
-      api<Report<ActivityReportRow | DiagnosesReportRow>>(`/reports/${type}`, { query }),
-    enabled: !rangeError,
+    queryKey: ['reports', name, filters],
+    queryFn: () => api<GenericReport>(`/reports/${name}`, { query: filters }),
+    enabled: !periodError,
   });
+
+  const selectedFacility = facilities.data?.items.find((f) => f.id === facilityId);
+  const scopeText = !isMinistry
+    ? (user.facility?.name ?? 'Your facility')
+    : selectedFacility
+      ? selectedFacility.name
+      : region
+        ? `${region} region`
+        : 'All facilities nationally';
 
   async function download() {
     setDownloading(true);
     setDownloadError(null);
     try {
-      await downloadFile(`/reports/${type}/export`, `pacient-${type}-${from}-to-${to}.csv`, query);
+      await downloadFile(`/reports/${name}/export`, `pacient-${name}-${from}-to-${to}.csv`, filters);
     } catch (err) {
       setDownloadError(err);
     } finally {
@@ -178,93 +199,144 @@ export function ReportsPage() {
       <PageHeader
         title="Reports"
         subtitle={
-          ministry
-            ? 'Aggregate reports across the national health network'
-            : `Aggregate reports for ${user.facility?.name ?? 'your facility'}`
+          isMinistry
+            ? 'National health network performance – aggregate data only'
+            : `${user.facility?.name ?? 'Facility'} – aggregate and operational data`
         }
         actions={
-          <Button
-            variant="secondary"
-            onClick={download}
-            loading={downloading}
-            disabled={Boolean(rangeError)}
-          >
-            Download CSV
-          </Button>
+          <>
+            <Button variant="secondary" onClick={download} loading={downloading} disabled={Boolean(periodError)}>
+              Download CSV
+            </Button>
+            <Button variant="secondary" onClick={() => window.print()} disabled={!report.data}>
+              Print / Save as PDF
+            </Button>
+          </>
         }
       />
+
+      <div className="print-only" style={{ marginBottom: '1rem' }}>
+        <h1>Pacient – {def.title}</h1>
+        <p>
+          Scope: {scopeText}
+          <br />
+          Period: {def.pointInTime ? 'Point in time (current)' : `${formatDate(from)} – ${formatDate(to)}`}
+          <br />
+          Generated {formatDateTime(new Date().toISOString())} by {user.fullName}. Aggregate data;
+          small counts suppressed.
+        </p>
+      </div>
+
       <Alert tone="info">
-        Reports contain counts only. Patient counts below 5 are shown as “&lt;5” to protect privacy.
-        Every CSV download is recorded in the audit log.
+        Reports contain counts only – never identifiable patient data. Patient counts below 5 are
+        hidden to protect privacy. Every CSV download is recorded in the audit log.
       </Alert>
-      <ErrorAlert error={downloadError} />
-      <Card>
-        <div className="search-bar">
-          <TextField
-            label="From"
-            type="date"
-            value={from}
-            max={to}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <TextField
-            label="To"
-            type="date"
-            value={to}
-            min={from}
-            onChange={(e) => setTo(e.target.value)}
-          />
-          {ministry && (
-            <>
+
+      <div className="split">
+        <Card title="Report" className="no-print">
+          <ul className="list" aria-label="Available reports">
+            {REPORT_DEFS.map((d) => (
+              <li key={d.name} style={{ padding: 0, border: 0 }}>
+                <button
+                  type="button"
+                  aria-pressed={d.name === name}
+                  onClick={() => setName(d.name)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '0.6rem 0.7rem',
+                    marginBottom: 4,
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid',
+                    borderColor: d.name === name ? 'var(--primary)' : 'transparent',
+                    background: d.name === name ? 'var(--primary-soft)' : 'transparent',
+                    color: 'inherit',
+                    font: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <strong>{d.title}</strong>
+                  <div className="muted" style={{ fontSize: '0.8rem' }}>
+                    {d.description}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <div className="stack">
+          <Card className="no-print">
+            <div className="form-grid">
               <SelectField
-                label="Region"
-                value={region}
-                placeholder="All regions"
-                options={regions.map((r) => ({ value: r, label: r }))}
-                onChange={(e) => {
-                  setRegion(e.target.value);
-                  setFacilityId('');
-                }}
+                label="Period"
+                value={preset}
+                onChange={(e) => setPreset(e.target.value as Preset)}
+                options={PRESETS}
+                disabled={def.pointInTime}
+                hint={def.pointInTime ? 'This report shows the current situation.' : undefined}
               />
-              <SelectField
-                label="Facility"
-                value={facilityId}
-                placeholder="All facilities"
-                options={facilityOptions.map((f) => ({ value: f.id, label: f.name }))}
-                onChange={(e) => setFacilityId(e.target.value)}
-              />
-            </>
+              {preset === 'custom' && !def.pointInTime && (
+                <>
+                  <TextField
+                    label="From"
+                    type="date"
+                    value={customFrom}
+                    max={customTo}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                  />
+                  <TextField
+                    label="To"
+                    type="date"
+                    value={customTo}
+                    min={customFrom}
+                    max={isoDay(new Date())}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                  />
+                </>
+              )}
+              {isMinistry && (
+                <>
+                  <SelectField
+                    label="Region"
+                    value={region}
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      setFacilityId('');
+                    }}
+                    placeholder="All regions"
+                    options={regions.map((r) => ({ value: r, label: r }))}
+                  />
+                  <SelectField
+                    label="Facility"
+                    value={facilityId}
+                    onChange={(e) => setFacilityId(e.target.value)}
+                    placeholder="All facilities"
+                    options={facilityOptions.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` }))}
+                  />
+                </>
+              )}
+            </div>
+          </Card>
+
+          <div className="row-between">
+            <div>
+              <h2>{def.title}</h2>
+              <p className="muted" style={{ margin: 0 }}>
+                {scopeText} ·{' '}
+                {def.pointInTime ? 'current situation' : `${formatDate(from)} – ${formatDate(to)}`}
+              </p>
+            </div>
+          </div>
+
+          {periodError && <Alert tone="warning" title={periodError} />}
+          <ErrorAlert error={downloadError} />
+          {!periodError && (
+            <QueryView query={report}>{(data) => <ReportView name={name} report={data} />}</QueryView>
           )}
         </div>
-        {rangeError && <Alert tone="warning">{rangeError}</Alert>}
-        <Tabs
-          label="Report type"
-          active={type}
-          onChange={setType}
-          tabs={[
-            { id: 'activity', label: 'Activity by facility' },
-            { id: 'diagnoses', label: 'Diagnoses by region' },
-          ]}
-        />
-        <TabPanel id={type}>
-          {!rangeError && (
-            <QueryView query={report}>
-              {(d) =>
-                type === 'activity' ? (
-                  <ActivityTable report={d as Report<ActivityReportRow>} />
-                ) : (
-                  <DiagnosesTable report={d as Report<DiagnosesReportRow>} />
-                )
-              }
-            </QueryView>
-          )}
-          {report.data && (
-            <p className="muted" style={{ marginTop: '0.75rem' }}>
-              Counts below {report.data.smallCellThreshold} are suppressed.
-            </p>
-          )}
-        </TabPanel>
-      </Card>
+      </div>
     </>
   );
 }

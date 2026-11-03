@@ -37,6 +37,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/portal/history', label: 'Medical history', icon: 'history' },
         { to: '/portal/results', label: 'Test results', icon: 'flask' },
         { to: '/portal/appointments', label: 'Appointments', icon: 'calendar' },
+        { to: '/portal/vaccinations', label: 'Vaccinations', icon: 'syringe' },
       ],
     },
     {
@@ -63,6 +64,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/doctor/schedule', label: 'Schedule', icon: 'calendar' },
         { to: '/doctor/referrals', label: 'Referrals', icon: 'share' },
         { to: '/doctor/cover', label: 'Cover & absence', icon: 'users' },
+        { to: '/doctor/availability', label: 'My consulting hours', icon: 'calendar' },
       ],
     },
     {
@@ -89,6 +91,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/tasks', label: 'Care tasks', icon: 'clipboard' },
         { to: '/nurse/patients', label: 'Patients', icon: 'users' },
         { to: '/nurse/schedule', label: 'Clinic schedule', icon: 'calendar' },
+        { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
       ],
     },
     {
@@ -124,6 +127,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/reception', label: 'Today', icon: 'desk', end: true },
         { to: '/reception/patients', label: 'Patients', icon: 'users' },
         { to: '/reception/appointments', label: 'Appointments', icon: 'calendar' },
+        { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
         { to: '/ed', label: 'Emergency arrivals', icon: 'alert' },
         { to: '/wards', label: 'Wards & beds', icon: 'building' },
         { to: '/births', label: 'Births', icon: 'user' },
@@ -173,6 +177,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/ministry/facilities', label: 'Facilities', icon: 'building' },
         { to: '/ministry/staff', label: 'Directors & officials', icon: 'users' },
         { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
+        { to: '/ministry/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
         { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
         { to: '/developers', label: 'API documentation', icon: 'settings' },
       ],

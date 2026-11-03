@@ -1,4 +1,161 @@
 /**
- * Serbian (Latin, sr-Latn) translations, keyed by the English source text. Keep {placeholders}.
+ * Serbian (Latin, sr-Latn) translations for operating theatres, keyed by the English source text.
+ * Keep {placeholders}.
  */
-export const theatre: Record<string, string> = {};
+export const theatre: Record<string, string> = {
+  'In theatre': 'U sali',
+  Postponed: 'Odloženo',
+  Elective: 'Planirano (elektivno)',
+  Right: 'Desno',
+  'Both sides': 'Obostrano',
+  'Side not applicable': 'Strana nije primenljiva',
+  'General anaesthesia': 'Opšta anestezija',
+  'Spinal anaesthesia': 'Spinalna anestezija',
+  'Epidural anaesthesia': 'Epiduralna anestezija',
+  'Regional block': 'Regionalni blok',
+  'Local anaesthesia': 'Lokalna anestezija',
+  Sedation: 'Sedacija',
+  '{procedure} – {side}': '{procedure} – {side}',
+  'Before induction of anaesthesia': 'Pre uvoda u anesteziju',
+  'Patient has confirmed identity, site, procedure and consent':
+    'Pacijent je potvrdio identitet, mesto, proceduru i saglasnost',
+  'Site marked': 'Mesto obeleženo',
+  'Not applicable': 'Nije primenljivo',
+  'Consent confirmed': 'Saglasnost potvrđena',
+  'Anaesthesia machine and medication check complete':
+    'Provera aparata za anesteziju i lekova je završena',
+  'Pulse oximeter on the patient and functioning':
+    'Pulsni oksimetar je postavljen na pacijenta i radi',
+  'Known allergy?': 'Poznata alergija?',
+  'Difficult airway or aspiration risk?': 'Otežan disajni put ili rizik od aspiracije?',
+  'Risk of more than 500 ml blood loss (7 ml/kg in children)?':
+    'Rizik od gubitka više od 500 ml krvi (7 ml/kg kod dece)?',
+  'Before skin incision': 'Pre reza kože',
+  'All team members introduced by name and role':
+    'Svi članovi tima su se predstavili imenom i ulogom',
+  'Patient, site and procedure confirmed': 'Pacijent, mesto i procedura su potvrđeni',
+  'Antibiotic prophylaxis given within the last 60 minutes':
+    'Antibiotska profilaksa data u poslednjih 60 minuta',
+  'Anticipated critical events reviewed (surgeon, anaesthesia, nursing)':
+    'Predviđeni kritični događaji su razmotreni (hirurg, anestezija, nega)',
+  'Essential imaging displayed': 'Potrebni snimci su prikazani',
+  'Before the patient leaves the operating room': 'Pre nego što pacijent napusti operacionu salu',
+  'Name of the procedure recorded': 'Naziv procedure je zabeležen',
+  'Instrument, sponge and needle counts correct': 'Brojanje instrumenata, gaza i igala je tačno',
+  Correct: 'Tačno',
+  'Not correct': 'Nije tačno',
+  'If not correct: what was done': 'Ako nije tačno: šta je urađeno',
+  'Specimen labelled (including patient name)': 'Uzorak obeležen (uključujući ime pacijenta)',
+  'No specimen': 'Nema uzorka',
+  'Equipment problems to be addressed': 'Problemi sa opremom koje treba rešiti',
+  'Key concerns for recovery and management': 'Ključne napomene za oporavak i dalje lečenje',
+  'WHO checklist': 'SZO kontrolna lista',
+  Postpone: 'Odloži',
+  'Write and sign the operation note': 'Napišite i potpišite operativni izveštaj',
+  'Waiting for the surgeon’s operation note': 'Čeka se operativni izveštaj hirurga',
+  'Operation note': 'Operativni izveštaj',
+  'Previous day': 'Prethodni dan',
+  'Next day': 'Sledeći dan',
+  'Waiting for a theatre': 'Čeka na salu',
+  'Surgeon: {name}': 'Hirurg: {name}',
+  '{count} minute': '{count} minut',
+  'Requested {date}': 'Zatraženo {date}',
+  'Cancel operation': 'Otkaži operaciju',
+  'No operating theatres are set up at this facility':
+    'U ovoj ustanovi nisu podešene operacione sale',
+  'The director adds theatres under Wards & units (type: operating theatre).':
+    'Direktor dodaje sale u odeljku Odeljenja i jedinice (tip: operaciona sala).',
+  '{hours} h booked': '{hours} h rezervisano',
+  'No operations on this day': 'Nema operacija ovog dana',
+  'Assistant: {name}': 'Asistent: {name}',
+  'Anaesthetist: {name}': 'Anesteziolog: {name}',
+  'Cancelled: {reason}': 'Otkazano: {reason}',
+  'Schedule operation': 'Zakaži operaciju',
+  'Treatment consent missing': 'Nedostaje saglasnost za lečenje',
+  'An elective operation can only be scheduled once the patient’s treatment consent is recorded. Ask the surgeon to record it in the patient’s chart (Consent tab).':
+    'Planirana operacija može da se zakaže tek kada se evidentira saglasnost pacijenta za lečenje. Zamolite hirurga da je unese u karton pacijenta (kartica Saglasnost).',
+  'Operating theatre': 'Operaciona sala',
+  'Choose a theatre': 'Izaberite salu',
+  Start: 'Početak',
+  'Estimated duration (minutes)': 'Procenjeno trajanje (minuta)',
+  'No treatment consent is recorded – why must the operation go ahead?':
+    'Saglasnost za lečenje nije evidentirana – zašto operacija mora da se obavi?',
+  'The theatre is already booked at that time': 'Sala je u to vreme već zauzeta',
+  'A surgeon of this operation is already booked at that time':
+    'Hirurg ove operacije je u to vreme već zauzet',
+  'Book anyway': 'Ipak rezerviši',
+  'Reason for the double booking': 'Razlog dvostruke rezervacije',
+  'WHO surgical safety checklist': 'SZO kontrolna lista za hiruršku bezbednost',
+  'Your name and the time are recorded with this step.':
+    'Vaše ime i vreme se beleže uz ovaj korak.',
+  'Confirm {step}': 'Potvrdi: {step}',
+  'Findings, procedure performed, closure, specimens and instructions after the operation.':
+    'Nalaz, izvedena procedura, zatvaranje, uzorci i uputstva posle operacije.',
+  Complications: 'Komplikacije',
+  'Estimated blood loss (ml)': 'Procenjeni gubitak krvi (ml)',
+  'Sign the operation note?': 'Potpisati operativni izveštaj?',
+  'A signed operation note cannot be changed afterwards.':
+    'Potpisani operativni izveštaj se kasnije ne može menjati.',
+  'Sign and complete': 'Potpiši i završi',
+  'Postpone operation': 'Odloži operaciju',
+  'Signed by {name} on {date}': 'Potpisao/la {name}, {date}',
+  'Request operation': 'Zatraži operaciju',
+  'Procedure code (optional)': 'Šifra procedure (opciono)',
+  Side: 'Strana',
+  'Choose the side': 'Izaberite stranu',
+  Surgeon: 'Hirurg',
+  'Assistant surgeon': 'Hirurg asistent',
+  Anaesthetist: 'Anesteziolog',
+  'Not yet assigned': 'Još nije određen',
+  Anaesthesia: 'Anestezija',
+  'To be decided': 'Biće odlučeno',
+  Indication: 'Indikacija',
+  'No consent recorded yet': 'Saglasnost još nije evidentirana',
+  'No treatment consent selected': 'Nije izabrana saglasnost za lečenje',
+  'An elective operation cannot be scheduled until the patient’s treatment consent is recorded (Consent tab).':
+    'Planirana operacija ne može da se zakaže dok se ne evidentira saglasnost pacijenta za lečenje (kartica Saglasnost).',
+  'For urgent and emergency operations the theatre team must record why the operation goes ahead without consent.':
+    'Kod urgentnih i hitnih operacija tim sale mora da zabeleži zašto se operacija obavlja bez saglasnosti.',
+  'No operations': 'Nema operacija',
+  Team: 'Tim',
+  'Theatre utilisation': 'Iskorišćenost sala',
+  'Cancellation rate': 'Stopa otkazivanja',
+  'WHO checklist complete': 'SZO lista popunjena',
+  'Operations by priority': 'Operacije po prioritetu',
+  'Booked theatre time against 8 hours per theatre per weekday, operations by priority, cancellations, time from request to operation and WHO checklist completion.':
+    'Rezervisano vreme sala u odnosu na 8 sati po sali po radnom danu, operacije po prioritetu, otkazivanja, vreme od zahteva do operacije i popunjenost SZO liste.',
+  Theatres: 'Sale',
+  'Booked minutes': 'Rezervisani minuti',
+  'Available minutes': 'Raspoloživi minuti',
+  'Median time to operation': 'Medijana vremena do operacije',
+  'Operation not found': 'Operacija nije pronađena',
+  'Choose a granted treatment consent of this patient':
+    'Izaberite datu saglasnost za lečenje ovog pacijenta',
+  'That consent has expired': 'Ta saglasnost je istekla',
+  'Operations are scheduled by their facility': 'Operacije zakazuje njihova ustanova',
+  'Theatre staff or the surgeon schedule operations': 'Operacije zakazuje osoblje sale ili hirurg',
+  'Only requested, scheduled or postponed operations can be scheduled':
+    'Mogu se zakazati samo zatražene, zakazane ili odložene operacije',
+  'Choose an operating theatre of this facility': 'Izaberite operacionu salu ove ustanove',
+  'Operations that have started or finished cannot be postponed or cancelled':
+    'Operacije koje su počele ili završene ne mogu se odložiti ili otkazati',
+  'This checklist step is already complete': 'Ovaj korak kontrolne liste je već završen',
+  'Complete the previous checklist step first': 'Prvo završite prethodni korak kontrolne liste',
+  'Only a scheduled operation can start': 'Može da počne samo zakazana operacija',
+  'The patient is not in theatre': 'Pacijent nije u sali',
+  'Only the operating surgeons sign the operation note':
+    'Operativni izveštaj potpisuju samo hirurzi koji operišu',
+  'Complete the sign-out step of the checklist first':
+    'Prvo završite završni korak (sign out) kontrolne liste',
+  'An elective operation needs the patient’s recorded treatment consent before it is scheduled':
+    'Za planiranu operaciju potrebna je evidentirana saglasnost pacijenta za lečenje pre zakazivanja',
+  'No treatment consent is recorded – give the reason the operation must go ahead':
+    'Saglasnost za lečenje nije evidentirana – navedite razlog zašto operacija mora da se obavi',
+  'Choose the side (or "not applicable")': 'Izaberite stranu (ili "nije primenljivo")',
+  'Give a reason (at least 5 characters)': 'Navedite razlog (najmanje 5 znakova)',
+  'Write the operation note': 'Napišite operativni izveštaj',
+  'Every confirmation in this step is required': 'Sve potvrde u ovom koraku su obavezne',
+  'WHO sign in': 'Prijem (sign in)',
+  'WHO time out': 'Bezbednosna pauza (time out)',
+  'WHO sign out': 'Završetak (sign out)',
+};

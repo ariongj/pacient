@@ -7,7 +7,8 @@ import { formatNumber } from '../../../format';
 export type Row = GenericReport['rows'][number];
 
 /** Hospital reports (inpatient, emergency, births, imaging) in addition to the core reports. */
-export type HospitalReportName = 'occupancy' | 'admissions' | 'emergency' | 'births' | 'imaging';
+export type HospitalReportName =
+  'occupancy' | 'admissions' | 'emergency' | 'births' | 'imaging' | 'theatre';
 export type AnyReportName = ReportName | HospitalReportName;
 
 const n = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
@@ -122,6 +123,16 @@ export const COLUMN_LABELS: Record<string, string> = {
   outstanding: 'Outstanding',
   critical: 'Critical findings',
   medianHoursToReport: 'Median time to report',
+  theatres: 'Theatres',
+  cases: 'Operations',
+  elective: 'Elective',
+  emergency: 'Emergency',
+  cancellationPct: 'Cancellation rate',
+  bookedMinutes: 'Booked minutes',
+  availableMinutes: 'Available minutes',
+  utilisationPct: 'Theatre utilisation',
+  medianHoursToOperation: 'Median time to operation',
+  checklistCompletePct: 'WHO checklist complete',
 };
 
 const UNIT_TYPE_LABELS: Record<string, string> = {
@@ -163,7 +174,8 @@ export function formatCell(column: string, value: unknown): string | null {
   if (column === 'modality') return t(MODALITY_LABELS[String(value)] ?? String(value));
   if (column.startsWith('medianWait')) return t('{count} min', { count: String(value) });
   if (column === 'avgLengthOfStayDays') return t('{count} d', { count: String(value) });
-  if (column === 'medianHoursToReport') return t('{count} h', { count: String(value) });
+  if (column === 'medianHoursToReport' || column === 'medianHoursToOperation')
+    return t('{count} h', { count: String(value) });
   if (column.startsWith('avgHours')) return t('{count} h', { count: String(value) });
   if (column === 'avgLeadDays') return t('{count} d', { count: String(value) });
   if (typeof value === 'number') return formatNumber(value);
@@ -826,6 +838,57 @@ export const REPORT_DEFS: ReportDef[] = [
               label: t(MODALITY_LABELS[m] ?? m),
               value,
             }))}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'theatre',
+    title: 'Operating theatres',
+    description:
+      'Booked theatre time against 8 hours per theatre per weekday, operations by priority, cancellations, time from request to operation and WHO checklist completion.',
+    kpis: (rows) => {
+      const booked = sum(rows, 'bookedMinutes');
+      const available = sum(rows, 'availableMinutes');
+      const completed = sum(rows, 'completed');
+      const checklistRows = rows.filter((r) => typeof r.checklistCompletePct === 'number');
+      return [
+        { label: t('Operations'), value: formatNumber(sum(rows, 'cases')) },
+        {
+          label: t('Theatre utilisation'),
+          value: pct(booked, available),
+          tone: available && booked / available < 0.5 ? 'warning' : undefined,
+        },
+        {
+          label: t('Cancellation rate'),
+          value: pct(sum(rows, 'cancelled'), sum(rows, 'cases')),
+        },
+        {
+          label: t('WHO checklist complete'),
+          value: checklistRows.length
+            ? `${avg(checklistRows, 'checklistCompletePct')}%`
+            : completed
+              ? '—'
+              : '—',
+          tone:
+            checklistRows.length && (avg(checklistRows, 'checklistCompletePct') ?? 100) < 100
+              ? 'warning'
+              : undefined,
+        },
+      ];
+    },
+    charts: (rows) => [
+      {
+        title: t('Operations by priority'),
+        node: (
+          <Donut
+            title={t('Operations by priority')}
+            data={[
+              { label: t('Elective'), value: sum(rows, 'elective') },
+              { label: t('Urgent'), value: sum(rows, 'urgent') },
+              { label: t('Emergency'), value: sum(rows, 'emergency') },
+            ]}
           />
         ),
       },

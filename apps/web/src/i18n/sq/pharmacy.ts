@@ -1,4 +1,139 @@
 /**
- * Albanian (sq) translations, keyed by the English source text. Keep {placeholders}.
+ * Albanian (sq) translations for pharmacy stock, keyed by the English source text. Keep {placeholders}.
  */
-export const pharmacy: Record<string, string> = {};
+export const pharmacy: Record<string, string> = {
+  'In stock': 'Në stok',
+  'Low stock': 'Stok i ulët',
+  'Out of stock': 'Pa stok',
+  'Expiring soon': 'Skadon së shpejti',
+  'Expired stock': 'Stok i skaduar',
+  'Delivery received': 'Dërgesë e pranuar',
+  'Stock count correction': 'Korrigjim i numërimit të stokut',
+  'Written off – expired': 'Shlyer – i skaduar',
+  'Written off – damaged': 'Shlyer – i dëmtuar',
+  'Transferred out': 'Transferuar jashtë',
+  'Transferred in': 'Transferuar brenda',
+  'Returned to stock': 'Kthyer në stok',
+  'Items in stock': 'Artikuj në stok',
+  'Expiring within 90 days': 'Skadojnë brenda 90 ditëve',
+  'Batches past expiry': 'Seri të skaduara',
+  'Write them off from the batch list': 'Shlyejini nga lista e serive',
+  'Name or ATC code': 'Emri ose kodi ATC',
+  Show: 'Shfaq',
+  'All items': 'Të gjithë artikujt',
+  'Include catalogue items not stocked here': 'Përfshi artikujt e katalogut që nuk mbahen këtu',
+  'No items match': 'Asnjë artikull nuk përputhet',
+  'Stock levels': 'Nivelet e stokut',
+  'On hand': 'Në dispozicion',
+  'Reorder level': 'Niveli i ripërsëritjes së porosisë',
+  'Next expiry': 'Skadimi i radhës',
+  'Essential medicine': 'Bar esencial',
+  '+ {count} expired': '+ {count} të skaduara',
+  'Batches & settings': 'Seritë dhe cilësimet',
+  Batches: 'Seritë',
+  'Adjust batch {batch}': 'Rregullo serinë {batch}',
+  '{count} in this batch · expires {date}': '{count} në këtë seri · skadon më {date}',
+  'Type of change': 'Lloji i ndryshimit',
+  Direction: 'Drejtimi',
+  'Remove from stock': 'Hiq nga stoku',
+  'Add to stock': 'Shto në stok',
+  Quantity: 'Sasia',
+  'Kept in the stock ledger and the audit log.':
+    'Ruhet në librin e stokut dhe në regjistrin e auditimit.',
+  'Save adjustment': 'Ruaj rregullimin',
+  'No batches at this facility yet': 'Ende nuk ka seri në këtë institucion',
+  Batch: 'Seria',
+  Expiry: 'Skadimi',
+  Supplier: 'Furnizuesi',
+  'Use first': 'Përdore të parën',
+  'Write off': 'Shlyej',
+  Adjust: 'Rregullo',
+  'Pharmacists are alerted when stock falls to this level.':
+    'Farmacistët njoftohen kur stoku bie në këtë nivel.',
+  'Receive a delivery': 'Prano një dërgesë',
+  'Enter each batch from the delivery note. Receiving a batch number that is already in stock adds to it.':
+    'Shënoni çdo seri nga fletëdërgesa. Nëse numri i serisë është tashmë në stok, sasia i shtohet asaj.',
+  'e.g. the wholesaler named on the delivery note':
+    'p.sh. shitësi me shumicë i shënuar në fletëdërgesë',
+  'Line {n}': 'Rreshti {n}',
+  'Batch number': 'Numri i serisë',
+  'Expiry date': 'Data e skadimit',
+  'Quantity ({unit})': 'Sasia ({unit})',
+  'Remove line': 'Hiq rreshtin',
+  'Add another line': 'Shto një rresht tjetër',
+  'Receive {count} line': 'Prano {count} rresht',
+  'Receive {count} lines': 'Prano {count} rreshta',
+  'Stock ledger': 'Libri i stokut',
+  'Every change to stock, newest first. Entries can never be edited or deleted.':
+    'Çdo ndryshim i stokut, më të rejat në fillim. Shënimet nuk mund të ndryshohen apo fshihen kurrë.',
+  'All types': 'Të gjitha llojet',
+  'No stock movements yet': 'Ende nuk ka lëvizje të stokut',
+  'Receive delivery': 'Prano dërgesën',
+  'Stock at your facility’s pharmacy: deliveries, batches, expiry dates and every movement.':
+    'Stoku në farmacinë e institucionit tuaj: dërgesat, seritë, datat e skadimit dhe çdo lëvizje.',
+  'Read-only view of the pharmacy stock at your facility.':
+    'Pamje vetëm për lexim e stokut të farmacisë në institucionin tuaj.',
+  'Stock sections': 'Seksionet e stokut',
+  'Medicine from stock': 'Bari nga stoku',
+  'Matching catalogue items': 'Artikuj përkatës në katalog',
+  'Choose the medicine from the catalogue': 'Zgjidhni barin nga katalogu',
+  'The prescription is linked to the item, so its stock is tracked.':
+    'Receta lidhet me artikullin, kështu që stoku i tij ndiqet.',
+  'Units to dispense ({unit})': 'Njësitë për t’u dhënë ({unit})',
+  'Suggested from the frequency and treatment period: {count}':
+    'Sugjeruar nga shpeshtësia dhe kohëzgjatja e trajtimit: {count}',
+  'In stock: {count} {unit}': 'Në stok: {count} {unit}',
+  '{count} expired – not usable': '{count} të skaduara – nuk përdoren',
+  'Batches to use': 'Seritë që do të përdoren',
+  'Expires first': 'Skadon e para',
+  'Not enough stock': 'Stok i pamjaftueshëm',
+  '{count} unit(s) are missing. Receive a delivery or dispense less.':
+    'Mungojnë {count} njësi. Pranoni një dërgesë ose jepni më pak.',
+  'This medicine is not in the catalogue – dispense without stock tracking':
+    'Ky bar nuk është në katalog – jepe pa ndjekje të stokut',
+  'Why is stock not tracked?': 'Pse nuk ndiqet stoku?',
+  'Recorded in the audit log.': 'Regjistrohet në regjistrin e auditimit.',
+  'Name or ATC code, e.g. amoxicillin or J01CA04':
+    'Emri ose kodi ATC, p.sh. amoxicillin ose J01CA04',
+  'Catalogue matches': 'Përputhjet në katalog',
+  'Searching…': 'Duke kërkuar…',
+  'No medicine in the catalogue matches “{q}”': 'Asnjë bar në katalog nuk përputhet me “{q}”',
+  'Stock of medicines across all facility pharmacies, updated as they dispense and receive.':
+    'Stoku i barnave në të gjitha farmacitë e institucioneve, i përditësuar me çdo dhënie dhe pranim.',
+  'Export CSV': 'Eksporto CSV',
+  'Medicines monitored': 'Barna të monitoruara',
+  'Out of stock somewhere': 'Pa stok diku',
+  'Running low somewhere': 'Stok i ulët diku',
+  'Essential medicines only': 'Vetëm barnat esenciale',
+  'Only shortages': 'Vetëm mungesat',
+  'No medicines match': 'Asnjë bar nuk përputhet',
+  'Units nationally': 'Njësi në nivel kombëtar',
+  'Facilities in stock': 'Institucione me stok',
+  'Medicine from the national catalogue (optional)': 'Bar nga katalogu kombëtar (opsionale)',
+  'Choosing a catalogue item lets the pharmacy dispense it from stock.':
+    'Zgjedhja e një artikulli nga katalogu i lejon farmacisë ta japë atë nga stoku.',
+  'This medicine is already in the catalogue': 'Ky bar është tashmë në katalog',
+  'Nothing to change': 'Nuk ka asgjë për të ndryshuar',
+  'Catalogue item not found': 'Artikulli i katalogut nuk u gjet',
+  'Expiry dates of received stock must be in the future':
+    'Datat e skadimit të stokut të pranuar duhet të jenë në të ardhmen',
+  'Unknown or inactive catalogue item': 'Artikull i panjohur ose joaktiv i katalogut',
+  'Expired or damaged stock can only be removed (negative quantity)':
+    'Stoku i skaduar ose i dëmtuar mund vetëm të hiqet (sasi negative)',
+  'Batch not found at your facility': 'Seria nuk u gjet në institucionin tuaj',
+  'The batch quantities do not add up to the quantity':
+    'Sasitë e serive nuk përputhen me sasinë totale',
+  'Batch not found for this item at your facility':
+    'Seria nuk u gjet për këtë artikull në institucionin tuaj',
+  'Each batch line needs a positive quantity': 'Çdo rresht i serisë ka nevojë për sasi pozitive',
+  'Choose the quantity to take from stock for this medicine':
+    'Zgjidhni sasinë që do të merret nga stoku për këtë bar',
+  'This medicine is not linked to the catalogue: choose the catalogue item, or give a reason for dispensing without stock tracking':
+    'Ky bar nuk është i lidhur me katalogun: zgjidhni artikullin e katalogut ose jepni arsyen për dhënien pa ndjekje të stokut',
+  'Not enough stock for this quantity': 'Stok i pamjaftueshëm për këtë sasi',
+  'An expired batch cannot be dispensed': 'Një seri e skaduar nuk mund të jepet',
+  'Not enough stock in the chosen batch': 'Stok i pamjaftueshëm në serinë e zgjedhur',
+  'Enter the quantity dispensed': 'Shënoni sasinë e dhënë',
+  'Enter a quantity other than zero': 'Shënoni një sasi të ndryshme nga zero',
+  'ATC codes look like N02BE01': 'Kodet ATC duken si N02BE01',
+};

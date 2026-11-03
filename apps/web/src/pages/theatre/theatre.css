@@ -1,0 +1,83 @@
+/* Operating theatre lists */
+.ot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.ot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.ot-case {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.4rem 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ot-case > .row {
+  grid-column: 1 / -1;
+}
+.ot-list .ot-case:not(:has(.ot-time)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ot-case-main {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.ot-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ot-status-scheduled {
+  border-left-color: var(--primary);
+}
+.ot-status-in_theatre {
+  border-left-color: var(--danger, #b42318);
+}
+.ot-status-completed {
+  border-left-color: var(--success);
+}
+.ot-status-postponed,
+.ot-status-cancelled {
+  opacity: 0.75;
+}
+.ot-priority-emergency {
+  border-left-color: var(--danger, #b42318);
+}
+.ot-priority-urgent {
+  border-left-color: var(--warning, #b54708);
+}
+.ot-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+}
+.ot-steps li {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+.ot-steps li.done {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+@media print {
+  .ot-case {
+    break-inside: avoid;
+  }
+}

@@ -118,6 +118,8 @@ const STATUS_TONES: Record<string, Tone> = {
   ACTIVE: 'info',
   CHRONIC: 'warning',
   RESOLVED: 'success',
+  IN_THEATRE: 'info',
+  POSTPONED: 'warning',
   COMPLETED: 'success',
   CANCELLED: 'neutral',
   REQUESTED: 'warning',

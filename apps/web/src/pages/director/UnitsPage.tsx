@@ -29,7 +29,7 @@ import { formatDate, humanize } from '../../format';
 import { t } from '../../i18n';
 import '../hospital/hospital.css';
 
-const ALL_TYPES: UnitType[] = [...WARD_TYPES, 'EMERGENCY', 'RADIOLOGY'];
+const ALL_TYPES: UnitType[] = [...WARD_TYPES, 'EMERGENCY', 'RADIOLOGY', 'OPERATING_THEATRE'];
 
 function NewUnitDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const create = useHospitalMutation(

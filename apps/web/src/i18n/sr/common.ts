@@ -758,4 +758,9 @@ export const common: Record<string, string> = {
   'Pharmacy stock': 'Zalihe apoteke',
   'Medicine availability': 'Dostupnost lekova',
   Srpski: 'Srpski',
+  'My consulting hours': 'Moje radno vreme za prijem',
+  'Vaccinations due': 'Predstojeće vakcinacije',
+  Vaccinations: 'Vakcinacije',
+  'Vaccination coverage': 'Obuhvat vakcinacijom',
+  'Security & sign-in': 'Bezbednost i prijava',
 };

@@ -1,3 +1,6 @@
+import { security } from './security';
+import { vaccination } from './vaccination';
+import { scheduling } from './scheduling';
 import { common } from './common';
 import { management } from './management';
 import { portal } from './portal';
@@ -28,4 +31,7 @@ export const sq: Record<string, string> = {
   ...theatre,
   ...pharmacy,
   ...pacs,
+  ...scheduling,
+  ...vaccination,
+  ...security,
 };

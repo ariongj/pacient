@@ -1,3 +1,8 @@
+import { AvailabilityPage } from './pages/doctor/AvailabilityPage';
+import { VaccinationDuePage } from './pages/vaccination/VaccinationDuePage';
+import { PortalVaccinations } from './pages/patient/PortalVaccinations';
+import { VaccinationCoverage } from './pages/ministry/VaccinationCoverage';
+import { SecurityPage } from './pages/shared/SecurityPage';
 import { TheatreSchedule } from './pages/theatre/TheatreSchedule';
 import { StockPage } from './pages/pharmacy/StockPage';
 import { StockOverview } from './pages/ministry/StockOverview';
@@ -184,6 +189,17 @@ export function App() {
           path="/imaging/viewer/:orderId"
           element={guard(['DOCTOR', 'NURSE', 'PATIENT'], <ImageViewer />)}
         />
+        <Route path="/doctor/availability" element={guard(['DOCTOR'], <AvailabilityPage />)} />
+        <Route
+          path="/vaccinations/due"
+          element={guard(['NURSE', 'DOCTOR', 'RECEPTION'], <VaccinationDuePage />)}
+        />
+        <Route path="/portal/vaccinations" element={guard(['PATIENT'], <PortalVaccinations />)} />
+        <Route
+          path="/ministry/vaccination"
+          element={guard(['MINISTRY'], <VaccinationCoverage />)}
+        />
+        <Route path="/account/security" element={<SecurityPage />} />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"

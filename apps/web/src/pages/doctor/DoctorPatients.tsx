@@ -134,14 +134,17 @@ export function DoctorPatients() {
                         <tr key={p.id}>
                           <td>
                             <Link to={`${base}/patients/${p.id}`}>
-                              {p.lastName}, {p.firstName}
+                              {p.temporaryIdentity === 'UNIDENTIFIED'
+                                ? fullName(p)
+                                : `${p.lastName}, ${p.firstName}`}
                             </Link>
                           </td>
                           <td>
                             <code>{p.nationalId}</code>
                           </td>
                           <td>
-                            {formatDate(p.dateOfBirth)} ({age(p.dateOfBirth)} y)
+                            {formatDate(p.dateOfBirth)} ({t('{age} y', { age: age(p.dateOfBirth) })}
+                            )
                           </td>
                           <td>{humanize(p.sex)}</td>
                           <td>

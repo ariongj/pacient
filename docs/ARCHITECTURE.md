@@ -265,3 +265,29 @@ entries are never rewritten; the patient's access log includes those of merged d
 audits every call. FHIR bundles are built once in `modules/fhir/fhir.service.ts` for staff,
 patients and partners. The OpenAPI 3.1 document (`src/openapi`) is served at
 `/api/v1/openapi.json`. See [API.md](API.md).
+
+## Operating theatres, pharmacy stock, images, scheduling, vaccination, passkeys
+
+- **Theatre** (`modules/theatre`, `/theatre`): surgical cases with team, side, priority and
+  consent; scheduling with theatre-overlap and surgeon double-booking checks; the WHO checklist
+  enforced in order (stored with user and time); signed operation notes immutable by trigger.
+  Theatre units (`OPERATING_THEATRE`) give their staff record access around the operation.
+- **Stock** (`modules/stock`, `/stock`): `medication_catalog` (national), `stock_batches`
+  (per facility, never negative), `stock_movements` (append-only ledger), `stock_settings`
+  (reorder levels). Pharmacy dispensing allocates batches first-expiry-first-out inside the same
+  transaction as the dispense.
+- **Images** (`modules/pacs`, `/imaging/orders/:id/images…`): DICOMweb client (QIDO/WADO-RS)
+  behind an authorised, audited proxy; `PACS_MODE=demo` generates watermarked synthetic images.
+- **Scheduling** (`modules/scheduling`, `/scheduling`): weekly consulting hours and absences;
+  slots computed in Europe/Belgrade (DST-safe); portal bookings serialised per doctor; reminder
+  worker 20–28 h before.
+- **Vaccination** (`modules/vaccination`, `/vaccination`): `vaccine_schedule` (Ministry-editable),
+  per-child status computed from date of birth and recorded doses, due lists, reminders
+  (`immunization_reminders`, once per dose and kind), coverage by birth cohort.
+- **Security** (`modules/security`, `/auth/security`): WebAuthn passkeys (`webauthn_credentials`,
+  single-use `auth_challenges`), sessions from refresh-token families, sign-in history from the
+  audit log, `known_devices` for new-device alerts.
+- **Languages**: `sq`, `sr` (Latin) and `en`; web dictionaries in `apps/web/src/i18n/{sq,sr}`,
+  server in `apps/api/src/i18n/{sq,sr}-*.ts`; glossaries `GLOSSARY.md` / `GLOSSARY-sr.md`.
+- **PWA**: `apps/web/public/manifest.webmanifest` and `sw.js` (caches the app shell only, never
+  `/api`).

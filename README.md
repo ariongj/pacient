@@ -46,8 +46,8 @@ are referred to another facility and whether de-identified data may be used for 
 doctors record treatment consent in person or with a signed form. Consent history is append-only,
 and referring a patient who withdrew sharing requires recording their renewed agreement.
 
-**Albanian and English:** the whole interface, notifications, emails and SMS are available in
-Albanian (default) and English; dates use a 24-hour clock.
+**Albanian, Serbian and English:** the whole interface, notifications, emails and SMS are
+available in Albanian (default), Serbian (Latin) and English; dates use a 24-hour clock.
 
 **Hospital modules:** wards and beds with a live bed board, admissions, transfers and discharge
 with signed summaries; an emergency department with five-level triage and target times; newborn
@@ -55,6 +55,18 @@ registration linked to the mother with temporary numbers until the civil registr
 and temporary records for unidentified patients; radiology orders with safety checks, a
 radiologist worklist and signed reports. Staff assigned to a unit see a patient's record only
 while the patient is in that unit.
+
+**More hospital and public-health modules:** operating theatres (booking with conflict checks,
+WHO surgical safety checklist, signed operation notes, utilisation report); pharmacy stock
+(national catalogue, batches with expiry, first-expiry-first-out dispensing, low-stock and expiry
+alerts, national medicine availability); radiology image viewing through an authorised PACS
+proxy (DICOMweb, with synthetic demo images in development); online appointment booking from
+doctors' published consulting hours with reminders the day before; the national child
+vaccination calendar with due/overdue lists, reminders to parents and coverage by birth cohort.
+
+**Account security:** passkeys (phishing-resistant sign-in), signed-in devices with remote
+sign-out, personal sign-in history and alerts on sign-in from a new device. The portal can be
+installed as an app on phones (no health data is stored on the device).
 
 **Partner API:** documented (OpenAPI 3.1), scoped API keys for other systems – FHIR record access
 by national ID (consent-gated, purpose of use required), civil-registry birth registration,
@@ -161,7 +173,15 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   admit to a ward; _Repartet dhe shtretërit_ – bed board, transfer, discharge with a signed
   summary; _Lindjet_ – register a birth from the mother (Drita Hoxha), enter the baby's national
   number; _Identitetet e përkohshme_ – confirm unknown patients.
-- **Radiologist** (`radiologist@`): worklist, write and sign the report for the STAT head CT.
+- **Radiologist** (`radiologist@`): worklist, write and sign the report for the STAT head CT,
+  open the images (_Shiko imazhet_ – synthetic demo images).
+- **Operating theatres** (doctor, nurse): _Sallat e operacionit_ – today's list, schedule the
+  urgent request, run the WHO checklist (sign in → time out → sign out), sign the note.
+- **Pharmacist**: _Stoku_ – low and expired items, receive a delivery, dispense a prescription
+  and watch the batch quantity go down.
+- **Patient**: book an appointment online (_Terminet_ → free slots), the vaccination booklet of
+  her son Ardit (_Vaksinimet_, switch record), _Siguria dhe kyçja_ – add a passkey.
+- **Languages**: SQ / SR / EN at the top.
 - **Ministry**: partner systems (API keys) and the API documentation page; national reports for
   occupancy, emergency waiting times, births and imaging.
 - **Nurse, pharmacist, reception**: their own workspaces and team channels.

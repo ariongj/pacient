@@ -76,7 +76,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | LIS integration (HL7 v2 ORM/ORU, ACKs, idempotent, identity-matched)    |          ✅           |
 | Mismatched results held for human review, never auto-filed              |          ✅           |
 | Radiology orders, worklist and signed reports (RIS)                     |          ✅           |
-| PACS / DICOMweb image viewing                                           |          ⏳           |
+| PACS / DICOMweb image viewing (authorised proxy, demo archive)          |          ✅           |
 
 ## Architecture & interoperability (§6)
 
@@ -121,7 +121,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
 3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
 4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
-5. Serbian interface; PACS image viewing; operating theatre scheduling; pharmacy stock.
+5. Medicines interaction database; blood bank; nutrition; billing with the Health Insurance Fund.
 6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
    needed) and add RIS/PACS (B07).
 7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
@@ -129,18 +129,23 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Hospital modules (added)
 
-| Module                                                                                    | Status |
-| ----------------------------------------------------------------------------------------- | ------ |
-| Wards, beds, admissions, transfers, discharge summaries (signed, immutable)               | ✅     |
-| Emergency department: arrivals, five-level triage with target times, live board           | ✅     |
-| Births linked to the mother, temporary numbers, civil-registry confirmation               | ✅     |
-| Unit-based access (only while the patient is in the unit), audited                        | ✅     |
-| Partner API: scoped keys, purpose of use, consent-gated FHIR, OpenAPI                     | ✅     |
-| Hospital reports: occupancy, length of stay, ED waiting times, births, imaging turnaround | ✅     |
+| Module                                                                                    | Status                              |
+| ----------------------------------------------------------------------------------------- | ----------------------------------- |
+| Wards, beds, admissions, transfers, discharge summaries (signed, immutable)               | ✅                                  |
+| Emergency department: arrivals, five-level triage with target times, live board           | ✅                                  |
+| Births linked to the mother, temporary numbers, civil-registry confirmation               | ✅                                  |
+| Unit-based access (only while the patient is in the unit), audited                        | ✅                                  |
+| Partner API: scoped keys, purpose of use, consent-gated FHIR, OpenAPI                     | ✅                                  |
+| Hospital reports: occupancy, length of stay, ED waiting times, births, imaging turnaround | ✅                                  |
+| Operating theatres: booking, WHO surgical safety checklist, signed operation notes        | ✅                                  |
+| Pharmacy stock: catalogue, batches/expiry, FEFO dispensing, alerts, national availability | ✅                                  |
+| Online booking from consulting hours, reminders                                           | ✅                                  |
+| National child vaccination calendar, reminders, coverage                                  | ✅ (calendar to verify with IKShPK) |
+| Passkeys, session management, new-device alerts                                           | ✅                                  |
+| Serbian interface                                                                         | ✅                                  |
 
 ## Open decisions (§10) — needed from the project sponsor
 
 Hospital(s) and jurisdiction; first service and clinical owner; existing LIS/RIS/PACS/pharmacy
-systems; record ownership and the legal basis for any Ministry reporting; languages (Albanian and English are implemented; Serbian
-to add) and accessibility needs; hosting, retention, recovery objectives and
+systems; record ownership and the legal basis for any Ministry reporting; languages (Albanian, Serbian and English are implemented) and accessibility needs; hosting, retention, recovery objectives and
 out-of-hours support; who approves go-live.

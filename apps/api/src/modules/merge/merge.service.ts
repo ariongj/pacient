@@ -44,7 +44,10 @@ export type PatientTable = (typeof PATIENT_TABLES)[number];
  * Patient references in columns other than `patient_id` (table.column). They move like the
  * tables above and are recorded in movedRows under the same "table.column" key.
  */
-export const OTHER_PATIENT_COLUMNS = ['births.mother_patient_id', 'births.newborn_patient_id'] as const;
+export const OTHER_PATIENT_COLUMNS = [
+  'births.mother_patient_id',
+  'births.newborn_patient_id',
+] as const;
 
 /** Tables/columns that intentionally reference patients but are not moved. */
 export const EXCLUDED_REFERENCES = [

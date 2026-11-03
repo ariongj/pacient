@@ -6,10 +6,7 @@ import { api } from './client';
 export type TemporaryKind = 'NEWBORN' | 'UNIDENTIFIED';
 export type Sex = 'FEMALE' | 'MALE' | 'OTHER' | 'UNKNOWN';
 export type DeliveryType =
-  | 'SPONTANEOUS_VAGINAL'
-  | 'ASSISTED_VAGINAL'
-  | 'CAESAREAN_ELECTIVE'
-  | 'CAESAREAN_EMERGENCY';
+  'SPONTANEOUS_VAGINAL' | 'ASSISTED_VAGINAL' | 'CAESAREAN_ELECTIVE' | 'CAESAREAN_EMERGENCY';
 
 export interface TemporaryRecord {
   id: string;

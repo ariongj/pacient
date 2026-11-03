@@ -8,15 +8,7 @@ import {
   type TemporaryRecord,
 } from '../../api/identity';
 import { useUser } from '../../auth/AuthContext';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  PageHeader,
-  QueryView,
-  Table,
-} from '../../components/ui';
+import { Badge, Button, Card, EmptyState, PageHeader, QueryView, Table } from '../../components/ui';
 import { formatDateTime, formatNumber, humanize } from '../../format';
 import { t } from '../../i18n';
 import { ConfirmIdentityDialog, RegisterBirthDialog } from './IdentityDialogs';
@@ -36,7 +28,11 @@ export function BirthsPage() {
       <PageHeader
         title={t('Births')}
         subtitle={t('Babies born at your facility in the last 30 days')}
-        actions={clinician ? <Button onClick={() => setRegistering(true)}>{t('Register birth')}</Button> : undefined}
+        actions={
+          clinician ? (
+            <Button onClick={() => setRegistering(true)}>{t('Register birth')}</Button>
+          ) : undefined
+        }
       />
 
       <Card title={t('Awaiting civil registration')}>
@@ -176,7 +172,9 @@ export function BirthsPage() {
         </QueryView>
       </Card>
 
-      {clinician && <RegisterBirthDialog open={registering} onClose={() => setRegistering(false)} />}
+      {clinician && (
+        <RegisterBirthDialog open={registering} onClose={() => setRegistering(false)} />
+      )}
       <ConfirmIdentityDialog patient={confirming} onClose={() => setConfirming(null)} />
     </>
   );

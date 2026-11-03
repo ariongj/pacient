@@ -3,7 +3,15 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../../api/client';
 import { deliveryLabel, gestationLabel, usePatientBirth } from '../../../api/identity';
-import { Badge, Button, Card, DefinitionList, EmptyState, QueryView, Table } from '../../../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  DefinitionList,
+  EmptyState,
+  QueryView,
+  Table,
+} from '../../../components/ui';
 import { formatDateTime, formatNumber, humanize } from '../../../format';
 import { t } from '../../../i18n';
 import { RegisterBirthDialog } from '../../births/IdentityDialogs';
@@ -46,12 +54,23 @@ export function BirthsTab({ patientId }: { patientId: string }) {
                     </Link>,
                   ],
                   [t('Delivery'), deliveryLabel(asNewborn.deliveryType)],
-                  [t('Gestation'), gestationLabel(asNewborn.gestationalWeeks, asNewborn.gestationalDays)],
-                  [t('Birth weight'), t('{grams} g', { grams: formatNumber(asNewborn.birthWeightGrams) })],
-                  [t('Length'), asNewborn.lengthCm ? t('{cm} cm', { cm: asNewborn.lengthCm }) : '—'],
+                  [
+                    t('Gestation'),
+                    gestationLabel(asNewborn.gestationalWeeks, asNewborn.gestationalDays),
+                  ],
+                  [
+                    t('Birth weight'),
+                    t('{grams} g', { grams: formatNumber(asNewborn.birthWeightGrams) }),
+                  ],
+                  [
+                    t('Length'),
+                    asNewborn.lengthCm ? t('{cm} cm', { cm: asNewborn.lengthCm }) : '—',
+                  ],
                   [
                     t('Head circumference'),
-                    asNewborn.headCircumferenceCm ? t('{cm} cm', { cm: asNewborn.headCircumferenceCm }) : '—',
+                    asNewborn.headCircumferenceCm
+                      ? t('{cm} cm', { cm: asNewborn.headCircumferenceCm })
+                      : '—',
                   ],
                   [
                     t('Apgar (1 / 5 / 10 min)'),
@@ -73,7 +92,9 @@ export function BirthsTab({ patientId }: { patientId: string }) {
                   ],
                 ]}
               />
-              {asNewborn.birthWeightGrams < 2500 && <Badge tone="warning">{t('Low birth weight')}</Badge>}{' '}
+              {asNewborn.birthWeightGrams < 2500 && (
+                <Badge tone="warning">{t('Low birth weight')}</Badge>
+              )}{' '}
               {asNewborn.gestationalWeeks < 37 && <Badge tone="warning">{t('Preterm')}</Badge>}
               {asNewborn.notes && <p style={{ whiteSpace: 'pre-wrap' }}>{asNewborn.notes}</p>}
             </Card>
@@ -107,7 +128,9 @@ export function BirthsTab({ patientId }: { patientId: string }) {
                       <tr key={b.id}>
                         <td>{formatDateTime(b.bornAt)}</td>
                         <td>
-                          <Link to={`${base}/patients/${b.newbornId}?tab=births`}>{b.newbornName}</Link>
+                          <Link to={`${base}/patients/${b.newbornId}?tab=births`}>
+                            {b.newbornName}
+                          </Link>
                           <div className="muted">
                             {humanize(b.newbornSex)} · <code>{b.newbornNationalId}</code>
                           </div>
@@ -125,7 +148,11 @@ export function BirthsTab({ patientId }: { patientId: string }) {
             </Card>
           )}
           {canRegister && patient.data && (
-            <RegisterBirthDialog open={registering} onClose={() => setRegistering(false)} mother={patient.data} />
+            <RegisterBirthDialog
+              open={registering}
+              onClose={() => setRegistering(false)}
+              mother={patient.data}
+            />
           )}
         </div>
       )}

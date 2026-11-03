@@ -3,11 +3,7 @@
  * which creates the care units; if no maternity unit exists, one is created here.
  */
 import { and, eq } from 'drizzle-orm';
-import {
-  kosovoDate,
-  newTemporaryNumber,
-  shortCode,
-} from '../modules/identity/identity.service.js';
+import { kosovoDate, newTemporaryNumber, shortCode } from '../modules/identity/identity.service.js';
 import { db } from './client.js';
 import {
   admissions,
@@ -143,7 +139,8 @@ export async function seedBirths({
     apgar1: 8,
     apgar5: 9,
     attendantId: demoDoctorId,
-    notes: 'Lindje pa komplikime. Kontakt lëkurë më lëkurë menjëherë pas lindjes; ushqyerja me gji filloi brenda orës së parë.',
+    notes:
+      'Lindje pa komplikime. Kontakt lëkurë më lëkurë menjëherë pas lindjes; ushqyerja me gji filloi brenda orës së parë.',
   });
   await db
     .insert(careAssignments)
@@ -227,7 +224,8 @@ export async function seedBirths({
     apgar5: 9,
     apgar10: 10,
     attendantId: demoDoctorId,
-    notes: 'Seksion cezarian urgjent për ritëm kardiak fetal jo të qëndrueshëm. Foshnja u përshtat mirë.',
+    notes:
+      'Seksion cezarian urgjent për ritëm kardiak fetal jo të qëndrueshëm. Foshnja u përshtat mirë.',
     civilRegisteredAt: new Date(now - 17 * DAY),
   });
   await db
@@ -244,7 +242,8 @@ export async function seedBirths({
     sex: 'MALE',
     primaryFacilityId: facilityId,
     temporaryIdentity: 'UNIDENTIFIED',
-    identityNote: 'Burrë, rreth 45 vjeç, i gjetur pa vetëdije në stacionin e autobusëve; i sjellë me ambulancë.',
+    identityNote:
+      'Burrë, rreth 45 vjeç, i gjetur pa vetëdije në stacionin e autobusëve; i sjellë me ambulancë.',
     createdAt: new Date(now - 3 * HOUR),
   });
 }

@@ -140,7 +140,9 @@ patientsRouter.get(
           ilike(sql`${patients.firstName} || ' ' || ${patients.lastName}`, `%${q.search}%`),
           eq(patients.nationalId, q.search),
           // Temporary numbers (TMP…) are often read off a wristband: allow a prefix search.
-          /^tmp\d{0,10}$/i.test(q.search) ? ilike(patients.nationalId, `${q.search.toUpperCase()}%`) : undefined,
+          /^tmp\d{0,10}$/i.test(q.search)
+            ? ilike(patients.nationalId, `${q.search.toUpperCase()}%`)
+            : undefined,
         )!
       : undefined;
 

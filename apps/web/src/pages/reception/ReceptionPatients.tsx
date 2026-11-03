@@ -191,7 +191,10 @@ export function ReceptionPatients() {
           </>
         }
       />
-      <UnknownPatientDialog open={registeringUnknown} onClose={() => setRegisteringUnknown(false)} />
+      <UnknownPatientDialog
+        open={registeringUnknown}
+        onClose={() => setRegisteringUnknown(false)}
+      />
       <Alert tone="info">
         {t(
           'Reception works with identity, contact details and scheduling only. Clinical information is not available in this workspace.',

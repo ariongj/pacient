@@ -171,10 +171,7 @@ identityRouter.post(
     const patient = await getPatientOrThrow(patientId);
     if (patient.primaryFacilityId !== ctx.facilityId) throw notFound('Patient not found');
     res.json(
-      await confirmIdentity(
-        { patientId, ...input },
-        { ctx, via: 'STAFF', meta: requestMeta(req) },
-      ),
+      await confirmIdentity({ patientId, ...input }, { ctx, via: 'STAFF', meta: requestMeta(req) }),
     );
   },
 );
@@ -186,7 +183,10 @@ const BirthInput = z.object({
   bornAt: z
     .string()
     .datetime({ offset: true })
-    .refine((v) => new Date(v).getTime() <= Date.now() + 5 * 60_000, 'Time of birth is in the future')
+    .refine(
+      (v) => new Date(v).getTime() <= Date.now() + 5 * 60_000,
+      'Time of birth is in the future',
+    )
     .refine(
       (v) => new Date(v).getTime() >= Date.now() - 366 * 86_400_000,
       'Births older than a year are registered by the civil registry',
@@ -240,7 +240,8 @@ identityRouter.post('/births', requireRole('DOCTOR', 'NURSE'), async (req, res) 
             eq(admissions.status, 'ADMITTED'),
           ),
         );
-      if (!motherAdmission) throw badRequest('The mother’s hospital stay was not found or has ended');
+      if (!motherAdmission)
+        throw badRequest('The mother’s hospital stay was not found or has ended');
     } else {
       // Default: the mother's current stay at this facility, if she is admitted.
       [motherAdmission] = await tx
@@ -340,8 +341,7 @@ identityRouter.post('/births', requireRole('DOCTOR', 'NURSE'), async (req, res) 
           facilityId: motherAdmission.facilityId,
           unitId: motherAdmission.unitId,
           bedId: null,
-          admittingDoctorId:
-            ctx.role === 'DOCTOR' ? ctx.userId : motherAdmission.attendingDoctorId,
+          admittingDoctorId: ctx.role === 'DOCTOR' ? ctx.userId : motherAdmission.attendingDoctorId,
           attendingDoctorId: motherAdmission.attendingDoctorId,
           source: 'BIRTH',
           reason: 'Newborn rooming-in with mother',

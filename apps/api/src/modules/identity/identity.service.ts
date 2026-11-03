@@ -77,7 +77,10 @@ export async function confirmIdentity(
   if (!firstName || !lastName || firstName.length > 100 || lastName.length > 100) {
     throw badRequest('First and last name are required');
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dateOfBirth) || input.dateOfBirth > kosovoDate(new Date())) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(input.dateOfBirth) ||
+    input.dateOfBirth > kosovoDate(new Date())
+  ) {
     throw badRequest('Enter a valid date of birth that is not in the future');
   }
 
@@ -154,7 +157,11 @@ export async function confirmIdentity(
     );
     await notifyPatient(
       patient.id,
-      { type: 'identity', title: 'The identity on a record you look after was confirmed', link: '/portal' },
+      {
+        type: 'identity',
+        title: 'The identity on a record you look after was confirmed',
+        link: '/portal',
+      },
       tx,
     );
     return { patientId: patient.id };
@@ -196,4 +203,3 @@ export function eighteenthBirthday(isoDate: string): Date {
   const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(y + 18, m - 1, d));
 }
-

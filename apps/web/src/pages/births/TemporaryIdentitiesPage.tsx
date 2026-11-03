@@ -21,7 +21,9 @@ export function TemporaryIdentitiesPage() {
     <>
       <PageHeader
         title={t('Temporary identities')}
-        subtitle={t('Newborns waiting for a national ID and patients who have not been identified yet')}
+        subtitle={t(
+          'Newborns waiting for a national ID and patients who have not been identified yet',
+        )}
         actions={
           canRegister ? (
             <Button onClick={() => setRegistering(true)}>{t('Register unknown patient')}</Button>
@@ -77,13 +79,19 @@ export function TemporaryIdentitiesPage() {
                         {r.temporaryIdentity === 'NEWBORN' ? (
                           <>
                             {t('Mother: {name}', { name: r.motherName ?? '—' })}
-                            {r.bornAt && <div className="muted">{t('Born {date}', { date: formatDateTime(r.bornAt) })}</div>}
+                            {r.bornAt && (
+                              <div className="muted">
+                                {t('Born {date}', { date: formatDateTime(r.bornAt) })}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <>
                             {r.identityNote}
                             <div className="muted">
-                              {t('Estimated year of birth {year}', { year: r.dateOfBirth.slice(0, 4) })}
+                              {t('Estimated year of birth {year}', {
+                                year: r.dateOfBirth.slice(0, 4),
+                              })}
                             </div>
                           </>
                         )}
@@ -91,7 +99,9 @@ export function TemporaryIdentitiesPage() {
                       <td>{formatDate(r.createdAt)}</td>
                       <td>
                         <Button size="sm" variant="secondary" onClick={() => setConfirming(r)}>
-                          {r.temporaryIdentity === 'NEWBORN' ? t('Enter national ID') : t('Confirm identity')}
+                          {r.temporaryIdentity === 'NEWBORN'
+                            ? t('Enter national ID')
+                            : t('Confirm identity')}
                         </Button>
                       </td>
                     </tr>
@@ -102,7 +112,9 @@ export function TemporaryIdentitiesPage() {
           }
         </QueryView>
       </Card>
-      {canRegister && <UnknownPatientDialog open={registering} onClose={() => setRegistering(false)} />}
+      {canRegister && (
+        <UnknownPatientDialog open={registering} onClose={() => setRegistering(false)} />
+      )}
       <ConfirmIdentityDialog patient={confirming} onClose={() => setConfirming(null)} />
     </>
   );

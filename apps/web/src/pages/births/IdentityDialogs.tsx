@@ -109,7 +109,13 @@ export function UnknownPatientDialog({
             )}
           </p>
           <div className="form-grid">
-            <SelectField label={t('Sex')} name="sex" required options={sexOptions()} defaultValue="UNKNOWN" />
+            <SelectField
+              label={t('Sex')}
+              name="sex"
+              required
+              options={sexOptions()}
+              defaultValue="UNKNOWN"
+            />
             <TextField
               label={t('Estimated age (years)')}
               name="estimatedAge"
@@ -127,7 +133,9 @@ export function UnknownPatientDialog({
             minLength={3}
             maxLength={300}
             rows={3}
-            hint={t('How to recognise the person and how they arrived, e.g. “Man, about 40, brought by ambulance from the bus station”.')}
+            hint={t(
+              'How to recognise the person and how they arrived, e.g. “Man, about 40, brought by ambulance from the bus station”.',
+            )}
           />
           <ErrorAlert error={create.error} />
           <div className="form-actions">
@@ -322,7 +330,9 @@ function MotherPicker({
         </Button>
       </div>
       <ErrorAlert error={search.error} />
-      {search.data && search.data.length === 0 && <p className="muted">{t('No matching patients')}</p>}
+      {search.data && search.data.length === 0 && (
+        <p className="muted">{t('No matching patients')}</p>
+      )}
       {search.data && search.data.length > 0 && (
         <ul className="list">
           {search.data.map((p) => (
@@ -368,7 +378,10 @@ export function RegisterBirthDialog({
   const [mother, setMother] = useState<PatientHit | null>(fixedMother ?? null);
   const [weight, setWeight] = useState('');
   const [weeks, setWeeks] = useState('39');
-  const [result, setResult] = useState<{ newborn: CreatedPatient; guardianshipCreated: boolean } | null>(null);
+  const [result, setResult] = useState<{
+    newborn: CreatedPatient;
+    guardianshipCreated: boolean;
+  } | null>(null);
   const register = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api<{ newborn: CreatedPatient; guardianshipCreated: boolean }>('/identity/births', {
@@ -431,7 +444,9 @@ export function RegisterBirthDialog({
       {result ? (
         <div className="stack">
           <Alert tone="success" title={t('Birth registered')}>
-            {t('The baby’s record was created with a temporary number until the civil registry issues a national ID.')}
+            {t(
+              'The baby’s record was created with a temporary number until the civil registry issues a national ID.',
+            )}
             {result.guardianshipCreated &&
               ` ${t('The mother can follow her baby’s record in the patient portal.')}`}
           </Alert>
@@ -458,8 +473,20 @@ export function RegisterBirthDialog({
             <MotherPicker value={mother} onChange={setMother} />
           )}
           <div className="form-grid">
-            <TextField label={t('Time of birth')} name="bornAt" type="datetime-local" required defaultValue={nowLocalInput()} />
-            <SelectField label={t('Sex')} name="sex" required options={sexOptions()} defaultValue="FEMALE" />
+            <TextField
+              label={t('Time of birth')}
+              name="bornAt"
+              type="datetime-local"
+              required
+              defaultValue={nowLocalInput()}
+            />
+            <SelectField
+              label={t('Sex')}
+              name="sex"
+              required
+              options={sexOptions()}
+              defaultValue="FEMALE"
+            />
             <SelectField
               label={t('Delivery')}
               name="deliveryType"
@@ -485,7 +512,14 @@ export function RegisterBirthDialog({
               value={weeks}
               onChange={(e) => setWeeks(e.target.value)}
             />
-            <TextField label={t('Gestation – days')} name="gestationalDays" type="number" min={0} max={6} defaultValue="0" />
+            <TextField
+              label={t('Gestation – days')}
+              name="gestationalDays"
+              type="number"
+              min={0}
+              max={6}
+              defaultValue="0"
+            />
             <TextField
               label={t('Birth weight (g)')}
               name="birthWeightGrams"
@@ -496,10 +530,36 @@ export function RegisterBirthDialog({
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
             />
-            <TextField label={t('Length (cm)')} name="lengthCm" type="number" min={20} max={70} step="0.5" />
-            <TextField label={t('Head circumference (cm)')} name="headCircumferenceCm" type="number" min={15} max={50} step="0.5" />
-            <SelectField label={t('Apgar at 1 minute')} name="apgar1" required options={apgarOptions()} defaultValue="8" />
-            <SelectField label={t('Apgar at 5 minutes')} name="apgar5" required options={apgarOptions()} defaultValue="9" />
+            <TextField
+              label={t('Length (cm)')}
+              name="lengthCm"
+              type="number"
+              min={20}
+              max={70}
+              step="0.5"
+            />
+            <TextField
+              label={t('Head circumference (cm)')}
+              name="headCircumferenceCm"
+              type="number"
+              min={15}
+              max={50}
+              step="0.5"
+            />
+            <SelectField
+              label={t('Apgar at 1 minute')}
+              name="apgar1"
+              required
+              options={apgarOptions()}
+              defaultValue="8"
+            />
+            <SelectField
+              label={t('Apgar at 5 minutes')}
+              name="apgar5"
+              required
+              options={apgarOptions()}
+              defaultValue="9"
+            />
             <SelectField
               label={t('Apgar at 10 minutes')}
               name="apgar10"
@@ -515,7 +575,9 @@ export function RegisterBirthDialog({
           </div>
           {weightWarning && <Alert tone="warning">{weightWarning}</Alert>}
           {preterm && (
-            <Alert tone="warning">{t('Preterm birth (under 37 weeks) – make sure the neonatal team is informed.')}</Alert>
+            <Alert tone="warning">
+              {t('Preterm birth (under 37 weeks) – make sure the neonatal team is informed.')}
+            </Alert>
           )}
           <TextAreaField label={t('Notes')} name="notes" maxLength={2000} rows={3} />
           <ErrorAlert error={register.error} />

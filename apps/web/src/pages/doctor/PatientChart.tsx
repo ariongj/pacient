@@ -169,7 +169,10 @@ export function PatientChart() {
               : `${p.lastName}, ${p.firstName}`}
           </h1>
           {p.temporaryIdentity && (
-            <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+            <div
+              className="row"
+              style={{ gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}
+            >
               <Badge tone="warning">
                 {p.temporaryIdentity === 'NEWBORN'
                   ? t('Temporary ID – awaiting civil registration')

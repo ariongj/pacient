@@ -15,7 +15,15 @@ import {
   vitalSigns,
 } from '../src/db/schema.js';
 import { confirmIdentity } from '../src/modules/identity/identity.service.js';
-import { api, bearer, createPatient, createUser, createWorld, login, nextNationalId } from './helpers.js';
+import {
+  api,
+  bearer,
+  createPatient,
+  createUser,
+  createWorld,
+  login,
+  nextNationalId,
+} from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
 let maternityId: string;
@@ -24,7 +32,12 @@ beforeAll(async () => {
   w = await createWorld();
   const [unit] = await db
     .insert(careUnits)
-    .values({ facilityId: w.facility.id, name: 'Maternity', code: `MAT${Date.now() % 1000}`, type: 'MATERNITY' })
+    .values({
+      facilityId: w.facility.id,
+      name: 'Maternity',
+      code: `MAT${Date.now() % 1000}`,
+      type: 'MATERNITY',
+    })
     .returning();
   maternityId = unit!.id;
 });
@@ -45,7 +58,10 @@ const birthBody = (motherPatientId: string, extra: Record<string, unknown> = {})
 
 async function femalePatient(opts: { userId?: string } = {}) {
   const p = await createPatient(w.facility.id, { doctorId: w.users.doctor.id, ...opts });
-  await db.update(patients).set({ sex: 'FEMALE', municipality: 'Prishtinë' }).where(eq(patients.id, p.id));
+  await db
+    .update(patients)
+    .set({ sex: 'FEMALE', municipality: 'Prishtinë' })
+    .where(eq(patients.id, p.id));
   return p;
 }
 
@@ -72,7 +88,11 @@ describe('temporary identities', () => {
       .set(bearer(w.tokens.reception))
       .send({ sex: 'MALE', estimatedAge: 40, identityNote: 'Man, about 40, brought by ambulance' });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ temporaryIdentity: 'UNIDENTIFIED', firstName: 'Unknown', sex: 'MALE' });
+    expect(res.body).toMatchObject({
+      temporaryIdentity: 'UNIDENTIFIED',
+      firstName: 'Unknown',
+      sex: 'MALE',
+    });
     expect(res.body.nationalId).toMatch(/^TMP\d{10}$/);
     expect(res.body.lastName).toBe(`#${res.body.nationalId.slice(-4)}`);
     expect(res.body.dateOfBirth).toBe(`${new Date().getFullYear() - 40}-01-01`);
@@ -84,7 +104,12 @@ describe('temporary identities', () => {
         .send({ sex: 'UNKNOWN', identityNote: 'Found unconscious' });
       expect(r.status).toBe(201);
     }
-    for (const token of [w.tokens.pharmacist, w.tokens.director, w.tokens.patient, w.tokens.ministry]) {
+    for (const token of [
+      w.tokens.pharmacist,
+      w.tokens.director,
+      w.tokens.patient,
+      w.tokens.ministry,
+    ]) {
       const r = await api()
         .post('/api/v1/identity/temporary')
         .set(bearer(token))
@@ -107,7 +132,12 @@ describe('temporary identities', () => {
     const audits = await db
       .select()
       .from(auditLogs)
-      .where(and(eq(auditLogs.patientId, res.body.id), eq(auditLogs.action, 'patient.temporary.registered')));
+      .where(
+        and(
+          eq(auditLogs.patientId, res.body.id),
+          eq(auditLogs.action, 'patient.temporary.registered'),
+        ),
+      );
     expect(audits).toHaveLength(1);
   });
 
@@ -121,7 +151,13 @@ describe('temporary identities', () => {
     const clash = await api()
       .post(`/api/v1/identity/${tmp.body.id}/confirm`)
       .set(bearer(w.tokens.reception))
-      .send({ nationalId: existing.nationalId, firstName: 'Shpresa', lastName: 'Berisha', dateOfBirth: '1956-03-04', sex: 'FEMALE' });
+      .send({
+        nationalId: existing.nationalId,
+        firstName: 'Shpresa',
+        lastName: 'Berisha',
+        dateOfBirth: '1956-03-04',
+        sex: 'FEMALE',
+      });
     expect(clash.status).toBe(409);
     expect(clash.body.error.code).toBe('IDENTITY_EXISTS');
     expect(clash.body.error.details).toEqual({ existingPatientId: existing.id });
@@ -129,14 +165,26 @@ describe('temporary identities', () => {
     const other = await api()
       .post(`/api/v1/identity/${tmp.body.id}/confirm`)
       .set(bearer(w.tokens.otherDirector))
-      .send({ nationalId: nextNationalId(), firstName: 'A', lastName: 'B', dateOfBirth: '1956-03-04', sex: 'FEMALE' });
+      .send({
+        nationalId: nextNationalId(),
+        firstName: 'A',
+        lastName: 'B',
+        dateOfBirth: '1956-03-04',
+        sex: 'FEMALE',
+      });
     expect(other.status).toBe(404);
 
     const nationalId = nextNationalId();
     const ok = await api()
       .post(`/api/v1/identity/${tmp.body.id}/confirm`)
       .set(bearer(w.tokens.reception))
-      .send({ nationalId, firstName: 'Shpresa', lastName: 'Berisha', dateOfBirth: '1956-03-04', sex: 'FEMALE' });
+      .send({
+        nationalId,
+        firstName: 'Shpresa',
+        lastName: 'Berisha',
+        dateOfBirth: '1956-03-04',
+        sex: 'FEMALE',
+      });
     expect(ok.status).toBe(200);
     const [p] = await db.select().from(patients).where(eq(patients.id, tmp.body.id));
     expect(p).toMatchObject({ nationalId, firstName: 'Shpresa', temporaryIdentity: null });
@@ -145,13 +193,24 @@ describe('temporary identities', () => {
     const again = await api()
       .post(`/api/v1/identity/${tmp.body.id}/confirm`)
       .set(bearer(w.tokens.reception))
-      .send({ nationalId: nextNationalId(), firstName: 'X', lastName: 'Y', dateOfBirth: '1956-03-04', sex: 'FEMALE' });
+      .send({
+        nationalId: nextNationalId(),
+        firstName: 'X',
+        lastName: 'Y',
+        dateOfBirth: '1956-03-04',
+        sex: 'FEMALE',
+      });
     expect(again.status).toBe(409);
 
     const [audit] = await db
       .select()
       .from(auditLogs)
-      .where(and(eq(auditLogs.patientId, tmp.body.id), eq(auditLogs.action, 'patient.identity.confirmed')));
+      .where(
+        and(
+          eq(auditLogs.patientId, tmp.body.id),
+          eq(auditLogs.action, 'patient.identity.confirmed'),
+        ),
+      );
     expect(audit!.metadata).toMatchObject({ via: 'STAFF', previousNumber: tmp.body.nationalId });
   });
 
@@ -161,7 +220,14 @@ describe('temporary identities', () => {
       .set(bearer(w.tokens.nurse))
       .send({ sex: 'MALE', identityNote: 'Young man without documents' });
     const result = await confirmIdentity(
-      { patientId: tmp.body.id, nationalId: nextNationalId(), firstName: 'Arben', lastName: 'Morina', dateOfBirth: '2001-07-01', sex: 'MALE' },
+      {
+        patientId: tmp.body.id,
+        nationalId: nextNationalId(),
+        firstName: 'Arben',
+        lastName: 'Morina',
+        dateOfBirth: '2001-07-01',
+        sex: 'MALE',
+      },
       { ctx: null, via: 'CIVIL_REGISTRY', clientName: 'Civil registry' },
     );
     expect(result.patientId).toBe(tmp.body.id);
@@ -180,14 +246,23 @@ describe('births', () => {
       .send(birthBody(mother.id, { motherAdmissionId: stay.id }));
     expect(res.status).toBe(201);
     const baby = res.body.newborn;
-    expect(baby).toMatchObject({ temporaryIdentity: 'NEWBORN', lastName: mother.lastName, firstName: 'Foshnja', sex: 'FEMALE' });
+    expect(baby).toMatchObject({
+      temporaryIdentity: 'NEWBORN',
+      lastName: mother.lastName,
+      firstName: 'Foshnja',
+      sex: 'FEMALE',
+    });
     expect(baby.nationalId).toMatch(/^TMP\d{10}$/);
     expect(res.body.guardianshipCreated).toBe(true);
 
     const [p] = await db.select().from(patients).where(eq(patients.id, baby.id));
     expect(p!.municipality).toBe('Prishtinë');
     const [g] = await db.select().from(guardianships).where(eq(guardianships.patientId, baby.id));
-    expect(g).toMatchObject({ guardianUserId: motherUser.id, relationship: 'PARENT', scope: 'FULL' });
+    expect(g).toMatchObject({
+      guardianUserId: motherUser.id,
+      relationship: 'PARENT',
+      scope: 'FULL',
+    });
     expect(g!.validUntil.getUTCFullYear()).toBe(new Date(p!.dateOfBirth).getUTCFullYear() + 18);
     const team = await db
       .select()
@@ -195,7 +270,12 @@ describe('births', () => {
       .where(and(eq(careAssignments.patientId, baby.id), isNull(careAssignments.endedAt)));
     expect(team.map((t) => t.doctorId)).toContain(w.users.doctor.id);
     const [adm] = await db.select().from(admissions).where(eq(admissions.patientId, baby.id));
-    expect(adm).toMatchObject({ unitId: maternityId, source: 'BIRTH', status: 'ADMITTED', bedId: null });
+    expect(adm).toMatchObject({
+      unitId: maternityId,
+      source: 'BIRTH',
+      status: 'ADMITTED',
+      bedId: null,
+    });
     const [vs] = await db.select().from(vitalSigns).where(eq(vitalSigns.patientId, baby.id));
     expect(Number(vs!.weightKg)).toBeCloseTo(3.4, 1);
 
@@ -205,14 +285,28 @@ describe('births', () => {
       .get(`/api/v1/identity/patients/${baby.id}/birth`)
       .set({ ...bearer(motherToken), 'X-Acting-For': baby.id });
     expect(portal.status).toBe(200);
-    expect(portal.body.asNewborn).toMatchObject({ apgar1: 8, apgar5: 9, birthWeightGrams: 3350, motherId: mother.id });
+    expect(portal.body.asNewborn).toMatchObject({
+      apgar1: 8,
+      apgar5: 9,
+      birthWeightGrams: 3350,
+      motherId: mother.id,
+    });
 
-    const chart = await api().get(`/api/v1/identity/patients/${mother.id}/birth`).set(bearer(w.tokens.doctor));
+    const chart = await api()
+      .get(`/api/v1/identity/patients/${mother.id}/birth`)
+      .set(bearer(w.tokens.doctor));
     expect(chart.body.asMother.map((b: { newbornId: string }) => b.newbornId)).toContain(baby.id);
 
     // Civil registration confirms the newborn and stamps the birth.
     await confirmIdentity(
-      { patientId: baby.id, nationalId: nextNationalId(), firstName: 'Ana', lastName: mother.lastName, dateOfBirth: p!.dateOfBirth, sex: 'FEMALE' },
+      {
+        patientId: baby.id,
+        nationalId: nextNationalId(),
+        firstName: 'Ana',
+        lastName: mother.lastName,
+        dateOfBirth: p!.dateOfBirth,
+        sex: 'FEMALE',
+      },
       { ctx: null, via: 'CIVIL_REGISTRY' },
     );
     const [b] = await db.select().from(births).where(eq(births.newbornPatientId, baby.id));
@@ -236,7 +330,9 @@ describe('births', () => {
     expect(desk.body.clinical).toBe(false);
 
     const clinicians = await api().get('/api/v1/identity/births').set(bearer(w.tokens.doctor));
-    expect(clinicians.body.items.find((i: { id: string }) => i.id === reg.body.birthId).apgar5).toBe(9);
+    expect(
+      clinicians.body.items.find((i: { id: string }) => i.id === reg.body.birthId).apgar5,
+    ).toBe(9);
 
     const outsider = await api()
       .post('/api/v1/identity/births')
@@ -244,11 +340,18 @@ describe('births', () => {
       .send(birthBody(mother.id));
     expect(outsider.status).toBe(403);
     for (const token of [w.tokens.reception, w.tokens.pharmacist, w.tokens.director]) {
-      const r = await api().post('/api/v1/identity/births').set(bearer(token)).send(birthBody(mother.id));
+      const r = await api()
+        .post('/api/v1/identity/births')
+        .set(bearer(token))
+        .send(birthBody(mother.id));
       expect(r.status).toBe(403);
     }
-    const birthOther = await api().get('/api/v1/identity/births').set(bearer(w.tokens.outsideDoctor));
-    expect(birthOther.body.items.some((i: { id: string }) => i.id === reg.body.birthId)).toBe(false);
+    const birthOther = await api()
+      .get('/api/v1/identity/births')
+      .set(bearer(w.tokens.outsideDoctor));
+    expect(birthOther.body.items.some((i: { id: string }) => i.id === reg.body.birthId)).toBe(
+      false,
+    );
   });
 
   it('lets maternity unit staff register births for the admitted mother', async () => {
@@ -257,9 +360,15 @@ describe('births', () => {
     const mother = await createPatient(w.facility.id);
     await db.update(patients).set({ sex: 'FEMALE' }).where(eq(patients.id, mother.id));
     const token = await login(nurse.email);
-    expect((await api().post('/api/v1/identity/births').set(bearer(token)).send(birthBody(mother.id))).status).toBe(403);
+    expect(
+      (await api().post('/api/v1/identity/births').set(bearer(token)).send(birthBody(mother.id)))
+        .status,
+    ).toBe(403);
     await admit(mother.id);
-    const ok = await api().post('/api/v1/identity/births').set(bearer(token)).send(birthBody(mother.id, { birthOrder: 1 }));
+    const ok = await api()
+      .post('/api/v1/identity/births')
+      .set(bearer(token))
+      .send(birthBody(mother.id, { birthOrder: 1 }));
     expect(ok.status).toBe(201);
     const twin = await api()
       .post('/api/v1/identity/births')
@@ -280,12 +389,18 @@ describe('births', () => {
       { deliveryType: 'HOME' },
     ];
     for (const c of cases) {
-      const r = await api().post('/api/v1/identity/births').set(bearer(w.tokens.doctor)).send(birthBody(mother.id, c));
+      const r = await api()
+        .post('/api/v1/identity/births')
+        .set(bearer(w.tokens.doctor))
+        .send(birthBody(mother.id, c));
       expect(r.status, JSON.stringify(c)).toBe(400);
     }
     const male = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
     await db.update(patients).set({ sex: 'MALE' }).where(eq(patients.id, male.id));
-    const r = await api().post('/api/v1/identity/births').set(bearer(w.tokens.doctor)).send(birthBody(male.id));
+    const r = await api()
+      .post('/api/v1/identity/births')
+      .set(bearer(w.tokens.doctor))
+      .send(birthBody(male.id));
     expect(r.status).toBe(400);
   });
 });
@@ -299,7 +414,10 @@ describe('merge with hospital records', () => {
 
   it('moves births with the mother and undoes it exactly', async () => {
     const mother = await femalePatient();
-    const reg = await api().post('/api/v1/identity/births').set(bearer(w.tokens.doctor)).send(birthBody(mother.id));
+    const reg = await api()
+      .post('/api/v1/identity/births')
+      .set(bearer(w.tokens.doctor))
+      .send(birthBody(mother.id));
     const survivor = await femalePatient();
     const res = await merge(survivor.id, mother.id);
     expect(res.status).toBe(201);
@@ -319,7 +437,10 @@ describe('merge with hospital records', () => {
 
   it('refuses to merge a mother with her baby, or two records that are both in hospital', async () => {
     const mother = await femalePatient();
-    const reg = await api().post('/api/v1/identity/births').set(bearer(w.tokens.doctor)).send(birthBody(mother.id));
+    const reg = await api()
+      .post('/api/v1/identity/births')
+      .set(bearer(w.tokens.doctor))
+      .send(birthBody(mother.id));
     expect((await merge(mother.id, reg.body.newborn.id)).status).toBe(409);
 
     const a = await femalePatient();
@@ -334,7 +455,12 @@ describe('merge with hospital records', () => {
     const d = await femalePatient();
     const [ed] = await db
       .insert(careUnits)
-      .values({ facilityId: w.facility.id, name: 'Emergency', code: `ED${Date.now() % 1000}`, type: 'EMERGENCY' })
+      .values({
+        facilityId: w.facility.id,
+        name: 'Emergency',
+        code: `ED${Date.now() % 1000}`,
+        type: 'EMERGENCY',
+      })
       .returning();
     for (const pid of [c.id, d.id]) {
       await db.insert(edVisits).values({

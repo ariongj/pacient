@@ -199,6 +199,10 @@ export function App() {
           path="/ministry/vaccination"
           element={guard(['MINISTRY'], <VaccinationCoverage />)}
         />
+        <Route
+          path="/director/vaccination"
+          element={guard(['DIRECTOR'], <VaccinationCoverage />)}
+        />
         <Route path="/account/security" element={<SecurityPage />} />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route

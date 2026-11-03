@@ -15,6 +15,10 @@ export interface Profile {
   mfaEnabled: boolean;
   emailNotifications: EmailPreference;
   smsNotifications: SmsPreference;
+  /** Authenticator-app two-step sign-in is set up. */
+  totpEnabled?: boolean;
+  /** Number of registered passkeys. */
+  passkeyCount?: number;
   locale: 'sq' | 'en' | 'sr';
   /** Masked mobile number (e.g. "+383 •••• 801"), or null. */
   phone: string | null;

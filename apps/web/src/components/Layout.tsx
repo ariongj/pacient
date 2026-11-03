@@ -149,6 +149,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/duplicates', label: 'Duplicate records', icon: 'user' },
         { to: '/director/units', label: 'Wards & units', icon: 'building' },
         { to: '/pharmacy/stock', label: 'Pharmacy stock', icon: 'pill' },
+        { to: '/director/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
         { to: '/wards', label: 'Bed board', icon: 'desk' },
         { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],

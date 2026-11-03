@@ -40,6 +40,12 @@ export const PATIENT_TABLES = [
 ] as const;
 export type PatientTable = (typeof PATIENT_TABLES)[number];
 
+/**
+ * Patient references in columns other than `patient_id` (table.column). They move like the
+ * tables above and are recorded in movedRows under the same "table.column" key.
+ */
+export const OTHER_PATIENT_COLUMNS = ['births.mother_patient_id', 'births.newborn_patient_id'] as const;
+
 /** Tables/columns that intentionally reference patients but are not moved. */
 export const EXCLUDED_REFERENCES = [
   'patient_merges.survivor_id',
@@ -285,6 +291,33 @@ export async function mergePatients(
     );
   }
 
+  // A birth links a mother to her baby: those two records are different people.
+  const linked = await tx.execute(sql`
+    SELECT 1 FROM births
+    WHERE (mother_patient_id = ${survivor.id} AND newborn_patient_id = ${merged.id})
+       OR (mother_patient_id = ${merged.id} AND newborn_patient_id = ${survivor.id})
+    LIMIT 1`);
+  if (linked.rows.length) {
+    throw conflict('These records are a mother and her baby – they cannot be merged');
+  }
+  // Only one active hospital stay and one active emergency attendance per person.
+  const active = await tx.execute<{ admissions: number; ed: number }>(sql`
+    SELECT
+      (SELECT count(DISTINCT patient_id)::int FROM admissions
+        WHERE status = 'ADMITTED' AND patient_id IN (${survivor.id}, ${merged.id})) AS admissions,
+      (SELECT count(DISTINCT patient_id)::int FROM ed_visits
+        WHERE status IN ('WAITING', 'IN_TREATMENT') AND patient_id IN (${survivor.id}, ${merged.id})) AS ed`);
+  if ((active.rows[0]?.admissions ?? 0) > 1) {
+    throw conflict(
+      'Both records have an active hospital stay. Discharge or cancel one of the stays, then merge.',
+    );
+  }
+  if ((active.rows[0]?.ed ?? 0) > 1) {
+    throw conflict(
+      'Both records have an open emergency attendance. Close one of them, then merge.',
+    );
+  }
+
   const movedRows: Record<string, string[]> = {};
   const now = new Date();
 
@@ -310,6 +343,13 @@ export async function mergePatients(
       sql`UPDATE ${sql.identifier(table)} SET patient_id = ${survivor.id} WHERE patient_id = ${merged.id} RETURNING id`,
     );
     if (result.rows.length) movedRows[table] = result.rows.map((r) => r.id);
+  }
+  for (const ref of OTHER_PATIENT_COLUMNS) {
+    const [table, column] = ref.split('.') as [string, string];
+    const result = await tx.execute<{ id: string }>(
+      sql`UPDATE ${sql.identifier(table)} SET ${sql.identifier(column)} = ${survivor.id} WHERE ${sql.identifier(column)} = ${merged.id} RETURNING id`,
+    );
+    if (result.rows.length) movedRows[ref] = result.rows.map((r) => r.id);
   }
 
   // Demographics the director chose to take from the duplicate.
@@ -401,6 +441,14 @@ export async function unmergePatients(
           AND d.revoke_reason = 'Duplicate record merged'
           AND NOT EXISTS (SELECT 1 FROM guardianships s WHERE s.patient_id = ${merged.id}
                           AND s.guardian_user_id = d.guardian_user_id AND s.revoked_at IS NULL)`);
+      restored[key] = r.rowCount ?? 0;
+      continue;
+    }
+    if ((OTHER_PATIENT_COLUMNS as readonly string[]).includes(key)) {
+      const [table, column] = key.split('.') as [string, string];
+      const r = await tx.execute(
+        sql`UPDATE ${sql.identifier(table)} SET ${sql.identifier(column)} = ${merged.id} WHERE id IN ${idsJson(ids)} AND ${sql.identifier(column)} = ${survivor.id}`,
+      );
       restored[key] = r.rowCount ?? 0;
       continue;
     }

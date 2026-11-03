@@ -85,6 +85,13 @@
       "when": 1793663888219,
       "tag": "0011_hospital_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793664388208,
+      "tag": "0012_partner_api",
+      "breakpoints": true
     }
   ]
 }

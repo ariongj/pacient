@@ -22,6 +22,7 @@ import { age, formatDate, humanize } from '../../format';
 import { GuardiansPanel } from '../shared/GuardiansPanel';
 import { BookAppointmentDialog, type PatientRef } from './BookAppointmentDialog';
 import { t } from '../../i18n';
+import { UnknownPatientDialog } from '../births/IdentityDialogs';
 
 interface PatientDetail {
   id: string;
@@ -164,6 +165,7 @@ export function ReceptionPatients() {
   const [inviting, setInviting] = useState<string | null>(null);
   const [booking, setBooking] = useState<PatientRef | null>(null);
   const [guardiansFor, setGuardiansFor] = useState<PatientListItem | null>(null);
+  const [registeringUnknown, setRegisteringUnknown] = useState(false);
 
   const q = useQuery({
     queryKey: ['patients', 'facility', submitted, page],
@@ -179,11 +181,17 @@ export function ReceptionPatients() {
         title={t('Patients')}
         subtitle={t('Registration and contact details for patients of your facility')}
         actions={
-          <Link to="/reception/patients/new" className="btn btn-primary btn-md">
-            {t('Register patient')}
-          </Link>
+          <>
+            <Button variant="secondary" onClick={() => setRegisteringUnknown(true)}>
+              {t('Register unknown patient')}
+            </Button>
+            <Link to="/reception/patients/new" className="btn btn-primary btn-md">
+              {t('Register patient')}
+            </Link>
+          </>
         }
       />
+      <UnknownPatientDialog open={registeringUnknown} onClose={() => setRegisteringUnknown(false)} />
       <Alert tone="info">
         {t(
           'Reception works with identity, contact details and scheduling only. Clinical information is not available in this workspace.',

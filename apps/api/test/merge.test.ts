@@ -14,6 +14,7 @@ import {
 } from '../src/db/schema.js';
 import {
   EXCLUDED_REFERENCES,
+  OTHER_PATIENT_COLUMNS,
   PATIENT_TABLES,
   scorePair,
 } from '../src/modules/merge/merge.service.js';
@@ -401,7 +402,13 @@ describe('coverage', () => {
     const references = result.rows
       .map((r) => `${r.table_name}.${r.column_name}`)
       .filter((r) => !EXCLUDED_REFERENCES.includes(r));
-    expect(references.every((r) => r.endsWith('.patient_id'))).toBe(true);
-    expect(references.map((r) => r.split('.')[0]).sort()).toEqual([...PATIENT_TABLES].sort());
+    const other = references.filter((r) => !r.endsWith('.patient_id'));
+    expect(other.sort()).toEqual([...OTHER_PATIENT_COLUMNS].sort());
+    expect(
+      references
+        .filter((r) => r.endsWith('.patient_id'))
+        .map((r) => r.split('.')[0])
+        .sort(),
+    ).toEqual([...PATIENT_TABLES].sort());
   });
 });

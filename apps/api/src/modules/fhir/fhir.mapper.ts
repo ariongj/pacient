@@ -497,3 +497,302 @@ export function documentReferenceResource(
     ],
   });
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * Hospital modules: inpatient stays, emergency attendances, imaging, births
+ * ---------------------------------------------------------------------------------------------- */
+
+const DISCHARGE_DISPOSITION: Record<string, { code: string; display: string }> = {
+  HOME: { code: 'home', display: 'Home' },
+  TRANSFER: { code: 'other-hcf', display: 'Other healthcare facility' },
+  AGAINST_ADVICE: { code: 'aadvice', display: 'Left against advice' },
+  DECEASED: { code: 'exp', display: 'Expired' },
+  OTHER: { code: 'oth', display: 'Other' },
+};
+
+/** Hospital stay → Encounter (class IMP) with the ward/bed as Location. */
+export function admissionEncounter(
+  a: {
+    id: string;
+    status: string;
+    admittedAt: string | Date;
+    dischargedAt: string | Date | null;
+    reason: string | null;
+    disposition: string | null;
+    attendingDoctorId: string;
+    facilityId: string;
+    unitName: string;
+    bedLabel: string | null;
+    source: string;
+  },
+  patientId: string,
+  opts: { includeReason: boolean },
+): R {
+  const disposition = a.disposition ? DISCHARGE_DISPOSITION[a.disposition] : undefined;
+  return clean({
+    resourceType: 'Encounter',
+    id: a.id,
+    status:
+      a.status === 'DISCHARGED'
+        ? 'finished'
+        : a.status === 'CANCELLED'
+          ? 'cancelled'
+          : 'in-progress',
+    class: { system: SYSTEMS.actCode, code: 'IMP', display: 'inpatient encounter' },
+    subject: ref('Patient', patientId),
+    participant: [{ individual: ref('Practitioner', a.attendingDoctorId) }],
+    period: clean({ start: iso(a.admittedAt), end: iso(a.dischargedAt) }),
+    reasonCode: opts.includeReason && a.reason ? [{ text: a.reason }] : undefined,
+    hospitalization: clean({
+      admitSource: { text: a.source.toLowerCase() },
+      dischargeDisposition: disposition
+        ? {
+            coding: [
+              {
+                system: 'http://terminology.hl7.org/CodeSystem/discharge-disposition',
+                ...disposition,
+              },
+            ],
+          }
+        : undefined,
+    }),
+    location: [
+      {
+        location: { display: a.bedLabel ? `${a.unitName} · ${a.bedLabel}` : a.unitName },
+        status: a.status === 'ADMITTED' ? 'active' : 'completed',
+      },
+    ],
+    serviceProvider: ref('Organization', a.facilityId),
+  });
+}
+
+/** Triage level 1–5 → v3 ActPriority. */
+const TRIAGE_PRIORITY: Record<number, { code: string; display: string }> = {
+  1: { code: 'EM', display: 'emergency' },
+  2: { code: 'EM', display: 'emergency' },
+  3: { code: 'UR', display: 'urgent' },
+  4: { code: 'R', display: 'routine' },
+  5: { code: 'EL', display: 'elective' },
+};
+
+export function edEncounter(
+  e: {
+    id: string;
+    status: string;
+    arrivedAt: string | Date;
+    departedAt: string | Date | null;
+    chiefComplaint: string | null;
+    triageLevel: number | null;
+    assignedDoctorId: string | null;
+    facilityId: string;
+  },
+  patientId: string,
+  opts: { includeReason: boolean },
+): R {
+  const priority = e.triageLevel ? TRIAGE_PRIORITY[e.triageLevel] : undefined;
+  const active = e.status === 'WAITING' || e.status === 'IN_TREATMENT';
+  return clean({
+    resourceType: 'Encounter',
+    id: e.id,
+    status: active ? (e.status === 'WAITING' ? 'arrived' : 'in-progress') : 'finished',
+    class: { system: SYSTEMS.actCode, code: 'EMER', display: 'emergency' },
+    priority: priority
+      ? {
+          coding: [{ system: 'http://terminology.hl7.org/CodeSystem/v3-ActPriority', ...priority }],
+          text: `Triage level ${e.triageLevel}`,
+        }
+      : undefined,
+    subject: ref('Patient', patientId),
+    participant: e.assignedDoctorId
+      ? [{ individual: ref('Practitioner', e.assignedDoctorId) }]
+      : undefined,
+    period: clean({ start: iso(e.arrivedAt), end: iso(e.departedAt) }),
+    reasonCode: opts.includeReason && e.chiefComplaint ? [{ text: e.chiefComplaint }] : undefined,
+    serviceProvider: ref('Organization', e.facilityId),
+  });
+}
+
+const MODALITY: Record<string, { code: string; display: string }> = {
+  XRAY: { code: 'DX', display: 'Digital Radiography' },
+  CT: { code: 'CT', display: 'Computed Tomography' },
+  MRI: { code: 'MR', display: 'Magnetic Resonance' },
+  ULTRASOUND: { code: 'US', display: 'Ultrasound' },
+  MAMMOGRAPHY: { code: 'MG', display: 'Mammography' },
+  FLUOROSCOPY: { code: 'RF', display: 'Radio Fluoroscopy' },
+};
+const DICOM = 'http://dicom.nema.org/resources/ontology/DCM';
+
+export function imagingServiceRequest(
+  o: {
+    id: string;
+    accessionNumber: string;
+    modality: string;
+    bodyPart: string;
+    clinicalQuestion: string;
+    priority: string;
+    status: string;
+    createdAt: string | Date;
+    orderedById: string;
+    encounterId: string | null;
+  },
+  patientId: string,
+): R {
+  const modality = MODALITY[o.modality];
+  const status =
+    o.status === 'CANCELLED'
+      ? 'revoked'
+      : o.status === 'REPORTED' || o.status === 'PERFORMED'
+        ? 'completed'
+        : 'active';
+  return clean({
+    resourceType: 'ServiceRequest',
+    id: o.id,
+    identifier: [{ system: 'urn:pacient:accession-number', value: o.accessionNumber }],
+    status,
+    intent: 'order',
+    category: [
+      { coding: [{ system: 'http://snomed.info/sct', code: '363679005', display: 'Imaging' }] },
+    ],
+    priority: { ROUTINE: 'routine', URGENT: 'urgent', STAT: 'stat' }[o.priority] ?? 'routine',
+    code: {
+      coding: modality ? [{ system: DICOM, ...modality }] : undefined,
+      text: `${modality?.display ?? o.modality} – ${o.bodyPart}`,
+    },
+    bodySite: [{ text: o.bodyPart }],
+    subject: ref('Patient', patientId),
+    encounter: ref('Encounter', o.encounterId),
+    authoredOn: iso(o.createdAt),
+    requester: ref('Practitioner', o.orderedById),
+    reasonCode: [{ text: o.clinicalQuestion }],
+  });
+}
+
+export function imagingDiagnosticReport(
+  o: {
+    id: string;
+    modality: string;
+    bodyPart: string;
+    findings: string | null;
+    impression: string | null;
+    critical: boolean;
+    reportedAt: string | Date | null;
+    reportedById: string | null;
+    performedAt: string | Date | null;
+  },
+  patientId: string,
+): R {
+  const modality = MODALITY[o.modality];
+  return clean({
+    resourceType: 'DiagnosticReport',
+    id: `${o.id}-report`,
+    basedOn: [ref('ServiceRequest', o.id)],
+    status: 'final',
+    category: [
+      {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/v2-0074',
+            code: 'RAD',
+            display: 'Radiology',
+          },
+        ],
+      },
+    ],
+    code: {
+      coding: modality ? [{ system: DICOM, ...modality }] : undefined,
+      text: `${modality?.display ?? o.modality} – ${o.bodyPart}`,
+    },
+    subject: ref('Patient', patientId),
+    effectiveDateTime: iso(o.performedAt),
+    issued: iso(o.reportedAt),
+    resultsInterpreter: o.reportedById ? [ref('Practitioner', o.reportedById)] : undefined,
+    conclusion: o.impression ?? undefined,
+    presentedForm: o.findings
+      ? [
+          {
+            contentType: 'text/plain',
+            title: 'Findings',
+            data: Buffer.from(o.findings).toString('base64'),
+          },
+        ]
+      : undefined,
+    extension: o.critical
+      ? [{ url: 'urn:pacient:critical-finding', valueBoolean: true }]
+      : undefined,
+  });
+}
+
+/** The mother of a newborn, as RelatedPerson on the newborn's record. */
+export function motherRelatedPerson(
+  m: { id: string; nationalId: string; firstName: string; lastName: string },
+  newbornId: string,
+): R {
+  return {
+    resourceType: 'RelatedPerson',
+    id: `${newbornId}-mother`,
+    patient: { reference: `Patient/${newbornId}` },
+    identifier: [{ system: SYSTEMS.nationalId, value: m.nationalId }],
+    relationship: [
+      {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
+            code: 'MTH',
+            display: 'mother',
+          },
+        ],
+      },
+    ],
+    name: [{ family: m.lastName, given: [m.firstName] }],
+    extension: [
+      { url: 'urn:pacient:patient-record', valueReference: { reference: `Patient/${m.id}` } },
+    ],
+  };
+}
+
+/** Birth weight and Apgar scores as Observations on the newborn's record. */
+export function birthObservations(
+  b: {
+    id: string;
+    bornAt: string | Date;
+    birthWeightGrams: number;
+    apgar1: number;
+    apgar5: number;
+    apgar10: number | null;
+  },
+  newbornId: string,
+): R[] {
+  const base = {
+    resourceType: 'Observation',
+    status: 'final',
+    category: vitalCategory,
+    subject: ref('Patient', newbornId),
+    effectiveDateTime: iso(b.bornAt),
+  };
+  const apgar = (minute: number, code: string, value: number | null): R | null =>
+    value === null
+      ? null
+      : clean({
+          ...base,
+          id: `${b.id}-apgar${minute}`,
+          category: [{ coding: [{ system: SYSTEMS.obsCategory, code: 'exam', display: 'Exam' }] }],
+          code: {
+            coding: [{ system: SYSTEMS.loinc, code, display: `${minute} minute Apgar Score` }],
+          },
+          valueInteger: value,
+        });
+  const all: (R | null)[] = [
+    clean({
+      ...base,
+      id: `${b.id}-weight`,
+      code: {
+        coding: [{ system: SYSTEMS.loinc, code: '8339-4', display: 'Birth weight Measured' }],
+      },
+      valueQuantity: { value: b.birthWeightGrams, unit: 'g', system: SYSTEMS.ucum, code: 'g' },
+    }),
+    apgar(1, '9272-6', b.apgar1),
+    apgar(5, '9274-2', b.apgar5),
+    apgar(10, '9271-8', b.apgar10),
+  ];
+  return all.filter((o): o is R => o !== null);
+}

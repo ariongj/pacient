@@ -43,6 +43,11 @@ export const REPORT_NAMES = [
   'referrals',
   'appointments',
   'workforce',
+  'occupancy',
+  'admissions',
+  'emergency',
+  'births',
+  'imaging',
 ] as const;
 const ReportName = z.object({ report: z.enum(REPORT_NAMES) });
 
@@ -342,6 +347,247 @@ async function workforceReport(ctx: AuthContext, q: ReportQuery) {
   };
 }
 
+/* ------------------------------------------------------------------ hospital reports */
+
+/** Bed occupancy per facility and unit type (point in time; the period does not apply). */
+async function occupancyReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region, u.type AS "unitType",
+      count(b.id)::int AS beds,
+      count(b.id) FILTER (WHERE EXISTS (SELECT 1 FROM admissions a
+        WHERE a.bed_id = b.id AND a.status = 'ADMITTED'))::int AS occupied,
+      count(b.id) FILTER (WHERE b.status = 'AVAILABLE')::int AS available,
+      count(b.id) FILTER (WHERE b.status = 'CLEANING')::int AS cleaning,
+      count(b.id) FILTER (WHERE b.status = 'OUT_OF_SERVICE')::int AS "outOfService"
+    FROM facilities f
+    JOIN care_units u ON u.facility_id = f.id AND u.is_active
+    JOIN beds b ON b.unit_id = u.id
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id, u.type ORDER BY f.region, f.name, u.type`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'unitType',
+      'beds',
+      'occupied',
+      'available',
+      'cleaning',
+      'outOfService',
+      'occupancyPct',
+    ],
+    // Bed counts are operational, not patient counts, and are not suppressed.
+    rows: result.rows.map((r) => ({
+      ...r,
+      occupancyPct: pct(r.occupied, num(r.beds) - num(r.outOfService)),
+    })),
+  };
+}
+
+/** Admissions, discharges and average length of stay per facility and unit type. */
+async function admissionsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const from = q.from.toISOString();
+  const to = q.to.toISOString();
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region, u.type AS "unitType",
+      count(a.id) FILTER (WHERE a.admitted_at BETWEEN ${from} AND ${to})::int AS admissions,
+      count(a.id) FILTER (WHERE a.status = 'DISCHARGED' AND a.discharged_at BETWEEN ${from} AND ${to})::int AS discharges,
+      count(a.id) FILTER (WHERE a.disposition = 'DECEASED' AND a.discharged_at BETWEEN ${from} AND ${to})::int AS deaths,
+      count(a.id) FILTER (WHERE a.source = 'EMERGENCY' AND a.admitted_at BETWEEN ${from} AND ${to})::int AS "fromEmergency",
+      avg(extract(epoch FROM (a.discharged_at - a.admitted_at)) / 86400)
+        FILTER (WHERE a.status = 'DISCHARGED' AND a.discharged_at BETWEEN ${from} AND ${to}) AS "avgLengthOfStayDays",
+      count(a.id) FILTER (WHERE a.status = 'ADMITTED')::int AS "currentInpatients"
+    FROM facilities f
+    JOIN care_units u ON u.facility_id = f.id
+    JOIN admissions a ON a.unit_id = u.id AND a.status <> 'CANCELLED'
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id, u.type ORDER BY f.region, f.name, u.type`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'unitType',
+      'admissions',
+      'discharges',
+      'fromEmergency',
+      'deaths',
+      'avgLengthOfStayDays',
+      'currentInpatients',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      admissions: suppress(num(r.admissions)),
+      discharges: suppress(num(r.discharges)),
+      fromEmergency: suppress(num(r.fromEmergency)),
+      deaths: suppress(num(r.deaths)),
+      currentInpatients: suppress(num(r.currentInpatients)),
+      avgLengthOfStayDays:
+        num(r.discharges) < SMALL_CELL_THRESHOLD ? null : hours(r.avgLengthOfStayDays),
+      suppressed: num(r.admissions) < SMALL_CELL_THRESHOLD,
+    })),
+  };
+}
+
+/** Five-level triage targets, in minutes from arrival to being seen. */
+export const TRIAGE_TARGET_MINUTES: Record<number, number> = { 1: 0, 2: 10, 3: 60, 4: 120, 5: 240 };
+
+/** Emergency department: attendances, waiting time to be seen by triage level, left unseen. */
+async function emergencyReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const from = q.from.toISOString();
+  const to = q.to.toISOString();
+  const wait = sql`extract(epoch FROM (e.seen_at - e.arrived_at)) / 60`;
+  const median = (level: number) =>
+    sql`percentile_cont(0.5) WITHIN GROUP (ORDER BY ${wait}) FILTER (WHERE e.triage_level = ${sql.raw(String(level))} AND e.seen_at IS NOT NULL)`;
+  const targetCase = sql.raw(
+    `(CASE e.triage_level ${Object.entries(TRIAGE_TARGET_MINUTES)
+      .map(([level, minutes]) => `WHEN ${Number(level)} THEN ${Number(minutes)}`)
+      .join(' ')} END)`,
+  );
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(e.id)::int AS attendances,
+      count(e.id) FILTER (WHERE e.arrival_mode = 'AMBULANCE')::int AS ambulance,
+      count(e.id) FILTER (WHERE e.status = 'ADMITTED')::int AS admitted,
+      count(e.id) FILTER (WHERE e.status = 'LEFT_WITHOUT_BEING_SEEN')::int AS "leftUnseen",
+      count(e.id) FILTER (WHERE e.seen_at IS NOT NULL)::int AS seen,
+      count(e.id) FILTER (WHERE e.seen_at IS NOT NULL AND e.triage_level IS NOT NULL
+        AND ${wait} <= ${targetCase})::int AS "seenWithinTarget",
+      ${median(1)} AS "medianWaitL1", ${median(2)} AS "medianWaitL2", ${median(3)} AS "medianWaitL3",
+      ${median(4)} AS "medianWaitL4", ${median(5)} AS "medianWaitL5"
+    FROM facilities f
+    JOIN ed_visits e ON e.facility_id = f.id AND e.arrived_at BETWEEN ${from} AND ${to}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  const minutes = (v: unknown) => (v === null || v === undefined ? null : Math.round(Number(v)));
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'attendances',
+      'ambulance',
+      'admitted',
+      'leftUnseenPct',
+      'seenWithinTargetPct',
+      'medianWaitL1',
+      'medianWaitL2',
+      'medianWaitL3',
+      'medianWaitL4',
+      'medianWaitL5',
+    ],
+    rows: result.rows.map((r) => {
+      const small = num(r.attendances) < SMALL_CELL_THRESHOLD;
+      return {
+        ...r,
+        attendances: suppress(num(r.attendances)),
+        ambulance: suppress(num(r.ambulance)),
+        admitted: suppress(num(r.admitted)),
+        // Raw counts behind the percentages are not returned (they may be small cells).
+        leftUnseen: undefined,
+        seen: undefined,
+        seenWithinTarget: undefined,
+        leftUnseenPct: small ? null : pct(r.leftUnseen, r.attendances),
+        seenWithinTargetPct: small ? null : pct(r.seenWithinTarget, r.seen),
+        medianWaitL1: small ? null : minutes(r.medianWaitL1),
+        medianWaitL2: small ? null : minutes(r.medianWaitL2),
+        medianWaitL3: small ? null : minutes(r.medianWaitL3),
+        medianWaitL4: small ? null : minutes(r.medianWaitL4),
+        medianWaitL5: small ? null : minutes(r.medianWaitL5),
+        suppressed: small,
+      };
+    }),
+  };
+}
+
+/** Births per facility: caesarean, low birth weight and preterm rates (suppressed when small). */
+async function birthsReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region,
+      count(b.id)::int AS births,
+      count(b.id) FILTER (WHERE b.delivery_type IN ('CAESAREAN_ELECTIVE', 'CAESAREAN_EMERGENCY'))::int AS caesarean,
+      count(b.id) FILTER (WHERE b.birth_weight_grams < 2500)::int AS "lowBirthWeight",
+      count(b.id) FILTER (WHERE b.gestational_weeks < 37)::int AS preterm,
+      count(b.id) FILTER (WHERE b.apgar_5 < 7)::int AS "lowApgar5"
+    FROM facilities f
+    JOIN births b ON b.facility_id = f.id
+      AND b.born_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'births',
+      'caesareanPct',
+      'lowBirthWeightPct',
+      'pretermPct',
+      'lowApgar5Pct',
+    ],
+    rows: result.rows.map((r) => {
+      const small = num(r.births) < SMALL_CELL_THRESHOLD;
+      return {
+        ...r,
+        births: suppress(num(r.births)),
+        caesarean: undefined,
+        lowBirthWeight: undefined,
+        preterm: undefined,
+        lowApgar5: undefined,
+        caesareanPct: small ? null : pct(r.caesarean, r.births),
+        lowBirthWeightPct: small ? null : pct(r.lowBirthWeight, r.births),
+        pretermPct: small ? null : pct(r.preterm, r.births),
+        lowApgar5Pct: small ? null : pct(r.lowApgar5, r.births),
+        suppressed: small,
+      };
+    }),
+  };
+}
+
+/** Imaging volume and reporting turnaround per facility and modality. */
+async function imagingReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const result = await db.execute<Row>(sql`
+    SELECT f.code, f.name, f.region, i.modality,
+      count(i.id)::int AS orders,
+      count(i.id) FILTER (WHERE i.priority <> 'ROUTINE')::int AS urgent,
+      count(i.id) FILTER (WHERE i.status = 'REPORTED')::int AS reported,
+      count(i.id) FILTER (WHERE i.status IN ('ORDERED', 'SCHEDULED', 'PERFORMED'))::int AS outstanding,
+      count(i.id) FILTER (WHERE i.critical)::int AS critical,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM (i.reported_at - i.created_at)) / 3600)
+        FILTER (WHERE i.reported_at IS NOT NULL) AS "medianHoursToReport"
+    FROM facilities f
+    JOIN imaging_orders i ON i.facility_id = f.id AND i.status <> 'CANCELLED'
+      AND i.created_at BETWEEN ${q.from.toISOString()} AND ${q.to.toISOString()}
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id, i.modality ORDER BY f.region, f.name, i.modality`);
+  return {
+    // Examination counts are activity, not patient counts; critical findings are suppressed.
+    columns: [
+      'code',
+      'name',
+      'region',
+      'modality',
+      'orders',
+      'urgent',
+      'reported',
+      'outstanding',
+      'critical',
+      'medianHoursToReport',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      critical: num(r.critical) === 0 ? 0 : suppress(num(r.critical)),
+      medianHoursToReport: hours(r.medianHoursToReport),
+    })),
+  };
+}
+
 const REPORTS: Record<
   (typeof REPORT_NAMES)[number],
   (ctx: AuthContext, q: ReportQuery) => Promise<{ columns: string[]; rows: unknown[] }>
@@ -354,6 +600,11 @@ const REPORTS: Record<
   referrals: referralsReport,
   appointments: appointmentsReport,
   workforce: workforceReport,
+  occupancy: occupancyReport,
+  admissions: admissionsReport,
+  emergency: emergencyReport,
+  births: birthsReport,
+  imaging: imagingReport,
 };
 
 /** CSV with protection against spreadsheet formula injection. */

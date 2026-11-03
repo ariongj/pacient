@@ -113,3 +113,45 @@ describe('platform', () => {
     expect(bad.status).toBe(400);
   });
 });
+
+describe('hospital reports', () => {
+  it('computes birth rates only from at least five births, without raw small counts', async () => {
+    const before = await api().get('/api/v1/reports/births').set(bearer(w.tokens.director));
+    expect(before.status).toBe(200);
+    const insertBirth = async (deliveryType: string, grams: number, weeks: number) => {
+      const mother = await createPatient(w.facility.id);
+      const baby = await createPatient(w.facility.id);
+      await db.execute(sql`
+        INSERT INTO births (mother_patient_id, newborn_patient_id, facility_id, born_at, delivery_type,
+          gestational_weeks, birth_weight_grams, apgar_1, apgar_5, attendant_id)
+        VALUES (${mother.id}, ${baby.id}, ${w.facility.id}, now() - interval '1 day', ${deliveryType}::delivery_type,
+          ${weeks}, ${grams}, 8, 9, ${w.users.doctor.id})`);
+    };
+    await insertBirth('CAESAREAN_EMERGENCY', 3100, 39);
+    await insertBirth('SPONTANEOUS_VAGINAL', 3300, 40);
+    const few = await api().get('/api/v1/reports/births').set(bearer(w.tokens.director));
+    expect(few.body.rows[0]).toMatchObject({ births: null, caesareanPct: null, suppressed: true });
+    expect(few.body.rows[0]).not.toHaveProperty('caesarean');
+    await insertBirth('CAESAREAN_ELECTIVE', 2300, 35);
+    await insertBirth('SPONTANEOUS_VAGINAL', 3500, 41);
+    await insertBirth('ASSISTED_VAGINAL', 3400, 38);
+    const res = await api().get('/api/v1/reports/births').set(bearer(w.tokens.director));
+    expect(res.body.rows[0]).toMatchObject({
+      births: 5,
+      caesareanPct: 40,
+      lowBirthWeightPct: 20,
+      pretermPct: 20,
+      suppressed: false,
+    });
+  });
+
+  it('reports bed occupancy for the director’s facility only', async () => {
+    const res = await api().get('/api/v1/reports/occupancy').set(bearer(w.tokens.director));
+    expect(res.status).toBe(200);
+    expect(res.body.columns).toContain('occupancyPct');
+    const bad = await api()
+      .get(`/api/v1/reports/occupancy?facilityId=${w.otherFacility.id}`)
+      .set(bearer(w.tokens.director));
+    expect(bad.status).toBe(400);
+  });
+});

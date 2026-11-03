@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { CoverWorklist } from '../../api/cover';
+import { modalityLabel, useImagingAction, type Modality } from '../../api/imaging';
 import type { Appointment, CareTask, MessageThreadSummary, Referral } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import { AnnouncementsCard } from '../../components/Announcements';
@@ -28,6 +29,77 @@ function EscalatedBadge({ level }: { level?: number }) {
     <span style={{ display: 'block', marginTop: '0.25rem' }}>
       <Badge tone="danger">{level >= 2 ? t('Escalated to director') : t('Escalated')}</Badge>
     </span>
+  );
+}
+
+interface ImagingToReview {
+  id: string;
+  patientId: string;
+  patientName: string;
+  modality: Modality;
+  bodyPart: string;
+  impression: string | null;
+  critical: boolean;
+  reportedAt: string;
+  orderedById: string;
+  orderedBy: string;
+}
+
+/** Signed imaging reports waiting for my review (or a covered colleague's), critical first. */
+function ImagingReviewCard({ items, myId }: { items: ImagingToReview[]; myId: string }) {
+  const acknowledge = useImagingAction((id: string) => ({ path: `/orders/${id}/acknowledge` }));
+  if (!items.length) return null;
+  return (
+    <Card title={t('Imaging reports to review')}>
+      <ErrorAlert error={acknowledge.error} />
+      <Table caption={t('Imaging reports to review')}>
+        <thead>
+          <tr>
+            <th>{t('Patient')}</th>
+            <th>{t('Examination')}</th>
+            <th>{t('Impression')}</th>
+            <th>{t('Reported')}</th>
+            <th>
+              <span className="sr-only">{t('Actions')}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <Link to={`/doctor/patients/${r.patientId}?tab=imaging`}>{r.patientName}</Link>
+                {r.orderedById !== myId && (
+                  <div className="muted">{t('Covering for {name}', { name: r.orderedBy })}</div>
+                )}
+              </td>
+              <td>
+                {modalityLabel(r.modality)} · {r.bodyPart}
+              </td>
+              <td>
+                {r.critical && (
+                  <span style={{ display: 'block', marginBottom: '0.25rem' }}>
+                    <Badge tone="danger">{t('Critical finding')}</Badge>
+                  </span>
+                )}
+                {r.impression}
+              </td>
+              <td>{formatDateTime(r.reportedAt)}</td>
+              <td>
+                <Button
+                  size="sm"
+                  variant={r.critical ? 'primary' : 'secondary'}
+                  loading={acknowledge.isPending && acknowledge.variables === r.id}
+                  onClick={() => acknowledge.mutate(r.id)}
+                >
+                  {t('Acknowledge')}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </Card>
   );
 }
 
@@ -255,6 +327,11 @@ export function DoctorHome() {
                 </Table>
               )}
             </Card>
+
+            <ImagingReviewCard
+              items={(w as { imagingToReview?: ImagingToReview[] }).imagingToReview ?? []}
+              myId={user.id}
+            />
 
             {(w.coveredResults ?? []).length > 0 && (
               <Card

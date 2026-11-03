@@ -5,6 +5,7 @@ import {
   careAssignments,
   correctionRequests,
   encounters,
+  imagingOrders,
   labResults,
   patients,
   prescriptions,
@@ -157,9 +158,38 @@ worklistRouter.get('/', async (req, res) => {
         .limit(100)
     : [];
 
+  // Imaging reports waiting for my review (mine, or of colleagues I currently cover).
+  const reviewers = [ctx.userId, ...covered];
+  const imagingToReview = await db
+    .select({
+      id: imagingOrders.id,
+      patientId: imagingOrders.patientId,
+      patientName,
+      modality: imagingOrders.modality,
+      bodyPart: imagingOrders.bodyPart,
+      impression: imagingOrders.impression,
+      critical: imagingOrders.critical,
+      reportedAt: imagingOrders.reportedAt,
+      orderedById: imagingOrders.orderedById,
+      orderedBy: users.fullName,
+    })
+    .from(imagingOrders)
+    .innerJoin(patients, eq(patients.id, imagingOrders.patientId))
+    .innerJoin(users, eq(users.id, imagingOrders.orderedById))
+    .where(
+      and(
+        inArray(imagingOrders.orderedById, reviewers),
+        eq(imagingOrders.status, 'REPORTED'),
+        isNull(imagingOrders.acknowledgedAt),
+      ),
+    )
+    .orderBy(desc(imagingOrders.critical), asc(imagingOrders.reportedAt))
+    .limit(100);
+
   res.json({
     unacknowledgedResults: results,
     coveredResults,
+    imagingToReview,
     openCorrectionRequests: corrections,
     draftNotes: drafts,
     returnedPrescriptions,

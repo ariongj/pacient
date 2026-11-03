@@ -101,6 +101,8 @@ const listColumns = {
   sex: patients.sex,
   primaryFacilityId: patients.primaryFacilityId,
   hasPortalAccount: sql<boolean>`${patients.userId} IS NOT NULL`,
+  /** NEWBORN / UNIDENTIFIED while the national ID is a temporary number (TMP…). */
+  temporaryIdentity: patients.temporaryIdentity,
 };
 
 /** Correlated subquery: is the patient in the given doctor's active care? */
@@ -137,6 +139,8 @@ patientsRouter.get(
           ilike(patients.lastName, `%${q.search}%`),
           ilike(sql`${patients.firstName} || ' ' || ${patients.lastName}`, `%${q.search}%`),
           eq(patients.nationalId, q.search),
+          // Temporary numbers (TMP…) are often read off a wristband: allow a prefix search.
+          /^tmp\d{0,10}$/i.test(q.search) ? ilike(patients.nationalId, `${q.search.toUpperCase()}%`) : undefined,
         )!
       : undefined;
 

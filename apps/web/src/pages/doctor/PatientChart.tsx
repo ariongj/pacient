@@ -40,11 +40,16 @@ import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
 import { VitalsTab } from './chart/VitalsTab';
 import { t } from '../../i18n';
+import { displayName } from '../../api/identity';
+import { ConfirmIdentityDialog } from '../births/IdentityDialogs';
 
 /** GET /patients/:id – demographics without clinical data. */
 interface PatientDemographics {
   /** Set when this record was a duplicate merged into another one. */
   mergedIntoId?: string | null;
+  /** NEWBORN / UNIDENTIFIED while the national ID is a temporary number. */
+  temporaryIdentity?: 'NEWBORN' | 'UNIDENTIFIED' | null;
+  identityNote?: string | null;
   id: string;
   nationalId: string;
   firstName: string;
@@ -86,6 +91,7 @@ export function PatientChart() {
   const [booking, setBooking] = useState(false);
   const [referring, setReferring] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [confirmingIdentity, setConfirmingIdentity] = useState(false);
   const [exportError, setExportError] = useState<unknown>(null);
   const { isDoctor, base } = useChartRole();
   const requested = params.get('tab') as TabId | null;
@@ -158,8 +164,25 @@ export function PatientChart() {
       >
         <div>
           <h1>
-            {p.lastName}, {p.firstName}
+            {p.temporaryIdentity === 'UNIDENTIFIED'
+              ? displayName(p)
+              : `${p.lastName}, ${p.firstName}`}
           </h1>
+          {p.temporaryIdentity && (
+            <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+              <Badge tone="warning">
+                {p.temporaryIdentity === 'NEWBORN'
+                  ? t('Temporary ID – awaiting civil registration')
+                  : t('Temporary ID – awaiting confirmation')}
+              </Badge>
+              {p.temporaryIdentity === 'UNIDENTIFIED' && p.identityNote && (
+                <span className="muted">{p.identityNote}</span>
+              )}
+              <Button size="sm" variant="secondary" onClick={() => setConfirmingIdentity(true)}>
+                {p.temporaryIdentity === 'NEWBORN' ? t('Enter national ID') : t('Confirm identity')}
+              </Button>
+            </div>
+          )}
           <div className="banner-facts">
             <span>
               {t('{age} y', { age: age(p.dateOfBirth) })} · {humanize(p.sex)}
@@ -351,6 +374,12 @@ export function PatientChart() {
 
       {!s && !summary.isPending && !noClinicalAccess && !summary.error && (
         <EmptyState title={t('No record available')} />
+      )}
+      {p.temporaryIdentity && (
+        <ConfirmIdentityDialog
+          patient={confirmingIdentity ? { ...p, temporaryIdentity: p.temporaryIdentity } : null}
+          onClose={() => setConfirmingIdentity(false)}
+        />
       )}
     </>
   );

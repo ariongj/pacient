@@ -1674,6 +1674,39 @@ export const imagingOrders = pgTable(
   ],
 );
 
+/** Scopes a partner system may be granted (checked by a database constraint as well). */
+export const PARTNER_SCOPES = [
+  'fhir.patient.read',
+  'stats.read',
+  'directory.read',
+  'births.notify',
+] as const;
+export type PartnerScope = (typeof PARTNER_SCOPES)[number];
+
+/**
+ * External systems with API access (insurance fund, civil registry, other hospitals' EHRs, public
+ * health). Managed by the Ministry; each system has its own revocable key (only its hash is
+ * stored) and only the scopes it needs. Every call is audited.
+ */
+export const partnerClients = pgTable(
+  'partner_clients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 120 }).notNull(),
+    organisation: varchar('organisation', { length: 200 }).notNull(),
+    scopes: text('scopes').array().notNull(),
+    apiKeyHash: varchar('api_key_hash', { length: 128 }).notNull(),
+    apiKeyPrefix: varchar('api_key_prefix', { length: 20 }).notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    allowedIps: text('allowed_ips').array(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('partner_clients_key_uq').on(t.apiKeyHash)],
+);
+
 /* ------------------------------------------------------------------------------------------------
  * Audit trail (append-only; UPDATE/DELETE are blocked by a database trigger, see migrations)
  * ---------------------------------------------------------------------------------------------- */

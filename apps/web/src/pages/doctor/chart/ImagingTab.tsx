@@ -1,3 +1,4 @@
+import { ViewImagesButton } from '../../imaging/ViewImagesButton';
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../api/client';
@@ -111,11 +112,15 @@ export function ImagingTab({ patientId }: { patientId: string }) {
                           <Button size="sm" variant="ghost" onClick={() => setViewing(o)}>
                             {t('Full report')}
                           </Button>
+                          <ViewImagesButton order={o} variant="ghost" />
                         </div>
                       ) : o.status === 'CANCELLED' ? (
                         <span className="muted">{o.cancelReason}</span>
                       ) : (
-                        <span className="muted">{t('Awaiting report')}</span>
+                        <div className="stack" style={{ gap: '0.25rem' }}>
+                          <span className="muted">{t('Awaiting report')}</span>
+                          <ViewImagesButton order={o} variant="ghost" />
+                        </div>
                       )}
                     </td>
                     <td>

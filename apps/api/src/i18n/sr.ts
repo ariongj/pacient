@@ -1,3 +1,6 @@
+import { srSecurity } from './sr-security.js';
+import { srVaccination } from './sr-vaccination.js';
+import { srScheduling } from './sr-scheduling.js';
 import { srTheatre } from './sr-theatre.js';
 import { srStock } from './sr-stock.js';
 import { srPacs } from './sr-pacs.js';
@@ -18,4 +21,7 @@ export const sr: Record<string, string> = {
   ...srTheatre,
   ...srStock,
   ...srPacs,
+  ...srScheduling,
+  ...srVaccination,
+  ...srSecurity,
 };

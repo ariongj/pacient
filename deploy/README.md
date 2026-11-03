@@ -117,6 +117,26 @@ ADMIN_DATABASE_URL=postgres://postgres@verify-host/postgres BACKUP_AGE_IDENTITY=
   deploy/restore-verify.sh /var/backups/pacient/pacient-20261102T020000Z.dump.age
 ```
 
+## Radiology images (PACS)
+
+Pacient shows radiology images through an authorised proxy: browsers only talk to the Pacient
+API, which checks the same access rules as for the report (care team, radiology unit, patient only
+after release), audits each viewing session and fetches images from the archive over DICOMweb
+(QIDO-RS search, WADO-RS `/rendered`). The archive address and credentials never reach a browser.
+
+| Variable            | Meaning                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `PACS_MODE`         | `dicomweb` (real archive), `off`, or `demo` (synthetic images, never in production) |
+| `PACS_DICOMWEB_URL` | DICOMweb root, e.g. `http://orthanc:8042/dicom-web`                                 |
+| `PACS_AUTH_HEADER`  | Optional `Authorization` value for the archive, e.g. `Basic …`                      |
+| `PACS_TIMEOUT_MS`   | Request timeout (default 8000)                                                      |
+
+Connecting Orthanc: enable its DICOMweb plugin, make sure modalities send studies with the
+**accession number** of the Pacient order (the `IMG…` number, from the modality worklist or
+entered at the scanner), then radiology staff press _Link images → Find by accession number_ (or
+paste the Study Instance UID). Keep the archive on a private network reachable only by the API.
+The viewer is for review; diagnosis belongs on a certified diagnostic workstation.
+
 ## SMS and laboratory connections
 
 SMS alerts use Twilio when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `SMS_FROM` are set;

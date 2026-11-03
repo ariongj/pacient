@@ -1,3 +1,4 @@
+import { ViewImagesButton } from '../imaging/ViewImagesButton';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { modalityLabel, type PatientImagingReport } from '../../api/imaging';
@@ -45,6 +46,9 @@ export function PortalImaging() {
                   <h3>{t('Conclusion')}</h3>
                   <p>
                     <strong>{r.impression}</strong>
+                  </p>
+                  <p>
+                    <ViewImagesButton order={r} />
                   </p>
                   <details>
                     <summary>{t('Full report')}</summary>

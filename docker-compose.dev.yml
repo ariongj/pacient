@@ -21,5 +21,25 @@ services:
     ports:
       - '127.0.0.1:1025:1025'
       - '127.0.0.1:8025:8025'
+  # Optional image archive (PACS) for radiology. Uncomment, then set in apps/api/.env:
+  #   PACS_MODE=dicomweb
+  #   PACS_DICOMWEB_URL=http://localhost:8042/dicom-web
+  #   PACS_AUTH_HEADER=Basic cGFjaWVudDpwYWNpZW50      # pacient:pacient
+  # Send studies to it with any DICOM tool (AE title ORTHANC, port 4242) or upload in the
+  # Orthanc web UI at http://localhost:8042. Without it the API uses built-in demo images.
+  # orthanc:
+  #   image: orthancteam/orthanc:24.12.0
+  #   environment:
+  #     ORTHANC__NAME: Pacient dev PACS
+  #     ORTHANC__AUTHENTICATION_ENABLED: 'true'
+  #     ORTHANC__REGISTERED_USERS: '{"pacient": "pacient"}'
+  #     ORTHANC__DICOM_WEB__ENABLE: 'true'
+  #     ORTHANC__DICOM_WEB__ROOT: /dicom-web/
+  #   ports:
+  #     - '127.0.0.1:8042:8042'
+  #     - '127.0.0.1:4242:4242'
+  #   volumes:
+  #     - dev-orthanc:/var/lib/orthanc/db
 volumes:
   dev-db:
+  # dev-orthanc:

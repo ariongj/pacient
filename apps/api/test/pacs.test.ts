@@ -136,17 +136,14 @@ describe('demo archive', () => {
   });
 
   it('lets only radiology staff link studies, after the examination', async () => {
-    const res = await api()
-      .post('/api/v1/imaging/orders')
-      .set(bearer(w.tokens.doctor))
-      .send({
-        patientId: w.patient.id,
-        modality: 'ULTRASOUND',
-        bodyPart: 'Abdomen',
-        clinicalQuestion: 'Right upper quadrant pain – gallstones?',
-        priority: 'ROUTINE',
-        safetyChecks: {},
-      });
+    const res = await api().post('/api/v1/imaging/orders').set(bearer(w.tokens.doctor)).send({
+      patientId: w.patient.id,
+      modality: 'ULTRASOUND',
+      bodyPart: 'Abdomen',
+      clinicalQuestion: 'Right upper quadrant pain – gallstones?',
+      priority: 'ROUTINE',
+      safetyChecks: {},
+    });
     const id = res.body.id as string;
     expect((await step(id, 'study/lookup', radiographer.token)).status).toBe(409);
     expect((await images(id, w.tokens.doctor)).status).toBe(404); // nothing linked yet

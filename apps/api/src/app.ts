@@ -29,6 +29,9 @@ import { identityRouter } from './modules/identity/identity.routes.js';
 import { imagingRouter } from './modules/imaging/imaging.routes.js';
 import { inpatientRouter } from './modules/inpatient/inpatient.routes.js';
 import { openApiHandler } from './openapi/index.js';
+import { schedulingRouter } from './modules/scheduling/scheduling.routes.js';
+import { securityRouter } from './modules/security/security.routes.js';
+import { vaccinationRouter } from './modules/vaccination/vaccination.routes.js';
 import { stockRouter } from './modules/stock/stock.routes.js';
 import { theatreRouter } from './modules/theatre/theatre.routes.js';
 import { partnerRouter } from './modules/partner/partner.routes.js';
@@ -127,6 +130,7 @@ export function createApp(): Express {
   const api = express.Router();
   api.use(apiLimiter);
   api.use('/auth/me/phone', phoneRouter);
+  api.use('/auth/security', securityRouter);
   api.use('/auth', authRouter);
   api.use('/facilities', facilitiesRouter);
   api.use('/staff', staffRouter);
@@ -136,6 +140,8 @@ export function createApp(): Express {
   api.use('/ed', edRouter);
   api.use('/imaging', imagingRouter);
   api.use('/theatre', theatreRouter);
+  api.use('/scheduling', schedulingRouter);
+  api.use('/vaccination', vaccinationRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
   api.get('/openapi.json', openApiHandler);

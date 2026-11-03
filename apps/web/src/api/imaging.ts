@@ -18,6 +18,9 @@ export interface SafetyChecks {
 }
 
 export interface ImagingOrder {
+  /** Set once images are available in the PACS. */
+  studyInstanceUid?: string | null;
+  imagesAvailableAt?: string | null;
   id: string;
   accessionNumber: string;
   patientId: string;
@@ -59,6 +62,9 @@ export interface RadiologyWorklist {
 
 /** Released report as the patient sees it. */
 export interface PatientImagingReport {
+  /** Set once images are available in the PACS. */
+  studyInstanceUid?: string | null;
+  imagesAvailableAt?: string | null;
   id: string;
   accessionNumber: string;
   modality: Modality;

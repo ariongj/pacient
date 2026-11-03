@@ -44,6 +44,10 @@ services:
       SMTP_URL: smtp://mailpit:1025
       EMAIL_FROM: Pacient Demo <no-reply@pacient.local>
       SMS_PROVIDER: log
+      # Radiology images: built-in synthetic demo images. For a real archive (e.g. Orthanc with
+      # DICOMweb) set PACS_MODE: dicomweb and PACS_DICOMWEB_URL: http://orthanc:8042/dicom-web
+      # (and PACS_AUTH_HEADER if it needs credentials) – see deploy/README.md.
+      PACS_MODE: demo
     depends_on:
       db: { condition: service_healthy }
     healthcheck:

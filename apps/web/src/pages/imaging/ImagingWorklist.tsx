@@ -1,3 +1,6 @@
+import { hasImages } from '../../api/pacs';
+import { LinkStudyButton } from './LinkStudyButton';
+import { ViewImagesButton } from './ViewImagesButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -201,6 +204,9 @@ export function ImagingWorklist() {
                                 {t('Full report')}
                               </Button>
                             )}
+                            <ViewImagesButton order={o} />
+                            {(o.status === 'PERFORMED' || o.status === 'REPORTED') &&
+                              !hasImages(o) && <LinkStudyButton orderId={o.id} />}
                           </div>
                         </td>
                       </tr>

@@ -1,3 +1,6 @@
+import { sqSecurity } from './sq-security.js';
+import { sqVaccination } from './sq-vaccination.js';
+import { sqScheduling } from './sq-scheduling.js';
 import { sqTheatre } from './sq-theatre.js';
 import { sqStock } from './sq-stock.js';
 import { sqPacs } from './sq-pacs.js';
@@ -18,4 +21,7 @@ export const sq: Record<string, string> = {
   ...sqTheatre,
   ...sqStock,
   ...sqPacs,
+  ...sqScheduling,
+  ...sqVaccination,
+  ...sqSecurity,
 };

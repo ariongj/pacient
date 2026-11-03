@@ -645,6 +645,9 @@ export const appointments = pgTable(
     reason: varchar('reason', { length: 500 }).notNull(),
     status: appointmentStatusEnum('status').notNull().default('REQUESTED'),
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** STAFF (booked by the facility) or PORTAL (patient booked a published slot). */
+    bookedVia: varchar('booked_via', { length: 10 }).notNull().default('STAFF'),
+    reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -714,6 +717,10 @@ export const immunizations = pgTable(
       .notNull()
       .references(() => facilities.id, { onDelete: 'restrict' }),
     notes: text('notes'),
+    /** Dose of the national schedule this vaccination counts for, if any. */
+    scheduleItemId: uuid('schedule_item_id').references((): AnyPgColumn => vaccineSchedule.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('immunizations_patient_idx').on(t.patientId, t.administeredAt)],
@@ -1896,6 +1903,149 @@ export const stockSettings = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('stock_settings_uq').on(t.facilityId, t.itemId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Scheduling, national vaccination calendar, account security
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A doctor's recurring weekly consulting hours, from which bookable slots are generated. */
+export const doctorAvailability = pgTable(
+  'doctor_availability',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    /** 0 = Sunday … 6 = Saturday. */
+    weekday: integer('weekday').notNull(),
+    /** Local (Europe/Belgrade) times "HH:MM". */
+    startTime: varchar('start_time', { length: 5 }).notNull(),
+    endTime: varchar('end_time', { length: 5 }).notNull(),
+    slotMinutes: integer('slot_minutes').notNull().default(20),
+    /** Whether patients may book these slots themselves in the portal. */
+    portalBookable: boolean('portal_bookable').notNull().default(true),
+    validFrom: date('valid_from', { mode: 'string' }),
+    validUntil: date('valid_until', { mode: 'string' }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('doctor_availability_doctor_idx').on(t.doctorId, t.weekday)],
+);
+
+/** Time a doctor is not available (leave, training) – no slots are offered then. */
+export const availabilityExceptions = pgTable(
+  'availability_exceptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    reason: varchar('reason', { length: 200 }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('availability_exceptions_doctor_idx').on(t.doctorId, t.startsAt)],
+);
+
+/**
+ * The national immunization calendar: one row per recommended dose. Due and overdue doses of each
+ * child are computed from the date of birth and the immunizations recorded against these rows.
+ */
+export const vaccineSchedule = pgTable(
+  'vaccine_schedule',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 40 }).notNull(),
+    vaccine: varchar('vaccine', { length: 200 }).notNull(),
+    doseNumber: integer('dose_number').notNull(),
+    /** Recommended age in days; a dose becomes due at this age. */
+    recommendedAgeDays: integer('recommended_age_days').notNull(),
+    /** After this age the dose counts as overdue. */
+    overdueAgeDays: integer('overdue_age_days').notNull(),
+    description: varchar('description', { length: 500 }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+  },
+  (t) => [uniqueIndex('vaccine_schedule_code_uq').on(t.code)],
+);
+
+/** Reminders already sent for a child's dose (one per kind), so nobody is reminded twice. */
+export const immunizationReminders = pgTable(
+  'immunization_reminders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    scheduleItemId: uuid('schedule_item_id')
+      .notNull()
+      .references(() => vaccineSchedule.id, { onDelete: 'cascade' }),
+    kind: varchar('kind', { length: 10 }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('immunization_reminders_uq').on(t.patientId, t.scheduleItemId, t.kind)],
+);
+
+/** Passkeys (WebAuthn credentials): phishing-resistant sign-in. */
+export const webauthnCredentials = pgTable(
+  'webauthn_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** base64url credential id. */
+    credentialId: text('credential_id').notNull(),
+    publicKey: bytea('public_key').notNull(),
+    counter: integer('counter').notNull().default(0),
+    transports: text('transports').array(),
+    deviceName: varchar('device_name', { length: 100 }).notNull(),
+    backedUp: boolean('backed_up').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('webauthn_credentials_id_uq').on(t.credentialId),
+    index('webauthn_credentials_user_idx').on(t.userId),
+  ],
+);
+
+/** Short-lived WebAuthn challenges (registration and sign-in). */
+export const authChallenges = pgTable(
+  'auth_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    purpose: varchar('purpose', { length: 20 }).notNull(),
+    challenge: text('challenge').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('auth_challenges_expiry_idx').on(t.expiresAt)],
+);
+
+/** Devices a user has signed in from; a sign-in from an unknown device triggers an alert. */
+export const knownDevices = pgTable(
+  'known_devices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Hash of a coarse device fingerprint (browser family + OS + IP network). */
+    deviceHash: varchar('device_hash', { length: 64 }).notNull(),
+    label: varchar('label', { length: 200 }).notNull(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('known_devices_uq').on(t.userId, t.deviceHash)],
 );
 
 /* ------------------------------------------------------------------------------------------------

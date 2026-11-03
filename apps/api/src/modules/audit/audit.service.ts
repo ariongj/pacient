@@ -125,6 +125,16 @@ export const AuditAction = {
   STOCK_DISPENSED: 'stock.dispensed',
   STOCK_SETTINGS_CHANGED: 'stock.settings_changed',
   IMAGES_VIEWED: 'imaging.images_viewed',
+  AVAILABILITY_CHANGED: 'scheduling.availability_changed',
+  APPOINTMENT_SELF_BOOKED: 'appointment.self_booked',
+  APPOINTMENT_REMINDER_SENT: 'appointment.reminder_sent',
+  VACCINE_SCHEDULE_CHANGED: 'vaccination.schedule_changed',
+  VACCINATION_REMINDER_SENT: 'vaccination.reminder_sent',
+  PASSKEY_REGISTERED: 'auth.passkey.registered',
+  PASSKEY_REMOVED: 'auth.passkey.removed',
+  PASSKEY_LOGIN: 'auth.passkey.login',
+  SESSION_REVOKED: 'auth.session.revoked',
+  NEW_DEVICE_SIGN_IN: 'auth.new_device',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

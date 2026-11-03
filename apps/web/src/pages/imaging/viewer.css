@@ -1,0 +1,163 @@
+/* Image viewer (radiology review). Dark viewport regardless of theme: images are read on black. */
+.pv-report {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+.pv {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.pv-series {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pv-thumb {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pv-thumb.active {
+  border-color: var(--primary);
+}
+.pv-thumb img,
+.pv-thumb-empty {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 4px;
+  background: #000;
+  object-fit: cover;
+}
+.pv-thumb-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 0;
+}
+.pv-thumb-label small {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.pv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.pv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.pv-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.pv-field select {
+  min-height: 32px;
+  padding: 0.2rem 0.4rem;
+  width: auto;
+}
+.pv-field input[type='range'] {
+  width: 120px;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.pv-stage {
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.pv-stage:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pv-stage:fullscreen .pv-frame {
+  height: 100vh;
+  max-height: 100vh;
+}
+.pv-frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  max-height: 76vh;
+  margin: 0 auto;
+  overflow: hidden;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+.pv-frame.zoomed {
+  cursor: grab;
+}
+.pv-frame:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--primary);
+}
+.pv-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+  image-rendering: auto;
+}
+.pv-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.6rem;
+  color: #e6f0f3;
+  font-size: 0.8rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+}
+.pv-stack input[type='range'] {
+  width: 100%;
+}
+.pv-stack {
+  width: 100%;
+}
+.pv-help {
+  margin: 0;
+  font-size: 0.8rem;
+}
+@media (max-width: 760px) {
+  .pv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pv-series {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .pv-thumb {
+    flex: none;
+  }
+  .pv-thumb-label {
+    display: none;
+  }
+}

@@ -72,6 +72,14 @@ const EnvSchema = z.object({
   /** Optional Authorization header value sent to the PACS, e.g. "Basic …". Never sent to browsers. */
   PACS_AUTH_HEADER: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   PACS_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  /**
+   * Passkeys (WebAuthn). The relying-party ID is the registrable domain the web app runs on
+   * (default: host of WEB_APP_URL); WEBAUTHN_ORIGINS is a comma-separated list of allowed origins
+   * (default: origin of WEB_APP_URL).
+   */
+  WEBAUTHN_RP_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  WEBAUTHN_RP_NAME: z.string().default('Pacient'),
+  WEBAUTHN_ORIGINS: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(
@@ -82,8 +90,16 @@ const EnvSchema = z.object({
 
 export type Env = Omit<
   z.infer<typeof EnvSchema>,
-  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT' | 'SMS_PROVIDER' | 'PACS_MODE'
+  | 'MFA_ENCRYPTION_KEY'
+  | 'REQUIRE_STAFF_MFA'
+  | 'EMAIL_TRANSPORT'
+  | 'SMS_PROVIDER'
+  | 'PACS_MODE'
+  | 'WEBAUTHN_RP_ID'
+  | 'WEBAUTHN_ORIGINS'
 > & {
+  WEBAUTHN_RP_ID: string;
+  WEBAUTHN_ORIGINS: string[];
   PACS_MODE: 'off' | 'demo' | 'dicomweb';
   /** 'held' = queue only, no delivery (production without SMS provider settings). */
   SMS_PROVIDER: 'twilio' | 'log' | 'memory' | 'held';
@@ -165,6 +181,12 @@ function loadEnv(): Env {
     EMAIL_TRANSPORT: emailTransport,
     SMS_PROVIDER: smsProvider,
     PACS_MODE: pacsMode,
+    WEBAUTHN_RP_ID: data.WEBAUTHN_RP_ID ?? new URL(data.WEB_APP_URL).hostname,
+    WEBAUTHN_ORIGINS: data.WEBAUTHN_ORIGINS
+      ? data.WEBAUTHN_ORIGINS.split(',')
+          .map((o) => o.trim())
+          .filter(Boolean)
+      : [new URL(data.WEB_APP_URL).origin],
   };
 }
 

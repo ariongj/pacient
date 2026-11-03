@@ -132,6 +132,7 @@ export const labOrderStatusEnum = pgEnum('lab_order_status', [
   'CANCELLED',
 ]);
 export const labPriorityEnum = pgEnum('lab_priority', ['ROUTINE', 'URGENT', 'STAT']);
+export const temporaryIdentityEnum = pgEnum('temporary_identity', ['NEWBORN', 'UNIDENTIFIED']);
 export const integrationKindEnum = pgEnum('integration_kind', ['LAB']);
 export const messageDirectionEnum = pgEnum('message_direction', ['INBOUND', 'OUTBOUND']);
 export const integrationMessageStatusEnum = pgEnum('integration_message_status', [
@@ -338,6 +339,14 @@ export const patients = pgTable(
       onDelete: 'restrict',
     }),
     mergedAt: timestamp('merged_at', { withTimezone: true }),
+    /**
+     * Temporary identity (newborn without a national number yet, or an unidentified patient). The
+     * nationalId then holds a generated temporary number (TMP…) until the identity is confirmed.
+     */
+    temporaryIdentity: temporaryIdentityEnum('temporary_identity'),
+    /** Free description for unidentified patients, e.g. "Man, about 40, brought by ambulance". */
+    identityNote: varchar('identity_note', { length: 300 }),
+    identityConfirmedAt: timestamp('identity_confirmed_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -1325,6 +1334,343 @@ export const patientMerges = pgTable(
     uniqueIndex('patient_merges_active_uq')
       .on(t.mergedId)
       .where(sql`${t.unmergedAt} IS NULL`),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Hospital modules: care units (wards, emergency, radiology), beds, admissions, emergency
+ * department, births and imaging
+ * ---------------------------------------------------------------------------------------------- */
+
+export const careUnitTypeEnum = pgEnum('care_unit_type', [
+  'GENERAL_WARD',
+  'SURGICAL_WARD',
+  'ICU',
+  'MATERNITY',
+  'PAEDIATRIC',
+  'NEONATAL',
+  'EMERGENCY',
+  'RADIOLOGY',
+]);
+export const bedStatusEnum = pgEnum('bed_status', [
+  'AVAILABLE',
+  'OCCUPIED',
+  'CLEANING',
+  'OUT_OF_SERVICE',
+]);
+export const admissionSourceEnum = pgEnum('admission_source', [
+  'EMERGENCY',
+  'ELECTIVE',
+  'TRANSFER',
+  'BIRTH',
+]);
+export const admissionStatusEnum = pgEnum('admission_status', [
+  'ADMITTED',
+  'DISCHARGED',
+  'CANCELLED',
+]);
+export const dischargeDispositionEnum = pgEnum('discharge_disposition', [
+  'HOME',
+  'TRANSFER',
+  'AGAINST_ADVICE',
+  'DECEASED',
+  'OTHER',
+]);
+export const edArrivalModeEnum = pgEnum('ed_arrival_mode', [
+  'WALK_IN',
+  'AMBULANCE',
+  'REFERRAL',
+  'POLICE',
+  'OTHER',
+]);
+export const edStatusEnum = pgEnum('ed_status', [
+  'WAITING',
+  'IN_TREATMENT',
+  'ADMITTED',
+  'DISCHARGED',
+  'TRANSFERRED',
+  'LEFT_WITHOUT_BEING_SEEN',
+]);
+export const deliveryTypeEnum = pgEnum('delivery_type', [
+  'SPONTANEOUS_VAGINAL',
+  'ASSISTED_VAGINAL',
+  'CAESAREAN_ELECTIVE',
+  'CAESAREAN_EMERGENCY',
+]);
+export const imagingModalityEnum = pgEnum('imaging_modality', [
+  'XRAY',
+  'CT',
+  'MRI',
+  'ULTRASOUND',
+  'MAMMOGRAPHY',
+  'FLUOROSCOPY',
+]);
+export const imagingStatusEnum = pgEnum('imaging_status', [
+  'ORDERED',
+  'SCHEDULED',
+  'PERFORMED',
+  'REPORTED',
+  'CANCELLED',
+]);
+
+/**
+ * A unit of a facility where patients are cared for or examined: a ward (with beds), the
+ * emergency department or radiology. Staff are assigned to units; that assignment, together with
+ * the patient's presence in the unit, gives them access to the patient's record (see policy.ts).
+ */
+export const careUnits = pgTable(
+  'care_units',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    code: varchar('code', { length: 20 }).notNull(),
+    type: careUnitTypeEnum('type').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('care_units_code_uq').on(t.facilityId, t.code)],
+);
+
+export const unitStaff = pgTable(
+  'unit_staff',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    assignedById: uuid('assigned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('unit_staff_uq').on(t.unitId, t.userId),
+    index('unit_staff_user_idx').on(t.userId),
+  ],
+);
+
+export const beds = pgTable(
+  'beds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'cascade' }),
+    label: varchar('label', { length: 20 }).notNull(),
+    status: bedStatusEnum('status').notNull().default('AVAILABLE'),
+    note: varchar('note', { length: 200 }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('beds_label_uq').on(t.unitId, t.label)],
+);
+
+export const admissions = pgTable(
+  'admissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    bedId: uuid('bed_id').references(() => beds.id, { onDelete: 'set null' }),
+    admittingDoctorId: uuid('admitting_doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    attendingDoctorId: uuid('attending_doctor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    source: admissionSourceEnum('source').notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    edVisitId: uuid('ed_visit_id'),
+    status: admissionStatusEnum('status').notNull().default('ADMITTED'),
+    admittedAt: timestamp('admitted_at', { withTimezone: true }).notNull().defaultNow(),
+    expectedDischargeAt: timestamp('expected_discharge_at', { withTimezone: true }),
+    dischargedAt: timestamp('discharged_at', { withTimezone: true }),
+    dischargedById: uuid('discharged_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    disposition: dischargeDispositionEnum('disposition'),
+    /** Discharge summary; immutable once signed (dischargeSignedAt). */
+    dischargeSummary: text('discharge_summary'),
+    dischargeSignedAt: timestamp('discharge_signed_at', { withTimezone: true }),
+    releasedToPatientAt: timestamp('released_to_patient_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('admissions_patient_idx').on(t.patientId, t.admittedAt),
+    index('admissions_unit_status_idx').on(t.unitId, t.status),
+    uniqueIndex('admissions_one_active_per_patient_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} = 'ADMITTED'`),
+    uniqueIndex('admissions_one_patient_per_bed_uq')
+      .on(t.bedId)
+      .where(sql`${t.status} = 'ADMITTED' AND ${t.bedId} IS NOT NULL`),
+  ],
+);
+
+/** Every bed or unit change during a stay (admission, transfer). */
+export const bedMovements = pgTable(
+  'bed_movements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    admissionId: uuid('admission_id')
+      .notNull()
+      .references(() => admissions.id, { onDelete: 'cascade' }),
+    fromUnitId: uuid('from_unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    fromBedId: uuid('from_bed_id').references(() => beds.id, { onDelete: 'set null' }),
+    toUnitId: uuid('to_unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    toBedId: uuid('to_bed_id').references(() => beds.id, { onDelete: 'set null' }),
+    reason: varchar('reason', { length: 300 }),
+    movedById: uuid('moved_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    movedAt: timestamp('moved_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('bed_movements_admission_idx').on(t.admissionId, t.movedAt)],
+);
+
+/** An emergency department attendance, from arrival through triage to departure. */
+export const edVisits = pgTable(
+  'ed_visits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    arrivedAt: timestamp('arrived_at', { withTimezone: true }).notNull().defaultNow(),
+    arrivalMode: edArrivalModeEnum('arrival_mode').notNull(),
+    chiefComplaint: varchar('chief_complaint', { length: 300 }).notNull(),
+    registeredById: uuid('registered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** 1 immediate (red) … 5 non-urgent (blue); five-level triage scale. */
+    triageLevel: integer('triage_level'),
+    triageNote: varchar('triage_note', { length: 1000 }),
+    triagedById: uuid('triaged_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    triagedAt: timestamp('triaged_at', { withTimezone: true }),
+    assignedDoctorId: uuid('assigned_doctor_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    seenAt: timestamp('seen_at', { withTimezone: true }),
+    status: edStatusEnum('status').notNull().default('WAITING'),
+    departedAt: timestamp('departed_at', { withTimezone: true }),
+    dispositionNote: varchar('disposition_note', { length: 1000 }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ed_visits_board_idx').on(t.unitId, t.status, t.arrivedAt),
+    index('ed_visits_patient_idx').on(t.patientId, t.arrivedAt),
+    uniqueIndex('ed_visits_one_active_per_patient_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} IN ('WAITING', 'IN_TREATMENT')`),
+  ],
+);
+
+/** A birth: links the newborn's record to the mother's and records the birth details. */
+export const births = pgTable(
+  'births',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    motherPatientId: uuid('mother_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    newbornPatientId: uuid('newborn_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    motherAdmissionId: uuid('mother_admission_id').references(() => admissions.id, {
+      onDelete: 'set null',
+    }),
+    bornAt: timestamp('born_at', { withTimezone: true }).notNull(),
+    deliveryType: deliveryTypeEnum('delivery_type').notNull(),
+    gestationalWeeks: integer('gestational_weeks').notNull(),
+    gestationalDays: integer('gestational_days').notNull().default(0),
+    birthWeightGrams: integer('birth_weight_grams').notNull(),
+    lengthCm: numeric('length_cm', { precision: 4, scale: 1 }),
+    headCircumferenceCm: numeric('head_circumference_cm', { precision: 4, scale: 1 }),
+    apgar1: integer('apgar_1').notNull(),
+    apgar5: integer('apgar_5').notNull(),
+    apgar10: integer('apgar_10'),
+    /** 1 for a single birth; 1, 2 … for twins/triplets. */
+    birthOrder: integer('birth_order').notNull().default(1),
+    attendantId: uuid('attendant_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    notes: varchar('notes', { length: 2000 }),
+    /** When the civil registry number was entered for the newborn. */
+    civilRegisteredAt: timestamp('civil_registered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('births_newborn_uq').on(t.newbornPatientId),
+    index('births_mother_idx').on(t.motherPatientId),
+    index('births_facility_idx').on(t.facilityId, t.bornAt),
+  ],
+);
+
+export const imagingOrders = pgTable(
+  'imaging_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accessionNumber: varchar('accession_number', { length: 20 }).notNull(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    edVisitId: uuid('ed_visit_id').references(() => edVisits.id, { onDelete: 'set null' }),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    modality: imagingModalityEnum('modality').notNull(),
+    bodyPart: varchar('body_part', { length: 120 }).notNull(),
+    clinicalQuestion: varchar('clinical_question', { length: 1000 }).notNull(),
+    priority: labPriorityEnum('priority').notNull().default('ROUTINE'),
+    /** Safety questions answered by the orderer (pregnancy, contrast allergy, implants). */
+    safetyChecks: jsonb('safety_checks').$type<Record<string, unknown>>(),
+    status: imagingStatusEnum('status').notNull().default('ORDERED'),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    performedAt: timestamp('performed_at', { withTimezone: true }),
+    performedById: uuid('performed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    findings: text('findings'),
+    impression: text('impression'),
+    critical: boolean('critical').notNull().default(false),
+    reportedById: uuid('reported_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    reportedAt: timestamp('reported_at', { withTimezone: true }),
+    acknowledgedById: uuid('acknowledged_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: varchar('cancel_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('imaging_orders_accession_uq').on(t.accessionNumber),
+    index('imaging_orders_worklist_idx').on(t.facilityId, t.status, t.createdAt),
+    index('imaging_orders_patient_idx').on(t.patientId, t.createdAt),
   ],
 );
 

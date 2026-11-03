@@ -146,4 +146,7 @@ export const merge: Record<string, string> = {
   'This record was merged into another record. Open the surviving record instead.':
     'Kjo kartelë është bashkuar me një kartelë tjetër. Hapni kartelën që është mbajtur.',
   'Merge not found': 'Bashkimi nuk u gjet',
+  'Hospital stays': 'Shtrimet në spital',
+  'Emergency visits': 'Vizitat në urgjencë',
+  Imaging: 'Imazheria',
 };

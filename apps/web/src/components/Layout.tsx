@@ -44,6 +44,8 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/portal/messages', label: 'Messages', icon: 'message' },
         { to: '/portal/referrals', label: 'Referrals', icon: 'share' },
+        { to: '/portal/stays', label: 'Hospital stays', icon: 'building' },
+        { to: '/portal/imaging', label: 'Imaging', icon: 'eye' },
         { to: '/portal/documents', label: 'Documents', icon: 'clipboard' },
         { to: '/portal/consents', label: 'Privacy & consent', icon: 'shield' },
         { to: '/portal/access-log', label: 'Who viewed my record', icon: 'eye' },
@@ -64,6 +66,16 @@ const NAV: Record<Role, NavSection[]> = {
       ],
     },
     {
+      title: 'Hospital',
+      items: [
+        { to: '/wards', label: 'Wards & beds', icon: 'building' },
+        { to: '/ed', label: 'Emergency department', icon: 'alert' },
+        { to: '/imaging', label: 'Imaging', icon: 'eye' },
+        { to: '/births', label: 'Births', icon: 'user' },
+        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
+      ],
+    },
+    {
       title: 'Communication',
       items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items],
     },
@@ -76,6 +88,16 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/tasks', label: 'Care tasks', icon: 'clipboard' },
         { to: '/nurse/patients', label: 'Patients', icon: 'users' },
         { to: '/nurse/schedule', label: 'Clinic schedule', icon: 'calendar' },
+      ],
+    },
+    {
+      title: 'Hospital',
+      items: [
+        { to: '/wards', label: 'Wards & beds', icon: 'building' },
+        { to: '/ed', label: 'Emergency department', icon: 'alert' },
+        { to: '/imaging', label: 'Imaging', icon: 'eye' },
+        { to: '/births', label: 'Births', icon: 'user' },
+        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
     },
     {
@@ -97,6 +119,10 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/reception', label: 'Today', icon: 'desk', end: true },
         { to: '/reception/patients', label: 'Patients', icon: 'users' },
         { to: '/reception/appointments', label: 'Appointments', icon: 'calendar' },
+        { to: '/ed', label: 'Emergency arrivals', icon: 'alert' },
+        { to: '/wards', label: 'Wards & beds', icon: 'building' },
+        { to: '/births', label: 'Births', icon: 'user' },
+        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
     },
     COMMS,
@@ -112,6 +138,9 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/referrals', label: 'Referrals', icon: 'share' },
         { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
         { to: '/director/duplicates', label: 'Duplicate records', icon: 'user' },
+        { to: '/director/units', label: 'Wards & units', icon: 'building' },
+        { to: '/wards', label: 'Bed board', icon: 'desk' },
+        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
     },
     {
@@ -137,6 +166,8 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/ministry/reports', label: 'Reports', icon: 'activity' },
         { to: '/ministry/facilities', label: 'Facilities', icon: 'building' },
         { to: '/ministry/staff', label: 'Directors & officials', icon: 'users' },
+        { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
+        { to: '/developers', label: 'API documentation', icon: 'settings' },
       ],
     },
     {

@@ -13,6 +13,7 @@ import { conflict, forbidden, notFound } from '../../lib/errors.js';
  *  - patient_merges and patients.merged_into_id – the lineage itself.
  */
 export const PATIENT_TABLES = [
+  'admissions',
   'allergies',
   'appointments',
   'care_assignments',
@@ -20,10 +21,12 @@ export const PATIENT_TABLES = [
   'consent_records',
   'correction_requests',
   'diagnoses',
+  'ed_visits',
   'emergency_access_grants',
   'encounter_addenda',
   'encounters',
   'guardianships',
+  'imaging_orders',
   'immunizations',
   'integration_messages',
   'lab_orders',
@@ -46,6 +49,7 @@ export const EXCLUDED_REFERENCES = [
 
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
+  admissions: 'Hospital stays',
   allergies: 'Allergies',
   appointments: 'Appointments',
   care_assignments: 'Care team',
@@ -53,10 +57,12 @@ export const SECTION_LABELS: Record<PatientTable, string> = {
   consent_records: 'Consent records',
   correction_requests: 'Correction requests',
   diagnoses: 'Diagnoses',
+  ed_visits: 'Emergency visits',
   emergency_access_grants: 'Emergency access grants',
   encounter_addenda: 'Note addenda',
   encounters: 'Visits',
   guardianships: 'Guardians',
+  imaging_orders: 'Imaging',
   immunizations: 'Vaccinations',
   integration_messages: 'Laboratory messages',
   lab_orders: 'Laboratory orders',

@@ -78,6 +78,13 @@
       "when": 1793653000160,
       "tag": "0010_albanian_and_patient_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793663888219,
+      "tag": "0011_hospital_modules",
+      "breakpoints": true
     }
   ]
 }

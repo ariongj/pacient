@@ -24,6 +24,11 @@ import { announcementsRouter } from './modules/announcements/announcements.route
 import { emergencyRouter } from './modules/emergency/emergency.routes.js';
 import { messagingRouter } from './modules/messaging/messaging.routes.js';
 import { consentRouter } from './modules/consent/consent.routes.js';
+import { edRouter } from './modules/ed/ed.routes.js';
+import { identityRouter } from './modules/identity/identity.routes.js';
+import { imagingRouter } from './modules/imaging/imaging.routes.js';
+import { inpatientRouter } from './modules/inpatient/inpatient.routes.js';
+import { partnerRouter } from './modules/partner/partner.routes.js';
 import { mergeRouter } from './modules/merge/merge.routes.js';
 import { coverRouter } from './modules/cover/cover.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
@@ -123,6 +128,11 @@ export function createApp(): Express {
   api.use('/facilities', facilitiesRouter);
   api.use('/staff', staffRouter);
   api.use('/patients/:id/guardians', guardiansRouter);
+  api.use('/identity', identityRouter);
+  api.use('/hospital', inpatientRouter);
+  api.use('/ed', edRouter);
+  api.use('/imaging', imagingRouter);
+  api.use('/partner', partnerRouter);
   api.use('/patients/:patientId/lab-orders', labOrdersRouter);
   api.use('/patients/:patientId/documents', documentsRouter);
   api.use('/patients/:patientId/consents', consentRouter);

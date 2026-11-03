@@ -40,6 +40,11 @@ import { ingestOru } from '../modules/lab/ingest.js';
 import { newPlacerOrderNumber } from '../modules/lab/orders.routes.js';
 import { buildOru } from '../ops/oru.js';
 import { seedConsents } from './seed-consent.js';
+import { seedBirths } from './seed-births.js';
+import { seedEmergency } from './seed-emergency.js';
+import { seedHospital } from './seed-hospital.js';
+import { seedImaging } from './seed-imaging.js';
+import { seedPartners } from './seed-partners.js';
 import { seedCover } from './seed-cover.js';
 import { seedMerge } from './seed-merge.js';
 import { seedDocuments } from './seed-documents.js';
@@ -1183,6 +1188,12 @@ async function main() {
   await seedConsents({ demoPatientId, demoDoctorId: demoDoctor.id });
   await seedCover({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedMerge({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+
+  await seedHospital({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id, demoPatientId });
+  await seedEmergency({ facilityId: ucc!.id });
+  await seedBirths({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedImaging({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id, demoPatientId });
+  await seedPartners({ facilityId: ucc!.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

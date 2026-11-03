@@ -1,4 +1,9 @@
 import { care } from './care';
+import { ed } from './ed';
+import { imaging } from './imaging';
+import { inpatient } from './inpatient';
+import { newborn } from './newborn';
+import { partner } from './partner';
 import { clinical } from './clinical';
 import { common } from './common';
 import { management } from './management';
@@ -12,4 +17,9 @@ export const sq: Record<string, string> = {
   ...clinical,
   ...care,
   ...merge,
+  ...inpatient,
+  ...ed,
+  ...newborn,
+  ...imaging,
+  ...partner,
 };

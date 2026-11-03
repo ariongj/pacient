@@ -31,6 +31,10 @@ import { ProblemsTab } from './chart/ProblemsTab';
 import { ReferDialog } from './chart/ReferDialog';
 import { ResultsTab } from './chart/ResultsTab';
 import { DocumentsTab } from './chart/DocumentsTab';
+import { AdmissionsTab } from './chart/AdmissionsTab';
+import { EmergencyTab } from './chart/EmergencyTab';
+import { ImagingTab } from './chart/ImagingTab';
+import { BirthsTab } from './chart/BirthsTab';
 import { ConsentsTab } from './chart/ConsentsTab';
 import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
@@ -64,6 +68,10 @@ const TAB_IDS = [
   'vitals',
   'results',
   'vaccinations',
+  'admissions',
+  'emergency',
+  'imaging',
+  'births',
   'documents',
   'consents',
   'corrections',
@@ -273,6 +281,10 @@ export function PatientChart() {
               { id: 'vitals', label: t('Vitals') },
               { id: 'results', label: t('Results'), count: s.counts.labResults },
               { id: 'vaccinations', label: t('Vaccinations'), count: s.immunizations.length },
+              { id: 'admissions', label: t('Hospital stays') },
+              { id: 'emergency', label: t('Emergency') },
+              { id: 'imaging', label: t('Imaging') },
+              { id: 'births', label: t('Birth & maternity') },
               { id: 'documents', label: t('Documents') },
               { id: 'consents', label: t('Consent') },
               {
@@ -310,6 +322,10 @@ export function PatientChart() {
             {tab === 'vaccinations' && (
               <ImmunizationsTab patientId={patientId} encounters={s.recentEncounters} />
             )}
+            {tab === 'admissions' && <AdmissionsTab patientId={patientId} />}
+            {tab === 'emergency' && <EmergencyTab patientId={patientId} />}
+            {tab === 'imaging' && <ImagingTab patientId={patientId} />}
+            {tab === 'births' && <BirthsTab patientId={patientId} />}
             {tab === 'documents' && <DocumentsTab patientId={patientId} />}
             {tab === 'consents' && <ConsentsTab patientId={patientId} />}
             {tab === 'corrections' && <CorrectionsTab patientId={patientId} />}

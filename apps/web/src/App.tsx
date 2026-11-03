@@ -1,3 +1,13 @@
+import { BedBoard } from './pages/hospital/BedBoard';
+import { EdBoard } from './pages/ed/EdBoard';
+import { BirthsPage } from './pages/births/BirthsPage';
+import { TemporaryIdentitiesPage } from './pages/births/TemporaryIdentitiesPage';
+import { ImagingWorklist } from './pages/imaging/ImagingWorklist';
+import { UnitsPage } from './pages/director/UnitsPage';
+import { PartnersPage } from './pages/ministry/PartnersPage';
+import { ApiDocsPage } from './pages/developers/ApiDocsPage';
+import { PortalStays } from './pages/patient/PortalStays';
+import { PortalImaging } from './pages/patient/PortalImaging';
 import { t } from './i18n';
 import { DirectorDuplicates } from './pages/director/DirectorDuplicates';
 import { PortalDocuments } from './pages/patient/PortalDocuments';
@@ -144,6 +154,25 @@ export function App() {
             </RequireRole>
           }
         />
+        <Route
+          path="/wards"
+          element={guard(['DOCTOR', 'NURSE', 'RECEPTION', 'DIRECTOR'], <BedBoard />)}
+        />
+        <Route path="/ed" element={guard(['DOCTOR', 'NURSE', 'RECEPTION'], <EdBoard />)} />
+        <Route path="/births" element={guard(['DOCTOR', 'NURSE', 'RECEPTION'], <BirthsPage />)} />
+        <Route
+          path="/identities"
+          element={guard(['DOCTOR', 'NURSE', 'RECEPTION', 'DIRECTOR'], <TemporaryIdentitiesPage />)}
+        />
+        <Route path="/imaging" element={guard(['DOCTOR', 'NURSE'], <ImagingWorklist />)} />
+        <Route path="/director/units" element={guard(['DIRECTOR'], <UnitsPage />)} />
+        <Route path="/ministry/partners" element={guard(['MINISTRY'], <PartnersPage />)} />
+        <Route
+          path="/developers"
+          element={guard(['MINISTRY', 'DIRECTOR', 'DOCTOR'], <ApiDocsPage />)}
+        />
+        <Route path="/portal/stays" element={guard(['PATIENT'], <PortalStays />)} />
+        <Route path="/portal/imaging" element={guard(['PATIENT'], <PortalImaging />)} />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"

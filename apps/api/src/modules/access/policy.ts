@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { careAssignments, emergencyAccessGrants, patients, type Role } from '../../db/schema.js';
 import { forbidden, HttpError, notFound } from '../../lib/errors.js';
@@ -140,6 +140,70 @@ async function auditCoverAccess(
   });
 }
 
+/**
+ * Unit-based access: staff assigned to a care unit of their own facility may open the record of a
+ * patient who is currently in that unit –
+ *  - a ward: the patient is admitted there;
+ *  - the emergency department: an attendance is open (or ended less than 24 hours ago);
+ *  - radiology: the patient has an imaging order at the facility that is not yet reported;
+ *  - maternity / neonatal: a baby born at the facility in the last 28 days.
+ * Access ends automatically when the patient leaves. Returns the unit name, or null.
+ */
+export async function unitAccessVia(
+  userId: string,
+  facilityId: string | null,
+  patientId: string,
+  executor: Executor = db,
+): Promise<{ unitId: string; unitType: string } | null> {
+  if (!facilityId) return null;
+  const result = await executor.execute<{ unit_id: string; unit_type: string }>(sql`
+    SELECT cu.id AS unit_id, cu.type AS unit_type
+    FROM unit_staff us
+    JOIN care_units cu ON cu.id = us.unit_id AND cu.is_active AND cu.facility_id = ${facilityId}
+    WHERE us.user_id = ${userId} AND (
+      EXISTS (SELECT 1 FROM admissions a
+              WHERE a.patient_id = ${patientId} AND a.status = 'ADMITTED' AND a.unit_id = cu.id)
+      OR (cu.type = 'EMERGENCY' AND EXISTS (
+            SELECT 1 FROM ed_visits e
+            WHERE e.patient_id = ${patientId} AND e.unit_id = cu.id
+              AND (e.status IN ('WAITING', 'IN_TREATMENT') OR e.departed_at > now() - interval '24 hours')))
+      OR (cu.type = 'RADIOLOGY' AND EXISTS (
+            SELECT 1 FROM imaging_orders i
+            WHERE i.patient_id = ${patientId} AND i.facility_id = cu.facility_id
+              AND i.status IN ('ORDERED', 'SCHEDULED', 'PERFORMED')))
+      OR (cu.type IN ('MATERNITY', 'NEONATAL') AND EXISTS (
+            SELECT 1 FROM births b
+            WHERE (b.newborn_patient_id = ${patientId} OR b.mother_patient_id = ${patientId})
+              AND b.facility_id = cu.facility_id AND b.born_at > now() - interval '28 days'))
+    )
+    LIMIT 1`);
+  const row = result.rows[0];
+  return row ? { unitId: row.unit_id, unitType: row.unit_type } : null;
+}
+
+const recentUnitAudits = new Map<string, number>();
+async function auditUnitAccess(
+  ctx: AuthContext,
+  patientId: string,
+  unit: { unitId: string; unitType: string },
+  meta: RequestMeta | undefined,
+) {
+  const key = `${ctx.userId}:${patientId}`;
+  const now = Date.now();
+  if ((recentUnitAudits.get(key) ?? 0) > now - 10 * 60_000) return;
+  recentUnitAudits.set(key, now);
+  if (recentUnitAudits.size > 10_000) recentUnitAudits.clear();
+  await auditSafe({
+    action: AuditAction.PATIENT_RECORD_VIEWED,
+    actor: ctx,
+    resourceType: 'patient',
+    resourceId: patientId,
+    patientId,
+    meta,
+    metadata: { basis: 'CARE_TEAM', via: 'UNIT', unitId: unit.unitId, unitType: unit.unitType },
+  });
+}
+
 /** Resolves *why* the caller may read the clinical record, or audits the denial and throws 403. */
 export async function resolveClinicalReadAccess(
   ctx: AuthContext,
@@ -163,6 +227,13 @@ export async function resolveClinicalReadAccess(
         const coverFor = await coverAccessVia(ctx.userId, patientId);
         if (coverFor) {
           await auditCoverAccess(ctx, patientId, coverFor, meta);
+          return 'CARE_TEAM';
+        }
+      }
+      {
+        const unit = await unitAccessVia(ctx.userId, ctx.facilityId, patientId);
+        if (unit) {
+          await auditUnitAccess(ctx, patientId, unit, meta);
           return 'CARE_TEAM';
         }
       }

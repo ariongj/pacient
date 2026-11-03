@@ -70,6 +70,8 @@ portalRouter.get('/access-log', async (req, res) => {
     ...r,
     section: (metadata?.section as string | undefined) ?? null,
     basis: (metadata?.basis as string | undefined) ?? null,
+    // Partner systems (API keys) have no user account; show the organisation instead.
+    actorLabel: (metadata?.actorLabel as string | undefined) ?? null,
     emergencyReason:
       r.action === AuditAction.EMERGENCY_ACCESS_GRANTED ? (metadata?.reason as string) : null,
   }));

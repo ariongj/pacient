@@ -253,6 +253,8 @@ export interface AccessLogEntry {
   facilityName: string | null;
   section: string | null;
   basis: string | null;
+  /** Organisation name for accesses by partner systems (no user account). */
+  actorLabel?: string | null;
   emergencyReason: string | null;
 }
 

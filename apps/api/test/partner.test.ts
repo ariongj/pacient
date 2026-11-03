@@ -80,14 +80,11 @@ beforeAll(async () => {
     .post(`${base}/encounters`)
     .set(doc)
     .send({ type: 'OUTPATIENT', reason: 'Confidential consultation' });
-  await api()
-    .post(`${base}/diagnoses`)
-    .set(doc)
-    .send({
-      encounterId: enc.body.id,
-      icd10Code: 'Z30.0',
-      description: 'Contraceptive counselling',
-    });
+  await api().post(`${base}/diagnoses`).set(doc).send({
+    encounterId: enc.body.id,
+    icd10Code: 'Z30.0',
+    description: 'Contraceptive counselling',
+  });
   await api()
     .post(`${base}/encounters/${enc.body.id}/confidentiality`)
     .set(doc)

@@ -1203,10 +1203,15 @@ Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Nurse      : nurse@pacient.local       (QKUK)
   Pharmacist : pharmacist@pacient.local  (QKUK)
   Reception  : reception@pacient.local   (QKUK)
+  Radiology  : radiologist@pacient.local (Dr. Arben Krasniqi, Radiologji, QKUK)
   Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)
 
 Laboratory simulator (development only):
   LAB_API_KEY=${DEMO_LAB_API_KEY} npm run lab:simulate
+
+Partner API keys (development only, see docs/API.md):
+  Health Insurance Fund : pk_dev_hif_demo_key_not_for_production
+  Civil registry        : pk_dev_civil_registry_demo_key_not_for_production
 `);
 }
 

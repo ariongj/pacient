@@ -64,7 +64,7 @@ export function PortalAccessLog() {
                       <tr key={e.id}>
                         <td>{formatDateTime(e.occurredAt)}</td>
                         <td>
-                          <strong>{e.actorName ?? t('System')}</strong>
+                          <strong>{e.actorName ?? e.actorLabel ?? t('System')}</strong>
                           <div className="muted">
                             {[
                               e.actorSpecialty ?? (e.actorRole ? humanize(e.actorRole) : null),

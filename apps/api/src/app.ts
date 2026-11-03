@@ -28,6 +28,7 @@ import { edRouter } from './modules/ed/ed.routes.js';
 import { identityRouter } from './modules/identity/identity.routes.js';
 import { imagingRouter } from './modules/imaging/imaging.routes.js';
 import { inpatientRouter } from './modules/inpatient/inpatient.routes.js';
+import { openApiHandler } from './openapi/index.js';
 import { partnerRouter } from './modules/partner/partner.routes.js';
 import { mergeRouter } from './modules/merge/merge.routes.js';
 import { coverRouter } from './modules/cover/cover.routes.js';
@@ -133,6 +134,7 @@ export function createApp(): Express {
   api.use('/ed', edRouter);
   api.use('/imaging', imagingRouter);
   api.use('/partner', partnerRouter);
+  api.get('/openapi.json', openApiHandler);
   api.use('/patients/:patientId/lab-orders', labOrdersRouter);
   api.use('/patients/:patientId/documents', documentsRouter);
   api.use('/patients/:patientId/consents', consentRouter);

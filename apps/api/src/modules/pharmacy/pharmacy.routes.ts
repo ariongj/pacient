@@ -70,11 +70,13 @@ const DispenseSchema = z
     path: ['quantity'],
   });
 
+const word = (alternatives: string) =>
+  new RegExp(`(?<![\\p{L}\\d])(?:${alternatives})(?![\\p{L}\\d])`, 'iu');
 const TIMES_PER_DAY: [RegExp, number][] = [
-  [/\b(once|1x|1 ?x|një herë|jednom|qd|od)\b/i, 1],
-  [/\b(twice|2x|2 ?x|dy herë|dva puta|bid)\b/i, 2],
-  [/\b(three times|3x|3 ?x|tri herë|tre herë|tri puta|tid)\b/i, 3],
-  [/\b(four times|4x|4 ?x|katër herë|četiri puta|qid)\b/i, 4],
+  [word('once|1 ?x|një herë|jednom|qd|od'), 1],
+  [word('twice|2 ?x|dy herë|dva puta|bid'), 2],
+  [word('three times|3 ?x|tri herë|tre herë|tri puta|tid'), 3],
+  [word('four times|4 ?x|katër herë|četiri puta|qid'), 4],
 ];
 
 /** Units to dispense when the frequency and the treatment period make it obvious, else null. */

@@ -267,7 +267,13 @@ describe('pharmacy workflow', () => {
       .post(`/api/v1/pharmacy/prescriptions/${rxId}/dispense`)
       .set(bearer(w.tokens.pharmacist))
       .send({ quantity: '21 capsules' });
-    expect(dispensed.body.pharmacyStatus).toBe('DISPENSED');
+    // Not linked to the medication catalogue: dispensing without stock tracking needs a reason.
+    expect(dispensed.status).toBe(400);
+    const untracked = await api()
+      .post(`/api/v1/pharmacy/prescriptions/${rxId}/dispense`)
+      .set(bearer(w.tokens.pharmacist))
+      .send({ quantity: '21 capsules', untrackedReason: 'Supplied from the ward stock cupboard' });
+    expect(untracked.body.pharmacyStatus).toBe('DISPENSED');
     const pn = await api().get('/api/v1/notifications').set(bearer(w.tokens.patient));
     expect(pn.body.items.some((n: { type: string }) => n.type === 'pharmacy')).toBe(true);
 

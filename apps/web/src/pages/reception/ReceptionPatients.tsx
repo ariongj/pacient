@@ -18,7 +18,7 @@ import {
   Table,
   TextField,
 } from '../../components/ui';
-import { age, formatDate, humanize } from '../../format';
+import { age, formatDate, fullName, humanize } from '../../format';
 import { GuardiansPanel } from '../shared/GuardiansPanel';
 import { BookAppointmentDialog, type PatientRef } from './BookAppointmentDialog';
 import { t } from '../../i18n';
@@ -79,9 +79,7 @@ function ContactDialog({ patientId, onClose }: { patientId: string; onClose: () 
   return (
     <form onSubmit={onSubmit}>
       <p>
-        <strong>
-          {p.firstName} {p.lastName}
-        </strong>
+        <strong>{fullName(p)}</strong>
       </p>
       <div className="form-grid">
         {CONTACT_FIELDS.map((f) => (
@@ -241,7 +239,9 @@ export function ReceptionPatients() {
                       <tr key={p.id}>
                         <td>
                           <strong>
-                            {p.lastName}, {p.firstName}
+                            {p.temporaryIdentity === 'UNIDENTIFIED'
+                              ? fullName(p)
+                              : `${p.lastName}, ${p.firstName}`}
                           </strong>
                         </td>
                         <td className="mono">{p.nationalId}</td>

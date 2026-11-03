@@ -161,7 +161,7 @@ export async function seedBirths({
       admittingDoctorId: demoDoctorId,
       attendingDoctorId: demoDoctorId,
       source: 'BIRTH',
-      reason: 'Newborn rooming-in with mother',
+      reason: 'I porsalinduri, bashkë me nënën në dhomë',
       admittedAt: bornAt,
     })
     .returning();
@@ -170,7 +170,7 @@ export async function seedBirths({
     toUnitId: unit.id,
     movedById: demoDoctorId,
     movedAt: bornAt,
-    reason: 'Newborn rooming-in with mother',
+    reason: 'I porsalinduri, bashkë me nënën në dhomë',
   });
 
   /* A birth three weeks ago, already registered with the civil registry. */

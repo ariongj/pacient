@@ -133,6 +133,16 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - Result cover grants care-team access only during the cover window, only for the absent doctor's
   care-team patients, and is audited (`via: COVER`). Escalations to directors carry no patient
   identity or values.
+- Unit-based access: staff assigned to a ward, the emergency department, radiology or maternity
+  may open a record only while the patient is in that unit (admitted, open ED attendance or
+  <24 h after it, imaging order not yet reported, newborn <28 days); audited with `via: UNIT`.
+  Reception and directors see bed and board data without clinical reasons or triage notes.
+- Signed discharge summaries and signed imaging reports are immutable (database triggers).
+- Partner API keys are scoped, hashed, revocable and rate limited, optionally IP-restricted;
+  record access requires a declared purpose of use, is refused when the patient withdrew
+  cross-facility sharing, returns content limited to the purpose, and every call (also refused
+  ones) is audited and shown in the patient's access log under the organisation's name. External
+  systems never get database credentials.
 - Patient merges are director-only, limited to records registered at the director's facility,
   require a reason, show demographics and counts only (no clinical content), are audited for both
   records and can be undone exactly. Both records having portal accounts blocks the merge.

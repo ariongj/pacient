@@ -13,7 +13,7 @@ import {
 } from '../../api/hospital';
 import { useUser } from '../../auth/AuthContext';
 import { Badge, Button, Card, EmptyState, PageHeader, QueryView, Tabs } from '../../components/ui';
-import { formatDate } from '../../format';
+import { formatDate, fullName } from '../../format';
 import { t } from '../../i18n';
 import { AdmitDialog, BedStatusActions, DischargeDialog, TransferDialog } from './dialogs';
 import './hospital.css';
@@ -25,7 +25,7 @@ type Action =
   | null;
 
 function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
-  const name = `${stay.firstName} ${stay.lastName}`;
+  const name = fullName(stay);
   const dueToday =
     stay.expectedDischargeAt && new Date(stay.expectedDischargeAt).getTime() < endOfToday();
   return (

@@ -57,7 +57,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Patient-reported vs clinician-entered information distinguishable        |           ✅ (allergies)           |
 | Duplicate identities go to human review, never auto-merged               |      ✅ (registration check)       |
 | Merge/unmerge workflow with lineage                                      |                 ✅                 |
-| Temporary identities, newborns                                           |                 ⏳                 |
+| Temporary identities (unidentified patients), newborn registration       |                 ✅                 |
 | Coded values + original text; local code systems; versioned mappings     |   🟡 ICD-10 codes + description    |
 | Version history for every clinical resource                              | 🟡 audit trail; full versioning ⏳ |
 
@@ -75,7 +75,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Amended results reopening review (superseded value kept and shown)      |          ✅           |
 | LIS integration (HL7 v2 ORM/ORU, ACKs, idempotent, identity-matched)    |          ✅           |
 | Mismatched results held for human review, never auto-filed              |          ✅           |
-| RIS/PACS integration (DICOMweb)                                         |          ⏳           |
+| Radiology orders, worklist and signed reports (RIS)                     |          ✅           |
+| PACS / DICOMweb image viewing                                           |          ⏳           |
 
 ## Architecture & interoperability (§6)
 
@@ -120,11 +121,22 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
 3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
 4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
-5. **Temporary identities and newborn registration** (B02); Serbian interface.
+5. Serbian interface; PACS image viewing; operating theatre scheduling; pharmacy stock.
 6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
    needed) and add RIS/PACS (B07).
 7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
 8. PITR and downtime rehearsal; accessibility evaluation; independent security review (B09–B10).
+
+## Hospital modules (added)
+
+| Module                                                                                    | Status |
+| ----------------------------------------------------------------------------------------- | ------ |
+| Wards, beds, admissions, transfers, discharge summaries (signed, immutable)               | ✅     |
+| Emergency department: arrivals, five-level triage with target times, live board           | ✅     |
+| Births linked to the mother, temporary numbers, civil-registry confirmation               | ✅     |
+| Unit-based access (only while the patient is in the unit), audited                        | ✅     |
+| Partner API: scoped keys, purpose of use, consent-gated FHIR, OpenAPI                     | ✅     |
+| Hospital reports: occupancy, length of stay, ED waiting times, births, imaging turnaround | ✅     |
 
 ## Open decisions (§10) — needed from the project sponsor
 

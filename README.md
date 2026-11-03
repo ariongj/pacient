@@ -49,6 +49,17 @@ and referring a patient who withdrew sharing requires recording their renewed ag
 **Albanian and English:** the whole interface, notifications, emails and SMS are available in
 Albanian (default) and English; dates use a 24-hour clock.
 
+**Hospital modules:** wards and beds with a live bed board, admissions, transfers and discharge
+with signed summaries; an emergency department with five-level triage and target times; newborn
+registration linked to the mother with temporary numbers until the civil registry assigns one,
+and temporary records for unidentified patients; radiology orders with safety checks, a
+radiologist worklist and signed reports. Staff assigned to a unit see a patient's record only
+while the patient is in that unit.
+
+**Partner API:** documented (OpenAPI 3.1), scoped API keys for other systems – FHIR record access
+by national ID (consent-gated, purpose of use required), civil-registry birth registration,
+national statistics and a public directory.
+
 **Duplicate records:** directors find people registered twice, compare both records (demographics
 and counts only), merge them with a reason and can undo a wrong merge exactly.
 
@@ -113,15 +124,16 @@ The interface opens in **Albanian**; switch to English with **SQ / EN** at the t
 choice is saved, and notifications, emails and SMS follow it. Sign in with any demo account
 (password `Pacient-Demo-2026`, development only):
 
-| Role       | Email                      |
-| ---------- | -------------------------- |
-| Ministry   | `minister@pacient.local`   |
-| Director   | `director@pacient.local`   |
-| Doctor     | `doctor@pacient.local`     |
-| Nurse      | `nurse@pacient.local`      |
-| Pharmacist | `pharmacist@pacient.local` |
-| Reception  | `reception@pacient.local`  |
-| Patient    | `patient@pacient.local`    |
+| Role       | Email                       |
+| ---------- | --------------------------- |
+| Ministry   | `minister@pacient.local`    |
+| Director   | `director@pacient.local`    |
+| Doctor     | `doctor@pacient.local`      |
+| Nurse      | `nurse@pacient.local`       |
+| Pharmacist | `pharmacist@pacient.local`  |
+| Reception  | `reception@pacient.local`   |
+| Radiology  | `radiologist@pacient.local` |
+| Patient    | `patient@pacient.local`     |
 
 All seed data is synthetic. **Never load real patient data into development or test environments.**
 
@@ -145,7 +157,30 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
 - **Director** (`director@`): dashboard with an overdue critical result, _Kartela të dyfishta /
   Duplicate records_ (merge the two "Blerim Gashi" records, then undo it from the history), lab
   connections with one held message to review.
-- **Nurse, pharmacist, reception, ministry**: their own workspaces and team channels.
+- **Hospital** (doctor, nurse, reception): _Emergjenca_ – register an unknown patient, triage,
+  admit to a ward; _Repartet dhe shtretërit_ – bed board, transfer, discharge with a signed
+  summary; _Lindjet_ – register a birth from the mother (Drita Hoxha), enter the baby's national
+  number; _Identitetet e përkohshme_ – confirm unknown patients.
+- **Radiologist** (`radiologist@`): worklist, write and sign the report for the STAT head CT.
+- **Ministry**: partner systems (API keys) and the API documentation page; national reports for
+  occupancy, emergency waiting times, births and imaging.
+- **Nurse, pharmacist, reception**: their own workspaces and team channels.
+
+### Partner API (other systems)
+
+Outside systems never get database access – they get scoped, revocable API keys, and every call
+is audited and visible to the patient. Try the demo keys against a running API (option B):
+
+```bash
+curl -s "http://localhost:4000/api/v1/partner/fhir/Patient?identifier=1100000000" -H "Authorization: Bearer pk_dev_hif_demo_key_not_for_production" -H "X-Purpose-Of-Use: PAYMENT"
+```
+
+```bash
+curl -s "http://localhost:4000/api/v1/partner/births" -H "Authorization: Bearer pk_dev_civil_registry_demo_key_not_for_production"
+```
+
+The full reference is at `/api/v1/openapi.json` (rendered in the app under _API documentation_)
+and the guide is [docs/API.md](docs/API.md).
 
 ### Laboratory simulator
 

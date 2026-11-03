@@ -47,6 +47,8 @@ export interface Facility {
 }
 
 export interface PatientListItem {
+  /** NEWBORN or UNIDENTIFIED while the identity is temporary. */
+  temporaryIdentity?: 'NEWBORN' | 'UNIDENTIFIED' | null;
   id: string;
   nationalId: string;
   firstName: string;

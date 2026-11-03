@@ -344,7 +344,7 @@ identityRouter.post('/births', requireRole('DOCTOR', 'NURSE'), async (req, res) 
           admittingDoctorId: ctx.role === 'DOCTOR' ? ctx.userId : motherAdmission.attendingDoctorId,
           attendingDoctorId: motherAdmission.attendingDoctorId,
           source: 'BIRTH',
-          reason: 'Newborn rooming-in with mother',
+          reason: 'I porsalinduri, bashkë me nënën në dhomë',
           admittedAt: bornAt,
         })
         .returning({ id: admissions.id });
@@ -353,7 +353,7 @@ identityRouter.post('/births', requireRole('DOCTOR', 'NURSE'), async (req, res) 
         admissionId: adm!.id,
         toUnitId: motherAdmission.unitId,
         movedById: ctx.userId,
-        reason: 'Newborn rooming-in with mother',
+        reason: 'I porsalinduri, bashkë me nënën në dhomë',
         movedAt: bornAt,
       });
     }

@@ -285,7 +285,9 @@ export function DirectorPatients() {
                         </td>
                         <td>
                           {formatDate(p.dateOfBirth)}{' '}
-                          <span className="muted">({age(p.dateOfBirth)} y)</span>
+                          <span className="muted">
+                            ({t('{age} y', { age: age(p.dateOfBirth) })})
+                          </span>
                         </td>
                         <td>{humanize(p.sex)}</td>
                         <td>

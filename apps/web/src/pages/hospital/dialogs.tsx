@@ -23,7 +23,7 @@ import {
   TextAreaField,
   TextField,
 } from '../../components/ui';
-import { formatDate } from '../../format';
+import { formatDate, fullName } from '../../format';
 import { t } from '../../i18n';
 
 const SOURCES: AdmissionSource[] = ['ELECTIVE', 'EMERGENCY', 'TRANSFER', 'BIRTH'];
@@ -153,10 +153,7 @@ export function AdmitDialog({
         {patient ? (
           <div className="row-between">
             <span>
-              {t('Patient')}:{' '}
-              <strong>
-                {patient.firstName} {patient.lastName}
-              </strong>
+              {t('Patient')}: <strong>{fullName(patient)}</strong>
             </span>
             {!preset?.patient && (
               <Button size="sm" variant="secondary" onClick={() => setPatient(null)}>
@@ -178,9 +175,7 @@ export function AdmitDialog({
               {found.data?.items.map((p) => (
                 <li key={p.id} className="row-between">
                   <span>
-                    <strong>
-                      {p.firstName} {p.lastName}
-                    </strong>{' '}
+                    <strong>{fullName(p)}</strong>{' '}
                     <span className="muted">
                       {p.nationalId} · {formatDate(p.dateOfBirth)}
                     </span>

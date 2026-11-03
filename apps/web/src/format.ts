@@ -112,10 +112,23 @@ export function humanize(value: string | null | undefined): string {
   return t(s.charAt(0).toUpperCase() + s.slice(1));
 }
 
-export const fullName = (p: { firstName: string; lastName: string }) =>
-  `${p.firstName} ${p.lastName}`;
+/** "First Last"; unidentified patients read "Unknown patient #4821". */
+export const fullName = (p: {
+  firstName: string;
+  lastName: string;
+  temporaryIdentity?: string | null;
+}) =>
+  p.temporaryIdentity === 'UNIDENTIFIED'
+    ? t('Unknown patient {code}', { code: p.lastName })
+    : `${p.firstName} ${p.lastName}`;
 
-export const formatNumber = (n: number) => new Intl.NumberFormat(intlLocale()).format(n);
+/** Albanian: "3 420" and "38,5"; English: "3,420" and "38.5". */
+export function formatNumber(n: number): string {
+  if (!sq()) return new Intl.NumberFormat(intlLocale()).format(n);
+  const [int, dec] = String(Math.round(n * 1000) / 1000).split('.');
+  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  return dec ? `${grouped},${dec}` : grouped;
+}
 
 /** Human-readable descriptions of audit actions, used in the patient access log and audit views. */
 export const ACTION_LABELS: Record<string, string> = {

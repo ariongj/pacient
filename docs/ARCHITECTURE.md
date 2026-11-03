@@ -239,3 +239,29 @@ of duplicated, and the moved row ids plus a demographic snapshot are stored in `
 Unmerge moves exactly those rows back; rows created after the merge stay with the survivor. Merged
 records are read-only: clinical access answers `409 PATIENT_MERGED` with the surviving id. Audit
 entries are never rewritten; the patient's access log includes those of merged duplicates.
+
+## Hospital modules
+
+- **Care units** (`care_units`, `unit_staff`, `beds`): wards, emergency, radiology, maternity and
+  neonatal units per facility. Unit staff get care-team access to patients currently in the unit
+  (`unitAccessVia` in `access/policy.ts`).
+- **Inpatient** (`modules/inpatient`, `/hospital`): admissions with bed locking (one active
+  admission per patient, one patient per bed – partial unique indexes), bed movements, discharge
+  with a signed summary drafted from the record, release to the patient.
+- **Emergency** (`modules/ed`, `/ed`): attendances with five-level triage, target times and breach
+  flags; admission from the board goes through `/hospital/admissions` with `edVisitId`.
+- **Identity** (`modules/identity`, `/identity`): births (`births`) create the newborn's record with
+  a temporary number (`TMP…`), care team, guardianship and rooming-in admission; unidentified
+  patients get temporary records; `confirmIdentity()` is shared by staff and the civil registry.
+- **Imaging** (`modules/imaging`, `/imaging`): orders with modality-specific safety checks,
+  radiology worklist, signed immutable reports, acknowledgement and release.
+- **Live boards**: writes on these routers publish `hospital.board`, `ed.board` and
+  `imaging.worklist` events to the facility's staff (`publishBoardChanges` in `lib/events.ts`).
+
+## Partner API and OpenAPI
+
+`modules/partner` authenticates partner systems with scoped API keys (`partner_clients`), requires
+`X-Purpose-Of-Use` for record access, enforces consent and limits FHIR content by purpose, and
+audits every call. FHIR bundles are built once in `modules/fhir/fhir.service.ts` for staff,
+patients and partners. The OpenAPI 3.1 document (`src/openapi`) is served at
+`/api/v1/openapi.json`. See [API.md](API.md).

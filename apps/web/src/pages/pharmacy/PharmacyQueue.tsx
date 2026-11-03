@@ -27,10 +27,10 @@ import {
   Table,
   Tabs,
   TextAreaField,
-  TextField,
 } from '../../components/ui';
 import { age, formatDate, formatDateTime, humanize } from '../../format';
 import { t } from '../../i18n';
+import { DispenseForm } from './DispenseForm';
 
 const STATUSES: PharmacyStatus[] = ['PENDING', 'VERIFIED', 'RETURNED', 'DISPENSED'];
 const TAB_LABEL: Record<PharmacyStatus, string> = {
@@ -105,8 +105,6 @@ function ActionDialog({
       mutation.mutate({ alertsReviewed: reviewed, note: note || null });
     } else if (action === 'return') {
       mutation.mutate({ note });
-    } else {
-      mutation.mutate({ quantity: String(f.get('quantity') ?? '').trim(), note: note || null });
     }
   }
 
@@ -117,6 +115,14 @@ function ActionDialog({
         ? t('Return to prescriber')
         : t('Dispense medication');
   const hasAlerts = alerts.length > 0;
+
+  if (action === 'dispense') {
+    return (
+      <Dialog open onClose={onClose} title={title} wide>
+        <DispenseForm item={item} onClose={onClose} />
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={action !== null} onClose={onClose} title={title}>
@@ -143,15 +149,6 @@ function ActionDialog({
               {t('I have reviewed the alerts and it is safe to proceed')}
             </label>
           </>
-        )}
-        {action === 'dispense' && (
-          <TextField
-            label={t('Quantity dispensed')}
-            name="quantity"
-            required
-            maxLength={100}
-            placeholder={t('e.g. 28 tablets')}
-          />
         )}
         <TextAreaField
           label={

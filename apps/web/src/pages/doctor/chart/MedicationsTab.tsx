@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { itemName, type CatalogItem } from '../../../api/stock';
+import { CatalogPicker } from '../../pharmacy/CatalogPicker';
 import type { Allergy, Encounter, Prescription } from '../../../api/types';
 import {
   Alert,
@@ -31,10 +33,17 @@ export function MedicationsTab({
 }) {
   const list = useSection<Prescription>(patientId, 'prescriptions');
   const [open, setOpen] = useState(false);
+  /** Optional national catalogue item: fills the medication name and lets the pharmacy track stock. */
+  const [catalogItem, setCatalogItem] = useState<CatalogItem | null>(null);
+  const [medication, setMedication] = useState('');
   const create = useChartMutation(
     patientId,
     (body: Record<string, unknown>) => ({ path: '/prescriptions', method: 'POST', body }),
-    () => setOpen(false),
+    () => {
+      setOpen(false);
+      setCatalogItem(null);
+      setMedication('');
+    },
   );
   const update = useChartMutation(patientId, ({ id, status }: { id: string; status: string }) => ({
     path: `/prescriptions/${id}`,
@@ -58,7 +67,9 @@ export function MedicationsTab({
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    create.mutate(compact(formValues(e.currentTarget)));
+    create.mutate(
+      compact({ ...formValues(e.currentTarget), catalogItemId: catalogItem?.id ?? undefined }),
+    );
   }
 
   return (
@@ -238,6 +249,15 @@ export function MedicationsTab({
                 .join(', ')}
             </Alert>
           )}
+          <CatalogPicker
+            label={t('Medicine from the national catalogue (optional)')}
+            value={catalogItem}
+            onChange={(item) => {
+              setCatalogItem(item);
+              if (item) setMedication(itemName(item));
+            }}
+            hint={t('Choosing a catalogue item lets the pharmacy dispense it from stock.')}
+          />
           <div className="form-grid">
             <TextField
               label={t('Medication')}
@@ -245,6 +265,8 @@ export function MedicationsTab({
               required
               minLength={2}
               maxLength={200}
+              value={medication}
+              onChange={(e) => setMedication(e.target.value)}
             />
             <TextField
               label={t('Dosage')}

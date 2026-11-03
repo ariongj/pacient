@@ -1,7 +1,12 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
-import { medicationCatalog, notifications, stockBatches, stockMovements } from '../src/db/schema.js';
+import {
+  medicationCatalog,
+  notifications,
+  stockBatches,
+  stockMovements,
+} from '../src/db/schema.js';
 import { allocateFefo, checkExpiries } from '../src/modules/stock/stock.service.js';
 import { api, bearer, createWorld } from './helpers.js';
 
@@ -9,20 +14,29 @@ let w: Awaited<ReturnType<typeof createWorld>>;
 let amox: string;
 let para: string;
 let unique = 0;
-const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+const day = (offset: number) =>
+  new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 beforeAll(async () => {
   w = await createWorld();
-  const a = await api()
-    .post('/api/v1/stock/catalog')
-    .set(bearer(w.tokens.ministry))
-    .send({ name: 'Amoxicillin', atcCode: 'J01CA04', form: 'capsule', strength: '500 mg', unit: 'capsule', isEssential: true });
+  const a = await api().post('/api/v1/stock/catalog').set(bearer(w.tokens.ministry)).send({
+    name: 'Amoxicillin',
+    atcCode: 'J01CA04',
+    form: 'capsule',
+    strength: '500 mg',
+    unit: 'capsule',
+    isEssential: true,
+  });
   expect(a.status).toBe(201);
   amox = a.body.id;
-  const p = await api()
-    .post('/api/v1/stock/catalog')
-    .set(bearer(w.tokens.ministry))
-    .send({ name: 'Paracetamol', atcCode: 'N02BE01', form: 'tablet', strength: '500 mg', unit: 'tablet', isEssential: true });
+  const p = await api().post('/api/v1/stock/catalog').set(bearer(w.tokens.ministry)).send({
+    name: 'Paracetamol',
+    atcCode: 'N02BE01',
+    form: 'tablet',
+    strength: '500 mg',
+    unit: 'tablet',
+    isEssential: true,
+  });
   para = p.body.id;
 });
 
@@ -67,13 +81,18 @@ describe('catalogue', () => {
     expect(search.body.items.map((i: { id: string }) => i.id)).toContain(amox);
     const byAtc = await api().get('/api/v1/stock/catalog?q=N02').set(bearer(w.tokens.nurse));
     expect(byAtc.body.items.map((i: { id: string }) => i.id)).toContain(para);
-    expect((await api().get('/api/v1/stock/catalog').set(bearer(w.tokens.patient))).status).toBe(403);
+    expect((await api().get('/api/v1/stock/catalog').set(bearer(w.tokens.patient))).status).toBe(
+      403,
+    );
     const patch = await api()
       .patch(`/api/v1/stock/catalog/${para}`)
       .set(bearer(w.tokens.ministry))
       .send({ isEssential: false });
     expect(patch.body.isEssential).toBe(false);
-    await api().patch(`/api/v1/stock/catalog/${para}`).set(bearer(w.tokens.ministry)).send({ isEssential: true });
+    await api()
+      .patch(`/api/v1/stock/catalog/${para}`)
+      .set(bearer(w.tokens.ministry))
+      .send({ isEssential: true });
   });
 });
 
@@ -101,7 +120,10 @@ describe('facility stock', () => {
       .get(`/api/v1/stock/items/${amox}/batches`)
       .set(bearer(w.tokens.pharmacist));
     expect(batches.body.level.onHand).toBe(130);
-    expect(batches.body.batches.map((b: { batchNumber: string }) => b.batchNumber)).toEqual(['A-SOON', 'A-LATE']);
+    expect(batches.body.batches.map((b: { batchNumber: string }) => b.batchNumber)).toEqual([
+      'A-SOON',
+      'A-LATE',
+    ]);
     expect(batches.body.level.flags).toContain('EXPIRING');
     const moves = await api()
       .get(`/api/v1/stock/movements?itemId=${amox}`)
@@ -115,8 +137,11 @@ describe('facility stock', () => {
     expect(levels.body.canEdit).toBe(false);
     expect(levels.body.items.some((i: { itemId: string }) => i.itemId === amox)).toBe(true);
     expect(
-      (await receive(w.tokens.director, [{ itemId: amox, batchNumber: 'X', expiryDate: day(10), quantity: 1 }]))
-        .status,
+      (
+        await receive(w.tokens.director, [
+          { itemId: amox, batchNumber: 'X', expiryDate: day(10), quantity: 1 },
+        ])
+      ).status,
     ).toBe(403);
     const outside = await api().get('/api/v1/stock/levels').set(bearer(w.tokens.outsidePharmacist));
     expect(outside.body.items.some((i: { itemId: string }) => i.itemId === amox)).toBe(false);
@@ -155,10 +180,15 @@ describe('facility stock', () => {
 
   it('keeps the movement ledger append-only', async () => {
     const [m] = await db.select().from(stockMovements).limit(1);
-    await expect(
-      db.execute(sql`UPDATE stock_movements SET quantity = 999 WHERE id = ${m!.id}`),
-    ).rejects.toThrow(/append-only/);
-    await expect(db.execute(sql`DELETE FROM stock_movements WHERE id = ${m!.id}`)).rejects.toThrow(
+    const message = async (q: Promise<unknown>) =>
+      q.then(
+        () => 'succeeded',
+        (e: Error & { cause?: Error }) => e.cause?.message ?? e.message,
+      );
+    expect(
+      await message(db.execute(sql`UPDATE stock_movements SET quantity = 999 WHERE id = ${m!.id}`)),
+    ).toMatch(/append-only/);
+    expect(await message(db.execute(sql`DELETE FROM stock_movements WHERE id = ${m!.id}`))).toMatch(
       /append-only/,
     );
   });
@@ -176,7 +206,13 @@ describe('dispensing from stock', () => {
       12,
       today,
     );
-    expect(res).toEqual({ lines: [{ batchId: 'soon', units: 5 }, { batchId: 'late', units: 7 }], shortBy: 0 });
+    expect(res).toEqual({
+      lines: [
+        { batchId: 'soon', units: 5 },
+        { batchId: 'late', units: 7 },
+      ],
+      shortBy: 0,
+    });
     expect(allocateFefo([{ id: 'x', quantity: 3, expiryDate: day(5) }], 5, today).shortBy).toBe(2);
   });
 
@@ -234,7 +270,9 @@ describe('dispensing from stock', () => {
       .send({ stock: { units: 5, lines: [{ batchId: expired!.id, units: 5 }] } });
     expect(fromExpired.status).toBe(409);
     expect(fromExpired.body.error.code).toBe('BATCH_EXPIRED');
-    const levels = await api().get(`/api/v1/stock/items/${amox}/batches`).set(bearer(w.tokens.pharmacist));
+    const levels = await api()
+      .get(`/api/v1/stock/items/${amox}/batches`)
+      .set(bearer(w.tokens.pharmacist));
     expect(levels.body.level.flags).toContain('EXPIRED');
     expect(levels.body.level.expiredQuantity).toBe(40);
   });
@@ -265,7 +303,12 @@ describe('dispensing from stock', () => {
     const low = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, w.users.pharmacist.id), eq(notifications.link, `/pharmacy/stock?item=${para}`)));
+      .where(
+        and(
+          eq(notifications.userId, w.users.pharmacist.id),
+          eq(notifications.link, `/pharmacy/stock?item=${para}`),
+        ),
+      );
     expect(low).toHaveLength(1); // 9 left ≤ 10
     expect(low[0]!.title).toContain('Paracetamol');
     const [batch] = await db.select().from(stockBatches).where(eq(stockBatches.batchNumber, 'P-1'));
@@ -276,7 +319,12 @@ describe('dispensing from stock', () => {
     const again = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, w.users.pharmacist.id), eq(notifications.link, `/pharmacy/stock?item=${para}`)));
+      .where(
+        and(
+          eq(notifications.userId, w.users.pharmacist.id),
+          eq(notifications.link, `/pharmacy/stock?item=${para}`),
+        ),
+      );
     expect(again).toHaveLength(1); // still the same day: no duplicate
   });
 
@@ -311,6 +359,11 @@ describe('national availability', () => {
       quantity: 0,
       createdById: w.users.outsidePharmacist.id,
     });
+    // …and at this facility paracetamol is now below its reorder level.
+    await api()
+      .put(`/api/v1/stock/settings/${para}`)
+      .set(bearer(w.tokens.pharmacist))
+      .send({ reorderLevel: 100 });
     const res = await api().get('/api/v1/stock/national').set(bearer(w.tokens.ministry));
     expect(res.status).toBe(200);
     const p = res.body.items.find((i: { itemId: string }) => i.itemId === para);
@@ -318,7 +371,9 @@ describe('national availability', () => {
     expect(p.outFacilities).toContain(w.otherFacility.name);
     expect(p.low).toBeGreaterThanOrEqual(1);
     expect(JSON.stringify(res.body)).not.toContain(w.patient.lastName);
-    expect((await api().get('/api/v1/stock/national').set(bearer(w.tokens.director))).status).toBe(403);
+    expect((await api().get('/api/v1/stock/national').set(bearer(w.tokens.director))).status).toBe(
+      403,
+    );
     const csv = await api().get('/api/v1/stock/national?format=csv').set(bearer(w.tokens.ministry));
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(csv.text).toContain('Paracetamol');

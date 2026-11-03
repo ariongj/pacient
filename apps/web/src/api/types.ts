@@ -608,6 +608,8 @@ export interface SafetyAlert {
 }
 
 export interface PharmacyItem {
+  /** Link to the national medication catalogue (pharmacy stock). */
+  catalogItemId?: string | null;
   id: string;
   patientId: string;
   patientName: string;

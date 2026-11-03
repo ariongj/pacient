@@ -521,7 +521,9 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
     const [item] = await db
       .select({ id: medicationCatalog.id })
       .from(medicationCatalog)
-      .where(and(eq(medicationCatalog.id, input.catalogItemId), eq(medicationCatalog.isActive, true)));
+      .where(
+        and(eq(medicationCatalog.id, input.catalogItemId), eq(medicationCatalog.isActive, true)),
+      );
     if (!item) throw badRequest('Unknown medication catalogue item');
   }
   const row = await db.transaction(async (tx) => {

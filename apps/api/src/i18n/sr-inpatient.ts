@@ -1,2 +1,32 @@
 /** Serbian (Latin) translations of server messages (English source text → Serbian). */
-export const srInpatient: Record<string, string> = {};
+export const srInpatient: Record<string, string> = {
+  'You were assigned to {unit}': 'Raspoređeni ste u {unit}',
+  'New admission to {unit}': 'Novi prijem na lečenje u {unit}',
+  'A patient is being transferred to {unit}': 'Pacijent se premešta u {unit}',
+  'A patient was discharged – the bed needs cleaning':
+    'Pacijent je otpušten – krevet treba očistiti',
+  'Your discharge letter is available': 'Vaša otpusna lista je dostupna',
+  'DISCHARGE SUMMARY': 'OTPUSNA LISTA',
+  'Admitted {date} to {unit}.': 'Primljen/a {date} u {unit}.',
+  'Discharged {date}.': 'Otpušten/a {date}.',
+  'Reason for admission': 'Razlog prijema',
+  Diagnoses: 'Dijagnoze',
+  'None recorded': 'Nije ništa evidentirano',
+  'Course in hospital': 'Tok lečenja u bolnici',
+  '[Describe the course, treatment and procedures]': '[Opišite tok bolesti, lečenje i procedure]',
+  Investigations: 'Ispitivanja',
+  'No abnormal results recorded': 'Nisu evidentirani patološki rezultati',
+  low: 'sniženo',
+  high: 'povišeno',
+  critical: 'kritično',
+  normal: 'normalno',
+  BP: 'TA',
+  Pulse: 'Puls',
+  'Temp.': 'Temp.',
+  'Last observations ({date})': 'Poslednja merenja ({date})',
+  'Medication at discharge': 'Terapija pri otpustu',
+  None: 'Nema',
+  'Follow-up': 'Dalje praćenje',
+  '[Follow-up appointments, checks and advice for the patient]':
+    '[Kontrolni pregledi, provere i saveti za pacijenta]',
+};

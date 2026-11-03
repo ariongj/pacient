@@ -59,6 +59,19 @@ const EnvSchema = z.object({
   DOCUMENT_SCANNER: z.enum(['off', 'clamav']).default('off'),
   CLAMAV_HOST: z.string().optional(),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+  /**
+   * Image archive for radiology: 'dicomweb' (a PACS such as Orthanc via DICOMweb), 'demo'
+   * (built-in synthetic images, development only) or 'off'. Default: demo outside production.
+   */
+  PACS_MODE: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['off', 'demo', 'dicomweb']).optional(),
+  ),
+  /** DICOMweb root, e.g. http://orthanc:8042/dicom-web */
+  PACS_DICOMWEB_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  /** Optional Authorization header value sent to the PACS, e.g. "Basic …". Never sent to browsers. */
+  PACS_AUTH_HEADER: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  PACS_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(
@@ -69,8 +82,9 @@ const EnvSchema = z.object({
 
 export type Env = Omit<
   z.infer<typeof EnvSchema>,
-  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT' | 'SMS_PROVIDER'
+  'MFA_ENCRYPTION_KEY' | 'REQUIRE_STAFF_MFA' | 'EMAIL_TRANSPORT' | 'SMS_PROVIDER' | 'PACS_MODE'
 > & {
+  PACS_MODE: 'off' | 'demo' | 'dicomweb';
   /** 'held' = queue only, no delivery (production without SMS provider settings). */
   SMS_PROVIDER: 'twilio' | 'log' | 'memory' | 'held';
   MFA_ENCRYPTION_KEY: string;
@@ -123,6 +137,19 @@ function loadEnv(): Env {
       'Invalid environment configuration:\n  - CLAMAV_HOST is required when DOCUMENT_SCANNER=clamav',
     );
   }
+  const pacsMode: Env['PACS_MODE'] =
+    data.PACS_MODE ??
+    (data.PACS_DICOMWEB_URL ? 'dicomweb' : data.NODE_ENV === 'production' ? 'off' : 'demo');
+  if (pacsMode === 'dicomweb' && !data.PACS_DICOMWEB_URL) {
+    throw new Error(
+      'Invalid environment configuration:\n  - PACS_DICOMWEB_URL is required when PACS_MODE=dicomweb',
+    );
+  }
+  if (pacsMode === 'demo' && data.NODE_ENV === 'production') {
+    throw new Error(
+      'Invalid environment configuration:\n  - PACS_MODE=demo (synthetic images) is not allowed in production',
+    );
+  }
   if (data.NODE_ENV === 'production' && !data.MFA_ENCRYPTION_KEY) {
     throw new Error(
       'Invalid environment configuration:\n  - MFA_ENCRYPTION_KEY is required in production',
@@ -137,6 +164,7 @@ function loadEnv(): Env {
       : data.NODE_ENV === 'production',
     EMAIL_TRANSPORT: emailTransport,
     SMS_PROVIDER: smsProvider,
+    PACS_MODE: pacsMode,
   };
 }
 

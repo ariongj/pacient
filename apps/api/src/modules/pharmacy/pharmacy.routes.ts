@@ -6,6 +6,7 @@ import {
   allergies,
   diagnoses,
   labResults,
+  medicationCatalog,
   patients,
   pharmacyStatusEnum,
   prescriptions,
@@ -18,6 +19,15 @@ import { checkPrescription, type SafetyAlert } from '../../lib/medication-safety
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
+import {
+  alertLowStock,
+  allocateFefo,
+  batchesFor,
+  catalogCandidates,
+  isoDay,
+  stockLevels,
+  withdrawStock,
+} from '../stock/stock.service.js';
 
 /**
  * Pharmacy verification and dispensing. Pharmacists see prescriptions written at their facility and
@@ -33,10 +43,53 @@ const VerifySchema = z.object({
   alertsReviewed: z.boolean().default(false),
 });
 const ReturnSchema = z.object({ note: z.string().trim().min(5).max(2000) });
-const DispenseSchema = z.object({
-  quantity: z.string().trim().min(1).max(100),
-  note: z.string().trim().max(2000).optional().nullable(),
-});
+/**
+ * Dispensing draws stock: `stock` names the catalogue item (defaults to the prescription's) and the
+ * units handed out; without `lines` the units are taken first-expiry-first-out. A medicine that is
+ * not in the catalogue can still be dispensed without stock tracking, with a recorded reason.
+ */
+const DispenseSchema = z
+  .object({
+    /** Label shown on the prescription, e.g. "30 tablets"; derived from the units when omitted. */
+    quantity: z.string().trim().min(1).max(100).optional(),
+    note: z.string().trim().max(2000).optional().nullable(),
+    stock: z
+      .object({
+        itemId: z.string().uuid().optional(),
+        units: z.number().int().positive().max(100_000),
+        lines: z
+          .array(z.object({ batchId: z.string().uuid(), units: z.number().int().positive() }))
+          .max(20)
+          .optional(),
+      })
+      .optional(),
+    untrackedReason: z.string().trim().min(5).max(500).optional(),
+  })
+  .refine((v) => v.stock || v.quantity, {
+    message: 'Enter the quantity dispensed',
+    path: ['quantity'],
+  });
+
+const TIMES_PER_DAY: [RegExp, number][] = [
+  [/\b(once|1x|1 ?x|një herë|jednom|qd|od)\b/i, 1],
+  [/\b(twice|2x|2 ?x|dy herë|dva puta|bid)\b/i, 2],
+  [/\b(three times|3x|3 ?x|tri herë|tre herë|tri puta|tid)\b/i, 3],
+  [/\b(four times|4x|4 ?x|katër herë|četiri puta|qid)\b/i, 4],
+];
+
+/** Units to dispense when the frequency and the treatment period make it obvious, else null. */
+export function suggestUnits(rx: { frequency: string; startDate: string; endDate: string | null }) {
+  if (!rx.endDate) return null;
+  let perDay: number | null = null;
+  const every = /every\s+(\d{1,2})\s*h|çdo\s+(\d{1,2})\s*or|svakih\s+(\d{1,2})\s*h/i.exec(
+    rx.frequency,
+  );
+  if (every) perDay = Math.round(24 / Number(every[1] ?? every[2] ?? every[3]));
+  else perDay = TIMES_PER_DAY.find(([re]) => re.test(rx.frequency))?.[1] ?? null;
+  if (!perDay) return null;
+  const days = Math.round((Date.parse(rx.endDate) - Date.parse(rx.startDate)) / 86_400_000) + 1;
+  return days > 0 && days <= 180 ? perDay * days : null;
+}
 
 const prescriber = users;
 
@@ -47,6 +100,7 @@ const queueColumns = {
   patientDateOfBirth: patients.dateOfBirth,
   patientSex: patients.sex,
   medication: prescriptions.medication,
+  catalogItemId: prescriptions.catalogItemId,
   dosage: prescriptions.dosage,
   frequency: prescriptions.frequency,
   route: prescriptions.route,
@@ -337,6 +391,40 @@ pharmacyRouter.post('/prescriptions/:id/return', async (req, res) => {
   res.json(await loadAtFacility(ctx, id));
 });
 
+/** What the pharmacist needs to pick stock for a prescription: item, batches (FEFO), suggestion. */
+pharmacyRouter.get('/prescriptions/:id/stock', async (req, res) => {
+  const ctx = requireAuth(req);
+  const { id } = parse(IdParam, req.params);
+  const { itemId: chosen } = parse(z.object({ itemId: z.string().uuid().optional() }), req.query);
+  const rx = await loadAtFacility(ctx, id);
+  const itemId = chosen ?? rx.catalogItemId;
+  const candidates = itemId ? [] : await catalogCandidates(rx.medication);
+  const suggestedUnits = suggestUnits(rx);
+  if (!itemId) {
+    res.json({
+      item: null,
+      candidates,
+      batches: [],
+      level: null,
+      suggestedUnits,
+      suggestion: null,
+    });
+    return;
+  }
+  const [item] = await db.select().from(medicationCatalog).where(eq(medicationCatalog.id, itemId));
+  if (!item) throw notFound('Catalogue item not found');
+  const batches = await batchesFor(ctx.facilityId!, itemId);
+  const [level] = await stockLevels(ctx.facilityId!, { itemIds: [itemId] });
+  res.json({
+    item,
+    candidates,
+    batches,
+    level: level ?? null,
+    suggestedUnits,
+    suggestion: suggestedUnits ? allocateFefo(batches, suggestedUnits, isoDay(new Date())) : null,
+  });
+});
+
 pharmacyRouter.post('/prescriptions/:id/dispense', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
@@ -344,17 +432,47 @@ pharmacyRouter.post('/prescriptions/:id/dispense', async (req, res) => {
   const rx = await loadAtFacility(ctx, id);
   if (rx.pharmacyStatus !== 'VERIFIED')
     throw conflict('Only verified prescriptions can be dispensed');
+  const itemId = input.stock?.itemId ?? rx.catalogItemId;
+  if (itemId && !input.stock) {
+    throw badRequest('Choose the quantity to take from stock for this medicine');
+  }
+  if (!itemId && !input.untrackedReason) {
+    throw badRequest(
+      'This medicine is not linked to the catalogue: choose the catalogue item, or give a reason for dispensing without stock tracking',
+    );
+  }
+  const [item] = itemId
+    ? await db.select().from(medicationCatalog).where(eq(medicationCatalog.id, itemId))
+    : [];
+  if (itemId && !item) throw notFound('Catalogue item not found');
+  const label = input.quantity ?? (item && input.stock ? `${input.stock.units} ${item.unit}` : '');
   await db.transaction(async (tx) => {
-    await tx
+    let lines: { batchId: string; units: number }[] = [];
+    if (item && input.stock) {
+      lines = await withdrawStock(tx, {
+        facilityId: ctx.facilityId!,
+        itemId: item.id,
+        units: input.stock.units,
+        lines: input.stock.lines,
+        type: 'DISPENSE',
+        prescriptionId: id,
+        userId: ctx.userId,
+      });
+    }
+    const updated = await tx
       .update(prescriptions)
       .set({
         pharmacyStatus: 'DISPENSED',
         dispensedById: ctx.userId,
         dispensedAt: new Date(),
-        dispensedQuantity: input.quantity,
+        dispensedQuantity: label,
+        // Remember the catalogue item so the next dispense of this prescription is tracked.
+        ...(item && !rx.catalogItemId ? { catalogItemId: item.id } : {}),
         ...(input.note ? { pharmacistNote: input.note } : {}),
       })
-      .where(eq(prescriptions.id, id));
+      .where(and(eq(prescriptions.id, id), eq(prescriptions.pharmacyStatus, 'VERIFIED')))
+      .returning({ id: prescriptions.id });
+    if (!updated.length) throw conflict('Prescription was updated by someone else');
     await audit(
       {
         action: AuditAction.PRESCRIPTION_DISPENSED,
@@ -363,10 +481,31 @@ pharmacyRouter.post('/prescriptions/:id/dispense', async (req, res) => {
         resourceId: id,
         patientId: rx.patientId,
         meta: requestMeta(req),
-        metadata: { quantity: input.quantity },
+        metadata: {
+          quantity: label,
+          stockTracked: Boolean(item),
+          ...(item ? {} : { untrackedReason: input.untrackedReason }),
+          ...(item && rx.catalogItemId && item.id !== rx.catalogItemId
+            ? { substitutedFor: rx.catalogItemId }
+            : {}),
+        },
       },
       tx,
     );
+    if (item) {
+      await audit(
+        {
+          action: AuditAction.STOCK_DISPENSED,
+          actor: ctx,
+          resourceType: 'prescription',
+          resourceId: id,
+          meta: requestMeta(req),
+          metadata: { itemId: item.id, lines },
+        },
+        tx,
+      );
+      await alertLowStock(tx, ctx.facilityId!, [item.id]);
+    }
     await notifyPatient(
       rx.patientId,
       {

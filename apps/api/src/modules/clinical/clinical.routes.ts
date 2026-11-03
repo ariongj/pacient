@@ -26,6 +26,7 @@ import {
   users,
   verificationStatusEnum,
   vitalSigns,
+  medicationCatalog,
 } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
@@ -93,6 +94,8 @@ const PrescriptionInput = z
   .object({
     ...OptionalEncounter,
     medication: z.string().trim().min(2).max(200),
+    /** Optional national catalogue item (lets the pharmacy track stock for it). */
+    catalogItemId: z.string().uuid().optional().nullable(),
     dosage: z.string().trim().min(1).max(100),
     frequency: z.string().trim().min(1).max(100),
     route: z.string().trim().min(1).max(50).default('oral'),
@@ -514,6 +517,13 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
   const { ctx, patientId } = await writeContext(req);
   const input = parse(PrescriptionInput, req.body);
   await ensureEncounter(input.encounterId, patientId);
+  if (input.catalogItemId) {
+    const [item] = await db
+      .select({ id: medicationCatalog.id })
+      .from(medicationCatalog)
+      .where(and(eq(medicationCatalog.id, input.catalogItemId), eq(medicationCatalog.isActive, true)));
+    if (!item) throw badRequest('Unknown medication catalogue item');
+  }
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(prescriptions)

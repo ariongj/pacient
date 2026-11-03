@@ -1,4 +1,139 @@
 /**
  * Serbian (Latin, sr-Latn) translations, keyed by the English source text. Keep {placeholders}.
  */
-export const merge: Record<string, string> = {};
+export const merge: Record<string, string> = {
+  'Duplicate records': 'Duplikati kartona',
+  'Find people registered more than once at your facility and merge their records into one.':
+    'Pronađite osobe registrovane više puta u Vašoj ustanovi i spojite njihove kartone u jedan.',
+  'Possible duplicates': 'Mogući duplikati',
+  'Records with the same date of birth and a matching or very similar name, phone or email. Nothing is merged automatically – always check identity documents first.':
+    'Kartoni sa istim datumom rođenja i istim ili veoma sličnim imenom, telefonom ili e-adresom. Ništa se ne spaja automatski – uvek prvo proverite lična dokumenta.',
+  'No likely duplicates found': 'Nisu pronađeni verovatni duplikati',
+  'You can still compare any two records below.':
+    'I dalje možete uporediti bilo koja dva kartona ispod.',
+  'Possible duplicate': 'Mogući duplikat',
+  Why: 'Zašto',
+  Actions: 'Radnje',
+  Compare: 'Uporedi',
+  '{score}% match': 'Podudaranje {score}%',
+  'Registered {date}': 'Registrovan {date}',
+  'Portal account': 'Nalog na portalu',
+  'National ID': 'Lični broj',
+  'The merge is listed in the history below, where it can be undone if needed.':
+    'Spajanje je navedeno u istoriji ispod, gde se po potrebi može poništiti.',
+  'Same name and date of birth': 'Isto ime i datum rođenja',
+  'First and last name swapped': 'Zamenjeni ime i prezime',
+  'Very similar name and same date of birth': 'Veoma slično ime i isti datum rođenja',
+  'Same phone number': 'Isti broj telefona',
+  'Same email address': 'Ista e-adresa',
+  'Different sex recorded': 'Upisan različit pol',
+  'Compare any two records': 'Uporedite bilo koja dva kartona',
+  'Not in the list above? Search for both records registered at your facility.':
+    'Nije na listi iznad? Pretražite oba kartona registrovana u Vašoj ustanovi.',
+  'First record': 'Prvi karton',
+  'Second record': 'Drugi karton',
+  'Name or national ID': 'Ime ili lični broj',
+  'No patients found': 'Nisu pronađeni pacijenti',
+  Select: 'Izaberi',
+  Change: 'Promeni',
+  'Choose two different records': 'Izaberite dva različita kartona',
+  'Compare and merge records': 'Uporedi i spoji kartone',
+  'Choose the record to keep – normally the one with the correct national ID. Only identity details and the number of entries are shown; clinical content stays with the care team.':
+    'Izaberite karton koji se zadržava – obično onaj sa ispravnim ličnim brojem. Prikazuju se samo podaci o identitetu i broj unosa; klinički sadržaj ostaje kod tima za negu.',
+  'Both records have a portal account': 'Oba kartona imaju nalog na portalu',
+  'Ask the patient which account they use and have the other one deactivated before merging.':
+    'Pitajte pacijenta koji nalog koristi i pre spajanja deaktivirajte drugi.',
+  'Comparison of the two records': 'Poređenje dva kartona',
+  Detail: 'Podatak',
+  'Keep this record': 'Zadrži ovaj karton',
+  'Duplicate – will be closed': 'Duplikat – biće zatvoren',
+  'Date of birth': 'Datum rođenja',
+  Sex: 'Pol',
+  Phone: 'Telefon',
+  Email: 'E-adresa',
+  Address: 'Adresa',
+  Municipality: 'Opština',
+  'Emergency contact': 'Kontakt za hitne slučajeve',
+  'Blood type': 'Krvna grupa',
+  Guardians: 'Staratelji',
+  Registered: 'Registrovan',
+  Yes: 'Da',
+  No: 'Ne',
+  'Entries in total': 'Ukupno unosa',
+  'Details that differ – which value should the kept record have?':
+    'Podaci koji se razlikuju – koju vrednost treba da ima zadržani karton?',
+  '(empty)': '(prazno)',
+  'Reason for the merge': 'Razlog spajanja',
+  'For the audit trail, e.g. “Same person – surname misspelt at walk-in registration, confirmed with ID card”.':
+    'Za revizioni dnevnik, npr. „Ista osoba – prezime pogrešno napisano pri prijemu bez termina, potvrđeno ličnom kartom”.',
+  Cancel: 'Otkaži',
+  'Review merge': 'Pregledaj spajanje',
+  Back: 'Nazad',
+  'Merge records': 'Spoji kartone',
+  'Please confirm the merge': 'Potvrdite spajanje',
+  '{count} entry will move from {from} to {to}.':
+    '{count} unos će biti premešten iz {from} u {to}.',
+  '{count} entries will move from {from} to {to}.':
+    'Broj unosa koji će biti premešteni iz {from} u {to}: {count}.',
+  'The record {nationalId} will be closed and marked as merged.':
+    'Karton {nationalId} biće zatvoren i označen kao spojen.',
+  'Taken from the duplicate: {fields}.': 'Preuzeto iz duplikata: {fields}.',
+  'The patient’s portal account will move to the surviving record.':
+    'Pacijentov nalog na portalu biće premešten na zadržani karton.',
+  'The doctors on the care team are notified.': 'Lekari iz tima za negu dobijaju obaveštenje.',
+  'You can undo this merge later from the merge history.':
+    'Ovo spajanje možete kasnije poništiti iz istorije spajanja.',
+  'Records merged: {count} entry moved to {name}.':
+    'Kartoni su spojeni: {count} unos je premešten u {name}.',
+  'Records merged: {count} entries moved to {name}.':
+    'Kartoni su spojeni: premešteno unosa u {name}: {count}.',
+  Allergies: 'Alergije',
+  Appointments: 'Termini',
+  'Care team': 'Tim za negu',
+  'Care tasks': 'Zadaci nege',
+  'Consent records': 'Evidencija saglasnosti',
+  'Correction requests': 'Zahtevi za ispravku',
+  Diagnoses: 'Dijagnoze',
+  'Emergency access grants': 'Odobreni hitni pristupi',
+  'Note addenda': 'Dopune beleški',
+  Visits: 'Posete',
+  Vaccinations: 'Vakcinacije',
+  'Laboratory messages': 'Laboratorijske poruke',
+  'Laboratory orders': 'Laboratorijski nalozi',
+  'Laboratory results': 'Laboratorijski rezultati',
+  'Medication administrations': 'Davanje lekova',
+  'Message threads': 'Razgovori',
+  Documents: 'Dokumenti',
+  Prescriptions: 'Recepti',
+  Referrals: 'Uputi',
+  'Vital signs': 'Vitalni znaci',
+  'Merge history': 'Istorija spajanja',
+  'No merges yet': 'Još nema spajanja',
+  'Kept record': 'Zadržani karton',
+  'Merged duplicate': 'Spojeni duplikat',
+  Reason: 'Razlog',
+  When: 'Kada',
+  '{count} entry moved': 'Premešten {count} unos',
+  '{count} entries moved': 'Premešteno unosa: {count}',
+  'portal account moved': 'nalog na portalu premešten',
+  'Undone {date}': 'Poništeno {date}',
+  'Undo merge': 'Poništi spajanje',
+  'The {count} entries that were moved go back to {name} ({nationalId}) and that record is reopened. Entries added since the merge stay with {survivor}.':
+    'Premešteni unosi ({count}) vraćaju se u {name} ({nationalId}) i taj karton se ponovo otvara. Unosi dodati posle spajanja ostaju u kartonu {survivor}.',
+  'Reason for undoing the merge': 'Razlog poništavanja spajanja',
+  'Both records have a portal account. Deactivate the account the patient no longer uses, then merge.':
+    'Oba kartona imaju nalog na portalu. Deaktivirajte nalog koji pacijent više ne koristi, pa onda spojite.',
+  'One of these records has already been merged': 'Jedan od ovih kartona je već spojen',
+  'Both records must be registered at your facility':
+    'Oba kartona moraju biti registrovana u Vašoj ustanovi',
+  'Only records registered at your facility can be compared':
+    'Mogu se porediti samo kartoni registrovani u Vašoj ustanovi',
+  'This merge has already been undone': 'Ovo spajanje je već poništeno',
+  'The records changed since the merge': 'Kartoni su se promenili od spajanja',
+  'This record was merged into another record. Open the surviving record instead.':
+    'Ovaj karton je spojen sa drugim kartonom. Umesto njega otvorite zadržani karton.',
+  'Merge not found': 'Spajanje nije pronađeno',
+  'Hospital stays': 'Bolnička lečenja',
+  'Emergency visits': 'Posete hitnoj pomoći',
+  Imaging: 'Snimanje',
+};

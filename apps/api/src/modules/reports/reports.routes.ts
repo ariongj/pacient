@@ -48,6 +48,7 @@ export const REPORT_NAMES = [
   'emergency',
   'births',
   'imaging',
+  'theatre',
 ] as const;
 const ReportName = z.object({ report: z.enum(REPORT_NAMES) });
 
@@ -588,6 +589,76 @@ async function imagingReport(ctx: AuthContext, q: ReportQuery) {
   };
 }
 
+/** Weekday theatre time available in the period (8 hours per theatre per weekday). */
+const THEATRE_MINUTES_PER_WEEKDAY = 8 * 60;
+
+/**
+ * Operating theatre use per facility: booked minutes against available weekday time, cases by
+ * priority, cancellations, waiting time from request to operation and WHO checklist completion.
+ * Case counts are activity, not patient counts.
+ */
+async function theatreReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const from = q.from.toISOString();
+  const to = q.to.toISOString();
+  const result = await db.execute<Row>(sql`
+    WITH weekdays AS (
+      SELECT count(*)::int AS n FROM generate_series(${from}::timestamptz, ${to}::timestamptz, interval '1 day') d
+      WHERE extract(isodow FROM d) < 6
+    ),
+    theatres AS (
+      SELECT facility_id, count(*)::int AS n FROM care_units
+      WHERE type::text = 'OPERATING_THEATRE' AND is_active GROUP BY facility_id
+    )
+    SELECT f.code, f.name, f.region,
+      coalesce(th.n, 0) AS theatres,
+      count(c.id)::int AS cases,
+      count(c.id) FILTER (WHERE c.priority = 'ELECTIVE')::int AS elective,
+      count(c.id) FILTER (WHERE c.priority = 'URGENT')::int AS urgent,
+      count(c.id) FILTER (WHERE c.priority = 'EMERGENCY')::int AS emergency,
+      count(c.id) FILTER (WHERE c.status = 'COMPLETED')::int AS completed,
+      count(c.id) FILTER (WHERE c.status = 'CANCELLED')::int AS cancelled,
+      coalesce(sum(c.estimated_minutes) FILTER (WHERE c.status IN ('SCHEDULED', 'IN_THEATRE', 'COMPLETED')), 0)::int AS "bookedMinutes",
+      coalesce(th.n, 0) * (SELECT n FROM weekdays) * ${THEATRE_MINUTES_PER_WEEKDAY} AS "availableMinutes",
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM (c.in_theatre_at - c.created_at)) / 3600)
+        FILTER (WHERE c.in_theatre_at IS NOT NULL) AS "medianHoursToOperation",
+      count(c.id) FILTER (WHERE c.status = 'COMPLETED' AND c.checklist ? 'signIn' AND c.checklist ? 'timeOut' AND c.checklist ? 'signOut')::int AS "checklistComplete"
+    FROM facilities f
+    JOIN surgical_cases c ON c.facility_id = f.id
+      AND coalesce(c.scheduled_start, c.created_at) BETWEEN ${from} AND ${to}
+    LEFT JOIN theatres th ON th.facility_id = f.id
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id, th.n ORDER BY f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'theatres',
+      'cases',
+      'elective',
+      'urgent',
+      'emergency',
+      'completed',
+      'cancelled',
+      'cancellationPct',
+      'bookedMinutes',
+      'availableMinutes',
+      'utilisationPct',
+      'medianHoursToOperation',
+      'checklistCompletePct',
+    ],
+    rows: result.rows.map((r) => ({
+      ...r,
+      cancellationPct: pct(r.cancelled, r.cases),
+      utilisationPct: pct(r.bookedMinutes, r.availableMinutes),
+      medianHoursToOperation: hours(r.medianHoursToOperation),
+      checklistCompletePct: pct(r.checklistComplete, r.completed),
+      checklistComplete: undefined,
+    })),
+  };
+}
+
 const REPORTS: Record<
   (typeof REPORT_NAMES)[number],
   (ctx: AuthContext, q: ReportQuery) => Promise<{ columns: string[]; rows: unknown[] }>
@@ -605,6 +676,7 @@ const REPORTS: Record<
   emergency: emergencyReport,
   births: birthsReport,
   imaging: imagingReport,
+  theatre: theatreReport,
 };
 
 /** CSV with protection against spreadsheet formula injection. */

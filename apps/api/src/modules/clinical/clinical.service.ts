@@ -126,6 +126,7 @@ export function listPrescriptions(patientId: string, view: ViewOptions = CLINICI
       id: prescriptions.id,
       encounterId: prescriptions.encounterId,
       medication: prescriptions.medication,
+      catalogItemId: prescriptions.catalogItemId,
       dosage: prescriptions.dosage,
       frequency: prescriptions.frequency,
       route: prescriptions.route,

@@ -35,6 +35,7 @@ import {
   SafetyChecksSchema,
   validateSafetyChecks,
 } from './imaging.service.js';
+import { demoStudyOnPerform, registerImageRoutes } from './images.routes.js';
 
 /**
  * Radiology (RIS): doctors order examinations; the facility's radiology unit schedules, performs
@@ -43,6 +44,7 @@ import {
  */
 export const imagingRouter = Router();
 imagingRouter.use(authenticate, publishBoardChanges('imaging.worklist', ['DOCTOR', 'NURSE']));
+registerImageRoutes(imagingRouter);
 
 const IdParam = z.object({ id: z.string().uuid() });
 const PatientParam = z.object({ patientId: z.string().uuid() });
@@ -84,6 +86,8 @@ const ORDER_COLUMNS = {
   releasedAt: imagingOrders.releasedAt,
   cancelledAt: imagingOrders.cancelledAt,
   cancelReason: imagingOrders.cancelReason,
+  studyInstanceUid: imagingOrders.studyInstanceUid,
+  imagesAvailableAt: imagingOrders.imagesAvailableAt,
   createdAt: imagingOrders.createdAt,
   encounterId: imagingOrders.encounterId,
   admissionId: imagingOrders.admissionId,
@@ -296,6 +300,7 @@ imagingRouter.get('/patients/:patientId/orders', async (req, res) => {
         reportedBy: r.reportedBy,
         releasedAt: r.releasedAt,
         orderedBy: r.orderedBy,
+        imagesAvailableAt: r.imagesAvailableAt,
         createdAt: r.createdAt,
       }))
     : rows;
@@ -359,7 +364,12 @@ imagingRouter.post('/orders/:id/perform', requireRole('DOCTOR', 'NURSE'), async 
     }
     const [updated] = await tx
       .update(imagingOrders)
-      .set({ status: 'PERFORMED', performedAt: new Date(), performedById: ctx.userId })
+      .set({
+        status: 'PERFORMED',
+        performedAt: new Date(),
+        performedById: ctx.userId,
+        ...(await demoStudyOnPerform(order)),
+      })
       .where(eq(imagingOrders.id, id))
       .returning();
     await audit(

@@ -5,6 +5,7 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { hashPassword } from '../lib/password.js';
 import { newAccessionNumber } from '../modules/imaging/imaging.service.js';
+import { demoStudyUid, pacsConfig } from '../modules/pacs/index.js';
 import { db } from './client.js';
 import {
   admissions,
@@ -185,6 +186,15 @@ export async function seedImaging({
       reportedAt: ago(3),
       createdAt: ago(5),
     });
+  }
+  // With the built-in demo archive, performed examinations get synthetic images to view.
+  if (pacsConfig().mode === 'demo') {
+    for (const r of rows) {
+      if ((r.status === 'PERFORMED' || r.status === 'REPORTED') && r.performedAt) {
+        r.studyInstanceUid = demoStudyUid(r.accessionNumber);
+        r.imagesAvailableAt = r.performedAt;
+      }
+    }
   }
   await db.insert(imagingOrders).values(rows);
 }

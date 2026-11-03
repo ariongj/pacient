@@ -79,6 +79,23 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   staff cannot reach any workspace endpoint until they enrol, and cannot switch it off. The
   password step returns only a 5-minute challenge token; no session exists until the second factor
   succeeds.
+- **Passkeys (WebAuthn)** – phishing-resistant sign-in bound to the Pacient domain
+  (`WEBAUTHN_RP_ID`, allowed origins `WEBAUTHN_ORIGINS`). A passkey with user verification is a
+  complete sign-in on its own, or the second step after the password; it satisfies the staff
+  two-step requirement (`users.mfa_enabled_at` means "two-step on with an app, passkeys or both").
+  Challenges are stored server-side, expire after 5 minutes and work once; the signature counter
+  must increase (a regression is refused as a possible cloned authenticator). Only the public key
+  is stored. Adding or removing a passkey requires a sign-in within the last 10 minutes or the
+  password; staff cannot remove their last second factor. Passkey sign-in uses discoverable
+  credentials, so the server never reveals whether an email address has passkeys.
+- **Active sessions**: every refresh-token family is a signed-in device; users see device (browser
+  and system), masked network (`192.168.1.x`), start and last use, and can sign out one device or
+  all other devices. A signed-out device keeps its in-memory access token for at most 15 minutes.
+- **Sign-in history**: users see their own sign-ins, failures, lockouts and security changes of the
+  last 90 days (from the audit trail) with masked network.
+- **New-device alerts**: a successful sign-in from a browser/system/network combination the user
+  has not used before (not the account's first device) sends an important notification and email
+  with device and masked network – never health information.
 - **Password reset** via a single-use, hashed, 1-hour token; the response never reveals whether an
   account exists; completing a reset ends every session.
 - Sessions: short-lived access JWT (15 min, HS256, issuer/audience checked) held **in memory** by
@@ -154,8 +171,8 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 
 These are tracked in [BLUEPRINT-ALIGNMENT.md](BLUEPRINT-ALIGNMENT.md):
 
-1. **Phishing-resistant MFA** (WebAuthn/passkeys) or a managed identity provider (OIDC); step-up
-   authentication for emergency access and exports. (TOTP two-step sign-in is implemented.)
+1. A managed identity provider (OIDC) for staff, and step-up authentication for emergency access
+   and exports. (TOTP two-step sign-in and phishing-resistant passkeys are implemented.)
 2. Production email (SMTP relay with SPF/DKIM/DMARC) and SMS provider accounts; patient identity
    proofing.
 3. Encryption at rest (managed PostgreSQL with KMS), secrets from a secrets manager, key rotation.

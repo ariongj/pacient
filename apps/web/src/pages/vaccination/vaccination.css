@@ -1,0 +1,88 @@
+/* Vaccination card / timeline */
+.vacc-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.vacc-age {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.vacc-age:last-child {
+  border-bottom: 0;
+}
+.vacc-age-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.vacc-doses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.vacc-dose {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+}
+.vacc-dose.vacc-given {
+  border-left-color: var(--success);
+}
+.vacc-dose.vacc-due {
+  border-left-color: var(--warning, #b45309);
+}
+.vacc-dose.vacc-overdue {
+  border-left-color: var(--danger);
+}
+.vacc-dose.vacc-upcoming {
+  border-left-color: var(--primary);
+}
+.vacc-dose-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.vacc-dose-actions {
+  margin-top: 0.4rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.small {
+  font-size: 0.85rem;
+}
+.vacc-doselist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+@media (max-width: 640px) {
+  .vacc-age {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+}
+@media print {
+  .sidenav,
+  .topbar,
+  .page-actions,
+  .vacc-dose-actions,
+  .no-print {
+    display: none !important;
+  }
+  .vacc-dose {
+    break-inside: avoid;
+  }
+}

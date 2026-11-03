@@ -139,7 +139,9 @@ export function computeStatus<T extends RecordedDose>(
       given,
     };
   });
-  const open = doses.filter((d) => d.state === 'DUE' || d.state === 'OVERDUE' || d.state === 'UPCOMING');
+  const open = doses.filter(
+    (d) => d.state === 'DUE' || d.state === 'OVERDUE' || d.state === 'UPCOMING',
+  );
   const nextDueDate = open.length ? open.map((d) => d.dueDate).sort()[0]! : null;
   return { ageDays: age, doses, nextDueDate };
 }

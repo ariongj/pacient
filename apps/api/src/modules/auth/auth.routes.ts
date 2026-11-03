@@ -23,7 +23,7 @@ const cookieOptions = (expires?: Date): CookieOptions => ({
   ...(expires ? { expires } : {}),
 });
 
-function sendSession(res: Response, session: auth.Session) {
+export function sendSession(res: Response, session: auth.Session) {
   res.cookie(REFRESH_COOKIE, session.refreshToken, cookieOptions(session.refreshTokenExpiresAt));
   res.json({ accessToken: session.accessToken, expiresIn: session.accessTokenExpiresIn });
 }
@@ -72,7 +72,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   const { email, password } = parse(LoginSchema, req.body);
   const result = await auth.login(email, password, requestMeta(req));
   if (result.kind === 'mfa') {
-    res.json({ mfaRequired: true, mfaToken: result.mfaToken });
+    res.json({ mfaRequired: true, mfaToken: result.mfaToken, methods: result.methods });
     return;
   }
   sendSession(res, result.session);

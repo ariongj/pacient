@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { env } from '../../config/env.js';
 import { db } from '../../db/client.js';
-import { facilities, oneTimeTokens, patients, refreshTokens, users } from '../../db/schema.js';
+import {
+  facilities,
+  oneTimeTokens,
+  patients,
+  refreshTokens,
+  users,
+  webauthnCredentials,
+} from '../../db/schema.js';
 import { badRequest, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { getDummyHash, hashPassword, verifyPassword } from '../../lib/password.js';
@@ -14,6 +21,7 @@ import {
   signMfaChallenge,
 } from '../../lib/tokens.js';
 import { audit, AuditAction, auditSafe } from '../audit/audit.service.js';
+import { noteSignInDevice } from '../security/devices.js';
 
 export const MAX_FAILED_ATTEMPTS = 5;
 
@@ -21,6 +29,27 @@ export const MAX_FAILED_ATTEMPTS = 5;
 export const mfaRequiredFor = (role: AuthContext['role']) =>
   env.REQUIRE_STAFF_MFA && role !== 'PATIENT';
 export const LOCKOUT_MINUTES = 15;
+
+/**
+ * `users.mfaEnabledAt` means "two-step sign-in is on" – with an authenticator app (TOTP), one or
+ * more passkeys, or both. TOTP itself is active once its secret was confirmed (confirmation
+ * records the time step).
+ */
+export const totpActive = (u: {
+  mfaEnabledAt: Date | null;
+  mfaSecretEncrypted: string | null;
+  mfaLastUsedStep: number | null;
+}) => Boolean(u.mfaEnabledAt && u.mfaSecretEncrypted && u.mfaLastUsedStep !== null);
+
+async function passkeyTotal(userId: string) {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(webauthnCredentials)
+    .where(eq(webauthnCredentials.userId, userId));
+  return row?.n ?? 0;
+}
+
+export type SecondFactor = 'totp' | 'passkey';
 
 const GENERIC_LOGIN_ERROR = 'Invalid email or password, or the account is temporarily locked';
 
@@ -81,7 +110,7 @@ async function issueSession(
 export type LoginResult =
   | { kind: 'session'; session: Session }
   /** Password accepted; a second factor is required before any session is issued. */
-  | { kind: 'mfa'; mfaToken: string };
+  | { kind: 'mfa'; mfaToken: string; methods: SecondFactor[] };
 
 /** Counts a failed credential (password or second factor) and locks the account if needed. */
 export async function recordFailedAttempt(user: {
@@ -110,6 +139,7 @@ export async function completeLogin(userId: string, meta: RequestMeta, factors: 
   const ctx = await buildContext(userId);
   const session = await issueSession(ctx, meta);
   await auditSafe({ action: AuditAction.LOGIN_SUCCESS, actor: ctx, meta, metadata: { factors } });
+  await noteSignInDevice({ id: ctx.userId, role: ctx.role, facilityId: ctx.facilityId }, meta);
   return session;
 }
 
@@ -155,7 +185,14 @@ export async function login(
   }
 
   if (user.mfaEnabledAt) {
-    return { kind: 'mfa', mfaToken: signMfaChallenge(user.id) };
+    const methods: SecondFactor[] = [];
+    if (totpActive(user)) methods.push('totp');
+    if ((await passkeyTotal(user.id)) > 0) methods.push('passkey');
+    return {
+      kind: 'mfa',
+      mfaToken: signMfaChallenge(user.id),
+      methods: methods.length ? methods : ['totp'],
+    };
   }
   return { kind: 'session', session: await completeLogin(user.id, meta, ['password']) };
 }
@@ -318,6 +355,8 @@ export async function getProfile(ctx: AuthContext) {
       specialty: users.specialty,
       lastLoginAt: users.lastLoginAt,
       mfaEnabledAt: users.mfaEnabledAt,
+      mfaSecretEncrypted: users.mfaSecretEncrypted,
+      mfaLastUsedStep: users.mfaLastUsedStep,
       emailNotifications: users.emailNotifications,
       smsNotifications: users.smsNotifications,
       locale: users.locale,
@@ -334,9 +373,16 @@ export async function getProfile(ctx: AuthContext) {
     .leftJoin(facilities, eq(facilities.id, users.facilityId))
     .where(eq(users.id, ctx.userId));
   if (!row) throw unauthorized();
-  const { phone, phoneVerifiedAt, ...rest } = row;
+  const { phone, phoneVerifiedAt, mfaSecretEncrypted, mfaLastUsedStep, ...rest } = row;
   return {
     ...rest,
+    /** Authenticator app (TOTP) confirmed. */
+    totpEnabled: totpActive({
+      mfaEnabledAt: row.mfaEnabledAt,
+      mfaSecretEncrypted,
+      mfaLastUsedStep,
+    }),
+    passkeyCount: await passkeyTotal(ctx.userId),
     phone: phone && phoneVerifiedAt ? maskPhone(phone) : null,
     facility: row.facility?.id ? row.facility : null,
     patientId: ctx.patientId,

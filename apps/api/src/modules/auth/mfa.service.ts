@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import { env } from '../../config/env.js';
 import { db } from '../../db/client.js';
-import { mfaRecoveryCodes, oneTimeTokens, users } from '../../db/schema.js';
+import { mfaRecoveryCodes, oneTimeTokens, users, webauthnCredentials } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
@@ -16,7 +16,16 @@ import {
   mfaRequiredFor,
   recordFailedAttempt,
   revokeAllSessions,
+  totpActive,
 } from './auth.service.js';
+
+async function hasPasskey(userId: string) {
+  const [row] = await db
+    .select({ n: count() })
+    .from(webauthnCredentials)
+    .where(eq(webauthnCredentials.userId, userId));
+  return (row?.n ?? 0) > 0;
+}
 import { toLocale } from '../../i18n/index.js';
 
 const RECOVERY_CODE_COUNT = 10;
@@ -75,7 +84,7 @@ async function consumeTotp(user: typeof users.$inferSelect, code: string): Promi
 
 export async function beginEnrollment(ctx: AuthContext) {
   const user = await loadUser(ctx.userId);
-  if (user.mfaEnabledAt) throw conflict('Two-step sign-in is already enabled');
+  if (totpActive(user)) throw conflict('Two-step sign-in is already enabled');
   const secret = generateTotpSecret();
   await db
     .update(users)
@@ -86,11 +95,15 @@ export async function beginEnrollment(ctx: AuthContext) {
 
 export async function confirmEnrollment(ctx: AuthContext, code: string, meta: RequestMeta) {
   const user = await loadUser(ctx.userId);
-  if (user.mfaEnabledAt) throw conflict('Two-step sign-in is already enabled');
+  if (totpActive(user)) throw conflict('Two-step sign-in is already enabled');
   if (!user.mfaSecretEncrypted) throw badRequest('Start enrollment first');
   if (!(await consumeTotp(user, code)))
     throw badRequest('The code is not valid. Check your device clock and try again.');
-  await db.update(users).set({ mfaEnabledAt: new Date() }).where(eq(users.id, ctx.userId));
+  // Keep the original date if passkeys had already turned two-step sign-in on.
+  await db
+    .update(users)
+    .set({ mfaEnabledAt: user.mfaEnabledAt ?? new Date() })
+    .where(eq(users.id, ctx.userId));
   const recoveryCodes = await storeRecoveryCodes(ctx.userId);
   await audit({
     action: AuditAction.MFA_ENABLED,
@@ -108,16 +121,23 @@ export async function disableMfa(
   code: string,
   meta: RequestMeta,
 ) {
-  if (mfaRequiredFor(ctx.role)) throw forbidden('Two-step sign-in is mandatory for staff accounts');
   const user = await loadUser(ctx.userId);
-  if (!user.mfaEnabledAt) throw badRequest('Two-step sign-in is not enabled');
+  const keepsPasskey = await hasPasskey(ctx.userId);
+  // Staff must keep a second factor: removing the app is fine only while a passkey remains.
+  if (mfaRequiredFor(ctx.role) && !keepsPasskey)
+    throw forbidden('Two-step sign-in is mandatory for staff accounts');
+  if (!totpActive(user)) throw badRequest('Two-step sign-in is not enabled');
   if (!user.passwordHash || !(await verifyPassword(user.passwordHash, password))) {
     throw badRequest('Password is incorrect');
   }
   if (!(await consumeTotp(user, code))) throw badRequest('The code is not valid');
   await db
     .update(users)
-    .set({ mfaEnabledAt: null, mfaSecretEncrypted: null, mfaLastUsedStep: null })
+    .set({
+      mfaEnabledAt: keepsPasskey ? user.mfaEnabledAt : null,
+      mfaSecretEncrypted: null,
+      mfaLastUsedStep: null,
+    })
     .where(eq(users.id, ctx.userId));
   await db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.userId, ctx.userId));
   await audit({
@@ -131,7 +151,7 @@ export async function disableMfa(
 
 export async function regenerateRecoveryCodes(ctx: AuthContext, code: string, meta: RequestMeta) {
   const user = await loadUser(ctx.userId);
-  if (!user.mfaEnabledAt) throw badRequest('Two-step sign-in is not enabled');
+  if (!totpActive(user)) throw badRequest('Two-step sign-in is not enabled');
   if (!(await consumeTotp(user, code))) throw badRequest('The code is not valid');
   const recoveryCodes = await storeRecoveryCodes(ctx.userId);
   await audit({

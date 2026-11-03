@@ -1,6 +1,6 @@
 import { t } from '../../i18n';
 import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type { Profile } from '../../api/types';
 import {
@@ -11,6 +11,14 @@ import {
   useAuth,
 } from '../../auth/AuthContext';
 import { Button, ErrorAlert, Loading, TextField } from '../../components/ui';
+import {
+  completeMfaWithPasskey,
+  isPasskeyCancel,
+  passkeyAutofillSupported,
+  passkeyMfaOptions,
+  passkeysSupported,
+  signInWithPasskey,
+} from '../../api/security';
 
 const DEMO = import.meta.env.DEV
   ? [
@@ -44,7 +52,7 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
 }
 
 export function LoginPage() {
-  const { status, user, login, verifyMfa } = useAuth();
+  const { status, user, login, verifyMfa, reloadProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<unknown>(null);
@@ -54,6 +62,72 @@ export function LoginPage() {
   const [challenge, setChallenge] = useState<string | null>(null);
   const [useRecovery, setUseRecovery] = useState(false);
   const [code, setCode] = useState('');
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  /** Passkey options for the second step, when the account has a passkey. */
+  const [mfaPasskey, setMfaPasskey] = useState<Awaited<ReturnType<typeof passkeyMfaOptions>>>(null);
+  const autofillStarted = useRef(false);
+
+  // Conditional UI: the browser offers saved passkeys in the email field's autofill.
+  useEffect(() => {
+    if (status !== 'anonymous' || autofillStarted.current) return;
+    autofillStarted.current = true;
+    let active = true;
+    void (async () => {
+      if (!(await passkeyAutofillSupported())) return;
+      try {
+        await signInWithPasskey({ autofill: true });
+        if (active) goHome(await reloadProfile());
+      } catch {
+        /* cancelled, superseded by the button, or not available */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  // When a password sign-in needs a second step, offer the passkey if the account has one.
+  useEffect(() => {
+    setMfaPasskey(null);
+    if (!challenge || !passkeysSupported()) return;
+    let active = true;
+    void passkeyMfaOptions(challenge).then((o) => {
+      if (active) setMfaPasskey(o);
+    });
+    return () => {
+      active = false;
+    };
+  }, [challenge]);
+
+  async function onPasskey() {
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      await signInWithPasskey();
+      goHome(await reloadProfile());
+    } catch (err) {
+      if (!isPasskeyCancel(err)) setError(err);
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
+
+  async function onMfaPasskey() {
+    if (!challenge || !mfaPasskey) return;
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      await completeMfaWithPasskey(challenge, mfaPasskey);
+      goHome(await reloadProfile());
+    } catch (err) {
+      if (!isPasskeyCancel(err)) setError(err);
+      // Challenges are single-use: fetch a fresh one for the next attempt.
+      setMfaPasskey(await passkeyMfaOptions(challenge));
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
 
   if (status === 'loading') return <Loading label={t('Restoring your session…')} />;
   if (user) {
@@ -114,6 +188,16 @@ export function LoginPage() {
     return (
       <AuthCard>
         <h1>{t('Two-step sign-in')}</h1>
+        {mfaPasskey && (
+          <div className="stack" style={{ marginBottom: '1rem' }}>
+            <Button onClick={onMfaPasskey} loading={passkeyBusy} className="btn-block">
+              {t('Use a passkey')}
+            </Button>
+            <p className="muted" style={{ margin: 0, textAlign: 'center' }}>
+              {t('or enter a code')}
+            </p>
+          </div>
+        )}
         <p className="muted">
           {useRecovery
             ? t(
@@ -180,7 +264,7 @@ export function LoginPage() {
           label={t('Email')}
           type="email"
           name="email"
-          autoComplete="username"
+          autoComplete="username webauthn"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -199,6 +283,17 @@ export function LoginPage() {
           {t('Sign in')}
         </Button>
       </form>
+      {passkeysSupported() && (
+        <Button
+          variant="secondary"
+          className="btn-block"
+          loading={passkeyBusy}
+          onClick={onPasskey}
+          style={{ marginTop: '0.75rem' }}
+        >
+          {t('Sign in with a passkey')}
+        </Button>
+      )}
       <p style={{ marginTop: '1rem' }}>
         <Link to="/forgot-password">{t('Forgot your password?')}</Link>
       </p>

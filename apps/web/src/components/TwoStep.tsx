@@ -3,6 +3,9 @@ import QRCode from 'qrcode';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api/client';
 import { useAuth, useUser } from '../auth/AuthContext';
+import { Link } from 'react-router-dom';
+import type { SecurityProfile } from '../api/security';
+import { AddPasskeyButton } from '../pages/shared/SecurityPage';
 import { Alert, Button, Card, ErrorAlert, TextField } from './ui';
 
 /** QR code rendered locally – the secret never leaves the browser for a third-party service. */
@@ -116,10 +119,15 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
           )}
         </p>
         <ErrorAlert error={error} />
-        <div>
+        <div className="row">
           <Button onClick={start} loading={busy}>
             {t('Set up two-step sign-in')}
           </Button>
+          <AddPasskeyButton
+            variant="secondary"
+            label={t('Use a passkey instead')}
+            onAdded={() => onDone?.()}
+          />
         </div>
       </div>
     );
@@ -162,7 +170,11 @@ export function TwoStepEnrollment({ onDone }: { onDone?: () => void }) {
 
 /** Account settings card: status, recovery-code regeneration, and (patients only) turning it off. */
 export function TwoStepCard() {
-  const user = useUser();
+  const user = useUser() as ReturnType<typeof useUser> & SecurityProfile;
+  // Two-step sign-in may be on through passkeys alone; this card manages the authenticator app.
+  const totpOn = user.totpEnabled ?? user.mfaEnabled;
+  const passkeys = user.passkeyCount ?? 0;
+  const securityPath = '/account/security';
   const { reloadProfile } = useAuth();
   const [mode, setMode] = useState<'idle' | 'regenerate' | 'disable'>('idle');
   const [codes, setCodes] = useState<string[] | null>(null);
@@ -198,7 +210,14 @@ export function TwoStepCard() {
 
   return (
     <Card title={t('Two-step sign-in')}>
-      {!user.mfaEnabled ? (
+      {passkeys > 0 && !totpOn && (
+        <Alert tone="success">
+          {t(
+            'Two-step sign-in is on with your passkey. You can also add an authenticator app as a backup.',
+          )}
+        </Alert>
+      )}
+      {!totpOn ? (
         <TwoStepEnrollment />
       ) : (
         <div className="stack">
@@ -212,7 +231,7 @@ export function TwoStepCard() {
               <Button variant="secondary" onClick={() => setMode('regenerate')}>
                 {t('New recovery codes')}
               </Button>
-              {!user.mfaRequired && (
+              {(!user.mfaRequired || passkeys > 0) && (
                 <Button variant="secondary" onClick={() => setMode('disable')}>
                   {t('Turn off')}
                 </Button>
@@ -258,6 +277,9 @@ export function TwoStepCard() {
           )}
         </div>
       )}
+      <p style={{ marginTop: '1rem', marginBottom: 0 }}>
+        <Link to={securityPath}>{t('Passkeys, signed-in devices and sign-in history')}</Link>
+      </p>
     </Card>
   );
 }

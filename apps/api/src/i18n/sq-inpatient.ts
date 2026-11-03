@@ -6,9 +6,9 @@ export const sqInpatient: Record<string, string> = {
   'A patient is being transferred to {unit}': 'Një pacient po transferohet në {unit}',
   'A patient was discharged – the bed needs cleaning':
     'Një pacient u lirua nga spitali – shtrati duhet pastruar',
-  'Your discharge letter is available': 'Letra juaj e daljes nga spitali është në dispozicion',
+  'Your discharge letter is available': 'Fletëlëshimi juaj është në dispozicion',
   // Discharge summary draft
-  'DISCHARGE SUMMARY': 'LETËR DALJEJE NGA SPITALI',
+  'DISCHARGE SUMMARY': 'FLETËLËSHIM',
   'Admitted {date} to {unit}.': 'Shtruar më {date} në {unit}.',
   'Discharged {date}.': 'Liruar më {date}.',
   'Reason for admission': 'Arsyeja e shtrimit',

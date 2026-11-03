@@ -260,7 +260,7 @@ export async function seedHospital({
   const admittedAt = daysAgo(64, 14);
   const dischargedAt = daysAgo(60, 11);
   const summary = [
-    'LETËR DALJEJE NGA SPITALI',
+    'FLETËLËSHIM',
     `Shtruar më ${sqDate(admittedAt)} në Interna A. Liruar më ${sqDate(dischargedAt)}.`,
     '',
     'Arsyeja e shtrimit',

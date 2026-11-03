@@ -71,7 +71,12 @@ describe('units, beds and staff', () => {
       ).status,
     ).toBe(400);
     expect(
-      (await api().patch(`/api/v1/hospital/units/${ward.id}`).set(bearer(w.tokens.otherDirector)).send({ name: 'Hack' })).status,
+      (
+        await api()
+          .patch(`/api/v1/hospital/units/${ward.id}`)
+          .set(bearer(w.tokens.otherDirector))
+          .send({ name: 'Hack' })
+      ).status,
     ).toBe(404);
   });
 
@@ -84,7 +89,9 @@ describe('units, beds and staff', () => {
     expect(a).toMatchObject({ code: 'INT-A', total: 6, occupied: 0, available: 6 });
     expect(a.beds[0]).toMatchObject({ label: 'A1', status: 'AVAILABLE' });
     expect(res.body.items.some((u: { type: string }) => u.type === 'EMERGENCY')).toBe(false);
-    expect((await api().get('/api/v1/hospital/units').set(bearer(w.tokens.patient))).status).toBe(403);
+    expect((await api().get('/api/v1/hospital/units').set(bearer(w.tokens.patient))).status).toBe(
+      403,
+    );
     const other = await api().get('/api/v1/hospital/units').set(bearer(w.tokens.outsideDoctor));
     expect(other.body.items).toEqual([]);
   });
@@ -109,16 +116,13 @@ describe('admission, transfer and discharge', () => {
   let admissionId: string;
 
   it('admits a patient of the care team to an available bed', async () => {
-    const res = await api()
-      .post('/api/v1/hospital/admissions')
-      .set(bearer(w.tokens.doctor))
-      .send({
-        patientId: w.patient.id,
-        unitId: ward.id,
-        bedId: bedIds[0],
-        source: 'ELECTIVE',
-        reason: 'Pneumoni, dispne',
-      });
+    const res = await api().post('/api/v1/hospital/admissions').set(bearer(w.tokens.doctor)).send({
+      patientId: w.patient.id,
+      unitId: ward.id,
+      bedId: bedIds[0],
+      source: 'ELECTIVE',
+      reason: 'Pneumoni, dispne',
+    });
     expect(res.status).toBe(201);
     admissionId = res.body.id;
     const [bed] = await db.select().from(beds).where(eq(beds.id, bedIds[0]!));
@@ -136,7 +140,13 @@ describe('admission, transfer and discharge', () => {
     const occupied = await api()
       .post('/api/v1/hospital/admissions')
       .set(bearer(w.tokens.doctor))
-      .send({ patientId: p.id, unitId: ward.id, bedId: bedIds[0], source: 'ELECTIVE', reason: 'Test' });
+      .send({
+        patientId: p.id,
+        unitId: ward.id,
+        bedId: bedIds[0],
+        source: 'ELECTIVE',
+        reason: 'Test',
+      });
     expect(occupied.status).toBe(400);
     const nurse = await api()
       .post('/api/v1/hospital/admissions')
@@ -168,7 +178,9 @@ describe('admission, transfer and discharge', () => {
     const doctor = await api().get('/api/v1/hospital/board?mine=true').set(bearer(w.tokens.doctor));
     const mine = doctor.body.units.find((u: { id: string }) => u.id === ward.id);
     expect(mine.beds[0].stay).toMatchObject({ reason: 'Pneumoni, dispne', mine: true });
-    expect((await api().get('/api/v1/hospital/board').set(bearer(w.tokens.patient))).status).toBe(403);
+    expect((await api().get('/api/v1/hospital/board').set(bearer(w.tokens.patient))).status).toBe(
+      403,
+    );
   });
 
   it('transfers to another ward: the old bed needs cleaning', async () => {
@@ -254,7 +266,11 @@ describe('admission, transfer and discharge', () => {
     expect(before.body.items[0].movements).toEqual([]);
 
     expect(
-      (await api().post(`/api/v1/hospital/admissions/${admissionId}/release`).set(bearer(w.tokens.doctor))).status,
+      (
+        await api()
+          .post(`/api/v1/hospital/admissions/${admissionId}/release`)
+          .set(bearer(w.tokens.doctor))
+      ).status,
     ).toBe(200);
     const after = await api()
       .get(`/api/v1/hospital/patients/${w.patient.id}/admissions`)
@@ -268,10 +284,18 @@ describe('admission, transfer and discharge', () => {
 
   it('keeps outsiders out of the stay', async () => {
     expect(
-      (await api().get(`/api/v1/hospital/admissions/${admissionId}`).set(bearer(w.tokens.outsideDoctor))).status,
+      (
+        await api()
+          .get(`/api/v1/hospital/admissions/${admissionId}`)
+          .set(bearer(w.tokens.outsideDoctor))
+      ).status,
     ).toBe(403);
     expect(
-      (await api().get(`/api/v1/hospital/patients/${w.patient.id}/admissions`).set(bearer(w.tokens.otherPatient))).status,
+      (
+        await api()
+          .get(`/api/v1/hospital/patients/${w.patient.id}/admissions`)
+          .set(bearer(w.tokens.otherPatient))
+      ).status,
     ).toBe(403);
   });
 });
@@ -315,10 +339,7 @@ describe('emergency admission and unit-based access', () => {
     const [v] = await db.select().from(edVisits).where(eq(edVisits.id, visit!.id));
     expect(v).toMatchObject({ status: 'ADMITTED', admissionId: res.body.id });
     expect(v!.departedAt).not.toBeNull();
-    const care = await db
-      .select()
-      .from(careAssignments)
-      .where(eq(careAssignments.patientId, p.id));
+    const care = await db.select().from(careAssignments).where(eq(careAssignments.patientId, p.id));
     expect(care.map((c) => c.doctorId)).toContain(w.users.colleague.id);
 
     // The nurse assigned to the ward now has access.
@@ -340,7 +361,13 @@ describe('emergency admission and unit-based access', () => {
     const res = await api()
       .post('/api/v1/hospital/admissions')
       .set(bearer(w.tokens.doctor))
-      .send({ patientId: p.id, unitId: ward.id, bedId: bedIds[3], source: 'ELECTIVE', reason: 'Gabim' });
+      .send({
+        patientId: p.id,
+        unitId: ward.id,
+        bedId: bedIds[3],
+        source: 'ELECTIVE',
+        reason: 'Gabim',
+      });
     expect(res.status).toBe(201);
     const cancel = await api()
       .post(`/api/v1/hospital/admissions/${res.body.id}/cancel`)
@@ -356,8 +383,17 @@ describe('emergency admission and unit-based access', () => {
     await api()
       .post('/api/v1/hospital/admissions')
       .set(bearer(w.tokens.doctor))
-      .send({ patientId: p.id, unitId: ward.id, bedId: bedIds[4], source: 'ELECTIVE', reason: 'Vëzhgim' });
-    const res = await api().patch(`/api/v1/hospital/units/${ward.id}`).set(dir()).send({ isActive: false });
+      .send({
+        patientId: p.id,
+        unitId: ward.id,
+        bedId: bedIds[4],
+        source: 'ELECTIVE',
+        reason: 'Vëzhgim',
+      });
+    const res = await api()
+      .patch(`/api/v1/hospital/units/${ward.id}`)
+      .set(dir())
+      .send({ isActive: false });
     expect(res.status).toBe(409);
     const [u] = await db.select().from(careUnits).where(eq(careUnits.id, ward.id));
     expect(u!.isActive).toBe(true);
@@ -385,6 +421,8 @@ describe('hospital reports', () => {
     }
     const ed = await api().get('/api/v1/reports/emergency').set(dir());
     for (const r of ed.body.rows) expect(r).not.toHaveProperty('leftUnseen');
-    expect((await api().get('/api/v1/reports/occupancy').set(bearer(w.tokens.doctor))).status).toBe(403);
+    expect((await api().get('/api/v1/reports/occupancy').set(bearer(w.tokens.doctor))).status).toBe(
+      403,
+    );
   });
 });

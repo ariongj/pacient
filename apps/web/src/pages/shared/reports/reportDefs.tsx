@@ -6,6 +6,10 @@ import { formatNumber } from '../../../format';
 
 export type Row = GenericReport['rows'][number];
 
+/** Hospital reports (inpatient, emergency, births, imaging) in addition to the core reports. */
+export type HospitalReportName = 'occupancy' | 'admissions' | 'emergency' | 'births' | 'imaging';
+export type AnyReportName = ReportName | HospitalReportName;
+
 const n = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
 const sum = (rows: Row[], key: string) => rows.reduce((a, r) => a + n(r[key]), 0);
 const pct = (part: number, whole: number) =>
@@ -17,7 +21,21 @@ const avg = (rows: Row[], key: string) => {
 const facilityLabel = (r: Row) => String(r.name ?? r.code ?? '');
 
 /** Patient-count columns that can be suppressed (null) by the API. */
-export const SUPPRESSIBLE = new Set(['patients', 'people', 'uniquePatients']);
+export const SUPPRESSIBLE = new Set([
+  'patients',
+  'people',
+  'uniquePatients',
+  'admissions',
+  'discharges',
+  'deaths',
+  'fromEmergency',
+  'currentInpatients',
+  'attendances',
+  'ambulance',
+  'admitted',
+  'births',
+  'critical',
+]);
 
 export const COLUMN_LABELS: Record<string, string> = {
   code: 'Code',
@@ -70,16 +88,82 @@ export const COLUMN_LABELS: Record<string, string> = {
   pendingInvitations: 'Pending invitations',
   patientsPerDoctor: 'Patients per doctor',
   overdueCareTasks: 'Overdue care tasks',
+  unitType: 'Unit type',
+  beds: 'Beds',
+  occupied: 'Occupied',
+  available: 'Free',
+  cleaning: 'Being cleaned',
+  outOfService: 'Out of service',
+  occupancyPct: 'Occupancy',
+  admissions: 'Admissions',
+  discharges: 'Discharges',
+  fromEmergency: 'From emergency',
+  deaths: 'Deaths',
+  avgLengthOfStayDays: 'Avg. length of stay',
+  currentInpatients: 'Current inpatients',
+  attendances: 'Attendances',
+  ambulance: 'By ambulance',
+  admitted: 'Admitted',
+  leftUnseenPct: 'Left without being seen',
+  seenWithinTargetPct: 'Seen within target',
+  medianWaitL1: 'Median wait – level 1',
+  medianWaitL2: 'Median wait – level 2',
+  medianWaitL3: 'Median wait – level 3',
+  medianWaitL4: 'Median wait – level 4',
+  medianWaitL5: 'Median wait – level 5',
+  births: 'Births',
+  caesareanPct: 'Caesarean',
+  lowBirthWeightPct: 'Low birth weight',
+  pretermPct: 'Preterm',
+  lowApgar5Pct: 'Apgar < 7 at 5 min',
+  modality: 'Modality',
+  orders: 'Orders',
+  reported: 'Reported',
+  outstanding: 'Outstanding',
+  critical: 'Critical findings',
+  medianHoursToReport: 'Median time to report',
+};
+
+const UNIT_TYPE_LABELS: Record<string, string> = {
+  GENERAL_WARD: 'General ward',
+  SURGICAL_WARD: 'Surgical ward',
+  ICU: 'Intensive care',
+  MATERNITY: 'Maternity',
+  PAEDIATRIC: 'Paediatrics',
+  NEONATAL: 'Neonatal care',
+};
+const MODALITY_LABELS: Record<string, string> = {
+  XRAY: 'X-ray',
+  CT: 'CT',
+  MRI: 'MRI',
+  ULTRASOUND: 'Ultrasound',
+  MAMMOGRAPHY: 'Mammography',
+  FLUOROSCOPY: 'Fluoroscopy',
 };
 
 export const columnLabel = (c: string) => t(COLUMN_LABELS[c] ?? c);
 export const isTextColumn = (c: string) =>
-  ['code', 'name', 'region', 'icd10Code', 'description', 'medication', 'vaccine'].includes(c);
+  [
+    'code',
+    'name',
+    'region',
+    'icd10Code',
+    'description',
+    'medication',
+    'vaccine',
+    'unitType',
+    'modality',
+  ].includes(c);
 
 /** Formats a cell for display; returns null for suppressed cells (rendered as "<5"). */
 export function formatCell(column: string, value: unknown): string | null {
   if (value === null || value === undefined) return SUPPRESSIBLE.has(column) ? null : '—';
   if (column.endsWith('Pct')) return `${value}%`;
+  if (column === 'unitType') return t(UNIT_TYPE_LABELS[String(value)] ?? String(value));
+  if (column === 'modality') return t(MODALITY_LABELS[String(value)] ?? String(value));
+  if (column.startsWith('medianWait')) return t('{count} min', { count: String(value) });
+  if (column === 'avgLengthOfStayDays') return t('{count} d', { count: String(value) });
+  if (column === 'medianHoursToReport') return t('{count} h', { count: String(value) });
   if (column.startsWith('avgHours')) return t('{count} h', { count: String(value) });
   if (column === 'avgLeadDays') return t('{count} d', { count: String(value) });
   if (typeof value === 'number') return formatNumber(value);
@@ -94,7 +178,7 @@ export interface Kpi {
 }
 
 export interface ReportDef {
-  name: ReportName;
+  name: AnyReportName;
   title: string;
   description: string;
   /** Point-in-time reports ignore the period filter. */
@@ -520,6 +604,233 @@ export const REPORT_DEFS: ReportDef[] = [
       },
     ],
   },
+  {
+    name: 'occupancy',
+    title: 'Bed occupancy',
+    description:
+      'Beds, occupied, free, being cleaned and out of service, by facility and unit type.',
+    pointInTime: true,
+    kpis: (rows) => {
+      const beds = sum(rows, 'beds') - sum(rows, 'outOfService');
+      const occupied = sum(rows, 'occupied');
+      const rate = beds ? Math.round((occupied / beds) * 100) : 0;
+      return [
+        {
+          label: t('Occupancy'),
+          value: `${rate}%`,
+          tone: rate >= 90 ? 'danger' : rate >= 80 ? 'warning' : 'success',
+          hint: t('{occupied} of {total} beds in service', {
+            occupied: formatNumber(occupied),
+            total: formatNumber(beds),
+          }),
+        },
+        { label: t('Free beds'), value: formatNumber(sum(rows, 'available')) },
+        { label: t('Being cleaned'), value: formatNumber(sum(rows, 'cleaning')) },
+        {
+          label: t('Out of service'),
+          value: formatNumber(sum(rows, 'outOfService')),
+          tone: sum(rows, 'outOfService') ? 'warning' : undefined,
+        },
+      ];
+    },
+    charts: (rows) => {
+      const byType = new Map<string, Record<string, number>>();
+      for (const r of rows) {
+        const key = String(r.unitType);
+        const cur = byType.get(key) ?? { occupied: 0, available: 0, cleaning: 0, outOfService: 0 };
+        for (const k of Object.keys(cur)) cur[k]! += n(r[k]);
+        byType.set(key, cur);
+      }
+      return [
+        {
+          title: t('Beds by unit type'),
+          node: (
+            <StackedBars
+              title={t('Bed status by unit type')}
+              series={[
+                { key: 'occupied', label: t('Occupied'), color: 'var(--primary)' },
+                { key: 'available', label: t('Free'), color: 'var(--success)' },
+                { key: 'cleaning', label: t('Being cleaned'), color: 'var(--warning)' },
+                { key: 'outOfService', label: t('Out of service'), color: 'var(--text-muted)' },
+              ]}
+              rows={[...byType.entries()].map(([type, values]) => ({
+                label: t(UNIT_TYPE_LABELS[type] ?? type),
+                values,
+              }))}
+            />
+          ),
+        },
+        {
+          title: t('Occupancy by facility'),
+          node: (
+            <RankedBars
+              label={t('Occupancy by facility')}
+              rows={topN(rows, 'name', 'occupied').map(([name, occupied]) => {
+                const beds = rows
+                  .filter((r) => r.name === name)
+                  .reduce((a, r) => a + n(r.beds) - n(r.outOfService), 0);
+                return {
+                  key: name,
+                  label: name,
+                  sublabel: beds ? `${Math.round((occupied / beds) * 100)}%` : undefined,
+                  value: occupied,
+                };
+              })}
+            />
+          ),
+        },
+      ];
+    },
+  },
+  {
+    name: 'admissions',
+    title: 'Admissions & length of stay',
+    description:
+      'Admissions, discharges, admissions from emergency and average length of stay by unit type.',
+    kpis: (rows) => [
+      { label: t('Admissions'), value: formatNumber(sum(rows, 'admissions')) },
+      { label: t('Discharges'), value: formatNumber(sum(rows, 'discharges')) },
+      {
+        label: t('From emergency'),
+        value: formatNumber(sum(rows, 'fromEmergency')),
+        hint: t('{pct} of admissions', {
+          pct: pct(sum(rows, 'fromEmergency'), sum(rows, 'admissions')),
+        }),
+      },
+      {
+        label: t('Avg. length of stay'),
+        value:
+          avg(rows, 'avgLengthOfStayDays') === null
+            ? '—'
+            : t('{count} d', { count: String(avg(rows, 'avgLengthOfStayDays')) }),
+      },
+      { label: t('Current inpatients'), value: formatNumber(sum(rows, 'currentInpatients')) },
+    ],
+    charts: (rows) => [
+      {
+        title: t('Admissions by unit type'),
+        node: (
+          <BarChart
+            title={t('Admissions by unit type')}
+            data={topN(rows, 'unitType', 'admissions').map(([type, value]) => ({
+              label: t(UNIT_TYPE_LABELS[type] ?? type),
+              value,
+            }))}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'emergency',
+    title: 'Emergency department',
+    description:
+      'Attendances, median wait to be seen by triage level, share seen within target and left without being seen.',
+    kpis: (rows) => [
+      { label: t('Attendances'), value: formatNumber(sum(rows, 'attendances')) },
+      { label: t('By ambulance'), value: formatNumber(sum(rows, 'ambulance')) },
+      { label: t('Admitted'), value: formatNumber(sum(rows, 'admitted')) },
+      {
+        label: t('Seen within target'),
+        value:
+          avg(rows, 'seenWithinTargetPct') === null ? '—' : `${avg(rows, 'seenWithinTargetPct')}%`,
+        hint: t(
+          'Targets: level 1 at once, 2 within 10 min, 3 within 60, 4 within 120, 5 within 240',
+        ),
+      },
+      {
+        label: t('Left without being seen'),
+        value: avg(rows, 'leftUnseenPct') === null ? '—' : `${avg(rows, 'leftUnseenPct')}%`,
+        tone: n(avg(rows, 'leftUnseenPct')) > 5 ? 'warning' : undefined,
+      },
+    ],
+    charts: (rows) => [
+      {
+        title: t('Median wait to be seen by triage level (minutes)'),
+        node: (
+          <BarChart
+            title={t('Median wait by triage level')}
+            data={[1, 2, 3, 4, 5].map((level) => ({
+              label: t('Level {level}', { level }),
+              value: n(avg(rows, `medianWaitL${level}`)),
+            }))}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'births',
+    title: 'Births',
+    description:
+      'Births per facility with caesarean, low birth weight (< 2500 g), preterm (< 37 weeks) and low Apgar rates.',
+    kpis: (rows) => [
+      { label: t('Births'), value: formatNumber(sum(rows, 'births')) },
+      {
+        label: t('Caesarean'),
+        value: avg(rows, 'caesareanPct') === null ? '—' : `${avg(rows, 'caesareanPct')}%`,
+      },
+      {
+        label: t('Low birth weight'),
+        value: avg(rows, 'lowBirthWeightPct') === null ? '—' : `${avg(rows, 'lowBirthWeightPct')}%`,
+      },
+      {
+        label: t('Preterm'),
+        value: avg(rows, 'pretermPct') === null ? '—' : `${avg(rows, 'pretermPct')}%`,
+      },
+    ],
+    charts: (rows) => [
+      {
+        title: t('Births by facility'),
+        node: (
+          <RankedBars
+            label={t('Births by facility')}
+            rows={rows.map((r) => ({
+              key: String(r.code),
+              label: facilityLabel(r),
+              value: r.births === null ? null : n(r.births),
+              suppressed: r.births === null,
+            }))}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'imaging',
+    title: 'Imaging',
+    description: 'Examinations by modality, outstanding work and median time from order to report.',
+    kpis: (rows) => [
+      { label: t('Orders'), value: formatNumber(sum(rows, 'orders')) },
+      { label: t('Reported'), value: formatNumber(sum(rows, 'reported')) },
+      {
+        label: t('Outstanding'),
+        value: formatNumber(sum(rows, 'outstanding')),
+        tone: sum(rows, 'outstanding') ? 'warning' : undefined,
+      },
+      {
+        label: t('Median time to report'),
+        value:
+          avg(rows, 'medianHoursToReport') === null
+            ? '—'
+            : t('{count} h', { count: String(avg(rows, 'medianHoursToReport')) }),
+      },
+    ],
+    charts: (rows) => [
+      {
+        title: t('Examinations by modality'),
+        node: (
+          <Donut
+            title={t('Examinations by modality')}
+            data={topN(rows, 'modality', 'orders').map(([m, value]) => ({
+              label: t(MODALITY_LABELS[m] ?? m),
+              value,
+            }))}
+          />
+        ),
+      },
+    ],
+  },
 ];
 
-export const reportDef = (name: ReportName) => REPORT_DEFS.find((d) => d.name === name)!;
+export const reportDef = (name: AnyReportName) => REPORT_DEFS.find((d) => d.name === name)!;

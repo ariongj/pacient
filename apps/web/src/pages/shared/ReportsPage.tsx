@@ -2,7 +2,7 @@ import { t } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { api, downloadFile } from '../../api/client';
-import type { Facility, GenericReport, ReportName } from '../../api/types';
+import type { Facility, GenericReport } from '../../api/types';
 import { useUser } from '../../auth/AuthContext';
 import {
   Alert,
@@ -24,7 +24,9 @@ import {
   formatCell,
   isTextColumn,
   REPORT_DEFS,
+  type AnyReportName,
   reportDef,
+  SUPPRESSIBLE,
   type Row,
 } from './reports/reportDefs';
 
@@ -57,7 +59,7 @@ function validatePeriod(from: string, to: string): string | null {
   return null;
 }
 
-function DataTable({ name, report }: { name: ReportName; report: GenericReport }) {
+function DataTable({ name, report }: { name: AnyReportName; report: GenericReport }) {
   const columns = report.columns.filter((c) => c !== 'code');
   const hasFacility = report.columns.includes('name');
   return (
@@ -103,7 +105,7 @@ function DataTable({ name, report }: { name: ReportName; report: GenericReport }
   );
 }
 
-function ReportView({ name, report }: { name: ReportName; report: GenericReport }) {
+function ReportView({ name, report }: { name: AnyReportName; report: GenericReport }) {
   const def = reportDef(name);
   if (!report.rows.length) {
     return (
@@ -115,7 +117,7 @@ function ReportView({ name, report }: { name: ReportName; report: GenericReport 
   const kpis = def.kpis(report.rows);
   const charts = def.charts(report.rows);
   const anySuppressed = report.rows.some(
-    (r) => r.suppressed || r.uniquePatients === null || r.patients === null || r.people === null,
+    (r) => r.suppressed || [...SUPPRESSIBLE].some((c) => c in r && r[c] === null),
   );
   return (
     <div className="stack">
@@ -149,7 +151,7 @@ function ReportView({ name, report }: { name: ReportName; report: GenericReport 
 export function ReportsPage() {
   const user = useUser();
   const isMinistry = user.role === 'MINISTRY';
-  const [name, setName] = useState<ReportName>('activity');
+  const [name, setName] = useState<AnyReportName>('activity');
   const [preset, setPreset] = useState<Preset>('90');
   const [customFrom, setCustomFrom] = useState(isoDay(new Date(Date.now() - 90 * DAY)));
   const [customTo, setCustomTo] = useState(isoDay(new Date()));

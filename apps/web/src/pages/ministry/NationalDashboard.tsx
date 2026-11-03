@@ -18,6 +18,7 @@ import {
 } from '../../components/ui';
 import { formatNumber, humanize } from '../../format';
 import { OperationsPanel } from '../director/OperationsPanel';
+import { NationalHospitalCard } from '../hospital/HospitalCards';
 
 export function NationalDashboard() {
   const query = useQuery({
@@ -178,6 +179,7 @@ export function NationalDashboard() {
         }}
       </QueryView>
       <div className="stack" style={{ marginTop: '1rem' }}>
+        <NationalHospitalCard />
         <OperationsPanel reportsPath="/ministry/reports" />
         <Grid min={260}>
           <Card title={t('Emergency access oversight')}>

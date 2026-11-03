@@ -20,6 +20,7 @@ import {
 import { ArrangeCoverDialog, CoverTable } from '../doctor/DoctorCover';
 import { FacilityStatsView } from './FacilityStatsView';
 import { OperationsPanel } from './OperationsPanel';
+import { FacilityHospitalCard } from '../hospital/HospitalCards';
 
 const useEscalations = () =>
   useQuery({
@@ -202,6 +203,7 @@ export function DirectorDashboard() {
       <ActionAlerts />
       <div className="stack">
         <CriticalResultsCard />
+        <FacilityHospitalCard />
         <CoverCard />
         <OperationsPanel reportsPath="/director/reports" />
         <QueryView query={query}>

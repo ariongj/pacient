@@ -1,3 +1,4 @@
+import { publishBoardChanges } from '../../lib/events.js';
 import { Router } from 'express';
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -39,7 +40,11 @@ import {
  * patient's record while the attendance is open (see access/policy.ts).
  */
 export const edRouter = Router();
-edRouter.use(authenticate, requireRole('DOCTOR', 'NURSE', 'RECEPTION'));
+edRouter.use(
+  authenticate,
+  requireRole('DOCTOR', 'NURSE', 'RECEPTION'),
+  publishBoardChanges('ed.board', ['DOCTOR', 'NURSE', 'RECEPTION']),
+);
 
 const UnitQuery = z.object({ unitId: z.string().uuid().optional() });
 const IdParam = z.object({ id: z.string().uuid() });

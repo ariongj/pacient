@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import type { NextFunction, Request, Response } from 'express';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import { env } from '../config/env.js';
@@ -14,7 +15,16 @@ import { logger } from './logger.js';
  * re-fetch the data through the normal, authorised API.
  */
 export interface LiveEvent {
-  type: 'notification' | 'channel.message' | 'message';
+  type:
+    | 'notification'
+    | 'channel.message'
+    | 'message'
+    /** Bed board / admissions changed at the facility. */
+    | 'hospital.board'
+    /** Emergency department board changed at the facility. */
+    | 'ed.board'
+    /** Radiology worklist changed at the facility. */
+    | 'imaging.worklist';
   /** Optional resource id, e.g. the channel that received a message. */
   ref?: string;
 }
@@ -73,4 +83,32 @@ export async function subscribe(userId: string, handler: (e: LiveEvent) => void)
 export async function stopListening() {
   await listener?.end().catch(() => undefined);
   listener = null;
+}
+
+/**
+ * Router middleware for shared operational boards: after any successful write (non-GET, 2xx)
+ * tells the facility's staff in the given roles to refresh. Only the event type travels – the
+ * boards re-fetch through the normal, authorised API.
+ */
+export function publishBoardChanges(type: LiveEvent['type'], roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET') {
+      res.on('finish', () => {
+        const facilityId = req.auth?.facilityId;
+        if (res.statusCode >= 300 || !facilityId) return;
+        void (async () => {
+          const rows = await db.execute<{ id: string }>(sql`
+            SELECT id FROM users
+            WHERE facility_id = ${facilityId} AND is_active AND role::text IN ${sql.raw(
+              `(${roles.map((r) => `'${r.replace(/[^A-Z_]/g, '')}'`).join(',')})`,
+            )}`);
+          await publish(
+            rows.rows.map((r) => r.id),
+            { type },
+          );
+        })().catch((err: unknown) => logger.warn({ err }, 'Board update could not be published'));
+      });
+    }
+    next();
+  };
 }

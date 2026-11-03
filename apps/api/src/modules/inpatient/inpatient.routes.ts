@@ -1,3 +1,4 @@
+import { publishBoardChanges } from '../../lib/events.js';
 import { Router } from 'express';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
@@ -50,7 +51,10 @@ import {
  * board (who is in which bed) but never the clinical reason for admission.
  */
 export const inpatientRouter = Router();
-inpatientRouter.use(authenticate);
+inpatientRouter.use(
+  authenticate,
+  publishBoardChanges('hospital.board', ['DOCTOR', 'NURSE', 'RECEPTION', 'DIRECTOR']),
+);
 
 const Id = z.object({ id: z.string().uuid() });
 const attending = alias(users, 'attending');

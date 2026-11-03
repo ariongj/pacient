@@ -1,3 +1,4 @@
+import { publishBoardChanges } from '../../lib/events.js';
 import { Router } from 'express';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
@@ -41,7 +42,7 @@ import {
  * A signed report is immutable (database trigger) – corrections are a new examination or note.
  */
 export const imagingRouter = Router();
-imagingRouter.use(authenticate);
+imagingRouter.use(authenticate, publishBoardChanges('imaging.worklist', ['DOCTOR', 'NURSE']));
 
 const IdParam = z.object({ id: z.string().uuid() });
 const PatientParam = z.object({ patientId: z.string().uuid() });

@@ -358,16 +358,13 @@ describe('emergency admission and unit-based access', () => {
 
   it('cancels an admission entered in error within 24 hours and frees the bed', async () => {
     const p = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
-    const res = await api()
-      .post('/api/v1/hospital/admissions')
-      .set(bearer(w.tokens.doctor))
-      .send({
-        patientId: p.id,
-        unitId: ward.id,
-        bedId: bedIds[3],
-        source: 'ELECTIVE',
-        reason: 'Gabim',
-      });
+    const res = await api().post('/api/v1/hospital/admissions').set(bearer(w.tokens.doctor)).send({
+      patientId: p.id,
+      unitId: ward.id,
+      bedId: bedIds[3],
+      source: 'ELECTIVE',
+      reason: 'Gabim',
+    });
     expect(res.status).toBe(201);
     const cancel = await api()
       .post(`/api/v1/hospital/admissions/${res.body.id}/cancel`)
@@ -380,16 +377,13 @@ describe('emergency admission and unit-based access', () => {
 
   it('cannot close a unit with patients still admitted', async () => {
     const p = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
-    await api()
-      .post('/api/v1/hospital/admissions')
-      .set(bearer(w.tokens.doctor))
-      .send({
-        patientId: p.id,
-        unitId: ward.id,
-        bedId: bedIds[4],
-        source: 'ELECTIVE',
-        reason: 'Vëzhgim',
-      });
+    await api().post('/api/v1/hospital/admissions').set(bearer(w.tokens.doctor)).send({
+      patientId: p.id,
+      unitId: ward.id,
+      bedId: bedIds[4],
+      source: 'ELECTIVE',
+      reason: 'Vëzhgim',
+    });
     const res = await api()
       .patch(`/api/v1/hospital/units/${ward.id}`)
       .set(dir())

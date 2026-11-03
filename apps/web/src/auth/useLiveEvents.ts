@@ -36,6 +36,17 @@ export function useLiveEvents(enabled: boolean): LiveStatus {
           queryClient.invalidateQueries({ queryKey: ['worklist'] });
           queryClient.invalidateQueries({ queryKey: ['messages'] });
         });
+        // Shared boards: refresh when anything changes at the facility.
+        source.addEventListener('hospital.board', () => {
+          queryClient.invalidateQueries({ queryKey: ['hospital'] });
+        });
+        source.addEventListener('ed.board', () => {
+          queryClient.invalidateQueries({ queryKey: ['ed'] });
+          queryClient.invalidateQueries({ queryKey: ['hospital'] });
+        });
+        source.addEventListener('imaging.worklist', () => {
+          queryClient.invalidateQueries({ queryKey: ['imaging'] });
+        });
         source.addEventListener('channel.message', (e) => {
           const ref = (JSON.parse((e as MessageEvent).data) as { ref?: string }).ref;
           queryClient.invalidateQueries({ queryKey: ['channels'] });

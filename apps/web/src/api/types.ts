@@ -220,6 +220,8 @@ export type AppointmentStatus =
 
 export interface Appointment {
   id: string;
+  /** STAFF or PORTAL (booked by the patient online). */
+  bookedVia?: 'STAFF' | 'PORTAL';
   scheduledAt: string;
   durationMinutes: number;
   reason: string;

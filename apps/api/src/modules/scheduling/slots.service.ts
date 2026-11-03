@@ -1,7 +1,15 @@
 import { and, eq, gt, inArray, lt } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { appointments, availabilityExceptions, doctorAvailability } from '../../db/schema.js';
-import { addDays, daysBetween, fromMinutes, localTime, toMinutes, weekdayOf, zonedToUtc } from './time.js';
+import {
+  addDays,
+  daysBetween,
+  fromMinutes,
+  localTime,
+  toMinutes,
+  weekdayOf,
+  zonedToUtc,
+} from './time.js';
 
 export interface Slot {
   start: string;
@@ -68,7 +76,8 @@ export async function freeSlots(
   const busy = [
     ...exceptions.map((e) => [e.startsAt.getTime(), e.endsAt.getTime()] as const),
     ...booked.map(
-      (b) => [b.scheduledAt.getTime(), b.scheduledAt.getTime() + b.durationMinutes * 60_000] as const,
+      (b) =>
+        [b.scheduledAt.getTime(), b.scheduledAt.getTime() + b.durationMinutes * 60_000] as const,
     ),
   ];
   const notBefore = opts.notBefore?.getTime() ?? Date.now();

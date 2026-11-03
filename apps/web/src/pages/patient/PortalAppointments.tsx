@@ -2,7 +2,6 @@ import { t } from '../../i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
-import type { Appointment } from '../../api/types';
 import {
   Alert,
   Button,
@@ -18,8 +17,123 @@ import {
   TextAreaField,
   TextField,
 } from '../../components/ui';
-import { formatDateTime } from '../../format';
+import {
+  slotTime,
+  useBookableDoctors,
+  type AppointmentWithChannel,
+  type Slot,
+} from '../../api/scheduling';
+import { Badge } from '../../components/ui';
+import { formatDateTime, formatDayHeading } from '../../format';
+import { SlotPicker } from '../reception/BookAppointmentDialog';
 import { useCareTeam } from './shared';
+
+/** Patients may cancel online until 2 hours before (the server enforces the same rule). */
+const CANCEL_NOTICE_MS = 2 * 3_600_000;
+
+/** Book a published free time: doctor → day and time → reason → confirmed immediately. */
+function BookOnline({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const queryClient = useQueryClient();
+  const doctors = useBookableDoctors();
+  const [doctorId, setDoctorId] = useState('');
+  const [slot, setSlot] = useState<Slot | null>(null);
+  const [reason, setReason] = useState('');
+  const book = useMutation({
+    mutationFn: () =>
+      api('/scheduling/book', { method: 'POST', body: { doctorId, start: slot!.start, reason } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      void queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      onDone();
+    },
+    onError: () => {
+      // The time may have just been taken: refresh the free times.
+      void queryClient.invalidateQueries({ queryKey: ['scheduling', 'slots'] });
+      setSlot(null);
+    },
+  });
+
+  return (
+    <QueryView query={doctors}>
+      {(list) => {
+        const bookable = list.filter((d) => d.portalBookable);
+        if (!bookable.length)
+          return (
+            <Alert tone="info">
+              {t(
+                'No doctor of your facility offers online booking yet. Send a request to your doctor or call the facility.',
+              )}
+            </Alert>
+          );
+        const doctor = bookable.find((d) => d.id === doctorId);
+        return (
+          <form
+            className="stack"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (slot && reason.trim().length >= 2) book.mutate();
+            }}
+          >
+            <SelectField
+              label={t('Doctor')}
+              required
+              value={doctorId}
+              onChange={(e) => {
+                setDoctorId(e.target.value);
+                setSlot(null);
+              }}
+              placeholder={t('Choose a doctor')}
+              options={bookable.map((d) => ({
+                value: d.id,
+                label: `${d.fullName}${d.specialty ? ` — ${d.specialty}` : ''}${
+                  d.inCareTeam ? ` · ${t('your care team')}` : ''
+                }`,
+              }))}
+            />
+            {doctor && (
+              <>
+                <p className="muted" style={{ margin: 0 }}>
+                  {doctor.facilityName}
+                </p>
+                <SlotPicker doctorId={doctor.id} patientMode value={slot} onChange={setSlot} />
+              </>
+            )}
+            {slot && (
+              <>
+                <Alert tone="info" title={t('Your choice')}>
+                  {formatDayHeading(new Date(slot.start))} · {slotTime(slot.start)} ·{' '}
+                  {doctor?.fullName}
+                </Alert>
+                <TextAreaField
+                  label={t('Reason for the visit')}
+                  required
+                  minLength={2}
+                  maxLength={500}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  hint={t('Do not use this for urgent problems — call 112 in an emergency.')}
+                />
+              </>
+            )}
+            <ErrorAlert error={book.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={onCancel}>
+                {t('Cancel')}
+              </Button>
+              <Button
+                type="submit"
+                loading={book.isPending}
+                disabled={!slot || reason.trim().length < 2}
+              >
+                {t('Book this time')}
+              </Button>
+            </div>
+          </form>
+        );
+      }}
+    </QueryView>
+  );
+}
 
 function RequestForm({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
@@ -100,9 +214,11 @@ function RequestForm({ onDone }: { onDone: () => void }) {
 export function PortalAppointments() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const [booked, setBooked] = useState(false);
   const q = useQuery({
     queryKey: ['appointments', 'all'],
-    queryFn: () => api<{ items: Appointment[] }>('/appointments'),
+    queryFn: () => api<{ items: AppointmentWithChannel[] }>('/appointments'),
   });
   const cancel = useMutation({
     mutationFn: (id: string) =>
@@ -115,15 +231,34 @@ export function PortalAppointments() {
     <>
       <PageHeader
         title={t('Appointments')}
-        subtitle={t('Requests are confirmed by your doctor.')}
-        actions={<Button onClick={() => setOpen(true)}>{t('Request appointment')}</Button>}
+        subtitle={t('Book a free time online, or send a request that your doctor confirms.')}
+        actions={
+          <span className="row">
+            <Button
+              onClick={() => {
+                setBooked(false);
+                setBooking(true);
+              }}
+            >
+              {t('Book appointment')}
+            </Button>
+            <Button variant="secondary" onClick={() => setOpen(true)}>
+              {t('Request appointment')}
+            </Button>
+          </span>
+        }
       />
+      {booked && (
+        <Alert tone="success" title={t('Your appointment is booked')}>
+          {t('You will get a reminder the day before.')}
+        </Alert>
+      )}
       <ErrorAlert error={cancel.error} />
       <QueryView query={q}>
         {(d) => {
           const upcoming = d.items.filter((a) => new Date(a.scheduledAt).getTime() >= now);
           const past = d.items.filter((a) => new Date(a.scheduledAt).getTime() < now).reverse();
-          const rows = (items: Appointment[], allowCancel: boolean) => (
+          const rows = (items: AppointmentWithChannel[], allowCancel: boolean) => (
             <Table caption={t('Appointments')}>
               <thead>
                 <tr>
@@ -147,22 +282,32 @@ export function PortalAppointments() {
                     <td>{a.facilityName}</td>
                     <td>{a.reason}</td>
                     <td>
-                      <StatusBadge value={a.status} />
+                      <span className="row" style={{ gap: '0.35rem' }}>
+                        <StatusBadge value={a.status} />
+                        {a.bookedVia === 'PORTAL' && (
+                          <Badge tone="info">{t('Booked online')}</Badge>
+                        )}
+                      </span>
                     </td>
                     {allowCancel && (
                       <td>
-                        {(a.status === 'REQUESTED' || a.status === 'CONFIRMED') && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            loading={cancel.isPending && cancel.variables === a.id}
-                            onClick={() => {
-                              if (window.confirm(t('Cancel this appointment?')))
-                                cancel.mutate(a.id);
-                            }}
-                          >
-                            {t('Cancel')}
-                          </Button>
+                        {a.status === 'CONFIRMED' &&
+                        new Date(a.scheduledAt).getTime() - now < CANCEL_NOTICE_MS ? (
+                          <small className="muted">{t('Call the facility to cancel')}</small>
+                        ) : (
+                          (a.status === 'REQUESTED' || a.status === 'CONFIRMED') && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              loading={cancel.isPending && cancel.variables === a.id}
+                              onClick={() => {
+                                if (window.confirm(t('Cancel this appointment?')))
+                                  cancel.mutate(a.id);
+                              }}
+                            >
+                              {t('Cancel')}
+                            </Button>
+                          )
                         )}
                       </td>
                     )}
@@ -189,6 +334,20 @@ export function PortalAppointments() {
       </QueryView>
       <Dialog open={open} onClose={() => setOpen(false)} title={t('Request an appointment')}>
         <RequestForm onDone={() => setOpen(false)} />
+      </Dialog>
+      <Dialog
+        open={booking}
+        onClose={() => setBooking(false)}
+        title={t('Book an appointment')}
+        wide
+      >
+        <BookOnline
+          onCancel={() => setBooking(false)}
+          onDone={() => {
+            setBooking(false);
+            setBooked(true);
+          }}
+        />
       </Dialog>
     </>
   );

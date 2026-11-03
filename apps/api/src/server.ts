@@ -6,12 +6,17 @@ import { closeAllStreams } from './modules/events/events.routes.js';
 import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
 import { startSmsWorker, stopSmsWorker } from './modules/sms/outbox.js';
 import { startEscalationWorker, stopEscalationWorker } from './modules/cover/escalation.js';
+import {
+  startAppointmentReminderWorker,
+  stopAppointmentReminderWorker,
+} from './modules/scheduling/reminders.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
 startEmailWorker();
 startSmsWorker();
 startEscalationWorker();
+startAppointmentReminderWorker();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -24,6 +29,7 @@ function shutdown(signal: string) {
   stopEmailWorker();
   stopSmsWorker();
   stopEscalationWorker();
+  stopAppointmentReminderWorker();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

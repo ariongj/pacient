@@ -2,8 +2,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { Appointment, AppointmentStatus } from '../../api/types';
+import type { AppointmentWithChannel as Appointment } from '../../api/scheduling';
+import type { AppointmentStatus } from '../../api/types';
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -72,6 +74,11 @@ export function DoctorSchedule() {
       <PageHeader
         title={t('Schedule')}
         subtitle={t('Your appointments. Requests from patients need confirmation.')}
+        actions={
+          <Link to="/doctor/availability" className="btn btn-secondary btn-md">
+            {t('My consulting hours')}
+          </Link>
+        }
       />
       <Card>
         <div className="search-bar">
@@ -101,6 +108,11 @@ export function DoctorSchedule() {
           {(items) => {
             if (items.length === 0)
               return <EmptyState title={t('No appointments in this period')} />;
+            const online = items.filter((a) => a.bookedVia === 'PORTAL').length;
+            const noShows = items.filter((a) => a.status === 'NO_SHOW').length;
+            const ended = items.filter((a) =>
+              ['COMPLETED', 'NO_SHOW', 'CHECKED_IN'].includes(a.status),
+            ).length;
             const days = new Map<string, Appointment[]>();
             for (const a of items) {
               const key = new Date(a.scheduledAt).toDateString();
@@ -108,6 +120,15 @@ export function DoctorSchedule() {
             }
             return (
               <div className="stack">
+                <p className="muted" style={{ margin: 0 }}>
+                  {t('{count} appointments · {online} booked online · {noShows} no-shows', {
+                    count: items.length,
+                    online,
+                    noShows,
+                  })}
+                  {ended > 0 &&
+                    ` · ${t('no-show rate {pct}%', { pct: Math.round((noShows / ended) * 100) })}`}
+                </p>
                 {[...days.entries()].map(([key, appts]) => (
                   <section key={key}>
                     <h2 style={{ marginBottom: '0.5rem' }}>{formatDate(appts[0]!.scheduledAt)}</h2>
@@ -123,6 +144,9 @@ export function DoctorSchedule() {
                             {a.reason}
                           </span>
                           <span className="row">
+                            {a.bookedVia === 'PORTAL' && (
+                              <Badge tone="info">{t('Booked online')}</Badge>
+                            )}
                             <StatusBadge value={a.status} />
                             {(ACTIONS[a.status] ?? []).map((act) => (
                               <Button

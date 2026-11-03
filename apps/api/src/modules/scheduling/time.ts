@@ -42,7 +42,10 @@ export function zonedToUtc(date: string, time: string): Date | null {
   const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   const [h, mi] = time.split(':').map(Number) as [number, number];
   const guess = Date.UTC(y, m - 1, d, h, mi);
-  const candidates = [guess - tzOffsetMs(new Date(guess - 3 * 3_600_000)), guess - tzOffsetMs(new Date(guess))];
+  const candidates = [
+    guess - tzOffsetMs(new Date(guess - 3 * 3_600_000)),
+    guess - tzOffsetMs(new Date(guess)),
+  ];
   for (const utc of candidates.sort((a, b) => a - b)) {
     const back = new Date(utc);
     if (localDate(back) === date && localTime(back) === time) return back;

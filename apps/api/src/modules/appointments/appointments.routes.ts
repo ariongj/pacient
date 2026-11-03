@@ -64,6 +64,9 @@ const TRANSITIONS: Record<Actor, Partial<Record<Status, Status[]>>> = {
 
 const doctor = aliasedTable(users, 'doctor');
 
+/** Patients may cancel a confirmed appointment online until this long before it starts. */
+const PATIENT_CANCEL_NOTICE_MS = 2 * 3_600_000;
+
 function scopeFilter(ctx: AuthContext): SQL {
   switch (ctx.role) {
     case 'PATIENT':
@@ -118,6 +121,7 @@ appointmentsRouter.get('/', async (req, res) => {
       durationMinutes: appointments.durationMinutes,
       reason: appointments.reason,
       status: appointments.status,
+      bookedVia: appointments.bookedVia,
       patientId: appointments.patientId,
       patientName: sql<string>`${patients.firstName} || ' ' || ${patients.lastName}`,
       doctorId: appointments.doctorId,
@@ -261,6 +265,16 @@ appointmentsRouter.patch(
     const allowed = TRANSITIONS[ctx.role as Actor][appt.status] ?? [];
     if (!allowed.includes(status)) {
       throw badRequest(`Cannot change an appointment from ${appt.status} to ${status}`);
+    }
+    if (
+      ctx.role === 'PATIENT' &&
+      status === 'CANCELLED' &&
+      appt.status === 'CONFIRMED' &&
+      appt.scheduledAt.getTime() - Date.now() < PATIENT_CANCEL_NOTICE_MS
+    ) {
+      throw badRequest(
+        'Appointments can be cancelled online up to 2 hours before. Please call the facility.',
+      );
     }
     if (status === 'CONFIRMED') {
       await assertNoOverlap(appt.doctorId, appt.scheduledAt, appt.durationMinutes, appt.id);

@@ -1,0 +1,81 @@
+/* Slot picker shared by portal, reception and doctor booking */
+.slot-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.slot-days {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+}
+.slot-day {
+  flex: 0 0 auto;
+  min-width: 3.6rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+.slot-day strong {
+  display: block;
+  font-size: 1rem;
+}
+.slot-day small {
+  display: block;
+  color: var(--text-muted);
+}
+.slot-day[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+.slot-day:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.slot-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.25rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.slot-btn small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.slot-btn[aria-pressed='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.slot-btn[aria-pressed='true'] small {
+  color: #fff;
+}
+.slot-day:focus-visible,
+.slot-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

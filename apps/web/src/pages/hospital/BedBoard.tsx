@@ -14,7 +14,7 @@ import {
 import { useUser } from '../../auth/AuthContext';
 import { Badge, Button, Card, EmptyState, PageHeader, QueryView, Tabs } from '../../components/ui';
 import { formatDate } from '../../format';
-import { t, tn } from '../../i18n';
+import { t } from '../../i18n';
 import { AdmitDialog, BedStatusActions, DischargeDialog, TransferDialog } from './dialogs';
 import './hospital.css';
 
@@ -41,7 +41,7 @@ function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
       </span>
       <span className="bed-meta">
         {shortAge(stay.dateOfBirth)} · {sexShort(stay.sex)} ·{' '}
-        {tn(stay.daysInHospital, 'day {count}', 'day {count}', { count: stay.daysInHospital + 1 })}
+        {t('Day {count} in hospital', { count: stay.daysInHospital + 1 })}
       </span>
       <span className="bed-meta">
         {stay.attendingDoctorName}

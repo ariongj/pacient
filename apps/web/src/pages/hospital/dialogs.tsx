@@ -126,8 +126,7 @@ export function AdmitDialog({
   });
 
   const admit = useHospitalMutation(
-    (body: Record<string, unknown>) =>
-      api('/hospital/admissions', { method: 'POST', body }),
+    (body: Record<string, unknown>) => api('/hospital/admissions', { method: 'POST', body }),
     { patientId: patient?.id, onDone: onClose },
   );
 

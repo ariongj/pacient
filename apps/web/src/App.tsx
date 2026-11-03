@@ -1,3 +1,7 @@
+import { TheatreSchedule } from './pages/theatre/TheatreSchedule';
+import { StockPage } from './pages/pharmacy/StockPage';
+import { StockOverview } from './pages/ministry/StockOverview';
+import { ImageViewer } from './pages/imaging/ImageViewer';
 import { BedBoard } from './pages/hospital/BedBoard';
 import { EdBoard } from './pages/ed/EdBoard';
 import { BirthsPage } from './pages/births/BirthsPage';
@@ -173,6 +177,13 @@ export function App() {
         />
         <Route path="/portal/stays" element={guard(['PATIENT'], <PortalStays />)} />
         <Route path="/portal/imaging" element={guard(['PATIENT'], <PortalImaging />)} />
+        <Route path="/theatre" element={guard(['DOCTOR', 'NURSE'], <TheatreSchedule />)} />
+        <Route path="/pharmacy/stock" element={guard(['PHARMACIST', 'DIRECTOR'], <StockPage />)} />
+        <Route path="/ministry/stock" element={guard(['MINISTRY'], <StockOverview />)} />
+        <Route
+          path="/imaging/viewer/:orderId"
+          element={guard(['DOCTOR', 'NURSE', 'PATIENT'], <ImageViewer />)}
+        />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"

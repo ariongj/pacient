@@ -34,6 +34,7 @@ import { DocumentsTab } from './chart/DocumentsTab';
 import { AdmissionsTab } from './chart/AdmissionsTab';
 import { EmergencyTab } from './chart/EmergencyTab';
 import { ImagingTab } from './chart/ImagingTab';
+import { SurgeryTab } from './chart/SurgeryTab';
 import { BirthsTab } from './chart/BirthsTab';
 import { ConsentsTab } from './chart/ConsentsTab';
 import { SummaryTab } from './chart/SummaryTab';
@@ -76,6 +77,7 @@ const TAB_IDS = [
   'admissions',
   'emergency',
   'imaging',
+  'surgery',
   'births',
   'documents',
   'consents',
@@ -310,6 +312,7 @@ export function PatientChart() {
               { id: 'admissions', label: t('Hospital stays') },
               { id: 'emergency', label: t('Emergency') },
               { id: 'imaging', label: t('Imaging') },
+              { id: 'surgery', label: t('Operations') },
               { id: 'births', label: t('Birth & maternity') },
               { id: 'documents', label: t('Documents') },
               { id: 'consents', label: t('Consent') },
@@ -351,6 +354,7 @@ export function PatientChart() {
             {tab === 'admissions' && <AdmissionsTab patientId={patientId} />}
             {tab === 'emergency' && <EmergencyTab patientId={patientId} />}
             {tab === 'imaging' && <ImagingTab patientId={patientId} />}
+            {tab === 'surgery' && <SurgeryTab patientId={patientId} />}
             {tab === 'births' && <BirthsTab patientId={patientId} />}
             {tab === 'documents' && <DocumentsTab patientId={patientId} />}
             {tab === 'consents' && <ConsentsTab patientId={patientId} />}

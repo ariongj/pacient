@@ -29,6 +29,8 @@ import { identityRouter } from './modules/identity/identity.routes.js';
 import { imagingRouter } from './modules/imaging/imaging.routes.js';
 import { inpatientRouter } from './modules/inpatient/inpatient.routes.js';
 import { openApiHandler } from './openapi/index.js';
+import { stockRouter } from './modules/stock/stock.routes.js';
+import { theatreRouter } from './modules/theatre/theatre.routes.js';
 import { partnerRouter } from './modules/partner/partner.routes.js';
 import { mergeRouter } from './modules/merge/merge.routes.js';
 import { coverRouter } from './modules/cover/cover.routes.js';
@@ -133,6 +135,8 @@ export function createApp(): Express {
   api.use('/hospital', inpatientRouter);
   api.use('/ed', edRouter);
   api.use('/imaging', imagingRouter);
+  api.use('/theatre', theatreRouter);
+  api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
   api.get('/openapi.json', openApiHandler);
   api.use('/patients/:patientId/lab-orders', labOrdersRouter);

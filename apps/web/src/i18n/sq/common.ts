@@ -767,4 +767,10 @@ export const common: Record<string, string> = {
   'API documentation': 'Dokumentacioni i API-së',
   'Hospital stays': 'Shtrimet në spital',
   'Birth & maternity': 'Lindja dhe amësia',
+  'Operating theatres': 'Sallat e operacionit',
+  Operations: 'Operacionet',
+  Stock: 'Stoku',
+  'Pharmacy stock': 'Stoku i farmacisë',
+  'Medicine availability': 'Disponueshmëria e barnave',
+  Srpski: 'Srpski',
 };

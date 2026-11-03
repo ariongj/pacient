@@ -45,6 +45,8 @@ import { seedEmergency } from './seed-emergency.js';
 import { seedHospital } from './seed-hospital.js';
 import { seedImaging } from './seed-imaging.js';
 import { seedPartners } from './seed-partners.js';
+import { seedStock } from './seed-stock.js';
+import { seedTheatre } from './seed-theatre.js';
 import { seedCover } from './seed-cover.js';
 import { seedMerge } from './seed-merge.js';
 import { seedDocuments } from './seed-documents.js';
@@ -1194,6 +1196,8 @@ async function main() {
   await seedBirths({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedImaging({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id, demoPatientId });
   await seedPartners({ facilityId: ucc!.id });
+  await seedTheatre({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedStock({ facilityId: ucc!.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

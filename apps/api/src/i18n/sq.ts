@@ -1,3 +1,6 @@
+import { sqTheatre } from './sq-theatre.js';
+import { sqStock } from './sq-stock.js';
+import { sqPacs } from './sq-pacs.js';
 import { sqCore } from './sq-core.js';
 import { sqEd } from './sq-ed.js';
 import { sqIdentity } from './sq-identity.js';
@@ -12,4 +15,7 @@ export const sq: Record<string, string> = {
   ...sqEd,
   ...sqImaging,
   ...sqPartner,
+  ...sqTheatre,
+  ...sqStock,
+  ...sqPacs,
 };

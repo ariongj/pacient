@@ -146,7 +146,8 @@ async function auditCoverAccess(
  *  - a ward: the patient is admitted there;
  *  - the emergency department: an attendance is open (or ended less than 24 hours ago);
  *  - radiology: the patient has an imaging order at the facility that is not yet reported;
- *  - maternity / neonatal: a baby born at the facility in the last 28 days.
+ *  - maternity / neonatal: a baby born at the facility in the last 28 days;
+ *  - operating theatre: a scheduled or ongoing operation (or one finished <24 hours ago).
  * Access ends automatically when the patient leaves. Returns the unit name, or null.
  */
 export async function unitAccessVia(
@@ -171,6 +172,11 @@ export async function unitAccessVia(
             SELECT 1 FROM imaging_orders i
             WHERE i.patient_id = ${patientId} AND i.facility_id = cu.facility_id
               AND i.status IN ('ORDERED', 'SCHEDULED', 'PERFORMED')))
+      OR (cu.type::text = 'OPERATING_THEATRE' AND EXISTS (
+            SELECT 1 FROM surgical_cases sc
+            WHERE sc.patient_id = ${patientId} AND sc.facility_id = cu.facility_id
+              AND (sc.status IN ('SCHEDULED', 'IN_THEATRE')
+                   OR (sc.status = 'COMPLETED' AND sc.out_of_theatre_at > now() - interval '24 hours'))))
       OR (cu.type IN ('MATERNITY', 'NEONATAL') AND EXISTS (
             SELECT 1 FROM births b
             WHERE (b.newborn_patient_id = ${patientId} OR b.mother_patient_id = ${patientId})

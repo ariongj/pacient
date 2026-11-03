@@ -36,6 +36,7 @@ export const PATIENT_TABLES = [
   'patient_documents',
   'prescriptions',
   'referrals',
+  'surgical_cases',
   'vital_signs',
 ] as const;
 export type PatientTable = (typeof PATIENT_TABLES)[number];
@@ -81,6 +82,7 @@ export const SECTION_LABELS: Record<PatientTable, string> = {
   patient_documents: 'Documents',
   prescriptions: 'Prescriptions',
   referrals: 'Referrals',
+  surgical_cases: 'Operations',
   vital_signs: 'Vital signs',
 };
 

@@ -1,41 +1,57 @@
 import { getLocale, intlLocale, t } from './i18n';
 
 /*
- * Albanian dates are formatted here rather than by Intl: some browsers ship without Albanian
- * locale data (and fall back to English), and Intl's Albanian default is a 12-hour clock while
+ * Albanian and Serbian dates are formatted here rather than by Intl: some browsers ship without
+ * their locale data (and fall back to English), and Intl's Albanian default is a 12-hour clock while
  * Kosovo uses 24-hour time.
  */
-const SQ_MONTHS = [
-  'janar',
-  'shkurt',
-  'mars',
-  'prill',
-  'maj',
-  'qershor',
-  'korrik',
-  'gusht',
-  'shtator',
-  'tetor',
-  'nëntor',
-  'dhjetor',
-];
-const SQ_MONTHS_SHORT = [
-  'jan',
-  'shk',
-  'mar',
-  'pri',
-  'maj',
-  'qer',
-  'korr',
-  'gush',
-  'sht',
-  'tet',
-  'nën',
-  'dhj',
-];
-const SQ_WEEKDAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
+const NAMES = {
+  sq: {
+    months: [
+      'janar',
+      'shkurt',
+      'mars',
+      'prill',
+      'maj',
+      'qershor',
+      'korrik',
+      'gusht',
+      'shtator',
+      'tetor',
+      'nëntor',
+      'dhjetor',
+    ],
+    short: ['jan', 'shk', 'mar', 'pri', 'maj', 'qer', 'korr', 'gush', 'sht', 'tet', 'nën', 'dhj'],
+    weekdays: ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'],
+    group: '\u00a0',
+  },
+  sr: {
+    months: [
+      'januar',
+      'februar',
+      'mart',
+      'april',
+      'maj',
+      'jun',
+      'jul',
+      'avgust',
+      'septembar',
+      'oktobar',
+      'novembar',
+      'decembar',
+    ],
+    short: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'],
+    weekdays: ['nedelja', 'ponedeljak', 'utorak', 'sreda', 'četvrtak', 'petak', 'subota'],
+    group: '.',
+  },
+} as const;
+/** Month/day names for locales formatted in code (Albanian, Serbian); null for English. */
+const custom = () => {
+  const l = getLocale();
+  return l === 'sq' || l === 'sr' ? NAMES[l] : null;
+};
+const sq = () => custom() !== null;
 const pad = (n: number) => String(n).padStart(2, '0');
-const sq = () => getLocale() === 'sq';
 
 const cache = new Map<string, Intl.DateTimeFormat>();
 function fmt(key: string, options: Intl.DateTimeFormatOptions) {
@@ -48,7 +64,7 @@ function fmt(key: string, options: Intl.DateTimeFormatOptions) {
   return f;
 }
 const sqDate = (d: Date) =>
-  `${pad(d.getDate())} ${SQ_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  `${pad(d.getDate())} ${custom()!.short[d.getMonth()]} ${d.getFullYear()}`;
 const sqTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const dateFmt = {
   format: (d: Date) =>
@@ -73,20 +89,21 @@ const timeFmt = {
 const monthFmt = {
   format: (d: Date) =>
     sq()
-      ? SQ_MONTHS_SHORT[d.getUTCMonth()]!
+      ? custom()!.short[d.getUTCMonth()]!
       : fmt('month', { month: 'short', timeZone: 'UTC' }).format(d),
 };
 
 /** "e hënë, 2 nëntor" / "Monday 2 November" – day headings in schedules. */
 export function formatDayHeading(d: Date): string {
-  if (sq()) return `${SQ_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${SQ_MONTHS[d.getMonth()]}`;
+  if (sq())
+    return `${custom()!.weekdays[d.getDay()]}, ${d.getDate()} ${custom()!.months[d.getMonth()]}`;
   return fmt('dayheading', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
 }
 
 /** "e hënë, 2 nëntor 2026" / "Monday 2 November 2026". */
 export function formatFullDate(d: Date): string {
   if (sq())
-    return `${SQ_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${SQ_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    return `${custom()!.weekdays[d.getDay()]}, ${d.getDate()} ${custom()!.months[d.getMonth()]} ${d.getFullYear()}`;
   return fmt('full', { dateStyle: 'full' }).format(d);
 }
 
@@ -122,11 +139,11 @@ export const fullName = (p: {
     ? t('Unknown patient {code}', { code: p.lastName })
     : `${p.firstName} ${p.lastName}`;
 
-/** Albanian: "3 420" and "38,5"; English: "3,420" and "38.5". */
+/** Albanian "3 420", Serbian "3.420", English "3,420"; decimals "38,5" / "38.5". */
 export function formatNumber(n: number): string {
   if (!sq()) return new Intl.NumberFormat(intlLocale()).format(n);
   const [int, dec] = String(Math.round(n * 1000) / 1000).split('.');
-  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, custom()!.group);
   return dec ? `${grouped},${dec}` : grouped;
 }
 

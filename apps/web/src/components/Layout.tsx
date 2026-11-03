@@ -71,6 +71,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/wards', label: 'Wards & beds', icon: 'building' },
         { to: '/ed', label: 'Emergency department', icon: 'alert' },
         { to: '/imaging', label: 'Imaging', icon: 'eye' },
+        { to: '/theatre', label: 'Operating theatres', icon: 'activity' },
         { to: '/births', label: 'Births', icon: 'user' },
         { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
@@ -96,6 +97,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/wards', label: 'Wards & beds', icon: 'building' },
         { to: '/ed', label: 'Emergency department', icon: 'alert' },
         { to: '/imaging', label: 'Imaging', icon: 'eye' },
+        { to: '/theatre', label: 'Operating theatres', icon: 'activity' },
         { to: '/births', label: 'Births', icon: 'user' },
         { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
@@ -108,7 +110,10 @@ const NAV: Record<Role, NavSection[]> = {
   PHARMACIST: [
     {
       title: 'Pharmacy',
-      items: [{ to: '/pharmacy', label: 'Verification queue', icon: 'pill', end: true }],
+      items: [
+        { to: '/pharmacy', label: 'Verification queue', icon: 'pill', end: true },
+        { to: '/pharmacy/stock', label: 'Stock', icon: 'clipboard' },
+      ],
     },
     COMMS,
   ],
@@ -139,6 +144,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
         { to: '/director/duplicates', label: 'Duplicate records', icon: 'user' },
         { to: '/director/units', label: 'Wards & units', icon: 'building' },
+        { to: '/pharmacy/stock', label: 'Pharmacy stock', icon: 'pill' },
         { to: '/wards', label: 'Bed board', icon: 'desk' },
         { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],
@@ -166,6 +172,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/ministry/reports', label: 'Reports', icon: 'activity' },
         { to: '/ministry/facilities', label: 'Facilities', icon: 'building' },
         { to: '/ministry/staff', label: 'Directors & officials', icon: 'users' },
+        { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
         { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
         { to: '/developers', label: 'API documentation', icon: 'settings' },
       ],

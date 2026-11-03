@@ -115,6 +115,16 @@ export const AuditAction = {
   PARTNER_CLIENT_CREATED: 'partner.client.created',
   PARTNER_CLIENT_REVOKED: 'partner.client.revoked',
   PARTNER_API_ACCESS: 'partner.api.access',
+  SURGERY_REQUESTED: 'surgery.requested',
+  SURGERY_SCHEDULED: 'surgery.scheduled',
+  SURGERY_STATUS_CHANGED: 'surgery.status_changed',
+  SURGERY_CHECKLIST_COMPLETED: 'surgery.checklist_completed',
+  OPERATION_NOTE_SIGNED: 'surgery.note_signed',
+  STOCK_RECEIVED: 'stock.received',
+  STOCK_ADJUSTED: 'stock.adjusted',
+  STOCK_DISPENSED: 'stock.dispensed',
+  STOCK_SETTINGS_CHANGED: 'stock.settings_changed',
+  IMAGES_VIEWED: 'imaging.images_viewed',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

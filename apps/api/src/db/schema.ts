@@ -509,6 +509,10 @@ export const prescriptions = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     medication: varchar('medication', { length: 200 }).notNull(),
+    /** Optional link to the national medication catalogue (used for pharmacy stock). */
+    catalogItemId: uuid('catalog_item_id').references((): AnyPgColumn => medicationCatalog.id, {
+      onDelete: 'set null',
+    }),
     dosage: varchar('dosage', { length: 100 }).notNull(),
     frequency: varchar('frequency', { length: 100 }).notNull(),
     route: varchar('route', { length: 50 }).notNull().default('oral'),
@@ -1351,6 +1355,7 @@ export const careUnitTypeEnum = pgEnum('care_unit_type', [
   'NEONATAL',
   'EMERGENCY',
   'RADIOLOGY',
+  'OPERATING_THEATRE',
 ]);
 export const bedStatusEnum = pgEnum('bed_status', [
   'AVAILABLE',
@@ -1665,6 +1670,9 @@ export const imagingOrders = pgTable(
     releasedAt: timestamp('released_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelReason: varchar('cancel_reason', { length: 300 }),
+    /** DICOM Study Instance UID in the PACS, once images exist. */
+    studyInstanceUid: varchar('study_instance_uid', { length: 128 }),
+    imagesAvailableAt: timestamp('images_available_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -1705,6 +1713,189 @@ export const partnerClients = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (t) => [uniqueIndex('partner_clients_key_uq').on(t.apiKeyHash)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Operating theatres and pharmacy stock
+ * ---------------------------------------------------------------------------------------------- */
+
+export const surgeryPriorityEnum = pgEnum('surgery_priority', ['ELECTIVE', 'URGENT', 'EMERGENCY']);
+export const surgeryStatusEnum = pgEnum('surgery_status', [
+  'REQUESTED',
+  'SCHEDULED',
+  'IN_THEATRE',
+  'COMPLETED',
+  'POSTPONED',
+  'CANCELLED',
+]);
+export const anaesthesiaTypeEnum = pgEnum('anaesthesia_type', [
+  'GENERAL',
+  'SPINAL',
+  'EPIDURAL',
+  'REGIONAL_BLOCK',
+  'LOCAL',
+  'SEDATION',
+]);
+export const lateralityEnum = pgEnum('laterality', [
+  'LEFT',
+  'RIGHT',
+  'BILATERAL',
+  'NOT_APPLICABLE',
+]);
+
+/**
+ * A surgical case: request → scheduled in a theatre → in theatre (WHO surgical safety checklist:
+ * sign in, time out, sign out) → completed with a signed, immutable operation note.
+ */
+export const surgicalCases = pgTable(
+  'surgical_cases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    theatreUnitId: uuid('theatre_unit_id').references(() => careUnits.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    procedure: varchar('procedure', { length: 300 }).notNull(),
+    procedureCode: varchar('procedure_code', { length: 20 }),
+    laterality: lateralityEnum('laterality').notNull().default('NOT_APPLICABLE'),
+    priority: surgeryPriorityEnum('priority').notNull().default('ELECTIVE'),
+    indication: varchar('indication', { length: 1000 }).notNull(),
+    primarySurgeonId: uuid('primary_surgeon_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    assistantId: uuid('assistant_id').references(() => users.id, { onDelete: 'restrict' }),
+    anaesthetistId: uuid('anaesthetist_id').references(() => users.id, { onDelete: 'restrict' }),
+    anaesthesiaType: anaesthesiaTypeEnum('anaesthesia_type'),
+    scheduledStart: timestamp('scheduled_start', { withTimezone: true }),
+    estimatedMinutes: integer('estimated_minutes').notNull().default(60),
+    status: surgeryStatusEnum('status').notNull().default('REQUESTED'),
+    consentRecordId: uuid('consent_record_id').references(() => consentRecords.id, {
+      onDelete: 'set null',
+    }),
+    /** WHO checklist: { signIn?: {...answers, by, at}, timeOut?: {...}, signOut?: {...} } */
+    checklist: jsonb('checklist').$type<Record<string, unknown>>().notNull().default({}),
+    inTheatreAt: timestamp('in_theatre_at', { withTimezone: true }),
+    incisionAt: timestamp('incision_at', { withTimezone: true }),
+    closureAt: timestamp('closure_at', { withTimezone: true }),
+    outOfTheatreAt: timestamp('out_of_theatre_at', { withTimezone: true }),
+    operationNote: text('operation_note'),
+    complications: varchar('complications', { length: 2000 }),
+    estimatedBloodLossMl: integer('estimated_blood_loss_ml'),
+    noteSignedById: uuid('note_signed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    noteSignedAt: timestamp('note_signed_at', { withTimezone: true }),
+    cancelReason: varchar('cancel_reason', { length: 500 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('surgical_cases_schedule_idx').on(t.facilityId, t.scheduledStart),
+    index('surgical_cases_patient_idx').on(t.patientId, t.createdAt),
+    index('surgical_cases_theatre_idx').on(t.theatreUnitId, t.scheduledStart),
+  ],
+);
+
+export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
+  'RECEIPT',
+  'DISPENSE',
+  'ADJUSTMENT',
+  'EXPIRED',
+  'DAMAGED',
+  'TRANSFER_OUT',
+  'TRANSFER_IN',
+  'RETURN',
+]);
+
+/** National medication catalogue (what facilities can stock and dispense). */
+export const medicationCatalog = pgTable(
+  'medication_catalog',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 200 }).notNull(),
+    atcCode: varchar('atc_code', { length: 10 }),
+    form: varchar('form', { length: 60 }).notNull(),
+    strength: varchar('strength', { length: 60 }),
+    /** Dispensing unit, e.g. tablet, capsule, ml, vial, ampoule. */
+    unit: varchar('unit', { length: 30 }).notNull(),
+    isEssential: boolean('is_essential').notNull().default(false),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('medication_catalog_uq').on(t.name, t.form, t.strength)],
+);
+
+/** A batch of stock at a facility pharmacy (quantity in dispensing units). */
+export const stockBatches = pgTable(
+  'stock_batches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => medicationCatalog.id, { onDelete: 'restrict' }),
+    batchNumber: varchar('batch_number', { length: 60 }).notNull(),
+    expiryDate: date('expiry_date', { mode: 'string' }).notNull(),
+    quantity: integer('quantity').notNull(),
+    supplier: varchar('supplier', { length: 200 }),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+  },
+  (t) => [
+    uniqueIndex('stock_batches_uq').on(t.facilityId, t.itemId, t.batchNumber),
+    index('stock_batches_expiry_idx').on(t.facilityId, t.expiryDate),
+  ],
+);
+
+/** Every stock change, append-only. Quantity is signed (+ in, − out). */
+export const stockMovements = pgTable(
+  'stock_movements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => medicationCatalog.id, { onDelete: 'restrict' }),
+    batchId: uuid('batch_id').references(() => stockBatches.id, { onDelete: 'restrict' }),
+    type: stockMovementTypeEnum('type').notNull(),
+    quantity: integer('quantity').notNull(),
+    prescriptionId: uuid('prescription_id').references(() => prescriptions.id, {
+      onDelete: 'set null',
+    }),
+    reason: varchar('reason', { length: 500 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('stock_movements_item_idx').on(t.facilityId, t.itemId, t.createdAt)],
+);
+
+/** Per-facility reorder level for an item (low-stock alerts). */
+export const stockSettings = pgTable(
+  'stock_settings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => medicationCatalog.id, { onDelete: 'cascade' }),
+    reorderLevel: integer('reorder_level').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('stock_settings_uq').on(t.facilityId, t.itemId)],
 );
 
 /* ------------------------------------------------------------------------------------------------

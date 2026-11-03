@@ -10,6 +10,10 @@ import {
   startAppointmentReminderWorker,
   stopAppointmentReminderWorker,
 } from './modules/scheduling/reminders.js';
+import {
+  startVaccinationReminderWorker,
+  stopVaccinationReminderWorker,
+} from './modules/vaccination/vaccination.service.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
@@ -17,6 +21,7 @@ startEmailWorker();
 startSmsWorker();
 startEscalationWorker();
 startAppointmentReminderWorker();
+startVaccinationReminderWorker();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -30,6 +35,7 @@ function shutdown(signal: string) {
   stopSmsWorker();
   stopEscalationWorker();
   stopAppointmentReminderWorker();
+  stopVaccinationReminderWorker();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

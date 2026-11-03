@@ -1,4 +1,118 @@
 /**
  * Albanian (sq) translations, keyed by the English source text. Keep {placeholders}.
+ * Emergency department (board, triage, chart tab) and its server messages.
  */
-export const ed: Record<string, string> = {};
+export const ed: Record<string, string> = {
+  'Awaiting triage': 'Në pritje të triazhit',
+  '{level} · {name}': '{level} · {name}',
+  '{age} y · {sex}': '{age} vjeç · {sex}',
+  '{unit} · updated {time}': '{unit} · përditësuar në {time}',
+  'Normal view': 'Pamja normale',
+  'Big screen': 'Ekran i madh',
+  'Register arrival': 'Regjistro ardhjen',
+  'Big-screen mode shows initials only, for screens other people can see.':
+    'Pamja për ekran të madh shfaq vetëm inicialet, për ekranet që mund t’i shohin edhe të tjerët.',
+  'Waiting to be seen': 'Në pritje për t’u ekzaminuar',
+  'In treatment': 'Në trajtim',
+  'Patients by triage level': 'Pacientët sipas nivelit të triazhit',
+  'Nobody here.': 'Askush këtu.',
+  Waited: 'Priti',
+  'target {time}': 'afati {time}',
+  'triage within {time}': 'triazhi brenda {time}',
+  'Over target': 'Mbi afatin',
+  'Arrived {time}': 'Erdhi në {time}',
+  'BP {s}/{d}': 'TA {s}/{d}',
+  'HR {n}': 'Pulsi {n}',
+  'RR {n}': 'FR {n}',
+  'Re-triage': 'Ri-triazh',
+  Triage: 'Triazhi',
+  'Start treatment': 'Fillo trajtimin',
+  Admit: 'Shtro',
+  Departure: 'Largimi',
+  'Left the department (last 12 hours)': 'U larguan nga emergjenca (12 orët e fundit)',
+  'No departures yet': 'Ende pa largime',
+  Arrived: 'Erdhi',
+  Left: 'U largua',
+  'Choose a patient, or register an unknown patient':
+    'Zgjidhni një pacient ose regjistroni një pacient të panjohur',
+  'Unknown patient (identity not known yet)': 'Pacient i panjohur (identiteti ende nuk dihet)',
+  'Estimated age (years)': 'Mosha e vlerësuar (vite)',
+  'What helps to identify the person later, e.g. clothing, where found.':
+    'Çfarë ndihmon për ta identifikuar personin më vonë, p.sh. veshja, vendi ku u gjet.',
+  'No patient found. Register them first, or use “Unknown patient”.':
+    'Nuk u gjet asnjë pacient. Regjistrojeni fillimisht ose përdorni “Pacient i panjohur”.',
+  'Search results': 'Rezultatet e kërkimit',
+  Arrival: 'Ardhja',
+  'Main complaint': 'Ankesa kryesore',
+  'Triage level': 'Niveli i triazhit',
+  immediately: 'menjëherë',
+  'seen within {time}': 'ekzaminohet brenda {time}',
+  'Heart rate (/min)': 'Pulsi (/min)',
+  'Respiratory rate (/min)': 'Frekuenca e frymëmarrjes (/min)',
+  'Pain (0–10)': 'Dhimbja (0–10)',
+  'Triage note': 'Shënimi i triazhit',
+  'Save triage': 'Ruaj triazhin',
+  'No doctors are assigned to the emergency department':
+    'Asnjë mjek nuk është caktuar në emergjencë',
+  'Treating doctor': 'Mjeku që trajton',
+  'Admit to a ward': 'Shtro në repart',
+  'No wards are set up at this facility': 'Në këtë institucion nuk janë konfiguruar repartet',
+  Ward: 'Reparti',
+  'Choose a ward': 'Zgjidhni repartin',
+  '{name} – {free} of {total} beds free': '{name} – {free} nga {total} shtretër të lirë',
+  Bed: 'Shtrati',
+  'Assign later': 'Caktoje më vonë',
+  'No free bed': 'Nuk ka shtrat të lirë',
+  'Attending doctor': 'Mjeku përgjegjës',
+  'Reason for admission': 'Arsyeja e shtrimit',
+  'To admit the patient to a ward, use “Admit”.':
+    'Për ta shtruar pacientin në repart, përdorni “Shtro”.',
+  'Only a doctor discharges or transfers a patient.':
+    'Vetëm mjeku e lëshon ose e transferon pacientin.',
+  'Advice given, destination of a transfer, or why the patient left.':
+    'Këshillat e dhëna, destinacioni i transferimit ose pse u largua pacienti.',
+  'Confirm departure': 'Konfirmo largimin',
+  '{count} minute in the department': '{count} minutë në emergjencë',
+  '{count} minutes in the department': '{count} minuta në emergjencë',
+  'Not triaged': 'Pa triazh',
+  'Emergency department visits': 'Vizitat në emergjencë',
+  'No emergency visits': 'Nuk ka vizita në emergjencë',
+  'Seen after': 'U ekzaminua pas',
+  Immediate: 'I menjëhershëm',
+  'Very urgent': 'Shumë urgjent',
+  Standard: 'Standard',
+  'Non-urgent': 'Jo urgjent',
+  'Life-threatening: airway, breathing or circulation compromised. Resuscitation now.':
+    'Rrezik për jetën: rrugët e frymëmarrjes, frymëmarrja ose qarkullimi të rrezikuara. Reanimim tani.',
+  'Very urgent: severe pain, chest pain, reduced consciousness or very abnormal vital signs.':
+    'Shumë urgjent: dhimbje e fortë, dhimbje gjoksi, vetëdije e ulur ose shenja vitale shumë të çrregullta.',
+  'Urgent: moderate pain or stable illness that needs several investigations or treatments.':
+    'Urgjent: dhimbje mesatare ose sëmundje e qëndrueshme që kërkon disa ekzaminime ose trajtime.',
+  'Standard: minor injury or illness, stable; one simple investigation or treatment.':
+    'Standard: lëndim ose sëmundje e lehtë, e qëndrueshme; një ekzaminim ose trajtim i thjeshtë.',
+  'Non-urgent: could be seen by the family doctor; no investigations needed.':
+    'Jo urgjent: mund ta shohë mjeku familjar; nuk nevojiten ekzaminime.',
+  'Walked in': 'Erdhi vetë',
+  Ambulance: 'Ambulanca',
+  Referred: 'Me referim',
+  Police: 'Policia',
+  Admitted: 'U shtrua',
+  Discharged: 'U lëshua',
+  Transferred: 'U transferua',
+  'Left without being seen': 'U largua pa u ekzaminuar',
+  'Unknown patient': 'Pacient i panjohur',
+  '{n} min': '{n} min',
+  // Server messages
+  'Emergency visit not found': 'Vizita në emergjencë nuk u gjet',
+  'This emergency visit has already ended': 'Kjo vizitë në emergjencë ka përfunduar tashmë',
+  'The arrival time cannot be in the future': 'Koha e ardhjes nuk mund të jetë në të ardhmen',
+  'This patient is already in the emergency department': 'Ky pacient është tashmë në emergjencë',
+  'Choose the doctor who takes over the patient': 'Zgjidhni mjekun që e merr përsipër pacientin',
+  'The doctor must work in the emergency department': 'Mjeku duhet të punojë në emergjencë',
+  'A doctor discharges or transfers a patient': 'Mjeku e lëshon ose e transferon pacientin',
+  'Emergency department access requires a facility':
+    'Qasja në emergjencë kërkon që të jeni pjesë e një institucioni',
+  'This facility has no emergency department': 'Ky institucion nuk ka repart emergjence',
+  'Only doctors and nurses assigned to the emergency department can do this':
+    'Këtë mund ta bëjnë vetëm mjekët dhe infermierët e caktuar në emergjencë',
+};

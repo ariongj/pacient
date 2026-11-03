@@ -1,0 +1,233 @@
+/* Emergency department board. Triage colours follow the five-level scale; text always carries the
+   level number and name too, so colour is never the only signal. */
+.ed {
+  --triage-red: #c0262d;
+  --triage-orange: #d9620e;
+  --triage-yellow: #c99a06;
+  --triage-green: #2f8f46;
+  --triage-blue: #2366b8;
+  --triage-grey: #6b7883;
+}
+
+.ed-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+.ed-count {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+.ed-count strong {
+  font-size: 1rem;
+}
+
+.ed-dot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: none;
+  background: var(--triage-grey);
+}
+.ed-level-1 .ed-dot,
+.ed-dot.ed-level-1 {
+  background: var(--triage-red);
+}
+.ed-level-2 .ed-dot,
+.ed-dot.ed-level-2 {
+  background: var(--triage-orange);
+}
+.ed-level-3 .ed-dot,
+.ed-dot.ed-level-3 {
+  background: var(--triage-yellow);
+}
+.ed-level-4 .ed-dot,
+.ed-dot.ed-level-4 {
+  background: var(--triage-green);
+}
+.ed-level-5 .ed-dot,
+.ed-dot.ed-level-5 {
+  background: var(--triage-blue);
+}
+
+.ed-section h2 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.ed-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 0.75rem;
+}
+
+.ed-card {
+  position: relative;
+  min-width: 0;
+  padding: 0.75rem 0.9rem 0.75rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.ed-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--triage-grey);
+}
+.ed-card.ed-level-1::before {
+  background: var(--triage-red);
+}
+.ed-card.ed-level-2::before {
+  background: var(--triage-orange);
+}
+.ed-card.ed-level-3::before {
+  background: var(--triage-yellow);
+}
+.ed-card.ed-level-4::before {
+  background: var(--triage-green);
+}
+.ed-card.ed-level-5::before {
+  background: var(--triage-blue);
+}
+.ed-card.ed-breached {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+.ed-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.ed-card-head > div {
+  min-width: 0;
+}
+.ed-patient {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ed-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ed-complaint {
+  margin: 0.35rem 0;
+  overflow-wrap: anywhere;
+}
+.ed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.ed-wait {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+.ed-breached .ed-wait {
+  color: var(--danger);
+}
+.ed-vitals {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.ed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+
+/* Triage level picker */
+.ed-levels {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.ed-level-option {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ed-level-option:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.ed-level-option input {
+  margin-top: 0.25rem;
+}
+.ed-level-option span {
+  display: block;
+}
+
+.ed-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+  gap: 0 0.75rem;
+}
+
+.ed-results {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ed-results li + li {
+  border-top: 1px solid var(--border);
+}
+.ed-results label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+}
+
+/* Big-screen mode: larger type, initials only, no actions. */
+.ed-big .ed-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+}
+.ed-big .ed-card {
+  font-size: 1.2rem;
+  padding: 1rem 1.1rem 1rem 1.4rem;
+}
+.ed-big .ed-card::before {
+  width: 10px;
+}
+.ed-big .ed-level {
+  font-size: 1rem;
+}
+.ed-big .ed-meta {
+  font-size: 1rem;
+}

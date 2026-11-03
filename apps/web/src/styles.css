@@ -1286,3 +1286,14 @@ th.num {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
+
+/* Three language buttons must still fit next to the bell and sign-out on small phones. */
+@media (max-width: 480px) {
+  .lang-switch button {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.7rem;
+  }
+  .topbar-user {
+    gap: 0.35rem;
+  }
+}

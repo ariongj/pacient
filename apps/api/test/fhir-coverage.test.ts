@@ -73,7 +73,12 @@ describe('FHIR export of the hospital modules', () => {
     const facilityId = w.facility.id;
     const [unit] = await db
       .insert(careUnits)
-      .values({ facilityId, name: 'Kirurgjia', code: `K${Date.now() % 100000}`, type: 'SURGICAL_WARD' })
+      .values({
+        facilityId,
+        name: 'Kirurgjia',
+        code: `K${Date.now() % 100000}`,
+        type: 'SURGICAL_WARD',
+      })
       .returning();
     unitId = unit!.id;
     const [adm] = await db
@@ -139,7 +144,13 @@ describe('FHIR export of the hospital modules', () => {
       .returning();
     const [item] = await db
       .insert(medicationCatalog)
-      .values({ name: `Amoxicillin ${Date.now()}`, atcCode: 'J01CA04', form: 'capsule', strength: '500 mg', unit: 'capsule' })
+      .values({
+        name: `Amoxicillin ${Date.now()}`,
+        atcCode: 'J01CA04',
+        form: 'capsule',
+        strength: '500 mg',
+        unit: 'capsule',
+      })
       .returning();
     catalogId = item!.id;
     const [batch] = await db
@@ -322,7 +333,11 @@ describe('FHIR export of the hospital modules', () => {
     expect(text).not.toContain('Planned knee arthroscopy');
     expect(text).not.toContain('SECRET-OP-NOTE');
     expect(text).not.toContain('SECRET-DIET-NOTE');
-    expect(ofType(b, 'Procedure').some((p) => (p.code as { text?: string }).text === 'Inguinal hernia repair')).toBe(true);
+    expect(
+      ofType(b, 'Procedure').some(
+        (p) => (p.code as { text?: string }).text === 'Inguinal hernia repair',
+      ),
+    ).toBe(true);
     expect(ofType(b, 'Coverage')).toHaveLength(1);
   });
 

@@ -5,7 +5,6 @@ import { createRequire } from 'node:module';
  * registers (Express 5 does not keep mount paths on layers). Must be imported before the app.
  */
 const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Router = require('router') as {
   prototype: { use: (...args: unknown[]) => unknown; stack: Layer[] };
 };

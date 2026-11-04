@@ -22,12 +22,14 @@ addresses and revoked at any time (effective immediately).
 
 ## Partner scopes
 
-| Scope               | Endpoints                                                                              | Typical partner                    |
-| ------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
-| `fhir.patient.read` | `GET /partner/fhir/Patient?identifier=…`, `GET /partner/fhir/Patient/{id}/$everything` | other hospitals' EHRs, insurance   |
-| `stats.read`        | `GET /partner/stats/national`                                                          | public health institute, insurance |
-| `directory.read`    | `GET /partner/directory/facilities`, `GET /partner/directory/practitioners`            | public health, booking platforms   |
-| `births.notify`     | `GET /partner/births?since=…`, `POST /partner/births/{birthId}/registration`           | civil registry                     |
+| Scope               | Endpoints                                                                                        | Typical partner                     |
+| ------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| `fhir.patient.read` | `GET /partner/fhir/Patient?identifier=…`, `GET /partner/fhir/Patient/{id}/$everything`           | other hospitals' EHRs, insurance    |
+| `stats.read`        | `GET /partner/stats/national`                                                                    | public health institute, insurance  |
+| `directory.read`    | `GET /partner/directory/facilities`, `GET /partner/directory/practitioners`                      | public health, booking platforms    |
+| `births.notify`     | `GET /partner/births?since=…`, `POST /partner/births/{birthId}/registration`                     | civil registry                      |
+| `claims.read`       | `GET /partner/claims?status=…`, `GET /partner/claims/{id}`, `POST /partner/claims/{id}/decision` | Health Insurance Fund (FSSH)        |
+| `surveillance.read` | `GET /partner/surveillance/cases?since=…`, `GET /partner/surveillance/summary?weeks=…`           | National Institute of Public Health |
 
 `GET /partner/ping` returns the key's name and scopes.
 
@@ -35,11 +37,11 @@ addresses and revoked at any time (effective immediately).
 
 Patient endpoints require `X-Purpose-Of-Use`. You receive only what the purpose needs:
 
-| Purpose         | Content                                                                                                                             |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `TREATMENT`     | The record as the patient sees it: signed notes, released results, never confidential visits. Requires `X-Requesting-Practitioner`. |
-| `PAYMENT`       | Patient identification, visits/hospital stays/emergency attendances with dates, diagnosis codes. No notes or results.               |
-| `PUBLIC_HEALTH` | Identification, diagnoses, vaccinations and released laboratory results.                                                            |
+| Purpose         | Content                                                                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TREATMENT`     | The record as the patient sees it: signed notes, released results, never confidential visits. Requires `X-Requesting-Practitioner`.                                        |
+| `PAYMENT`       | Patient identification, visits/hospital stays/emergency attendances/video visits with dates, diagnosis codes, procedure codes and insurance coverage. No notes or results. |
+| `PUBLIC_HEALTH` | Identification, diagnoses, vaccinations (with the national calendar dose) and released laboratory results.                                                                 |
 
 ### Consent
 
@@ -77,9 +79,63 @@ The bundle can contain Patient, Organization, Practitioner, Encounter (outpatien
 (ICD-10), MedicationRequest, MedicationAdministration, AllergyIntolerance, Observation (vital signs
 and laboratory results with LOINC/UCUM; for newborns birth weight `8339-4` and Apgar `9272-6`,
 `9274-2`, `9271-8`), Immunization, ServiceRequest and DiagnosticReport (imaging; reports only once
-released to the patient), DocumentReference and RelatedPerson (a newborn's mother). Records with a
+released to the patient), DocumentReference and RelatedPerson (a newborn's mother).
+
+Hospital modules add these resources:
+
+| Resource                  | Content                                                                                                                                                                           | Purposes                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Procedure (surgery)       | Operation, status, laterality (`bodySite`), surgeon and anaesthetist. The signed operation note and complications only in clinical views; patients see completed operations only. | TREATMENT, PAYMENT (codes and dates only) |
+| Procedure (transfusion)   | SNOMED `116859006`, product, start/end; a reaction as `complication` only in clinical views. Patients see completed or stopped transfusions.                                      | TREATMENT                                 |
+| MedicationDispense        | Dispensed prescription with a contained Medication (ATC), batch `lotNumber` and `expirationDate`, quantity and pharmacist.                                                        | TREATMENT                                 |
+| NutritionOrder            | Diet type, food restrictions (`excludeFoodModifier`), fluid limit; free-text notes only in clinical views.                                                                        | TREATMENT                                 |
+| Observation (blood group) | LOINC `882-1` (ABO and Rh) with the antibody screen (`890-4`) as a component.                                                                                                     | TREATMENT                                 |
+| Observation (NEWS2)       | National Early Warning Score 2 (SNOMED `1104051000000101`), risk band in `interpretation`, `preliminary` when parameters were missing.                                            | TREATMENT                                 |
+| Observation (vital signs) | In addition to the core vital signs: ACVPU (`80288-4`), supplemental oxygen and pain score (`72514-3`).                                                                           | TREATMENT                                 |
+| Coverage                  | Health Insurance Fund coverage (`PUBLICPOL`), policy number, validity, co-payment exemption (`costToBeneficiary.exception`).                                                      | TREATMENT, PAYMENT                        |
+| Immunization              | `protocolApplied` with the national calendar series and dose number when the dose counts for the calendar.                                                                        | TREATMENT, PUBLIC_HEALTH                  |
+| Encounter (video)         | Video visits with class `VR` (virtual); the reason only in clinical views.                                                                                                        | TREATMENT, PAYMENT                        |
+
+`GET /fhir/metadata` (CapabilityStatement) lists every resource type.
+
+Records with a
 temporary identity (newborns, unidentified patients) carry
 `identifier.use = temp` with system `urn:pacient:temporary-id`.
+
+## Health Insurance Fund claims (`claims.read`)
+
+Facilities submit monthly claims from their billing; the Fund reads them and records the
+decision. Reading claim lines is audited for every patient on the claim.
+
+```bash
+curl -H "Authorization: Bearer $PACIENT_KEY" \
+     "https://<host>/api/v1/partner/claims?status=SUBMITTED"
+
+curl -H "Authorization: Bearer $PACIENT_KEY" \
+     "https://<host>/api/v1/partner/claims/<claimId>"
+
+curl -X POST -H "Authorization: Bearer $PACIENT_KEY" -H "Content-Type: application/json" \
+     -d '{ "status": "PARTIALLY_PAID", "paidCents": 125000, "rejectedLineIds": ["<lineId>"], "note": "Line without referral" }' \
+     "https://<host>/api/v1/partner/claims/<claimId>/decision"
+```
+
+Decisions are `ACCEPTED`, `PARTIALLY_PAID`, `PAID` or `REJECTED`; a `PAID` or `REJECTED` claim is
+closed (`409`). The facility director is notified.
+
+## Notifiable diseases (`surveillance.read`)
+
+The National Institute of Public Health receives submitted case reports with minimal identifiers
+(each read is audited for the patient), and weekly aggregates with small counts suppressed.
+
+```bash
+curl -H "Authorization: Bearer $PACIENT_KEY" \
+     "https://<host>/api/v1/partner/surveillance/cases?since=2026-10-28T00:00:00Z"
+
+curl -H "Authorization: Bearer $PACIENT_KEY" \
+     "https://<host>/api/v1/partner/surveillance/summary?weeks=12"
+```
+
+Without `since`, the last 7 days are returned; `weeks` is 4–52 (default 12).
 
 ## Civil registry flow
 

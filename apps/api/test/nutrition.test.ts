@@ -33,7 +33,10 @@ beforeAll(async () => {
     .values({ facilityId: w.facility.id, name: 'Kitchen', code: 'KITCHEN', type: 'NUTRITION' })
     .returning();
   kitchenUnit = k!.id;
-  const [bed] = await db.insert(beds).values({ unitId: ward, label: 'A1', status: 'OCCUPIED' }).returning();
+  const [bed] = await db
+    .insert(beds)
+    .values({ unitId: ward, label: 'A1', status: 'OCCUPIED' })
+    .returning();
   const [adm] = await db
     .insert(admissions)
     .values({
@@ -88,7 +91,9 @@ describe('diet orders', () => {
     expect(view.status).toBe(200);
     expect(view.body.current.dietType).toBe('SOFT');
     expect(view.body.history).toHaveLength(2);
-    expect(view.body.history.find((h: { dietType: string }) => h.dietType === 'DIABETIC').endsAt).toBeTruthy();
+    expect(
+      view.body.history.find((h: { dietType: string }) => h.dietType === 'DIABETIC').endsAt,
+    ).toBeTruthy();
     expect(view.body.foodAllergies).toEqual(['peanuts']);
   });
 
@@ -118,7 +123,11 @@ describe('diet orders', () => {
 
 describe('kitchen list', () => {
   it('shows ward, bed, diet and food allergies – but no other allergies – to the kitchen', async () => {
-    const res = await api().get('/api/v1/nutrition/kitchen?meal=LUNCH').set(bearer(kitchen));
+    // Tomorrow's lunch: today's may already have been served before the order started.
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const res = await api()
+      .get(`/api/v1/nutrition/kitchen?meal=LUNCH&date=${tomorrow}`)
+      .set(bearer(kitchen));
     expect(res.status).toBe(200);
     const line = res.body.wards
       .flatMap((x: { patients: unknown[] }) => x.patients)
@@ -138,14 +147,18 @@ describe('kitchen list', () => {
   });
 
   it('is not available to staff without a ward or kitchen assignment', async () => {
-    expect((await api().get('/api/v1/nutrition/kitchen').set(bearer(w.tokens.nurse))).status).toBe(403);
-    expect((await api().get('/api/v1/nutrition/kitchen').set(bearer(w.tokens.reception))).status).toBe(
+    expect((await api().get('/api/v1/nutrition/kitchen').set(bearer(w.tokens.nurse))).status).toBe(
       403,
     );
     expect(
+      (await api().get('/api/v1/nutrition/kitchen').set(bearer(w.tokens.reception))).status,
+    ).toBe(403);
+    expect(
       (await api().get(`/api/v1/nutrition/wards/${ward}`).set(bearer(w.tokens.nurse))).status,
     ).toBe(403);
-    expect((await api().get(`/api/v1/nutrition/wards/${ward}`).set(bearer(wardNurse))).status).toBe(200);
+    expect((await api().get(`/api/v1/nutrition/wards/${ward}`).set(bearer(wardNurse))).status).toBe(
+      200,
+    );
   });
 });
 
@@ -166,9 +179,9 @@ describe('nil by mouth before surgery', () => {
     expect(npoAt(cases, new Date('2026-11-10T05:00:00Z'))?.level).toBe('SOLIDS');
     expect(npoAt(cases, new Date('2026-11-10T08:30:00Z'))?.level).toBe('FULL');
     expect(npoAt(cases, new Date('2026-11-10T05:00:00Z'), new Set(['c1']))).toBeNull();
-    expect(npoAt([{ ...cases[0]!, status: 'IN_THEATRE' }], new Date('2026-11-09T05:00:00Z'))?.level).toBe(
-      'FULL',
-    );
+    expect(
+      npoAt([{ ...cases[0]!, status: 'IN_THEATRE' }], new Date('2026-11-09T05:00:00Z'))?.level,
+    ).toBe('FULL');
   });
 
   it('puts the patient on NPO in the kitchen list and resumes the diet after the operation', async () => {
@@ -213,11 +226,15 @@ describe('nil by mouth before surgery', () => {
 
 describe('screening', () => {
   it('scores NRS-2002 and STRONGkids', () => {
-    expect(scoreScreening('NRS2002', { nutritionalStatus: 1, diseaseSeverity: 1 }, 72)).toMatchObject({
+    expect(
+      scoreScreening('NRS2002', { nutritionalStatus: 1, diseaseSeverity: 1 }, 72),
+    ).toMatchObject({
       score: 3,
       risk: 'HIGH',
     });
-    expect(scoreScreening('NRS2002', { nutritionalStatus: 1, diseaseSeverity: 1 }, 50).risk).toBe('LOW');
+    expect(scoreScreening('NRS2002', { nutritionalStatus: 1, diseaseSeverity: 1 }, 50).risk).toBe(
+      'LOW',
+    );
     expect(
       scoreScreening(
         'NRS2002',
@@ -237,7 +254,13 @@ describe('screening', () => {
     const kids = (a: Record<string, boolean>) =>
       scoreScreening(
         'STRONGKIDS',
-        { poorNutritionalStatus: false, highRiskDisease: false, intakeOrLosses: false, weightLoss: false, ...a },
+        {
+          poorNutritionalStatus: false,
+          highRiskDisease: false,
+          intakeOrLosses: false,
+          weightLoss: false,
+          ...a,
+        },
         6,
       );
     expect(kids({}).risk).toBe('LOW');
@@ -247,7 +270,9 @@ describe('screening', () => {
       risk: 'HIGH',
     });
     expect(() => scoreScreening('STRONGKIDS', {}, 40)).toThrow();
-    expect(() => scoreScreening('NRS2002', { nutritionalStatus: 4, diseaseSeverity: 0 }, 40)).toThrow();
+    expect(() =>
+      scoreScreening('NRS2002', { nutritionalStatus: 4, diseaseSeverity: 0 }, 40),
+    ).toThrow();
   });
 
   it('lists admissions due for screening and clears them once screened; HIGH risk alerts the doctor', async () => {
@@ -257,7 +282,10 @@ describe('screening', () => {
     expect(mine.screeningState).toBe('OVERDUE');
 
     // The patient is 36: age adds nothing, 2 + 1 = 3 → at risk.
-    await db.update(patients).set({ dateOfBirth: '1990-01-01' }).where(eq(patients.id, w.patient.id));
+    await db
+      .update(patients)
+      .set({ dateOfBirth: '1990-01-01' })
+      .where(eq(patients.id, w.patient.id));
     const res = await api()
       .post(`/api/v1/nutrition/patients/${w.patient.id}/screenings`)
       .set(bearer(wardNurse))
@@ -271,7 +299,9 @@ describe('screening', () => {
     expect(alerts.some((n) => n.title.includes('Nutrition risk'))).toBe(true);
 
     const after = await api().get('/api/v1/nutrition/screening-due').set(bearer(wardNurse));
-    expect(after.body.items.some((i: { patientId: string }) => i.patientId === w.patient.id)).toBe(false);
+    expect(after.body.items.some((i: { patientId: string }) => i.patientId === w.patient.id)).toBe(
+      false,
+    );
 
     const wrongTool = await api()
       .post(`/api/v1/nutrition/patients/${w.patient.id}/screenings`)

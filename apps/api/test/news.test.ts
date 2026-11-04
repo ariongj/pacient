@@ -30,25 +30,82 @@ const cases = (fn: (v: number) => number, table: [number, number][]) =>
 describe('NEWS2 scoring (RCP 2017 chart boundaries)', () => {
   it('respiration rate', () =>
     cases(respirationPoints, [
-      [5, 3], [8, 3], [9, 1], [11, 1], [12, 0], [20, 0], [21, 2], [24, 2], [25, 3], [40, 3],
+      [5, 3],
+      [8, 3],
+      [9, 1],
+      [11, 1],
+      [12, 0],
+      [20, 0],
+      [21, 2],
+      [24, 2],
+      [25, 3],
+      [40, 3],
     ]));
   it('SpO2 scale 1', () =>
-    cases(spo2Scale1Points, [[85, 3], [91, 3], [92, 2], [93, 2], [94, 1], [95, 1], [96, 0], [100, 0]]));
+    cases(spo2Scale1Points, [
+      [85, 3],
+      [91, 3],
+      [92, 2],
+      [93, 2],
+      [94, 1],
+      [95, 1],
+      [96, 0],
+      [100, 0],
+    ]));
   it('SpO2 scale 2 (hypercapnic respiratory failure)', () => {
-    cases((v) => spo2Scale2Points(v, false), [
-      [83, 3], [84, 2], [85, 2], [86, 1], [87, 1], [88, 0], [92, 0], [93, 0], [99, 0],
-    ]);
-    cases((v) => spo2Scale2Points(v, true), [
-      [88, 0], [92, 0], [93, 1], [94, 1], [95, 2], [96, 2], [97, 3], [100, 3],
-    ]);
+    cases(
+      (v) => spo2Scale2Points(v, false),
+      [
+        [83, 3],
+        [84, 2],
+        [85, 2],
+        [86, 1],
+        [87, 1],
+        [88, 0],
+        [92, 0],
+        [93, 0],
+        [99, 0],
+      ],
+    );
+    cases(
+      (v) => spo2Scale2Points(v, true),
+      [
+        [88, 0],
+        [92, 0],
+        [93, 1],
+        [94, 1],
+        [95, 2],
+        [96, 2],
+        [97, 3],
+        [100, 3],
+      ],
+    );
   });
   it('systolic blood pressure', () =>
     cases(systolicPoints, [
-      [80, 3], [90, 3], [91, 2], [100, 2], [101, 1], [110, 1], [111, 0], [219, 0], [220, 3],
+      [80, 3],
+      [90, 3],
+      [91, 2],
+      [100, 2],
+      [101, 1],
+      [110, 1],
+      [111, 0],
+      [219, 0],
+      [220, 3],
     ]));
   it('pulse', () =>
     cases(pulsePoints, [
-      [35, 3], [40, 3], [41, 1], [50, 1], [51, 0], [90, 0], [91, 1], [110, 1], [111, 2], [130, 2], [131, 3],
+      [35, 3],
+      [40, 3],
+      [41, 1],
+      [50, 1],
+      [51, 0],
+      [90, 0],
+      [91, 1],
+      [110, 1],
+      [111, 2],
+      [130, 2],
+      [131, 3],
     ]));
   it('consciousness (ACVPU)', () => {
     expect(consciousnessPoints('A')).toBe(0);
@@ -56,25 +113,49 @@ describe('NEWS2 scoring (RCP 2017 chart boundaries)', () => {
   });
   it('temperature', () =>
     cases(temperaturePoints, [
-      [34.5, 3], [35.0, 3], [35.1, 1], [36.0, 1], [36.1, 0], [38.0, 0], [38.1, 1], [39.0, 1], [39.1, 2], [41, 2],
+      [34.5, 3],
+      [35.0, 3],
+      [35.1, 1],
+      [36.0, 1],
+      [36.1, 0],
+      [38.0, 0],
+      [38.1, 1],
+      [39.0, 1],
+      [39.1, 2],
+      [41, 2],
     ]));
   it('aggregate risk: low, single-parameter 3, medium, high', () => {
     const normal = {
-      respiratoryRate: 16, oxygenSaturation: 97, onSupplementalOxygen: false, systolic: 125,
-      heartRate: 72, consciousness: 'A', temperatureC: 36.8,
+      respiratoryRate: 16,
+      oxygenSaturation: 97,
+      onSupplementalOxygen: false,
+      systolic: 125,
+      heartRate: 72,
+      consciousness: 'A',
+      temperatureC: 36.8,
     };
     expect(scoreNews2(normal)).toMatchObject({ score: 0, risk: 'LOW', complete: true });
     expect(scoreNews2({ ...normal, heartRate: 95, temperatureC: 38.4 })).toMatchObject({
-      score: 2, risk: 'LOW',
+      score: 2,
+      risk: 'LOW',
     });
     // A single parameter scoring 3 → urgent ward-based response even with a low aggregate.
     expect(scoreNews2({ ...normal, consciousness: 'C' })).toMatchObject({
-      score: 3, risk: 'LOW_MEDIUM', singleThree: true,
+      score: 3,
+      risk: 'LOW_MEDIUM',
+      singleThree: true,
     });
-    expect(scoreNews2({ ...normal, onSupplementalOxygen: true, oxygenSaturation: 94, heartRate: 112 }))
-      .toMatchObject({ score: 5, risk: 'MEDIUM' });
     expect(
-      scoreNews2({ ...normal, respiratoryRate: 26, systolic: 88, heartRate: 128, temperatureC: 39.4 }),
+      scoreNews2({ ...normal, onSupplementalOxygen: true, oxygenSaturation: 94, heartRate: 112 }),
+    ).toMatchObject({ score: 5, risk: 'MEDIUM' });
+    expect(
+      scoreNews2({
+        ...normal,
+        respiratoryRate: 26,
+        systolic: 88,
+        heartRate: 128,
+        temperatureC: 39.4,
+      }),
     ).toMatchObject({ score: 10, risk: 'HIGH' });
   });
   it('incomplete sets are scored on what was measured and flagged', () => {
@@ -99,8 +180,13 @@ let w: Awaited<ReturnType<typeof createWorld>>;
 let unit: typeof careUnits.$inferSelect;
 let second: { id: string };
 const NORMAL = {
-  respiratoryRate: 16, oxygenSaturation: 97, onSupplementalOxygen: false, systolic: 125,
-  heartRate: 72, consciousness: 'A', temperatureC: 36.8,
+  respiratoryRate: 16,
+  oxygenSaturation: 97,
+  onSupplementalOxygen: false,
+  systolic: 125,
+  heartRate: 72,
+  consciousness: 'A',
+  temperatureC: 36.8,
 };
 const MEDIUM = { ...NORMAL, onSupplementalOxygen: true, oxygenSaturation: 94, heartRate: 112 }; // 5
 const HIGH = { ...NORMAL, respiratoryRate: 26, systolic: 88, heartRate: 128, temperatureC: 39.4 }; // 10
@@ -135,14 +221,24 @@ beforeAll(async () => {
   second = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
   await db.insert(admissions).values([
     {
-      patientId: w.patient.id, facilityId: w.facility.id, unitId: unit.id, bedId: b1!.id,
-      admittingDoctorId: w.users.doctor.id, attendingDoctorId: w.users.doctor.id,
-      source: 'EMERGENCY', reason: 'Pneumoni',
+      patientId: w.patient.id,
+      facilityId: w.facility.id,
+      unitId: unit.id,
+      bedId: b1!.id,
+      admittingDoctorId: w.users.doctor.id,
+      attendingDoctorId: w.users.doctor.id,
+      source: 'EMERGENCY',
+      reason: 'Pneumoni',
     },
     {
-      patientId: second.id, facilityId: w.facility.id, unitId: unit.id, bedId: b2!.id,
-      admittingDoctorId: w.users.doctor.id, attendingDoctorId: w.users.doctor.id,
-      source: 'ELECTIVE', reason: 'Vëzhgim',
+      patientId: second.id,
+      facilityId: w.facility.id,
+      unitId: unit.id,
+      bedId: b2!.id,
+      admittingDoctorId: w.users.doctor.id,
+      attendingDoctorId: w.users.doctor.id,
+      source: 'ELECTIVE',
+      reason: 'Vëzhgim',
     },
   ]);
 });
@@ -151,7 +247,11 @@ describe('scoring and escalation of inpatients', () => {
   it('scores vitals when recorded and accepts ACVPU, oxygen and pain', async () => {
     const res = await recordVitals(w.tokens.nurse, w.patient.id, { ...NORMAL, painScore: 2 });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ consciousness: 'A', onSupplementalOxygen: false, painScore: 2 });
+    expect(res.body).toMatchObject({
+      consciousness: 'A',
+      onSupplementalOxygen: false,
+      painScore: 2,
+    });
     expect(res.body.news).toMatchObject({ score: 0, risk: 'LOW', complete: true });
     expect(await newsNotifications(w.users.doctor.id)).toHaveLength(0);
     const bad = await recordVitals(w.tokens.nurse, w.patient.id, { consciousness: 'X' });
@@ -221,17 +321,34 @@ describe('worker', () => {
   it('scores vital signs recorded elsewhere (e.g. ED triage) once, without escalating outpatients', async () => {
     const [v] = await db
       .insert(vitalSigns)
-      .values({ patientId: w.otherPatient.id, recordedById: w.users.nurse.id, ...HIGH, temperatureC: '39.4' })
+      .values({
+        patientId: w.otherPatient.id,
+        recordedById: w.users.nurse.id,
+        ...HIGH,
+        temperatureC: '39.4',
+      })
       .returning();
     const first = await scoreNewVitalsOnce();
     expect(first.scored).toBeGreaterThanOrEqual(1);
-    const rows = await db.select().from(earlyWarningScores).where(eq(earlyWarningScores.vitalSignId, v!.id));
+    const rows = await db
+      .select()
+      .from(earlyWarningScores)
+      .where(eq(earlyWarningScores.vitalSignId, v!.id));
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ score: 10, risk: 'HIGH', admissionId: null, escalatedAt: null });
+    expect(rows[0]).toMatchObject({
+      score: 10,
+      risk: 'HIGH',
+      admissionId: null,
+      escalatedAt: null,
+    });
     await scoreNewVitalsOnce();
-    expect(await db.select().from(earlyWarningScores).where(eq(earlyWarningScores.vitalSignId, v!.id))).toHaveLength(1);
+    expect(
+      await db.select().from(earlyWarningScores).where(eq(earlyWarningScores.vitalSignId, v!.id)),
+    ).toHaveLength(1);
     // Weight-only measurements are not scored.
-    await db.insert(vitalSigns).values({ patientId: w.otherPatient.id, recordedById: w.users.nurse.id, weightKg: '70.0' });
+    await db
+      .insert(vitalSigns)
+      .values({ patientId: w.otherPatient.id, recordedById: w.users.nurse.id, weightKg: '70.0' });
     const again = await scoreNewVitalsOnce();
     expect(again.scored).toBe(0);
   });
@@ -239,7 +356,9 @@ describe('worker', () => {
 
 describe('board and access', () => {
   it('lists inpatients highest risk first with overdue observations', async () => {
-    const board = await api().get(`/api/v1/early-warning/board?unitId=${unit.id}`).set(bearer(w.tokens.nurse));
+    const board = await api()
+      .get(`/api/v1/early-warning/board?unitId=${unit.id}`)
+      .set(bearer(w.tokens.nurse));
     expect(board.status).toBe(200);
     const [first, next] = board.body.items;
     expect(first.patientId).toBe(w.patient.id);
@@ -254,17 +373,28 @@ describe('board and access', () => {
       .update(vitalSigns)
       .set({ recordedAt: new Date(Date.now() - 30 * 60_000) })
       .where(eq(vitalSigns.patientId, w.patient.id));
-    const later = await api().get(`/api/v1/early-warning/board?unitId=${unit.id}`).set(bearer(w.tokens.nurse));
+    const later = await api()
+      .get(`/api/v1/early-warning/board?unitId=${unit.id}`)
+      .set(bearer(w.tokens.nurse));
     expect(later.body.items[0].overdue).toBe(true);
     expect(later.body.items[1].overdue).toBe(false);
   });
 
   it('is limited to clinical staff with access', async () => {
-    for (const t of [w.tokens.pharmacist, w.tokens.reception, w.tokens.director, w.tokens.patient]) {
+    for (const t of [
+      w.tokens.pharmacist,
+      w.tokens.reception,
+      w.tokens.director,
+      w.tokens.patient,
+    ]) {
       expect((await api().get('/api/v1/early-warning/board').set(bearer(t))).status).toBe(403);
     }
     expect(
-      (await api().get(`/api/v1/early-warning/patients/${w.patient.id}`).set(bearer(w.tokens.outsideDoctor))).status,
+      (
+        await api()
+          .get(`/api/v1/early-warning/patients/${w.patient.id}`)
+          .set(bearer(w.tokens.outsideDoctor))
+      ).status,
     ).toBe(403);
   });
 

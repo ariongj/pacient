@@ -182,12 +182,24 @@ describe('pharmacy workflow', () => {
       .set(bearer(w.tokens.doctor))
       .send({ substance: 'Penicillin', severity: 'SEVERE', verificationStatus: 'CONFIRMED' })
       .expect(201);
-    const rx = await api().post(`${base()}/prescriptions`).set(bearer(w.tokens.doctor)).send({
+    const order = {
       medication: 'Amoxicillin 500 mg',
       dosage: '500 mg',
       frequency: 'three times daily',
       startDate: '2026-11-02',
-    });
+    };
+    // A confirmed severe penicillin allergy blocks prescribing until a reason is recorded.
+    const blocked = await api()
+      .post(`${base()}/prescriptions`)
+      .set(bearer(w.tokens.doctor))
+      .send(order);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('SAFETY_ALERTS');
+    const code = blocked.body.error.details.alerts[0].code as string;
+    const rx = await api()
+      .post(`${base()}/prescriptions`)
+      .set(bearer(w.tokens.doctor))
+      .send({ ...order, overrides: [{ code, reason: 'Tolerated amoxicillin in 2024 – allergy doubtful.' }] });
     expect(rx.status).toBe(201);
     expect(rx.body.pharmacyStatus).toBe('PENDING');
     rxId = rx.body.id;
@@ -197,7 +209,7 @@ describe('pharmacy workflow', () => {
 
     const queue = await api().get('/api/v1/pharmacy/queue').set(bearer(w.tokens.pharmacist));
     const item = queue.body.items.find((i: { id: string }) => i.id === rxId);
-    expect(item.alerts[0]).toMatchObject({ kind: 'ALLERGY', severity: 'HIGH' });
+    expect(item.alerts[0]).toMatchObject({ kind: 'ALLERGY', severity: 'CONTRAINDICATED' });
 
     // Another facility's pharmacist never sees it; pharmacists never see the full record.
     const other = await api().get('/api/v1/pharmacy/queue').set(bearer(w.tokens.outsidePharmacist));

@@ -1,4 +1,147 @@
 /**
  * Serbian (Latin, sr-Latn) translations, keyed by the English source text. Keep {placeholders}.
  */
-export const nutrition: Record<string, string> = {};
+export const nutrition: Record<string, string> = {
+  'Nothing by mouth (operation)': 'Ništa na usta (operacija)',
+  'No food from {time} · clear fluids until {fluids}':
+    'Bez hrane od {time} · bistre tečnosti do {fluids}',
+  'Allergy: {allergen}': 'Alergija: {allergen}',
+  'Fluids max {ml} ml/day': 'Tečnosti najviše {ml} ml/dan',
+  Meal: 'Obrok',
+  'Print meal list': 'Odštampaj listu obroka',
+  'Meal list': 'Lista obroka',
+  'Totals to prepare': 'Ukupno za pripremu',
+  'No admitted patients': 'Nema hospitalizovanih pacijenata',
+  'Meal list for {ward}': 'Lista obroka za {ward}',
+  Diet: 'Dijeta',
+  'Restrictions and allergies': 'Ograničenja i alergije',
+  'No bed': 'Bez kreveta',
+  'No diet ordered – normal menu': 'Dijeta nije propisana – uobičajeni jelovnik',
+  'Nutrition on the ward': 'Ishrana na odeljenju',
+  Screening: 'Procena',
+  'Screening overdue': 'Procena kasni',
+  'Screening due': 'Predstojeća procena',
+  'All admitted patients have been screened': 'Svi hospitalizovani pacijenti su procenjeni',
+  'Nutrition screening due': 'Procene uhranjenosti na čekanju',
+  'Due by': 'Rok',
+  Tool: 'Instrument',
+  'Diet types': 'Vrste dijeta',
+  'Before a scheduled operation patients automatically get nothing to eat from 6 hours and nothing to drink from 2 hours before, unless the doctor orders otherwise. The normal diet resumes when the operation is completed or cancelled.':
+    'Pre zakazane operacije pacijenti automatski ne dobijaju hranu 6 sati pre i ništa da piju 2 sata pre, osim ako lekar ne odredi drugačije. Uobičajena dijeta se nastavlja kada se operacija završi ili otkaže.',
+  'Diets, meal lists for the kitchen and malnutrition screening.':
+    'Dijete, liste obroka za kuhinju i procena pothranjenosti.',
+  'Nutrition sections': 'Odeljci ishrane',
+  'Ward overview': 'Pregled odeljenja',
+  'Order diet': 'Propiši dijetu',
+  'Fluid limit (ml per day)': 'Ograničenje tečnosti (ml dnevno)',
+  Restrictions: 'Ograničenja',
+  'Separate with commas, e.g. no pork, no added sugar':
+    'Odvojite zarezima, npr. bez svinjetine, bez dodatog šećera',
+  'Note for the kitchen': 'Napomena za kuhinju',
+  'Food allergies are added to the meal list automatically':
+    'Alergije na hranu se automatski dodaju na listu obroka',
+  'Save diet': 'Sačuvaj dijetu',
+  'Normal nutritional status': 'Normalan nutritivni status',
+  'Mild: weight loss >5 % in 3 months, or intake 50–75 % of normal in the last week':
+    'Blago: gubitak težine >5 % za 3 meseca, ili unos hrane 50–75 % od uobičajenog u poslednjoj nedelji',
+  'Moderate: weight loss >5 % in 2 months, or BMI 18.5–20.5 and impaired condition, or intake 25–60 %':
+    'Umereno: gubitak težine >5 % za 2 meseca, ili BMI 18,5–20,5 i narušeno stanje, ili unos hrane 25–60 %',
+  'Severe: weight loss >5 % in 1 month, or BMI <18.5 and impaired condition, or intake 0–25 %':
+    'Teško: gubitak težine >5 % za 1 mesec, ili BMI <18,5 i narušeno stanje, ili unos hrane 0–25 %',
+  'Normal nutritional requirements': 'Uobičajene nutritivne potrebe',
+  'Mild: hip fracture, chronic disease with complications, diabetes, cancer':
+    'Blago: prelom kuka, hronična bolest sa komplikacijama, dijabetes, karcinom',
+  'Moderate: major abdominal surgery, stroke, severe pneumonia':
+    'Umereno: velika abdominalna operacija, moždani udar, teška upala pluća',
+  'Severe: head injury, bone-marrow transplant, intensive care (APACHE >10)':
+    'Teško: povreda glave, transplantacija koštane srži, intenzivna nega (APACHE >10)',
+  'Poor nutritional status on clinical assessment': 'Loš nutritivni status pri kliničkoj proceni',
+  'Underlying illness with a high risk of malnutrition, or major surgery expected':
+    'Osnovna bolest sa visokim rizikom od pothranjenosti, ili očekivana velika operacija',
+  'Excessive diarrhoea or vomiting, reduced intake, earlier nutritional support, or pain affecting intake':
+    'Izražen proliv ili povraćanje, smanjen unos hrane, ranija nutritivna potpora, ili bol koji ometa unos',
+  'Weight loss, or no weight gain in infants, in recent weeks':
+    'Gubitak težine, ili izostanak porasta težine kod odojčadi, poslednjih nedelja',
+  'Nutrition screening (STRONGkids)': 'Procena uhranjenosti (STRONGkids)',
+  'Nutrition screening (NRS-2002)': 'Procena uhranjenosti (NRS-2002)',
+  Questions: 'Pitanja',
+  '{n} points': '{n} bod(a)',
+  'Impaired nutritional status': 'Narušen nutritivni status',
+  'Severity of disease': 'Težina bolesti',
+  'Age 70 or older: +1 point.': 'Starost 70 ili više godina: +1 bod.',
+  Score: 'Skor',
+  'At risk of malnutrition: the attending doctor will be notified to arrange a dietitian review.':
+    'Rizik od pothranjenosti: nadležni lekar će biti obavešten da organizuje pregled nutricioniste.',
+  'Save screening': 'Sačuvaj procenu',
+  'Change diet': 'Promeni dijetu',
+  'Diets are ordered during a hospital stay.': 'Dijete se propisuju tokom boravka u bolnici.',
+  'no diet ordered yet': 'dijeta još nije propisana',
+  'Fasting before operation: {procedure}': 'Gladovanje pre operacije: {procedure}',
+  'No food from {time}, no fluids from {fluids} (operation at {at}).':
+    'Bez hrane od {time}, bez tečnosti od {fluids} (operacija {at}).',
+  'Malnutrition screening': 'Procena pothranjenosti',
+  'Screen now': 'Proceni sada',
+  'Screening is overdue: it should be done within 48 hours of admission.':
+    'Procena kasni: treba je uraditi u roku od 48 sati od prijema.',
+  'Screening is due within 48 hours of admission.':
+    'Procenu treba uraditi u roku od 48 sati od prijema.',
+  'No screenings yet': 'Još nema procena',
+  'Malnutrition screenings': 'Procene pothranjenosti',
+  Risk: 'Rizik',
+  'Diet history': 'Istorija dijeta',
+  'No diet orders': 'Nema propisanih dijeta',
+  'Normal diet': 'Uobičajena ishrana',
+  'Nil by mouth': 'Ništa na usta',
+  'Clear fluids': 'Bistre tečnosti',
+  'Full fluids': 'Tečna dijeta',
+  'Soft diet': 'Kašasta dijeta',
+  'Pureed diet': 'Pasirana dijeta',
+  'Diabetic diet': 'Dijabetička dijeta',
+  'Low-salt diet': 'Neslana dijeta',
+  'Renal diet': 'Bubrežna dijeta',
+  'Low-fat diet': 'Dijeta sa malo masti',
+  'High-protein diet': 'Visokoproteinska dijeta',
+  'Gluten-free diet': 'Bezglutenska dijeta',
+  'Vegetarian diet': 'Vegetarijanska ishrana',
+  'Tube feeding': 'Ishrana preko sonde',
+  'Regular hospital menu.': 'Uobičajeni bolnički jelovnik.',
+  'Nothing to eat or drink.': 'Ništa za jelo ni piće.',
+  'Water, clear tea, clear broth, apple juice, jelly.':
+    'Voda, bistar čaj, bistra supa, sok od jabuke, žele.',
+  'All drinks, soups, milk, yoghurt and puddings.': 'Sva pića, supe, mleko, jogurt i pudinzi.',
+  'Tender, moist food that is easy to chew.': 'Meka, sočna hrana koja se lako žvaće.',
+  'Smooth food with no lumps, for swallowing difficulties.':
+    'Glatka hrana bez grudvica, kod otežanog gutanja.',
+  'Controlled carbohydrates, no added sugar.': 'Kontrolisani ugljeni hidrati, bez dodatog šećera.',
+  'No added salt, no salty foods.': 'Bez dodate soli, bez slane hrane.',
+  'Limited potassium, phosphate and salt.': 'Ograničen kalijum, fosfat i so.',
+  'Lean meat, no fried food.': 'Posno meso, bez pržene hrane.',
+  'Extra protein for healing and recovery.': 'Dodatni proteini za zarastanje i oporavak.',
+  'No wheat, barley or rye (coeliac disease).': 'Bez pšenice, ječma i raži (celijakija).',
+  'No meat or fish.': 'Bez mesa i ribe.',
+  'Nutrition through a feeding tube – no tray.': 'Ishrana preko sonde – bez poslužavnika.',
+  Peanuts: 'Kikiriki',
+  'Tree nuts': 'Orašasti plodovi',
+  Gluten: 'Gluten',
+  Milk: 'Mleko',
+  Egg: 'Jaja',
+  Fish: 'Riba',
+  Shellfish: 'Školjke i rakovi',
+  Soy: 'Soja',
+  Sesame: 'Susam',
+  Breakfast: 'Doručak',
+  Lunch: 'Ručak',
+  Dinner: 'Večera',
+  'Low risk': 'Nizak rizik',
+  'Medium risk': 'Umeren rizik',
+  'High risk': 'Visok rizik',
+  'Diet orders can only be given during a hospital stay':
+    'Dijete se mogu propisati samo tokom boravka u bolnici',
+  'Only ward staff and the hospital kitchen can see meal lists':
+    'Liste obroka vide samo osoblje odeljenja i bolnička kuhinja',
+  'You are not assigned to this ward': 'Niste raspoređeni na ovo odeljenje',
+  'STRONGkids is for children; use NRS-2002 for adults':
+    'STRONGkids je za decu; za odrasle koristite NRS-2002',
+  'Use STRONGkids for children under 18': 'Za decu mlađu od 18 godina koristite STRONGkids',
+  'Answer every question with yes or no': 'Odgovorite na svako pitanje sa da ili ne',
+};

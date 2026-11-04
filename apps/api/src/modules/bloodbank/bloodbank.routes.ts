@@ -884,7 +884,7 @@ bloodBankRouter.post('/requests/:id/cancel', async (req, res) => {
       .where(
         and(
           eq(transfusions.requestId, id),
-          inArray(transfusions.status, ['AWAITING_SECOND_CHECK', 'IN_PROGRESS']),
+          inArray(transfusions.status, ['AWAITING_CHECK', 'IN_PROGRESS']),
         ),
       );
     if (running.length) throw conflict('A transfusion is in progress – stop it first');
@@ -997,7 +997,7 @@ bloodBankRouter.post(
     const input = parse(StartInput, req.body);
     const { t, unit } = await loadTransfusion(id);
     await assertClinicalWriteAccess(ctx, t.patientId, requestMeta(req), WRITERS.careTeam);
-    if (!['ISSUED', 'AWAITING_SECOND_CHECK'].includes(t.status)) {
+    if (!['ISSUED', 'AWAITING_CHECK'].includes(t.status)) {
       throw conflict('This transfusion has already started or ended');
     }
     const patient = await getPatientOrThrow(t.patientId);
@@ -1053,7 +1053,7 @@ bloodBankRouter.post(
       .set({
         checkedById: ctx.userId,
         secondCheckerId: input.secondCheckerId,
-        status: 'AWAITING_SECOND_CHECK',
+        status: 'AWAITING_CHECK',
         observations,
       })
       .where(eq(transfusions.id, id))
@@ -1076,7 +1076,7 @@ bloodBankRouter.post(
     const ctx = requireAuth(req);
     const { id } = parse(IdParam, req.params);
     const { t, request } = await loadTransfusion(id);
-    if (t.status !== 'AWAITING_SECOND_CHECK') throw conflict('No bedside check is waiting');
+    if (t.status !== 'AWAITING_CHECK') throw conflict('No bedside check is waiting');
     if (t.secondCheckerId !== ctx.userId) {
       throw forbidden('Only the named second checker can confirm');
     }

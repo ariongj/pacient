@@ -21,6 +21,7 @@ import {
 } from '../../components/ui';
 import { formatDate, formatDateTime, formatTime, humanize } from '../../format';
 import { t } from '../../i18n';
+import { diseaseName, useMyCases } from '../../api/surveillance';
 
 /** Shown when an unreviewed critical result has been escalated to colleagues (and the director). */
 function EscalatedBadge({ level }: { level?: number }) {
@@ -333,6 +334,8 @@ export function DoctorHome() {
               myId={user.id}
             />
 
+            <CaseReportsCard />
+
             {(w.coveredResults ?? []).length > 0 && (
               <Card
                 title={t('Covering for {names}', {
@@ -471,5 +474,29 @@ export function DoctorHome() {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Notifiable disease case reports the doctor still has to complete (hidden when none). */
+function CaseReportsCard() {
+  const mine = useMyCases();
+  const drafts = (mine.data?.items ?? []).filter((c) => c.status === 'DRAFT');
+  if (!drafts.length) return null;
+  return (
+    <Card
+      title={t('Case reports to complete')}
+      actions={<Link to="/surveillance">{t('Open case reports')}</Link>}
+    >
+      <ul className="list">
+        {drafts.slice(0, 5).map((c) => (
+          <li key={c.id}>
+            <strong>{diseaseName(c.disease.name)}</strong> · {c.patient.name}
+            {c.disease.urgency === 'IMMEDIATE' && (
+              <span className="muted"> · {t('Report within 24 hours')}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

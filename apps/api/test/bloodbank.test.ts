@@ -246,11 +246,8 @@ describe('crossmatch, issue and bedside transfusion', () => {
       secondCheckerId: w.users.colleague.id,
       vitals: { systolic: 118, diastolic: 70, heartRate: 84, temperature: 36.8 },
     };
-    const start = async (body: Record<string, unknown>) => {
-      const r = await post(`/transfusions/${transfusionId}/start`, w.tokens.nurse, { ...base, ...body });
-      console.log('DBG', r.status, JSON.stringify(r.body).slice(0, 300));
-      return r;
-    };
+    const start = (body: Record<string, unknown>) =>
+      post(`/transfusions/${transfusionId}/start`, w.tokens.nurse, { ...base, ...body });
     expect((await start({ unitNumber: 'WRONG-1' })).body.error.code).toBe('UNIT_MISMATCH');
     expect((await start({ dateOfBirth: '1991-02-02' })).body.error.code).toBe('IDENTITY_MISMATCH');
     expect((await start({ secondCheckerId: w.users.nurse.id })).status).toBe(400);

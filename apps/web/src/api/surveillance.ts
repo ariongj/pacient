@@ -153,7 +153,8 @@ export function useDashboard(weeks: number) {
 export function useDiseases() {
   return useQuery({
     queryKey: [...KEY, 'diseases'],
-    queryFn: () => api<{ items: NotifiableDisease[] }>('/surveillance/diseases').then((r) => r.items),
+    queryFn: () =>
+      api<{ items: NotifiableDisease[] }>('/surveillance/diseases').then((r) => r.items),
     staleTime: 10 * 60_000,
   });
 }

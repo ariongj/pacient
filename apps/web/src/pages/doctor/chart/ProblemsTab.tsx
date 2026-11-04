@@ -15,11 +15,14 @@ import {
   Table,
   TextAreaField,
   TextField,
+  Alert,
 } from '../../../components/ui';
 import { formatDate, humanize } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
+import { Link } from 'react-router-dom';
+import { diseaseName, usePatientCases } from '../../../api/surveillance';
 
 const STATUSES = ['ACTIVE', 'CHRONIC', 'RESOLVED'] as const;
 
@@ -62,6 +65,7 @@ export function ProblemsTab({
       }
     >
       <ErrorAlert error={update.error} />
+      {isDoctor && <CaseReportNotice patientId={patientId} />}
       <QueryView query={list}>
         {(items) =>
           items.length === 0 ? (
@@ -160,5 +164,18 @@ export function ProblemsTab({
         </form>
       </Dialog>
     </Card>
+  );
+}
+
+/** Reminds the doctor that a notifiable disease on this list needs a case report. */
+function CaseReportNotice({ patientId }: { patientId: string }) {
+  const cases = usePatientCases(patientId);
+  const drafts = (cases.data ?? []).filter((c) => c.status === 'DRAFT');
+  if (!drafts.length) return null;
+  return (
+    <Alert tone="warning" title={t('Notifiable disease: case report to complete')}>
+      {drafts.map((c) => diseaseName(c.diseaseName)).join(', ')} –{' '}
+      <Link to="/surveillance">{t('Complete the case report')}</Link>
+    </Alert>
   );
 }

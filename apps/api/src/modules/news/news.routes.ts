@@ -84,7 +84,8 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
         .orderBy(desc(vitalSigns.recordedAt))
     : [];
   const lastObsByPatient = new Map<string, Date>();
-  for (const o of lastObs) if (!lastObsByPatient.has(o.patientId)) lastObsByPatient.set(o.patientId, o.at);
+  for (const o of lastObs)
+    if (!lastObsByPatient.has(o.patientId)) lastObsByPatient.set(o.patientId, o.at);
 
   const items = stays.map((s) => {
     const recent = scores.get(s.admissionId) ?? [];
@@ -167,10 +168,7 @@ newsRouter.get('/patients/:patientId', async (req, res) => {
 newsRouter.post('/scores/:id/acknowledge', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(z.object({ id: z.string().uuid() }), req.params);
-  const { note } = parse(
-    z.object({ note: z.string().trim().max(500).optional() }),
-    req.body ?? {},
-  );
+  const { note } = parse(z.object({ note: z.string().trim().max(500).optional() }), req.body ?? {});
   const [score] = await db.select().from(earlyWarningScores).where(eq(earlyWarningScores.id, id));
   if (!score) throw notFound('Score not found');
   await resolveClinicalReadAccess(ctx, score.patientId, requestMeta(req));

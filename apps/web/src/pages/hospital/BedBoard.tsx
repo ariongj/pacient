@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   bedStatusLabel,
@@ -16,6 +16,8 @@ import { Badge, Button, Card, EmptyState, PageHeader, QueryView, Tabs } from '..
 import { formatDate, fullName } from '../../format';
 import { t } from '../../i18n';
 import { AdmitDialog, BedStatusActions, DischargeDialog, TransferDialog } from './dialogs';
+import { useNewsBoard, type NewsBoardItem } from '../../api/news';
+import { NewsChip } from './EarlyWarningBoard';
 import './hospital.css';
 
 type Action =
@@ -24,8 +26,12 @@ type Action =
   | { kind: 'discharge'; stay: BoardStay }
   | null;
 
+/** Latest NEWS2 per admission – only filled for doctors and nurses (clinical information). */
+const NewsContext = createContext<Map<string, NewsBoardItem>>(new Map());
+
 function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
   const name = fullName(stay);
+  const news = useContext(NewsContext).get(stay.admissionId);
   const dueToday =
     stay.expectedDischargeAt && new Date(stay.expectedDischargeAt).getTime() < endOfToday();
   return (
@@ -36,6 +42,19 @@ function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
           <>
             {' '}
             <Badge tone="warning">{t('Temporary ID')}</Badge>
+          </>
+        )}
+        {news?.latest && (
+          <>
+            {' '}
+            <Link to="/wards/early-warning" className="news-bed-link">
+              <NewsChip
+                score={news.latest.score}
+                risk={news.latest.risk}
+                complete={news.latest.complete}
+                compact
+              />
+            </Link>
           </>
         )}
       </span>
@@ -244,9 +263,11 @@ export function BedBoard() {
   const isNurse = user.role === 'NURSE';
   const base = isDoctor ? '/doctor' : isNurse ? '/nurse' : null;
   const canBedStatus = ['NURSE', 'RECEPTION', 'DIRECTOR'].includes(user.role);
+  const newsBoard = useNewsBoard(undefined, isDoctor || isNurse);
+  const newsByAdmission = new Map((newsBoard.data?.items ?? []).map((i) => [i.admissionId, i]));
 
   return (
-    <>
+    <NewsContext.Provider value={newsByAdmission}>
       <PageHeader
         title={t('Wards & beds')}
         subtitle={t(
@@ -357,6 +378,6 @@ export function BedBoard() {
           patientId={action.stay.patientId}
         />
       )}
-    </>
+    </NewsContext.Provider>
   );
 }

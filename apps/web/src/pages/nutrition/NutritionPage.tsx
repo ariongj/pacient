@@ -60,7 +60,11 @@ function NpoBadge({ line }: { line: Pick<DietLine, 'npo'> }) {
   );
 }
 
-function Restrictions({ line }: { line: Pick<DietLine, 'restrictions' | 'foodAllergies' | 'fluidLimitMl'> }) {
+function Restrictions({
+  line,
+}: {
+  line: Pick<DietLine, 'restrictions' | 'foodAllergies' | 'fluidLimitMl'>;
+}) {
   if (!line.restrictions.length && !line.foodAllergies.length && !line.fluidLimitMl) return <>—</>;
   return (
     <div className="nutrition-tags">
@@ -111,7 +115,8 @@ function KitchenTab() {
         {(k) => (
           <>
             <h2 className="print-only">
-              {t('Meal list')} · {mealLabel(k.meal)} {k.mealTime} · {formatFullDate(new Date(k.servedAt))}
+              {t('Meal list')} · {mealLabel(k.meal)} {k.mealTime} ·{' '}
+              {formatFullDate(new Date(k.servedAt))}
             </h2>
             <Card title={t('Totals to prepare')}>
               <Grid min={150}>
@@ -229,7 +234,9 @@ function WardTab() {
                     <tr key={p.admissionId}>
                       <td>{p.bedLabel ?? t('No bed')}</td>
                       <td>
-                        <Link to={`/doctor/patients/${p.patientId}?tab=nutrition`}>{nameOf(p)}</Link>
+                        <Link to={`/doctor/patients/${p.patientId}?tab=nutrition`}>
+                          {nameOf(p)}
+                        </Link>
                         <div className="muted">{t('{age} y', { age: p.ageYears })}</div>
                       </td>
                       <td>
@@ -249,7 +256,9 @@ function WardTab() {
                         )}
                         {p.screeningState !== 'DONE' && (
                           <Badge tone={p.screeningState === 'OVERDUE' ? 'danger' : 'warning'}>
-                            {p.screeningState === 'OVERDUE' ? t('Screening overdue') : t('Screening due')}
+                            {p.screeningState === 'OVERDUE'
+                              ? t('Screening overdue')
+                              : t('Screening due')}
                           </Badge>
                         )}
                       </td>
@@ -287,7 +296,9 @@ function DueTab() {
               {items.map((i) => (
                 <tr key={i.admissionId}>
                   <td>
-                    <Link to={`/doctor/patients/${i.patientId}?tab=nutrition`}>{i.patientName}</Link>
+                    <Link to={`/doctor/patients/${i.patientId}?tab=nutrition`}>
+                      {i.patientName}
+                    </Link>
                     <div className="muted">{t('{age} y', { age: i.ageYears })}</div>
                   </td>
                   <td>

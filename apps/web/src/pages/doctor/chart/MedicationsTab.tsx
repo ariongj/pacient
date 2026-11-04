@@ -1,4 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ApiError } from '../../../api/client';
+import { useSafetyCheck, useStoredAlerts, type SafetyAlert } from '../../../api/safety';
+import { SafetyAlertList, StoredAlertSummary } from '../../tools/SafetyAlerts';
 import { itemName, type CatalogItem } from '../../../api/stock';
 import { CatalogPicker } from '../../pharmacy/CatalogPicker';
 import type { Allergy, Encounter, Prescription } from '../../../api/types';
@@ -22,6 +25,16 @@ import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
 
+/** The value after it has stopped changing for `ms` (avoids a safety check per keystroke). */
+function useDebounced<T>(value: T, ms = 400): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
+}
+
 export function MedicationsTab({
   patientId,
   encounters,
@@ -36,6 +49,8 @@ export function MedicationsTab({
   /** Optional national catalogue item: fills the medication name and lets the pharmacy track stock. */
   const [catalogItem, setCatalogItem] = useState<CatalogItem | null>(null);
   const [medication, setMedication] = useState('');
+  /** Reasons to proceed despite blocking safety alerts, by alert code. */
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   const create = useChartMutation(
     patientId,
     (body: Record<string, unknown>) => ({ path: '/prescriptions', method: 'POST', body }),
@@ -43,6 +58,7 @@ export function MedicationsTab({
       setOpen(false);
       setCatalogItem(null);
       setMedication('');
+      setReasons({});
     },
   );
   const update = useChartMutation(patientId, ({ id, status }: { id: string; status: string }) => ({
@@ -50,7 +66,21 @@ export function MedicationsTab({
     method: 'PATCH',
     body: { status },
   }));
-  const { isDoctor } = useChartRole();
+  const { isDoctor, isNurse } = useChartRole();
+  const debouncedMedication = useDebounced(medication);
+  const check = useSafetyCheck(
+    patientId,
+    debouncedMedication,
+    catalogItem?.id ?? null,
+    open && isDoctor,
+  );
+  const stored = useStoredAlerts(patientId, isDoctor || isNurse);
+  // If the server found blocking alerts the live check had not shown yet, use its list.
+  const blockedByServer =
+    create.error instanceof ApiError && create.error.code === 'SAFETY_ALERTS'
+      ? ((create.error.details as { alerts?: SafetyAlert[] } | undefined)?.alerts ?? null)
+      : null;
+  const alerts = blockedByServer ?? check.data?.alerts ?? [];
   const [resubmitting, setResubmitting] = useState<Prescription | null>(null);
   const resubmit = useChartMutation(
     patientId,
@@ -67,9 +97,13 @@ export function MedicationsTab({
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    create.mutate(
-      compact({ ...formValues(e.currentTarget), catalogItemId: catalogItem?.id ?? undefined }),
-    );
+    const overrides = alerts
+      .filter((a) => a.blocking && (reasons[a.code] ?? '').trim().length >= 10)
+      .map((a) => ({ code: a.code, reason: reasons[a.code]!.trim() }));
+    create.mutate({
+      ...compact({ ...formValues(e.currentTarget), catalogItemId: catalogItem?.id ?? undefined }),
+      ...(overrides.length ? { overrides } : {}),
+    });
   }
 
   return (
@@ -117,6 +151,7 @@ export function MedicationsTab({
                       <strong>{p.medication}</strong>
                       <div className="muted">{p.route}</div>
                       {p.instructions && <div className="muted">{p.instructions}</div>}
+                      <StoredAlertSummary alerts={stored.data?.[p.id]} />
                     </td>
                     <td>
                       {p.dosage} · {p.frequency}
@@ -299,7 +334,33 @@ export function MedicationsTab({
             maxLength={2000}
             rows={3}
           />
-          <ErrorAlert error={create.error} />
+          <section aria-live="polite">
+            {check.isFetching && <p className="muted">{t('Checking medication safety…')}</p>}
+            {alerts.length > 0 && (
+              <>
+                <h3>{t('Medication safety')}</h3>
+                {alerts.some((a) => a.blocking) && (
+                  <Alert tone="danger" title={t('Serious safety alerts')}>
+                    {t(
+                      'Choose another medicine, or record for each serious alert why it is safe to proceed.',
+                    )}
+                  </Alert>
+                )}
+                <SafetyAlertList
+                  alerts={alerts}
+                  reasons={reasons}
+                  onReason={(code, reason) => setReasons((r) => ({ ...r, [code]: reason }))}
+                />
+              </>
+            )}
+            {!check.isFetching &&
+              check.data &&
+              alerts.length === 0 &&
+              debouncedMedication.trim().length >= 3 && (
+                <p className="muted">{t('No safety alerts found by the automated checks.')}</p>
+              )}
+          </section>
+          {!blockedByServer && <ErrorAlert error={create.error} />}
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
               {t('Cancel')}

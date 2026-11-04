@@ -47,7 +47,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** Patient (or a guardian with full access) for their own record. */
 const isOwn = (ctx: AuthContext, patientId: string) =>
-  ctx.role === 'PATIENT' && ctx.patientId === patientId && (!ctx.proxy || ctx.proxy.scope === 'FULL');
+  ctx.role === 'PATIENT' &&
+  ctx.patientId === patientId &&
+  (!ctx.proxy || ctx.proxy.scope === 'FULL');
 
 /**
  * Billing staff may handle a patient registered at their facility or one who received care there
@@ -81,7 +83,10 @@ const CoverageInput = z
     validFrom: z.string().date(),
     validUntil: z.string().date().optional().nullable(),
   })
-  .refine((v) => !v.validUntil || v.validUntil >= v.validFrom, 'validUntil must be after validFrom');
+  .refine(
+    (v) => !v.validUntil || v.validUntil >= v.validFrom,
+    'validUntil must be after validFrom',
+  );
 
 billingRouter.get('/patients/:patientId/insurance', async (req, res) => {
   const ctx = requireAuth(req);
@@ -101,7 +106,7 @@ billingRouter.get('/patients/:patientId/insurance', async (req, res) => {
       nationalId: patient.nationalId,
       dateOfBirth: patient.dateOfBirth,
     },
-    current: current ? history.find((h) => h.id === current.id) ?? null : null,
+    current: current ? (history.find((h) => h.id === current.id) ?? null) : null,
     automaticExemption: automaticExemption(patient.dateOfBirth),
     history,
     canEdit: isStaff(ctx),
@@ -135,7 +140,11 @@ billingRouter.post('/patients/:patientId/insurance', requireRole(...STAFF), asyn
         resourceId: created!.id,
         patientId,
         meta: requestMeta(req),
-        metadata: { insurer: input.insurer, status: input.status, exemption: input.exemption ?? null },
+        metadata: {
+          insurer: input.insurer,
+          status: input.status,
+          exemption: input.exemption ?? null,
+        },
       },
       tx,
     );
@@ -196,7 +205,8 @@ billingRouter.post(
     if (!eligible) {
       res.json({
         eligible: false,
-        message: 'This patient has a temporary number; eligibility can be checked once the civil registry issues a national ID.',
+        message:
+          'This patient has a temporary number; eligibility can be checked once the civil registry issues a national ID.',
       });
       return;
     }
@@ -239,7 +249,12 @@ billingRouter.post(
       );
       return coverageId;
     });
-    res.json({ eligible: true, insurer: 'FSSH', coverageId: result, message: 'Insured with the Health Insurance Fund.' });
+    res.json({
+      eligible: true,
+      insurer: 'FSSH',
+      coverageId: result,
+      message: 'Insured with the Health Insurance Fund.',
+    });
   },
 );
 
@@ -273,11 +288,7 @@ const ServiceInput = z
 billingRouter.post('/services', requireRole('MINISTRY'), async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(ServiceInput, req.body);
-  const [row] = await db
-    .insert(billableServices)
-    .values(input)
-    .onConflictDoNothing()
-    .returning();
+  const [row] = await db.insert(billableServices).values(input).onConflictDoNothing().returning();
   if (!row) throw conflict('A service with this code already exists');
   await audit({
     action: AuditAction.CHARGE_CREATED,
@@ -616,7 +627,9 @@ billingRouter.post('/payments', requireRole(...STAFF), async (req, res) => {
     await tx
       .update(charges)
       .set({ status: 'PAID' })
-      .where(and(inArray(charges.id, ids), eq(charges.insurerCents, 0), eq(charges.status, 'OPEN')));
+      .where(
+        and(inArray(charges.id, ids), eq(charges.insurerCents, 0), eq(charges.status, 'OPEN')),
+      );
     await audit(
       {
         action: AuditAction.PAYMENT_RECEIVED,
@@ -748,7 +761,8 @@ billingRouter.post('/claims', requireRole(...STAFF), async (req, res) => {
       UPDATE charges c SET claim_id = ${created!.id}
       WHERE ${claimableWhere(ctx.facilityId!, input.periodFrom, input.periodTo)}
       RETURNING c.insurer_cents`);
-    if (!lines.rows.length) throw badRequest('There are no insured charges to claim in this period');
+    if (!lines.rows.length)
+      throw badRequest('There are no insured charges to claim in this period');
     const total = lines.rows.reduce((a, r) => a + Number(r.insurer_cents), 0);
     const [updated] = await tx
       .update(claims)
@@ -799,7 +813,10 @@ export async function claimLines(claimId: string) {
 billingRouter.get('/claims/:id', requireRole(...STAFF), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
-  const { format } = parse(z.object({ format: z.enum(['json', 'csv']).default('json') }), req.query);
+  const { format } = parse(
+    z.object({ format: z.enum(['json', 'csv']).default('json') }),
+    req.query,
+  );
   const claim = await claimForFacility(id, ctx.facilityId!);
   const lines = await claimLines(id);
   if (format === 'csv') {
@@ -877,9 +894,13 @@ billingRouter.get('/summary', requireRole(...STAFF), async (req, res) => {
       coalesce(sum(c.insurer_cents) FILTER (WHERE c.status = 'PAID'), 0)::int AS "paidByInsurerCents",
       count(*) FILTER (WHERE c.status <> 'VOID' AND c.service_date >= date_trunc('month', now())::date)::int AS "chargesThisMonth"
     FROM charges c WHERE c.facility_id = ${ctx.facilityId!}`);
-  const [cash] = await db.execute<{ total: number }>(sql`
+  const [cash] = await db
+    .execute<{ total: number }>(
+      sql`
     SELECT coalesce(sum(amount_cents), 0)::int AS total FROM payments
-    WHERE facility_id = ${ctx.facilityId!} AND received_at >= date_trunc('month', now())`).then((r) => r.rows);
+    WHERE facility_id = ${ctx.facilityId!} AND received_at >= date_trunc('month', now())`,
+    )
+    .then((r) => r.rows);
   res.json({ ...result.rows[0], copaymentsThisMonthCents: cash?.total ?? 0 });
 });
 
@@ -909,4 +930,3 @@ billingRouter.get('/patients', requireRole(...STAFF), async (req, res) => {
     .limit(20);
   res.json({ items: rows });
 });
-

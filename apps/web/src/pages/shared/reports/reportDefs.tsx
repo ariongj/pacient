@@ -3,12 +3,13 @@ import type { ReactNode } from 'react';
 import type { GenericReport, ReportName } from '../../../api/types';
 import { BarChart, Donut, RankedBars, StackedBars } from '../../../components/charts';
 import { formatNumber } from '../../../format';
+import { formatMoney } from '../../../api/billing';
 
 export type Row = GenericReport['rows'][number];
 
 /** Hospital reports (inpatient, emergency, births, imaging) in addition to the core reports. */
 export type HospitalReportName =
-  'occupancy' | 'admissions' | 'emergency' | 'births' | 'imaging' | 'theatre';
+  'occupancy' | 'admissions' | 'emergency' | 'births' | 'imaging' | 'theatre' | 'billing';
 export type AnyReportName = ReportName | HospitalReportName;
 
 const n = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
@@ -39,6 +40,22 @@ export const SUPPRESSIBLE = new Set([
 ]);
 
 export const COLUMN_LABELS: Record<string, string> = {
+  month: 'Month',
+  charges: 'Services billed',
+  totalCents: 'Total value',
+  insurerCents: 'Owed by the Fund',
+  copayCents: 'Co-payments due',
+  copayReceivedCents: 'Co-payments received',
+  claimedCents: 'Claimed, awaiting payment',
+  paidByFundCents: 'Paid by the Fund',
+  rejectedCents: 'Rejected by the Fund',
+  consultationCents: 'Consultations',
+  emergencyCents: 'Emergency',
+  laboratoryCents: 'Laboratory',
+  imagingCents: 'Imaging',
+  bedDayCents: 'Hospital days',
+  surgeryCents: 'Operations',
+  pharmacyCents: 'Pharmacy',
   code: 'Code',
   name: 'Facility',
   region: 'Region',
@@ -155,6 +172,7 @@ const MODALITY_LABELS: Record<string, string> = {
 export const columnLabel = (c: string) => t(COLUMN_LABELS[c] ?? c);
 export const isTextColumn = (c: string) =>
   [
+    'month',
     'code',
     'name',
     'region',
@@ -170,6 +188,7 @@ export const isTextColumn = (c: string) =>
 export function formatCell(column: string, value: unknown): string | null {
   if (value === null || value === undefined) return SUPPRESSIBLE.has(column) ? null : '—';
   if (column.endsWith('Pct')) return `${value}%`;
+  if (column.endsWith('Cents')) return formatMoney(Number(value));
   if (column === 'unitType') return t(UNIT_TYPE_LABELS[String(value)] ?? String(value));
   if (column === 'modality') return t(MODALITY_LABELS[String(value)] ?? String(value));
   if (column.startsWith('medianWait')) return t('{count} min', { count: String(value) });
@@ -889,6 +908,49 @@ export const REPORT_DEFS: ReportDef[] = [
               { label: t('Urgent'), value: sum(rows, 'urgent') },
               { label: t('Emergency'), value: sum(rows, 'emergency') },
             ]}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'billing',
+    title: 'Billing and insurance claims',
+    description:
+      'What care produced per month (demo national tariff), the part owed by the Health Insurance Fund and by patients, co-payments received and the state of claims. No patient data.',
+    kpis: (rows) => [
+      { label: t('Total value'), value: formatMoney(sum(rows, 'totalCents')) },
+      { label: t('Owed by the Fund'), value: formatMoney(sum(rows, 'insurerCents')) },
+      { label: t('Paid by the Fund'), value: formatMoney(sum(rows, 'paidByFundCents')) },
+      {
+        label: t('Co-payments received'),
+        value: formatMoney(sum(rows, 'copayReceivedCents')),
+        hint: t('of {amount} due', { amount: formatMoney(sum(rows, 'copayCents')) }),
+      },
+      {
+        label: t('Rejected by the Fund'),
+        value: formatMoney(sum(rows, 'rejectedCents')),
+        tone: sum(rows, 'rejectedCents') > 0 ? 'warning' : undefined,
+      },
+    ],
+    charts: (rows) => [
+      {
+        title: t('Value by category'),
+        node: (
+          <Donut
+            title={t('Value by category')}
+            data={[
+              ['consultationCents', 'Consultations'],
+              ['emergencyCents', 'Emergency'],
+              ['laboratoryCents', 'Laboratory'],
+              ['imagingCents', 'Imaging'],
+              ['bedDayCents', 'Hospital days'],
+              ['surgeryCents', 'Operations'],
+              ['pharmacyCents', 'Pharmacy'],
+            ].map(([key, label]) => ({
+              label: t(label!),
+              value: Math.round(sum(rows, key!) / 100),
+            }))}
           />
         ),
       },

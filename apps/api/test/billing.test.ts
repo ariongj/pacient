@@ -23,7 +23,10 @@ let w: Awaited<ReturnType<typeof createWorld>>;
 const day = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-async function insure(patientId: string, extra: Partial<typeof insuranceCoverages.$inferInsert> = {}) {
+async function insure(
+  patientId: string,
+  extra: Partial<typeof insuranceCoverages.$inferInsert> = {},
+) {
   await db.insert(insuranceCoverages).values({
     patientId,
     insurer: 'FSSH',
@@ -75,7 +78,10 @@ describe('insurance coverage', () => {
     expect(own.body.automaticExemption).toBeNull();
 
     const child = await createPatient(w.facility.id);
-    await db.update(patients).set({ dateOfBirth: iso(day(-365 * 8)) }).where(eq(patients.id, child.id));
+    await db
+      .update(patients)
+      .set({ dateOfBirth: iso(day(-365 * 8)) })
+      .where(eq(patients.id, child.id));
     const c = await api()
       .get(`/api/v1/billing/patients/${child.id}/insurance`)
       .set(bearer(w.tokens.reception));
@@ -96,8 +102,11 @@ describe('insurance coverage', () => {
       (await api().get(`/api/v1/billing/patients/${w.patient.id}/insurance`).set(bearer(t))).status,
     ).toBe(403);
     expect(
-      (await api().get(`/api/v1/billing/patients/${w.patient.id}/insurance`).set(bearer(w.tokens.otherPatient)))
-        .status,
+      (
+        await api()
+          .get(`/api/v1/billing/patients/${w.patient.id}/insurance`)
+          .set(bearer(w.tokens.otherPatient))
+      ).status,
     ).toBe(403);
   });
 
@@ -108,7 +117,10 @@ describe('insurance coverage', () => {
       .set(bearer(w.tokens.reception));
     expect(ok.body).toMatchObject({ eligible: true, insurer: 'FSSH' });
     const temp = await createPatient(w.facility.id);
-    await db.update(patients).set({ nationalId: `TMP${Date.now() % 1e9}` }).where(eq(patients.id, temp.id));
+    await db
+      .update(patients)
+      .set({ nationalId: `TMP${Date.now() % 1e9}` })
+      .where(eq(patients.id, temp.id));
     const no = await api()
       .post(`/api/v1/billing/patients/${temp.id}/insurance/verify`)
       .set(bearer(w.tokens.reception));
@@ -121,7 +133,10 @@ describe('charge capture', () => {
     const insured = await createPatient(w.facility.id);
     await insure(insured.id);
     const pensioner = await createPatient(w.facility.id);
-    await db.update(patients).set({ dateOfBirth: '1950-03-01' }).where(eq(patients.id, pensioner.id));
+    await db
+      .update(patients)
+      .set({ dateOfBirth: '1950-03-01' })
+      .where(eq(patients.id, pensioner.id));
     await insure(pensioner.id);
     const uninsured = await createPatient(w.facility.id);
 
@@ -166,7 +181,12 @@ describe('charge capture', () => {
       .returning();
     const [unit] = await db
       .insert(careUnits)
-      .values({ facilityId: w.facility.id, name: 'Interna', code: `W${randomBytes(2).toString('hex')}`, type: 'GENERAL_WARD' })
+      .values({
+        facilityId: w.facility.id,
+        name: 'Interna',
+        code: `W${randomBytes(2).toString('hex')}`,
+        type: 'GENERAL_WARD',
+      })
       .returning();
     await db.insert(admissions).values({
       patientId: insured.id,
@@ -192,7 +212,9 @@ describe('charge capture', () => {
     expect(Object.values(again).every((n) => n === 0)).toBe(true);
 
     const mine = await chargesOf(insured.id);
-    expect(mine.filter((c) => c.sourceType === 'DISPENSE' && c.sourceId === rx!.id)).toHaveLength(1);
+    expect(mine.filter((c) => c.sourceType === 'DISPENSE' && c.sourceId === rx!.id)).toHaveLength(
+      1,
+    );
     const bed = mine.find((c) => c.sourceType === 'BED_DAY')!;
     expect(bed.quantity).toBe(4);
     const consult = mine.find((c) => c.sourceType === 'ENCOUNTER')!;
@@ -254,7 +276,9 @@ describe('co-payments and receipts', () => {
           .send({ reason: 'Gabim në regjistrim' })
       ).status,
     ).toBe(204);
-    const receipt = await api().get(`/api/v1/billing/payments/${pay.body.id}`).set(bearer(w.tokens.reception));
+    const receipt = await api()
+      .get(`/api/v1/billing/payments/${pay.body.id}`)
+      .set(bearer(w.tokens.reception));
     expect(receipt.body.lines).toHaveLength(1);
   });
 
@@ -300,7 +324,9 @@ describe('claims to the Health Insurance Fund', () => {
     expect(res.body.totalCents).toBeGreaterThan(0);
     claimId = res.body.id;
     reference = res.body.reference;
-    const detail = await api().get(`/api/v1/billing/claims/${claimId}`).set(bearer(w.tokens.director));
+    const detail = await api()
+      .get(`/api/v1/billing/claims/${claimId}`)
+      .set(bearer(w.tokens.director));
     expect(detail.body.lines.every((l: { insurerCents: number }) => l.insurerCents > 0)).toBe(true);
     // Charges in a claim are not claimed twice.
     const empty = await api()
@@ -308,12 +334,15 @@ describe('claims to the Health Insurance Fund', () => {
       .set(bearer(w.tokens.director))
       .send({ periodFrom: iso(day(-40)), periodTo: iso(day(0)) });
     expect(empty.status).toBe(400);
-    const submit = await api().post(`/api/v1/billing/claims/${claimId}/submit`).set(bearer(w.tokens.director));
+    const submit = await api()
+      .post(`/api/v1/billing/claims/${claimId}/submit`)
+      .set(bearer(w.tokens.director));
     expect(submit.body.status).toBe('SUBMITTED');
     const [claimed] = (await chargesOf(p.id)).filter((c) => c.claimId === claimId);
     expect(claimed!.status).toBe('CLAIMED');
     expect(
-      (await api().get(`/api/v1/billing/claims/${claimId}`).set(bearer(w.tokens.otherDirector))).status,
+      (await api().get(`/api/v1/billing/claims/${claimId}`).set(bearer(w.tokens.otherDirector)))
+        .status,
     ).toBe(404);
   });
 
@@ -332,7 +361,9 @@ describe('claims to the Health Insurance Fund', () => {
     const auth = { Authorization: `Bearer ${key}` };
     const list = await api().get('/api/v1/partner/claims').set(auth);
     expect(list.status).toBe(200);
-    expect(list.body.items.some((c: { reference: string }) => c.reference === reference)).toBe(true);
+    expect(list.body.items.some((c: { reference: string }) => c.reference === reference)).toBe(
+      true,
+    );
     const detail = await api().get(`/api/v1/partner/claims/${claimId}`).set(auth);
     expect(detail.status).toBe(200);
     expect(detail.body.lines[0]).toHaveProperty('nationalId');
@@ -347,7 +378,12 @@ describe('claims to the Health Insurance Fund', () => {
     const decision = await api()
       .post(`/api/v1/partner/claims/${claimId}/decision`)
       .set(auth)
-      .send({ status: 'PARTIALLY_PAID', paidCents: 100, rejectedLineIds: [lineId], note: 'Mungon dokumentacioni' });
+      .send({
+        status: 'PARTIALLY_PAID',
+        paidCents: 100,
+        rejectedLineIds: [lineId],
+        note: 'Mungon dokumentacioni',
+      });
     expect(decision.status).toBe(200);
     expect(decision.body.status).toBe('PARTIALLY_PAID');
     const [rejected] = await db.select().from(charges).where(eq(charges.id, lineId));
@@ -364,7 +400,11 @@ describe('claims to the Health Insurance Fund', () => {
       createdById: w.users.ministry.id,
     });
     expect(
-      (await api().get('/api/v1/partner/claims').set({ Authorization: `Bearer ${otherKey}` })).status,
+      (
+        await api()
+          .get('/api/v1/partner/claims')
+          .set({ Authorization: `Bearer ${otherKey}` })
+      ).status,
     ).toBe(403);
     expect(client).toBeDefined();
   });

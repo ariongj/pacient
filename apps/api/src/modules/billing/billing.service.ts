@@ -223,7 +223,9 @@ export async function priceFor(
 /** Next receipt number for a facility: <FACILITY CODE>-<YEAR>-<000001>, gap-free per year. */
 export async function nextReceiptNumber(executor: Executor, facilityId: string, now = new Date()) {
   const year = now.getUTCFullYear();
-  await executor.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`receipt:${facilityId}:${year}`}))`);
+  await executor.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext(${`receipt:${facilityId}:${year}`}))`,
+  );
   const result = await executor.execute<{ code: string; n: number }>(sql`
     SELECT f.code, (SELECT count(*)::int FROM payments p
       WHERE p.facility_id = f.id AND date_part('year', p.received_at) = ${year}) AS n

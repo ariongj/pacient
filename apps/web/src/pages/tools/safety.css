@@ -1,0 +1,56 @@
+/* Medication safety alerts (prescribing, pharmacy, interaction checker). */
+.safety-alerts {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.safety-alert {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.6rem 0.75rem;
+}
+.safety-alert p {
+  margin: 0.35rem 0 0;
+}
+.safety-contraindicated,
+.safety-major {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+.safety-moderate {
+  border-left-color: var(--warning);
+  background: var(--warning-soft);
+}
+.safety-minor {
+  border-left-color: var(--info);
+  background: var(--info-soft);
+}
+.stored-alerts summary {
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+.stored-alerts ul {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+}
+.checker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+.checker-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.3rem 0.2rem 0.7rem;
+  background: var(--surface-2);
+}

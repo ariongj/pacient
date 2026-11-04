@@ -101,8 +101,14 @@ function DeviceCheck({
     if (preview.current) preview.current.srcObject = stream;
   }, [stream]);
 
-  // Stop the preview if the user leaves without joining.
-  useEffect(() => () => undefined, []);
+  // Release the camera if the user leaves without joining (a joined stream belongs to the call).
+  const handedOver = useRef(false);
+  useEffect(
+    () => () => {
+      if (!handedOver.current) stopStream(streamRef.current);
+    },
+    [],
+  );
 
   const cameras = devices.filter((d) => d.kind === 'videoinput');
   const mics = devices.filter((d) => d.kind === 'audioinput');
@@ -170,7 +176,11 @@ function DeviceCheck({
           <Button
             disabled={!stream || !info.window.open}
             loading={joining}
-            onClick={() => stream && onJoin(stream)}
+            onClick={() => {
+              if (!stream) return;
+              handedOver.current = true;
+              onJoin(stream);
+            }}
           >
             {info.side === 'doctor' ? t('Start video visit') : t('Join video visit')}
           </Button>

@@ -226,6 +226,8 @@ export interface Appointment {
   id: string;
   /** STAFF or PORTAL (booked by the patient online). */
   bookedVia?: 'STAFF' | 'PORTAL';
+  /** IN_PERSON or VIDEO (telemedicine). */
+  mode?: 'IN_PERSON' | 'VIDEO';
   scheduledAt: string;
   durationMinutes: number;
   reason: string;

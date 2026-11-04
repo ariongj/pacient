@@ -291,3 +291,13 @@ patients and partners. The OpenAPI 3.1 document (`src/openapi`) is served at
   server in `apps/api/src/i18n/{sq,sr}-*.ts`; glossaries `GLOSSARY.md` / `GLOSSARY-sr.md`.
 - **PWA**: `apps/web/public/manifest.webmanifest` and `sw.js` (caches the app shell only, never
   `/api`).
+
+## Video visits
+
+`modules/telemedicine` (`/video`): VIDEO appointments open a room 15 minutes before the start;
+only the appointment's doctor and patient (or a guardian acting for a child) may join. Media flows
+peer-to-peer (WebRTC, DTLS-SRTP); the API only relays signalling (offer/answer/ICE candidates)
+and wakes the other side with a `video.signal` live event. Signalling messages are kept in memory
+in one API process – with several API instances, route `/api/v1/video` with sticky sessions or
+move the queue to a shared store. STUN from `WEBRTC_STUN_URLS`; TURN credentials (coturn REST
+style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.

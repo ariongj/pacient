@@ -1226,6 +1226,7 @@ Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Pharmacist : pharmacist@pacient.local  (QKUK)
   Reception  : reception@pacient.local   (QKUK)
   Radiology  : radiologist@pacient.local (Dr. Arben Krasniqi, Radiologji, QKUK)
+  Kitchen    : kuzhina@pacient.local     (Kuzhina qendrore, QKUK)
   Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)
 
 Laboratory simulator (development only):

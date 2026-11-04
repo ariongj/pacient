@@ -808,4 +808,5 @@ export const common: Record<string, string> = {
   'Notifiable diseases': 'Sëmundjet ngjitëse të lajmërueshme',
   'Disease surveillance': 'Mbikëqyrja e sëmundjeve',
   'Bills & payments': 'Faturat dhe pagesat',
+  'Hospital kitchen': 'Kuzhina e spitalit',
 };

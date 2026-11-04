@@ -145,6 +145,7 @@ choice is saved, and notifications, emails and SMS follow it. Sign in with any d
 | Pharmacist | `pharmacist@pacient.local`  |
 | Reception  | `reception@pacient.local`   |
 | Radiology  | `radiologist@pacient.local` |
+| Kitchen    | `kuzhina@pacient.local`     |
 | Patient    | `patient@pacient.local`     |
 
 All seed data is synthetic. **Never load real patient data into development or test environments.**

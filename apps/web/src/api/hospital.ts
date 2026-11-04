@@ -11,7 +11,9 @@ export type UnitType =
   | 'NEONATAL'
   | 'EMERGENCY'
   | 'RADIOLOGY'
-  | 'OPERATING_THEATRE';
+  | 'OPERATING_THEATRE'
+  | 'BLOOD_BANK'
+  | 'NUTRITION';
 export const WARD_TYPES: UnitType[] = [
   'GENERAL_WARD',
   'SURGICAL_WARD',
@@ -36,6 +38,8 @@ export const unitTypeLabel = (type: UnitType) =>
     EMERGENCY: t('Emergency department'),
     RADIOLOGY: t('Radiology'),
     OPERATING_THEATRE: t('Operating theatre'),
+    BLOOD_BANK: t('Blood bank'),
+    NUTRITION: t('Hospital kitchen'),
   })[type];
 export const bedStatusLabel = (s: BedStatus) =>
   ({

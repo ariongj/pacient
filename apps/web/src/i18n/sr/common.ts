@@ -793,4 +793,5 @@ export const common: Record<string, string> = {
   'Notifiable diseases': 'Zarazne bolesti za prijavu',
   'Disease surveillance': 'Nadzor nad bolestima',
   'Bills & payments': 'Računi i uplate',
+  'Hospital kitchen': 'Bolnička kuhinja',
 };

@@ -17,6 +17,7 @@ import {
   medicationCatalog,
   patients,
   prescriptions,
+  vitalSigns,
 } from '../../db/schema.js';
 import { formatDateFor, tr, type Locale, type TrVars } from '../../i18n/index.js';
 import {
@@ -34,6 +35,7 @@ import {
   SYNONYMS,
   type Severity,
 } from './knowledge.js';
+import { doseRuleIndex, evaluateDose, type DoseSummary, type StructuredDose } from './dosing.js';
 
 export type AlertKind =
   'INTERACTION' | 'ALLERGY' | 'DUPLICATE' | 'DOSE' | 'RENAL' | 'PREGNANCY' | 'AGE';
@@ -162,6 +164,10 @@ export interface PatientSafetyContext {
   medications: ContextMedication[];
   kidney: { egfr: number; source: 'EGFR' | 'CREATININE'; at: Date } | null;
   pregnant: boolean;
+  /** Age in days (neonatal dosing) and the latest recorded weight (per-kg dosing). */
+  ageDays?: number | null;
+  weightKg?: number | null;
+  weightAt?: Date | null;
 }
 
 export function ageInYears(dob: string, now = new Date()): number {
@@ -205,7 +211,7 @@ export async function loadContexts(
   const since30 = new Date(now.getTime() - 30 * 86_400_000);
   const since365 = new Date(now.getTime() - 365 * 86_400_000);
 
-  const [people, allergyRows, medRows, labRows, pregnancyRows] = await Promise.all([
+  const [people, allergyRows, medRows, labRows, pregnancyRows, weightRows] = await Promise.all([
     executor
       .select({ id: patients.id, dob: patients.dateOfBirth, sex: patients.sex })
       .from(patients)
@@ -270,7 +276,17 @@ export async function loadContexts(
           sql`(${diagnoses.icd10Code} ~ '^O[0-9]' OR ${diagnoses.icd10Code} ~ '^Z3[345]')`,
         ),
       ),
+    executor
+      .selectDistinctOn([vitalSigns.patientId], {
+        patientId: vitalSigns.patientId,
+        weightKg: vitalSigns.weightKg,
+        recordedAt: vitalSigns.recordedAt,
+      })
+      .from(vitalSigns)
+      .where(and(inArray(vitalSigns.patientId, ids), sql`${vitalSigns.weightKg} IS NOT NULL`))
+      .orderBy(vitalSigns.patientId, desc(vitalSigns.recordedAt)),
   ]);
+  const weights = new Map(weightRows.map((w) => [w.patientId, w]));
 
   const pregnant = new Set(pregnancyRows.map((r) => r.patientId));
   for (const p of people) {
@@ -311,9 +327,23 @@ export async function loadContexts(
         })),
       kidney,
       pregnant: pregnant.has(p.id) && p.sex === 'FEMALE' && age !== null && age >= 12 && age <= 55,
+      ageDays: p.dob
+        ? Math.floor((now.getTime() - new Date(`${p.dob}T00:00:00Z`).getTime()) / 86_400_000)
+        : null,
+      weightKg: weights.get(p.id)?.weightKg ? Number(weights.get(p.id)!.weightKg) : null,
+      weightAt: weights.get(p.id)?.recordedAt ?? null,
     });
   }
   return out;
+}
+
+export interface Candidate {
+  medication: string;
+  ingredients: string[];
+  atc: string | null;
+  /** Catalogue strength and form ("500 mg", "tablet") for converting countable doses to mg. */
+  strength?: string | null;
+  form?: string | null;
 }
 
 /** Resolves a candidate (catalogue item or free text) to ingredients and ATC code. */
@@ -321,13 +351,15 @@ export async function resolveCandidate(
   medication: string,
   catalogItemId?: string | null,
   executor: Executor = db,
-): Promise<{ medication: string; ingredients: string[]; atc: string | null }> {
+): Promise<Candidate> {
   if (catalogItemId) {
     const [item] = await executor
       .select({
         name: medicationCatalog.name,
         ingredients: medicationCatalog.ingredients,
         atc: medicationCatalog.atcCode,
+        strength: medicationCatalog.strength,
+        form: medicationCatalog.form,
       })
       .from(medicationCatalog)
       .where(eq(medicationCatalog.id, catalogItemId));
@@ -339,6 +371,8 @@ export async function resolveCandidate(
           ? item.ingredients
           : ingredientsFromText(item.name, index.names),
         atc: item.atc ?? null,
+        strength: item.strength ?? null,
+        form: item.form ?? null,
       };
     }
   }
@@ -628,31 +662,70 @@ export function evaluate(
   );
 }
 
+const bySeverity = (x: EngineAlert, y: EngineAlert) =>
+  SEVERITY_ORDER.indexOf(x.severity) - SEVERITY_ORDER.indexOf(y.severity);
+
+/**
+ * Full check for one patient: load, resolve and evaluate – plus the dose-range check when a
+ * structured dose is given. `checkMedication` returns only the alerts.
+ */
+export async function checkMedicationDetailed(
+  patientId: string,
+  medication: string,
+  catalogItemId?: string | null,
+  opts: { excludePrescriptionIds?: string[]; executor?: Executor; dose?: StructuredDose | null } = {},
+): Promise<{
+  alerts: EngineAlert[];
+  candidate: Candidate;
+  context: PatientSafetyContext | null;
+  dose: DoseSummary | null;
+}> {
+  const executor = opts.executor ?? db;
+  const [contexts, candidate, index, rules] = await Promise.all([
+    loadContexts([patientId], { excludePrescriptionIds: opts.excludePrescriptionIds, executor }),
+    resolveCandidate(medication, catalogItemId, executor),
+    interactionIndex(executor),
+    opts.dose ? doseRuleIndex(executor) : Promise.resolve(null),
+  ]);
+  const ctx = contexts.get(patientId) ?? null;
+  if (!ctx) return { alerts: [], candidate, context: null, dose: null };
+  const alerts = evaluate(ctx, candidate, index.pairs);
+  let dose: DoseSummary | null = null;
+  if (opts.dose && rules) {
+    const result = evaluateDose(ctx, candidate, opts.dose, rules);
+    dose = result.summary;
+    alerts.push(...result.alerts);
+    alerts.sort(bySeverity);
+  }
+  return { alerts, candidate, context: ctx, dose };
+}
+
 /** Convenience: load, resolve and evaluate for one patient. */
 export async function checkMedication(
   patientId: string,
   medication: string,
   catalogItemId?: string | null,
-  opts: { excludePrescriptionIds?: string[]; executor?: Executor } = {},
+  opts: { excludePrescriptionIds?: string[]; executor?: Executor; dose?: StructuredDose | null } = {},
 ): Promise<EngineAlert[]> {
-  const executor = opts.executor ?? db;
-  const [contexts, candidate, index] = await Promise.all([
-    loadContexts([patientId], { excludePrescriptionIds: opts.excludePrescriptionIds, executor }),
-    resolveCandidate(medication, catalogItemId, executor),
-    interactionIndex(executor),
-  ]);
-  const ctx = contexts.get(patientId);
-  if (!ctx) return [];
-  return evaluate(ctx, candidate, index.pairs);
+  return (await checkMedicationDetailed(patientId, medication, catalogItemId, opts)).alerts;
 }
 
 /* ------------------------------------------------------------------ translation ------------- */
+
+/** Quantities such as "2.5 mg" use a decimal comma in Albanian and Serbian. */
+const QUANTITY_RE = /^\d+\.\d+(?: [A-Za-zµ/%]+)?$/;
 
 function translatedVars(locale: Locale, a: { vars: TrVars; translateVars?: string[] }): TrVars {
   const vars: TrVars = { ...a.vars };
   for (const k of a.translateVars ?? []) {
     const v = vars[k];
     if (typeof v === 'string') vars[k] = tr(locale, v);
+  }
+  if (locale !== 'en') {
+    for (const [k, v] of Object.entries(vars)) {
+      if (typeof v === 'string' && QUANTITY_RE.test(v)) vars[k] = v.replace('.', ',');
+      else if (typeof v === 'number' && !Number.isInteger(v)) vars[k] = String(v).replace('.', ',');
+    }
   }
   for (const [k, v] of Object.entries(vars)) {
     if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) vars[k] = new Date(v);

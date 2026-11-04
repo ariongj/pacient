@@ -1,5 +1,6 @@
 import { t } from '../../i18n';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CONSENT_LABELS,
   DECISION_LABELS,
@@ -10,6 +11,14 @@ import {
   type ConsentText,
   type CurrentConsent,
 } from '../../api/consent';
+import {
+  KIND_LABELS,
+  STATUS_LABELS,
+  statusTone,
+  useCreateMyRequest,
+  useMyRequests,
+  type RequestKind,
+} from '../../api/privacy';
 import { useAuth, useUser } from '../../auth/AuthContext';
 import {
   Alert,
@@ -21,6 +30,9 @@ import {
   ErrorAlert,
   PageHeader,
   QueryView,
+  SelectField,
+  TextAreaField,
+  formValues,
 } from '../../components/ui';
 import { formatDate, formatDateTime } from '../../format';
 
@@ -132,6 +144,8 @@ export function PortalConsents() {
                   </ul>
                 )}
               </Card>
+
+              <DataRightsCard forChild={Boolean(acting)} />
             </div>
           )}
         </QueryView>
@@ -232,6 +246,143 @@ function ConsentCard({
           </div>
         </div>
       </Dialog>
+    </Card>
+  );
+}
+
+const REQUESTABLE: RequestKind[] = ['RESTRICTION', 'OBJECTION', 'ERASURE'];
+
+/** Rights under the data protection law; the copy and correction rights reuse existing tools. */
+function DataRightsCard({ forChild }: { forChild: boolean }) {
+  const q = useMyRequests();
+  const [kind, setKind] = useState<RequestKind | null>(null);
+  const create = useCreateMyRequest(() => setKind(null));
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const v = formValues(e.currentTarget);
+    create.mutate({ kind: v.kind as RequestKind, details: v.details || undefined });
+  };
+
+  return (
+    <Card title={forChild ? t('Your child’s data rights') : t('Your data rights')}>
+      <p className="muted">
+        {t(
+          'Under the Law on Protection of Personal Data you can get a copy of your data, have it corrected, restrict or object to its use, and ask for erasure. We answer within 30 days.',
+        )}
+      </p>
+      <ul className="list">
+        <li className="row-between">
+          <span>
+            <strong>{t('Get a copy of my data')}</strong>
+            <span className="muted" style={{ display: 'block' }}>
+              {t('Download your record, also in the FHIR format other systems can read.')}
+            </span>
+          </span>
+          <Link className="btn btn-secondary btn-sm" to="/portal/account">
+            {t('Download')}
+          </Link>
+        </li>
+        <li className="row-between">
+          <span>
+            <strong>{t('Correct my data')}</strong>
+            <span className="muted" style={{ display: 'block' }}>
+              {t('Ask for a mistake in your record to be corrected.')}
+            </span>
+          </span>
+          <Link className="btn btn-secondary btn-sm" to="/portal/account">
+            {t('Request a correction')}
+          </Link>
+        </li>
+        {REQUESTABLE.map((k) => (
+          <li key={k} className="row-between">
+            <span>
+              <strong>{KIND_LABELS[k]}</strong>
+              <span className="muted" style={{ display: 'block' }}>
+                {k === 'RESTRICTION'
+                  ? t('Ask us to limit how your data is used while a question is resolved.')
+                  : k === 'OBJECTION'
+                    ? t('Object to a use of your data, for example reminders or research.')
+                    : t('Ask for data to be erased.')}
+              </span>
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => setKind(k)}>
+              {t('Make a request')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+
+      <QueryView query={q}>
+        {(d) =>
+          d.items.length === 0 ? null : (
+            <>
+              <h3>{t('Your requests')}</h3>
+              <ul className="list">
+                {d.items.map((r) => (
+                  <li key={r.id}>
+                    <span className="row-between">
+                      <strong>{KIND_LABELS[r.kind]}</strong>
+                      <Badge tone={statusTone(r.status, r.overdue)}>
+                        {STATUS_LABELS[r.status]}
+                      </Badge>
+                    </span>
+                    <span className="muted" style={{ display: 'block' }}>
+                      {t('Sent {date} · answer due by {due}', {
+                        date: formatDate(r.receivedAt),
+                        due: formatDate(r.dueAt),
+                      })}
+                    </span>
+                    {r.outcome && <p>{r.outcome}</p>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        }
+      </QueryView>
+
+      <Dialog
+        open={kind !== null}
+        onClose={() => setKind(null)}
+        title={t('Data protection request')}
+      >
+        {kind && (
+          <form className="stack" onSubmit={submit}>
+            <SelectField
+              label={t('Type of request')}
+              name="kind"
+              defaultValue={kind}
+              options={REQUESTABLE.map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+            />
+            {kind === 'ERASURE' && (
+              <Alert tone="warning">
+                {t(
+                  'Health records must be kept for the period the law requires, so they cannot be erased during that time. We can erase other data, such as delivery logs, and you can add a statement to your record.',
+                )}
+              </Alert>
+            )}
+            <TextAreaField
+              label={t('Describe your request')}
+              name="details"
+              required
+              maxLength={2000}
+              hint={t('Please do not include health details.')}
+            />
+            <ErrorAlert error={create.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={() => setKind(null)}>
+                {t('Cancel')}
+              </Button>
+              <Button type="submit" loading={create.isPending}>
+                {t('Send request')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+      {create.isSuccess && (
+        <Alert tone="success" title={t('Your request was sent. We will answer within 30 days.')} />
+      )}
     </Card>
   );
 }

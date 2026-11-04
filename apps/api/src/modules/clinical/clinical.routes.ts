@@ -29,12 +29,13 @@ import {
   vitalSigns,
   medicationCatalog,
 } from '../../db/schema.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { PaginationSchema } from '../../lib/pagination.js';
 import { authenticate } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
+  assertDemographicsAccess,
   hasActiveCareAssignment,
   WRITERS,
   resolveClinicalReadAccess,
@@ -54,7 +55,22 @@ import {
   localeOf as safetyLocaleOf,
   recordPrescriptionAlerts,
 } from '../safety/safety.service.js';
-import { toPublicAlert } from '../safety/engine.js';
+import { loadContexts, toPublicAlert } from '../safety/engine.js';
+import {
+  doseText,
+  DOSE_UNITS,
+  FREQUENCY_CODES,
+  routeCode,
+  type StructuredDose,
+} from '../safety/dosing.js';
+import {
+  loadAdministrablePrescription,
+  runChecks,
+  unitCompliance,
+  currentStay,
+  wristbandData,
+  type CheckResult,
+} from '../bcma/bcma.service.js';
 
 const PatientParam = z.object({ patientId: z.string().uuid() });
 const EntryParams = PatientParam.extend({ entryId: z.string().uuid() });
@@ -103,9 +119,17 @@ const PrescriptionInput = z
     medication: z.string().trim().min(2).max(200),
     /** Optional national catalogue item (lets the pharmacy track stock for it). */
     catalogItemId: z.string().uuid().optional().nullable(),
-    dosage: z.string().trim().min(1).max(100),
-    frequency: z.string().trim().min(1).max(100),
+    /** Free text (legacy); generated from the structured dose when that is given. */
+    dosage: z.string().trim().min(1).max(100).optional(),
+    frequency: z.string().trim().min(1).max(100).optional(),
     route: z.string().trim().min(1).max(50).default('oral'),
+    /** Structured dose (enables dose-range checks). */
+    doseAmount: z.coerce.number().positive().max(1_000_000).optional().nullable(),
+    doseUnit: z.enum(DOSE_UNITS).optional().nullable(),
+    frequencyCode: z.enum(FREQUENCY_CODES).optional().nullable(),
+    maxDosesPer24h: z.coerce.number().int().min(1).max(24).optional().nullable(),
+    durationDays: z.coerce.number().int().min(1).max(3650).optional().nullable(),
+    asNeeded: z.boolean().optional(),
     instructions: z.string().trim().max(2000).optional().nullable(),
     startDate: z.string().date(),
     endDate: z.string().date().optional().nullable(),
@@ -123,6 +147,14 @@ const PrescriptionInput = z
   .refine((p) => !p.endDate || p.endDate >= p.startDate, {
     message: 'End date must be on or after start date',
     path: ['endDate'],
+  })
+  .refine((p) => (p.doseAmount ? p.doseUnit && p.frequencyCode : p.dosage && p.frequency), {
+    message: 'Give the dose amount, unit and frequency (or a dosage and frequency text)',
+    path: ['doseAmount'],
+  })
+  .refine((p) => p.frequencyCode !== 'PRN' || Boolean(p.maxDosesPer24h), {
+    message: 'Give the maximum number of doses in 24 hours for an as-needed prescription',
+    path: ['maxDosesPer24h'],
   });
 const PrescriptionPatch = z.object({ status: z.enum(prescriptionStatusEnum.enumValues) });
 
@@ -534,6 +566,15 @@ clinicalRouter.patch('/diagnoses/:entryId', async (req, res) => {
   res.json(row);
 });
 
+/** Dosage and frequency text for a structured dose, in the prescriber's language. */
+async function structuredDoseText(userId: string, patientId: string, dose: StructuredDose) {
+  const [locale, contexts] = await Promise.all([
+    safetyLocaleOf(userId),
+    dose.doseUnit === 'mg/kg' ? loadContexts([patientId]) : Promise.resolve(null),
+  ]);
+  return doseText(locale, dose, contexts?.get(patientId)?.weightKg ?? null);
+}
+
 clinicalRouter.post('/prescriptions', async (req, res) => {
   const { ctx, patientId } = await writeContext(req);
   const input = parse(PrescriptionInput, req.body);
@@ -548,17 +589,69 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
     if (!item) throw badRequest('Unknown medication catalogue item');
   }
   // Medication safety: blocking alerts need an override reason (409 SAFETY_ALERTS otherwise).
-  const { overrides, ...rxInput } = input;
+  const {
+    overrides,
+    doseAmount,
+    doseUnit,
+    frequencyCode,
+    maxDosesPer24h,
+    durationDays,
+    asNeeded,
+    ...rxInput
+  } = input;
+  const dose: StructuredDose | null =
+    doseAmount && doseUnit && frequencyCode
+      ? {
+          doseAmount,
+          doseUnit,
+          frequencyCode,
+          maxDosesPer24h,
+          durationDays,
+          asNeeded: asNeeded || frequencyCode === 'PRN',
+          route: rxInput.route,
+        }
+      : null;
   const safetyAlerts = await checkBeforePrescribing(ctx, {
     patientId,
     medication: rxInput.medication,
     catalogItemId: rxInput.catalogItemId,
     overrides,
+    dose,
   });
+  // Structured doses generate the free text in the prescriber's language ("500 mg", "three
+  // times a day, for 5 days"); the duration sets the end date when none is given.
+  const structured = dose
+    ? {
+        ...(await structuredDoseText(ctx.userId, patientId, dose)),
+        route: routeCode(rxInput.route),
+        doseAmount: String(dose.doseAmount),
+        doseUnit: dose.doseUnit,
+        frequencyCode: dose.frequencyCode,
+        durationDays: dose.durationDays ?? null,
+        asNeeded: Boolean(dose.asNeeded),
+        endDate:
+          rxInput.endDate ??
+          (dose.durationDays
+            ? new Date(
+                new Date(`${rxInput.startDate}T00:00:00Z`).getTime() +
+                  (dose.durationDays - 1) * 86_400_000,
+              )
+                .toISOString()
+                .slice(0, 10)
+            : null),
+      }
+    : null;
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(prescriptions)
-      .values({ ...rxInput, patientId, doctorId: ctx.userId })
+      .values({
+        ...rxInput,
+        dosage: rxInput.dosage ?? '',
+        frequency: rxInput.frequency ?? '',
+        ...structured,
+        patientId,
+        doctorId: ctx.userId,
+      })
       .returning();
     await auditChange(req, ctx, patientId, 'prescription', created!.id, tx);
     await recordPrescriptionAlerts(tx, {
@@ -781,34 +874,113 @@ const AdministrationInput = z
         (d) => !d || new Date(d) <= new Date(Date.now() + 5 * 60_000),
         'Cannot be in the future',
       ),
+    /** Barcode-checked administration: what the nurse scanned at the bedside. */
+    patientScanned: z.boolean().optional().default(false),
+    medicationScanned: z.boolean().optional().default(false),
+    scanToken: z.string().trim().max(512).optional().nullable(),
+    barcode: z.string().trim().max(120).optional().nullable(),
+    scanOverrideReason: z.string().trim().max(300).optional().nullable(),
   })
   .refine((v) => v.status === 'GIVEN' || (v.reason && v.reason.length >= 3), {
     message: 'A reason is required when a dose is withheld, refused or omitted',
     path: ['reason'],
+  })
+  .refine((v) => !v.patientScanned || v.scanToken, {
+    message: 'A scanned wristband must include the scanned code',
+    path: ['scanToken'],
+  })
+  .refine((v) => !v.medicationScanned || v.barcode, {
+    message: 'A scanned pack must include the scanned barcode',
+    path: ['barcode'],
   });
+
+const MIN_SCAN_OVERRIDE = 10;
+
+const ScanCheckInput = z.object({
+  prescriptionId: z.string().uuid(),
+  patientToken: z.string().trim().max(512).optional().nullable(),
+  medicationBarcode: z.string().trim().max(120).optional().nullable(),
+});
+
+/** Problems that a reason cannot override (wrong patient, wrong medicine) stop the dose. */
+function stopProblems(checks: CheckResult) {
+  return checks.problems.filter((p) => !p.overridable);
+}
 
 /**
  * Each dose is recorded explicitly – given, withheld, refused or omitted – by the clinician at the
  * bedside, and only against a prescription the pharmacy has verified. Entries are append-only.
+ *
+ * A dose recorded as GIVEN is barcode-checked: the wristband and the pack are scanned and checked
+ * again here. Whatever was not scanned, and every warning (not due, already given, allergy …),
+ * needs a written reason, which is audited. A wrong patient or wrong medicine is never accepted.
  */
 clinicalRouter.post('/medication-administrations', async (req, res) => {
   const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
   const input = parse(AdministrationInput, req.body);
-  const [rx] = await db
-    .select()
-    .from(prescriptions)
-    .where(and(eq(prescriptions.id, input.prescriptionId), eq(prescriptions.patientId, patientId)));
-  if (!rx) throw notFound('Prescription not found for this patient');
-  if (rx.status !== 'ACTIVE') throw conflict('The prescription is not active');
-  if (rx.pharmacyStatus !== 'VERIFIED' && rx.pharmacyStatus !== 'DISPENSED') {
-    throw conflict('The prescription has not been verified by the pharmacy yet');
+  const {
+    scanToken,
+    barcode,
+    patientScanned: claimedPatient,
+    medicationScanned: claimedMedication,
+    scanOverrideReason,
+    ...entry
+  } = input;
+  const rx = await loadAdministrablePrescription(patientId, entry.prescriptionId);
+  const given = entry.status === 'GIVEN';
+  const checks =
+    given || scanToken || barcode
+      ? await runChecks(
+          patientId,
+          { prescriptionId: rx.id, patientToken: scanToken, medicationBarcode: barcode },
+          await safetyLocaleOf(ctx.userId),
+          { rx, checkTiming: given },
+        )
+      : null;
+  const stops = checks ? stopProblems(checks) : [];
+  if (stops.length) {
+    await audit({
+      action: AuditAction.BARCODE_OVERRIDE,
+      actor: ctx,
+      resourceType: 'prescription',
+      resourceId: rx.id,
+      patientId,
+      outcome: 'DENIED',
+      meta: requestMeta(req),
+      metadata: { refused: stops.map((p) => p.code) },
+    });
+    throw new HttpError(409, 'BCMA_STOP', stops[0]!.message, { problems: stops });
+  }
+  const patientScanned = Boolean(checks?.patientConfirmed);
+  const medicationScanned = Boolean(checks?.medicationConfirmed);
+  if (claimedPatient && !patientScanned) {
+    throw badRequest('The wristband scan could not be confirmed');
+  }
+  if (claimedMedication && !medicationScanned) {
+    throw badRequest('The medicine pack scan could not be confirmed');
+  }
+  const warnings = given ? (checks?.problems ?? []) : [];
+  const needsOverride = given && (!patientScanned || !medicationScanned || warnings.length > 0);
+  if (needsOverride && (!scanOverrideReason || scanOverrideReason.length < MIN_SCAN_OVERRIDE)) {
+    throw badRequest(
+      `A reason of at least ${MIN_SCAN_OVERRIDE} characters is required to give a dose without both scans or despite a warning`,
+      {
+        field: 'scanOverrideReason',
+        patientScanned,
+        medicationScanned,
+        problems: warnings,
+      },
+    );
   }
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(medicationAdministrations)
       .values({
-        ...input,
-        administeredAt: input.administeredAt ? new Date(input.administeredAt) : new Date(),
+        ...entry,
+        patientScanned,
+        medicationScanned,
+        scanOverrideReason: needsOverride ? scanOverrideReason : null,
+        administeredAt: entry.administeredAt ? new Date(entry.administeredAt) : new Date(),
         patientId,
         administeredById: ctx.userId,
       })
@@ -822,12 +994,92 @@ clinicalRouter.post('/medication-administrations', async (req, res) => {
       tx,
       AuditAction.MEDICATION_ADMINISTERED,
       {
-        status: input.status,
+        status: entry.status,
+        patientScanned,
+        medicationScanned,
       },
     );
+    if (needsOverride) {
+      await auditChange(
+        req,
+        ctx,
+        patientId,
+        'medication_administration',
+        created!.id,
+        tx,
+        AuditAction.BARCODE_OVERRIDE,
+        {
+          prescriptionId: rx.id,
+          patientScanned,
+          medicationScanned,
+          problems: warnings.map((p) => p.code),
+          reason: scanOverrideReason,
+        },
+      );
+    }
     return created!;
   });
   res.status(201).json(row);
+});
+
+/** Bedside check before giving: wristband + pack + timing + allergy, without recording anything. */
+clinicalRouter.post('/bcma/verify', async (req, res) => {
+  const { ctx, patientId } = await writeContext(req, WRITERS.careTeam);
+  const input = parse(ScanCheckInput, req.body);
+  const checks = await runChecks(
+    patientId,
+    {
+      prescriptionId: input.prescriptionId,
+      patientToken: input.patientToken,
+      medicationBarcode: input.medicationBarcode,
+    },
+    await safetyLocaleOf(ctx.userId),
+  );
+  res.json(checks);
+});
+
+/** Scanning compliance of the ward the patient is on (aggregate; no other patient's data). */
+clinicalRouter.get('/bcma/compliance', async (req, res) => {
+  const ctx = requireAuth(req);
+  const { patientId } = parse(PatientParam, req.params);
+  const { days } = parse(
+    z.object({ days: z.coerce.number().int().min(1).max(90).default(7) }),
+    req.query,
+  );
+  if (!['NURSE', 'DOCTOR', 'DIRECTOR'].includes(ctx.role)) throw forbidden();
+  await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const stay = await currentStay(patientId);
+  if (!stay) {
+    res.json({ unit: null, compliance: null });
+    return;
+  }
+  res.json({
+    unit: { id: stay.unitId, name: stay.unit },
+    compliance: await unitCompliance(stay.unitId, days),
+  });
+});
+
+/**
+ * Prints (issues) a wristband: a signed code carrying only the patient's identity, plus the data
+ * printed on the band. Allowed for reception, nurses and doctors who may see the demographics of
+ * a patient who is admitted or in the emergency department.
+ */
+clinicalRouter.post('/wristband', async (req, res) => {
+  const ctx = requireAuth(req);
+  const { patientId } = parse(PatientParam, req.params);
+  if (!['NURSE', 'RECEPTION', 'DOCTOR'].includes(ctx.role)) throw forbidden();
+  await assertDemographicsAccess(ctx, patientId);
+  const band = await wristbandData(patientId);
+  await audit({
+    action: AuditAction.WRISTBAND_PRINTED,
+    actor: ctx,
+    resourceType: 'patient',
+    resourceId: patientId,
+    patientId,
+    meta: requestMeta(req),
+    metadata: { stay: band.stay.kind, issuedAt: band.issuedAt },
+  });
+  res.status(201).json(band);
 });
 
 /** After the pharmacy returns a prescription, the prescriber can correct the plan and resubmit. */

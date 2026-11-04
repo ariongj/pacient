@@ -6,6 +6,7 @@ import {
   beds,
   careUnits,
   earlyWarningScores,
+  patients,
   unitStaff,
   users,
   vitalSigns,
@@ -23,6 +24,10 @@ import {
   type News2Risk,
   type Spo2Scale,
 } from './news2.js';
+import { ageInMonths, scorePews, type PewsResult } from './pews.js';
+
+/** NEWS2 for adults, PEWS for children under 18 at the time of the observation. */
+export type EarlyWarningScale = 'NEWS2' | 'PEWS';
 
 /** How far back the worker looks for unscored vital signs. */
 const SCAN_WINDOW_DAYS = 7;
@@ -31,20 +36,36 @@ export const REESCALATE_AFTER_MS = 60 * 60_000;
 
 type ScoreRow = typeof earlyWarningScores.$inferSelect;
 
-/** SpO2 scale in use for a patient: carried forward on the latest score (default scale 1). */
+/** SpO2 scale in use for a patient: carried forward on the latest NEWS2 score (default scale 1). */
 export async function spo2ScaleFor(patientId: string, executor: Executor = db): Promise<Spo2Scale> {
   const [latest] = await executor
     .select({ components: earlyWarningScores.components })
     .from(earlyWarningScores)
-    .where(eq(earlyWarningScores.patientId, patientId))
+    .where(and(eq(earlyWarningScores.patientId, patientId), eq(earlyWarningScores.scale, 'NEWS2')))
     .orderBy(desc(earlyWarningScores.computedAt))
     .limit(1);
   return (latest?.components as { spo2Scale?: number } | undefined)?.spo2Scale === 2 ? 2 : 1;
 }
 
-export function componentsOf(result: News2Result, extra: Record<string, unknown> = {}) {
+export function componentsOf(
+  result: News2Result | PewsResult,
+  extra: Record<string, unknown> = {},
+) {
+  if ('ageBand' in result) {
+    return {
+      ...result.points,
+      scale: 'PEWS',
+      singleThree: result.singleThree,
+      missing: result.missing,
+      ageBand: result.ageBand,
+      ageMonths: result.ageMonths,
+      notRecorded: result.notRecorded,
+      ...extra,
+    };
+  }
   return {
     ...result.points,
+    scale: 'NEWS2',
     singleThree: result.singleThree,
     missing: result.missing,
     spo2Scale: result.spo2Scale,
@@ -52,19 +73,34 @@ export function componentsOf(result: News2Result, extra: Record<string, unknown>
   };
 }
 
-function resultFor(v: typeof vitalSigns.$inferSelect, scale: Spo2Scale) {
-  return scoreNews2(
-    {
-      respiratoryRate: v.respiratoryRate,
-      oxygenSaturation: v.oxygenSaturation,
-      onSupplementalOxygen: v.onSupplementalOxygen,
-      systolic: v.systolic,
-      heartRate: v.heartRate,
-      consciousness: v.consciousness,
-      temperatureC: v.temperatureC,
-    },
-    scale,
-  );
+/** Pregnancy keeps NEWS2: a maternity score (MEWS) is out of scope. */
+function resultFor(
+  v: typeof vitalSigns.$inferSelect,
+  scale: Spo2Scale,
+  dateOfBirth: string | null,
+): { scale: EarlyWarningScale; result: News2Result | PewsResult } {
+  const input = {
+    respiratoryRate: v.respiratoryRate,
+    oxygenSaturation: v.oxygenSaturation,
+    onSupplementalOxygen: v.onSupplementalOxygen,
+    systolic: v.systolic,
+    heartRate: v.heartRate,
+    consciousness: v.consciousness,
+    temperatureC: v.temperatureC,
+  };
+  if (dateOfBirth) {
+    const months = ageInMonths(dateOfBirth, v.recordedAt);
+    if (months < 18 * 12) return { scale: 'PEWS', result: scorePews(input, months) };
+  }
+  return { scale: 'NEWS2', result: scoreNews2(input, scale) };
+}
+
+async function dateOfBirthOf(patientId: string) {
+  const [p] = await db
+    .select({ dateOfBirth: patients.dateOfBirth })
+    .from(patients)
+    .where(eq(patients.id, patientId));
+  return p?.dateOfBirth ?? null;
 }
 
 /**
@@ -75,8 +111,8 @@ function resultFor(v: typeof vitalSigns.$inferSelect, scale: Spo2Scale) {
 export async function scoreVitalSign(vitalSignId: string, now = new Date()) {
   const [v] = await db.select().from(vitalSigns).where(eq(vitalSigns.id, vitalSignId));
   if (!v || !hasNewsParameters(v)) return null;
-  const scale = await spo2ScaleFor(v.patientId);
-  const result = resultFor(v, scale);
+  const spo2 = await spo2ScaleFor(v.patientId);
+  const { scale, result } = resultFor(v, spo2, await dateOfBirthOf(v.patientId));
   const [admission] = await db
     .select({ id: admissions.id })
     .from(admissions)
@@ -88,6 +124,7 @@ export async function scoreVitalSign(vitalSignId: string, now = new Date()) {
       patientId: v.patientId,
       vitalSignId: v.id,
       admissionId: admission?.id ?? null,
+      scale,
       score: result.score,
       risk: result.risk,
       components: componentsOf(result),
@@ -181,6 +218,21 @@ export async function recipientsFor(risk: News2Risk, c: EscalationContext): Prom
   return [];
 }
 
+const PEWS_TITLES: Record<Exclude<News2Risk, 'LOW'>, { bed: string; noBed: string }> = {
+  LOW_MEDIUM: {
+    bed: 'PEWS: one observation scored 3 – {unit}, bed {bed}',
+    noBed: 'PEWS: one observation scored 3 – {unit}',
+  },
+  MEDIUM: {
+    bed: 'PEWS {score}: urgent review needed – {unit}, bed {bed}',
+    noBed: 'PEWS {score}: urgent review needed – {unit}',
+  },
+  HIGH: {
+    bed: 'PEWS {score}: emergency assessment – {unit}, bed {bed}',
+    noBed: 'PEWS {score}: emergency assessment – {unit}',
+  },
+};
+
 const TITLES: Record<Exclude<News2Risk, 'LOW'>, { bed: string; noBed: string }> = {
   LOW_MEDIUM: {
     bed: 'NEWS2: one observation scored 3 – {unit}, bed {bed}',
@@ -205,7 +257,8 @@ async function sendEscalation(score: ScoreRow, c: EscalationContext, kind: 'init
   const risk = score.risk as Exclude<News2Risk, 'LOW'>;
   const recipients = [...new Set(await recipientsFor(risk, c))];
   if (!recipients.length) return 0;
-  const template = c.bedLabel ? TITLES[risk].bed : TITLES[risk].noBed;
+  const titles = score.scale === 'PEWS' ? PEWS_TITLES : TITLES;
+  const template = c.bedLabel ? titles[risk].bed : titles[risk].noBed;
   await notifyUsers(recipients, {
     type: 'news.escalation',
     title: template,
@@ -221,7 +274,7 @@ async function sendEscalation(score: ScoreRow, c: EscalationContext, kind: 'init
     resourceType: 'early_warning_score',
     resourceId: score.id,
     patientId: c.patientId,
-    metadata: { score: score.score, risk, kind, recipients: recipients.length },
+    metadata: { scale: score.scale, score: score.score, risk, kind, recipients: recipients.length },
   });
   return recipients.length;
 }
@@ -338,9 +391,22 @@ export async function setSpo2Scale(patientId: string, scale: Spo2Scale, setById:
     .orderBy(desc(earlyWarningScores.computedAt))
     .limit(1);
   if (!latest) return null;
+  // The SpO2 scale is a NEWS2 concept; children are scored with PEWS.
+  if (latest.scale === 'PEWS') return latest;
   const [v] = await db.select().from(vitalSigns).where(eq(vitalSigns.id, latest.vitalSignId));
   if (!v) return null;
-  const result = resultFor(v, scale);
+  const result = scoreNews2(
+    {
+      respiratoryRate: v.respiratoryRate,
+      oxygenSaturation: v.oxygenSaturation,
+      onSupplementalOxygen: v.onSupplementalOxygen,
+      systolic: v.systolic,
+      heartRate: v.heartRate,
+      consciousness: v.consciousness,
+      temperatureC: v.temperatureC,
+    },
+    scale,
+  );
   const [updated] = await db
     .update(earlyWarningScores)
     .set({

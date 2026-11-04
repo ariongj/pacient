@@ -7,6 +7,7 @@ import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { toLocale, type Locale } from '../../i18n/index.js';
 import { resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import type { StructuredDose } from './dosing.js';
 import {
   checkMedication,
   renderEnglish,
@@ -48,7 +49,8 @@ export interface Override {
 }
 
 /**
- * Runs the engine for a new prescription. Blocking alerts (contraindicated or major) need an
+ * Runs the engine for a new prescription (including dose-range checks when the dose is
+ * structured). Blocking alerts (contraindicated or major) need an
  * override with a reason; otherwise 409 SAFETY_ALERTS with the alerts in the prescriber's language.
  */
 export async function checkBeforePrescribing(
@@ -58,9 +60,13 @@ export async function checkBeforePrescribing(
     medication: string;
     catalogItemId?: string | null;
     overrides?: Override[];
+    /** Structured dose: adds dose-range checks against the dose rules. */
+    dose?: StructuredDose | null;
   },
 ): Promise<EngineAlert[]> {
-  const alerts = await checkMedication(input.patientId, input.medication, input.catalogItemId);
+  const alerts = await checkMedication(input.patientId, input.medication, input.catalogItemId, {
+    dose: input.dose,
+  });
   const overridden = new Set((input.overrides ?? []).map((o) => o.code));
   const missing = alerts.filter((a) => a.blocking && !overridden.has(a.code));
   if (missing.length) {

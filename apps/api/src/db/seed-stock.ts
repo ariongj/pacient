@@ -14,6 +14,7 @@ import {
   stockSettings,
   users,
 } from './schema.js';
+import { seedBcma } from './seed-bcma.js';
 
 type Item = [
   name: string,
@@ -276,4 +277,7 @@ export async function seedStock({ facilityId }: { facilityId: string }) {
         ),
       );
   }
+
+  // Pack barcodes and scanned bedside doses (barcode-checked administration).
+  await seedBcma({ facilityId });
 }

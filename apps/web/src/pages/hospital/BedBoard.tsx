@@ -26,7 +26,7 @@ type Action =
   | { kind: 'discharge'; stay: BoardStay }
   | null;
 
-/** Latest NEWS2 per admission – only filled for doctors and nurses (clinical information). */
+/** Latest early warning score (NEWS2 or PEWS) per admission – only filled for doctors and nurses (clinical information). */
 const NewsContext = createContext<Map<string, NewsBoardItem>>(new Map());
 
 function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
@@ -49,6 +49,7 @@ function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
             {' '}
             <Link to="/wards/early-warning" className="news-bed-link">
               <NewsChip
+                scale={news.latest.scale}
                 score={news.latest.score}
                 risk={news.latest.risk}
                 complete={news.latest.complete}

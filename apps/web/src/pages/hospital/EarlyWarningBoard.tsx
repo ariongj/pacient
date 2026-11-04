@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  ageBandLabel,
   intervalLabel,
   NEWS_PARAMETERS,
+  notRecordedLabel,
   parameterLabel,
   riskLabel,
   riskShort,
   useAcknowledgeScore,
   useNewsBoard,
+  type EarlyWarningScale,
   type NewsBoardItem,
   type NewsComponents,
   type NewsRisk,
@@ -31,23 +34,28 @@ import { formatDateTime, formatTime, fullName } from '../../format';
 import { t } from '../../i18n';
 import './news.css';
 
-/** Colour-coded NEWS2 score with the number and the risk in words. */
+/**
+ * Colour-coded early warning score with the scale, the number and the risk in words: "NEWS2 5"
+ * for adults, "PEWS 5" for children – the two are not comparable, so the scale is always shown.
+ */
 export function NewsChip({
+  scale = 'NEWS2',
   score,
   risk,
   complete = true,
   compact = false,
 }: {
+  scale?: EarlyWarningScale;
   score: number;
   risk: NewsRisk;
   complete?: boolean;
   compact?: boolean;
 }) {
-  const label = t('NEWS2 {score} – {risk}', { score, risk: riskLabel(risk) });
+  const label = t('{scale} {score} – {risk}', { scale, score, risk: riskLabel(risk) });
   return (
     <span className={`news-chip news-${risk}`} title={label} aria-label={label} role="img">
       <span aria-hidden="true">
-        {compact ? 'N' : 'NEWS2'} <span className="news-chip-score">{score}</span>
+        {scale} <span className="news-chip-score">{score}</span>
         {!compact && <> · {riskShort(risk)}</>}
         {!complete && <span className="news-incomplete"> · {t('incomplete')}</span>}
       </span>
@@ -83,26 +91,47 @@ export function NewsSparkline({ scores, width = 64 }: { scores: number[]; width?
 
 /** Points per parameter, for a popover/details element. */
 export function NewsBreakdown({ components }: { components: NewsComponents }) {
+  const pews = components.scale === 'PEWS';
   return (
     <dl className="news-components">
+      <dt>{t('Scale')}</dt>
+      <dd>{pews ? t('PEWS (paediatric)') : 'NEWS2'}</dd>
+      {pews && components.ageBand && (
+        <>
+          <dt>{t('Age band')}</dt>
+          <dd>{ageBandLabel(components.ageBand)}</dd>
+        </>
+      )}
       {NEWS_PARAMETERS.map((p) => (
         <div key={p} style={{ display: 'contents' }}>
           <dt>{parameterLabel(p)}</dt>
           <dd>{components[p] ?? t('not measured')}</dd>
         </div>
       ))}
-      {components.spo2Scale === 2 && (
+      {!pews && components.spo2Scale === 2 && (
         <>
           <dt>{t('SpO₂ scale')}</dt>
           <dd>2</dd>
+        </>
+      )}
+      {pews && components.notRecorded && components.notRecorded.length > 0 && (
+        <>
+          <dt>{t('Not recorded in Pacient')}</dt>
+          <dd>{components.notRecorded.map(notRecordedLabel).join(', ')}</dd>
         </>
       )}
     </dl>
   );
 }
 
+/** Scores of the same scale as the latest one (a NEWS2 and a PEWS score are not comparable). */
+function sameScaleTrend(item: NewsBoardItem) {
+  const scale = item.trend[0]?.scale;
+  return item.trend.filter((s) => s.scale === scale);
+}
+
 function trendArrow(item: NewsBoardItem) {
-  const [latest, previous] = item.trend;
+  const [latest, previous] = sameScaleTrend(item);
   if (!latest || !previous) return null;
   if (latest.score > previous.score) return <span aria-label={t('worse than before')}>▲</span>;
   if (latest.score < previous.score) return <span aria-label={t('better than before')}>▼</span>;
@@ -140,12 +169,21 @@ function BoardRow({
           <>
             <details className="news-details">
               <summary>
-                <NewsChip score={latest.score} risk={latest.risk} complete={latest.complete} />
+                <NewsChip
+                  scale={latest.scale}
+                  score={latest.score}
+                  risk={latest.risk}
+                  complete={latest.complete}
+                />
               </summary>
               <NewsBreakdown components={latest.components} />
             </details>
             {trendArrow(item)}
-            <NewsSparkline scores={[...item.trend].reverse().map((s) => s.score)} />
+            <NewsSparkline
+              scores={sameScaleTrend(item)
+                .reverse()
+                .map((s) => s.score)}
+            />
           </>
         ) : (
           <span className="muted">{t('No score yet')}</span>
@@ -181,7 +219,10 @@ function BoardRow({
   );
 }
 
-/** Ward early-warning board: inpatients by NEWS2 risk, with overdue observations. */
+/**
+ * Ward early-warning board: inpatients by risk (NEWS2 for adults, PEWS for children), with
+ * overdue observations.
+ */
 export function EarlyWarningBoard() {
   const user = useUser();
   const base = user.role === 'DOCTOR' ? '/doctor' : '/nurse';
@@ -194,9 +235,9 @@ export function EarlyWarningBoard() {
   return (
     <>
       <PageHeader
-        title={t('Early warning (NEWS2)')}
+        title={t('Early warning (NEWS2 / PEWS)')}
         subtitle={t(
-          'National Early Warning Score 2 of every inpatient, highest risk first. Scores are calculated from each set of observations; medium and high scores alert the ward team automatically.',
+          'National Early Warning Score 2 of every adult inpatient and the Paediatric Early Warning Score of every child, highest risk first. Scores are calculated from each set of observations; medium and high scores alert the ward team automatically.',
         )}
       />
       <QueryView query={board}>
@@ -259,6 +300,13 @@ export function EarlyWarningBoard() {
                     'Response: 0–4 ward-based care; a single parameter of 3 – urgent ward review; 5–6 urgent review by a doctor; 7 or more emergency assessment and continuous monitoring. Clinical judgement always comes first.',
                   )}
                 </p>
+                {data.items.some((i) => i.latest?.scale === 'PEWS') && (
+                  <p className="muted">
+                    {t(
+                      'PEWS (children under 18): 0–3 ward care; a single parameter of 3 – urgent bedside review; 4–6 urgent review by a paediatrician within the hour; 7 or more emergency assessment. The thresholds depend on the age band and are illustrative until the hospital adopts its approved paediatric chart.',
+                    )}
+                  </p>
+                )}
               </Card>
             </>
           );
@@ -281,7 +329,7 @@ export function EarlyWarningBoard() {
           >
             <p>
               <strong>{fullName(ack)}</strong> –{' '}
-              <NewsChip score={ack.latest.score} risk={ack.latest.risk} />
+              <NewsChip scale={ack.latest.scale} score={ack.latest.score} risk={ack.latest.risk} />
             </p>
             <p className="muted">
               {t(

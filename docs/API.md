@@ -5,8 +5,12 @@ radiology, reporting) works on **one PostgreSQL database behind one API**. Exter
 receive database access: they use the same API, with their own credentials, scopes and audit trail.
 
 - Base URL: `https://<host>/api/v1`
-- Machine-readable description: `GET /api/v1/partner/openapi.json` (OpenAPI 3.1, public, contains
-  no data). The web app renders it under **API documentation** (`/developers`).
+- Machine-readable description (OpenAPI 3.1, public, contains no data): `GET /api/v1/openapi.json`
+  for the whole API, `GET /api/v1/partner/openapi.json` for the partner endpoints only. The web app
+  renders it under **API documentation** (`/developers`), with Albanian and Serbian summaries.
+- The description is complete: a test lists every route the Express routers register and fails if
+  one is missing from the OpenAPI registry (`apps/api/src/openapi/`) or if the registry describes a
+  route that does not exist.
 - FHIR: HL7 FHIR R4 (JSON, `application/fhir+json`).
 
 ## Authentication
@@ -19,6 +23,49 @@ receive database access: they use the same API, with their own credentials, scop
 
 Keys are shown once when created, stored only as a SHA-256 hash, can be restricted to IP
 addresses and revoked at any time (effective immediately).
+
+## The API by area
+
+Every operation in the OpenAPI document carries one of these tags, its credential (`userBearer`,
+`labKey`, `partnerKey` or none) and, in `x-access`, the roles or scope it needs. Access is always
+checked again on the server for the specific patient, facility or unit (care team, guardian scope,
+consent, facility of the caller); the role list is necessary, not sufficient.
+
+| Area                 | Paths                                                                                                                                                                                                | Who                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Authentication       | `/auth/login`, `/auth/mfa/*`, `/auth/refresh`, `/auth/activate`, `/auth/*-password`, `/auth/me/*`                                                                                                    | public (sign-in, activation, reset); users                                                         |
+| Account security     | `/auth/security/*` – passkeys, signed-in devices, sign-in history                                                                                                                                    | users                                                                                              |
+| Patients             | `/patients`, `/patients/{id}` (demographics, care team, guardians, portal invitation, break-glass)                                                                                                   | staff by role; patients for themselves                                                             |
+| Clinical record      | `/patients/{patientId}/…` – visits, diagnoses, prescriptions, allergies, vitals, results, vaccinations, medication administration, care tasks, corrections, documents, consents, export; `/worklist` | care team (write: doctors; observations: nurses too); patients and guardians read what is released |
+| Laboratory           | `/lab-catalog`, `/patients/{patientId}/lab-orders`, `/integrations/lab/*` (HL7 v2)                                                                                                                   | doctors; laboratory systems with a lab key                                                         |
+| Hospital             | `/hospital/*` – units, beds, staff assignment, admissions, transfers, discharge letters, today's list                                                                                                | facility staff; directors manage units                                                             |
+| Emergency department | `/ed/*` – arrivals, triage, treatment, departure, board                                                                                                                                              | doctors, nurses, reception                                                                         |
+| Imaging              | `/imaging/*` – orders, worklist, schedule, perform, report, release, images and studies                                                                                                              | doctors and radiology staff                                                                        |
+| Identity             | `/identity/*` (temporary identities, births), `/patient-merges/*`                                                                                                                                    | reception, clinicians; directors merge                                                             |
+| Portal               | `/portal/*` – access log, contact details, dependants                                                                                                                                                | patients and guardians                                                                             |
+| Appointments         | `/appointments/*`                                                                                                                                                                                    | patients, clinicians, reception                                                                    |
+| Scheduling           | `/scheduling/*` – consulting hours, free slots, online booking                                                                                                                                       | doctors, reception, patients                                                                       |
+| Collaboration        | `/messages/*`, `/referrals/*`, `/care-tasks/*`, `/channels/*`, `/cover/*`, `/notifications/*`, `/announcements/*`, `/directory`, `/events` (SSE)                                                     | staff and patients by feature                                                                      |
+| Pharmacy             | `/pharmacy/*` – queue, verify, return, dispense from stock                                                                                                                                           | pharmacists                                                                                        |
+| Pharmacy stock       | `/stock/*` – catalogue, batches, receipts, availability                                                                                                                                              | pharmacists, directors                                                                             |
+| Medication safety    | `/safety/*` – interaction, allergy, renal, age and pregnancy checks                                                                                                                                  | prescribers, pharmacists                                                                           |
+| Vaccination          | `/vaccination/*` – national calendar, due doses, coverage                                                                                                                                            | clinicians, Ministry                                                                               |
+| Operating theatres   | `/theatre/*`                                                                                                                                                                                         | surgical teams                                                                                     |
+| Blood bank           | `/blood-bank/*`                                                                                                                                                                                      | clinicians, blood bank staff                                                                       |
+| Nutrition            | `/nutrition/*`                                                                                                                                                                                       | clinicians, kitchen                                                                                |
+| Early warning        | `/early-warning/*` – NEWS2, escalation, ward board                                                                                                                                                   | doctors, nurses                                                                                    |
+| Billing              | `/billing/*` – insurance, tariff, charges, claims                                                                                                                                                    | reception, directors                                                                               |
+| Surveillance         | `/surveillance/*` – notifiable disease reports                                                                                                                                                       | doctors, public health                                                                             |
+| Video visits         | `/video/*` – rooms and WebRTC signalling                                                                                                                                                             | doctors and patients                                                                               |
+| Oversight            | `/reports/*` (JSON and CSV), `/stats/*`, `/audit-logs`, `/emergency-access/*`                                                                                                                        | Ministry; directors for their facility                                                             |
+| Data protection      | `/privacy/*` – retention policies, data-subject requests, legal holds                                                                                                                                | Ministry, directors; patients (own requests)                                                       |
+| Monitoring           | `/monitoring/*` – health indicators, audit export (JSON lines or CEF) for a SIEM                                                                                                                     | Ministry, directors                                                                                |
+| Administration       | `/facilities/*`, `/staff/*`, `/integrations/clients`, `/integrations/messages/*`, `/partner/clients/*`                                                                                               | Ministry, directors                                                                                |
+| FHIR                 | `/fhir/metadata`, `/fhir/Patient/{id}`, `/fhir/Patient/{id}/$everything`                                                                                                                             | care team, patients                                                                                |
+| Partner API          | `/partner/*` (see below)                                                                                                                                                                             | partner systems with a scoped key                                                                  |
+
+Outside `/api/v1` the server exposes only `GET /health/live`, `GET /health/ready` (probes) and
+`GET /metrics` (Prometheus, protected).
 
 ## Partner scopes
 

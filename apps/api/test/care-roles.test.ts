@@ -300,7 +300,12 @@ describe('pharmacy workflow', () => {
     const given = await api()
       .post(`${base()}/medication-administrations`)
       .set(bearer(w.tokens.nurse))
-      .send({ prescriptionId: rxId, status: 'GIVEN', doseGiven: '500 mg' });
+      .send({
+        prescriptionId: rxId,
+        status: 'GIVEN',
+        doseGiven: '500 mg',
+        scanOverrideReason: 'Wristband printer offline; identity checked verbally.',
+      });
     expect(given.status).toBe(201);
     const mar = await api()
       .get(`${base()}/medication-administrations`)

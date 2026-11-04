@@ -6,6 +6,7 @@
  * Request bodies are given as JSON Schema; the authoritative validation is the Zod schema in each
  * route. When adding an endpoint, add it here too.
  */
+import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
 
 type Schema = Record<string, unknown>;
@@ -93,6 +94,7 @@ export const TAGS: { name: string; description: string }[] = [
   },
   { name: 'Oversight', description: 'Reports, statistics, audit, emergency-access review.' },
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
+  ...CORE_TAGS,
   ...MODULE_TAGS,
   { name: 'FHIR', description: 'HL7 FHIR R4 export for authorised staff and patients.' },
   {
@@ -145,7 +147,7 @@ const OPERATIONS: Operation[] = [
     body: obj({
       emailNotifications: enumOf('ALL', 'IMPORTANT', 'OFF'),
       smsNotifications: enumOf('IMPORTANT', 'OFF'),
-      locale: enumOf('sq', 'en'),
+      locale: enumOf('sq', 'en', 'sr'),
     }),
   },
   {
@@ -240,21 +242,23 @@ const OPERATIONS: Operation[] = [
   },
   {
     method: 'post',
-    path: '/patients/{patientId}/encounters/{encounterId}/sign',
+    path: '/patients/{patientId}/encounters/{entryId}/sign',
     tag: 'Clinical record',
     summary: 'Sign a note (immutable afterwards; corrections as addenda)',
     auth: 'user',
     access: 'DOCTOR',
-    params: [patientPath, pathId('encounterId')],
+    params: [patientPath, pathId('entryId')],
+    body: obj({ version: int({ minimum: 1 }) }, ['version']),
+    responses: { '409': 'The note changed since it was loaded (version mismatch)' },
   },
   {
     method: 'post',
-    path: '/patients/{patientId}/lab-results/{resultId}/acknowledge',
+    path: '/patients/{patientId}/lab-results/{entryId}/acknowledge',
     tag: 'Clinical record',
     summary: 'Acknowledge a result',
     auth: 'user',
     access: 'DOCTOR',
-    params: [patientPath, pathId('resultId')],
+    params: [patientPath, pathId('entryId')],
   },
   {
     method: 'get',
@@ -787,7 +791,7 @@ const OPERATIONS: Operation[] = [
   },
 ];
 
-OPERATIONS.push(...MODULE_OPERATIONS);
+OPERATIONS.push(...CORE_OPERATIONS, ...MODULE_OPERATIONS);
 
 export function partnerOperations() {
   return OPERATIONS.filter((o) => o.auth === 'partner');

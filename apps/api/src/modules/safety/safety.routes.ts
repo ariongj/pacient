@@ -2,15 +2,30 @@ import { Router } from 'express';
 import { and, asc, count, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { drugInteractions, interactionSeverityEnum, medicationCatalog } from '../../db/schema.js';
-import { conflict, notFound } from '../../lib/errors.js';
+import {
+  doseRules,
+  drugInteractions,
+  interactionSeverityEnum,
+  medicationCatalog,
+} from '../../db/schema.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { tr } from '../../i18n/index.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import {
-  checkMedication,
+  AGE_GROUPS,
+  ageGroupOf,
+  DOSE_DISCLAIMER,
+  doseText,
+  invalidateDoseRuleCache,
+  normaliseRoute,
+  ROUTES,
+  StructuredDoseSchema,
+} from './dosing.js';
+import {
+  checkMedicationDetailed,
   evaluate,
   interactionIndex,
   invalidateInteractionCache,
@@ -40,23 +55,39 @@ const CheckSchema = z.object({
   catalogItemId: z.string().uuid().optional().nullable(),
   /** When re-checking an existing prescription, leave it out of the comparison. */
   excludePrescriptionId: z.string().uuid().optional(),
+  /** Structured dose: adds dose-range checks and returns the generated dose text. */
+  dose: StructuredDoseSchema.optional().nullable(),
 });
 
-/** Checks one medication for a patient (live, while prescribing or verifying). */
+/**
+ * Checks one medication for a patient (live, while prescribing or verifying). With a structured
+ * dose it also checks the dose range and returns the computed doses and the generated text.
+ */
 safetyRouter.post('/check', requireRole('DOCTOR', 'NURSE', 'PHARMACIST'), async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(CheckSchema, req.body);
   await assertSafetyAccess(ctx, input.patientId, requestMeta(req));
-  const [alerts, locale, candidate] = await Promise.all([
-    checkMedication(input.patientId, input.medication, input.catalogItemId, {
+  const [result, locale] = await Promise.all([
+    checkMedicationDetailed(input.patientId, input.medication, input.catalogItemId, {
       excludePrescriptionIds: input.excludePrescriptionId ? [input.excludePrescriptionId] : [],
+      dose: input.dose,
     }),
     localeOf(ctx.userId),
-    resolveCandidate(input.medication, input.catalogItemId),
   ]);
+  const pctx = result.context;
   res.json({
-    ingredients: candidate.ingredients,
-    alerts: alerts.map((a) => toPublicAlert(a, locale)),
+    ingredients: result.candidate.ingredients,
+    strength: result.candidate.strength ?? null,
+    alerts: result.alerts.map((a) => toPublicAlert(a, locale)),
+    patient: pctx
+      ? {
+          ageGroup: ageGroupOf(pctx.ageDays ?? null, pctx.ageYears),
+          weightKg: pctx.weightKg ?? null,
+          weightRecordedAt: pctx.weightAt ?? null,
+        }
+      : null,
+    dose: result.dose,
+    text: input.dose ? doseText(locale, input.dose, pctx?.weightKg ?? null) : null,
   });
 });
 
@@ -287,5 +318,196 @@ safetyRouter.patch('/interactions/:id', requireRole('MINISTRY'), async (req, res
     metadata: { op: 'update', changes: Object.keys(input) },
   });
   invalidateInteractionCache();
+  res.json(row);
+});
+
+/* ------------------------------------------------------------------ dose rules -------------- */
+
+const RULE_UNITS = ['mg', 'g', 'mcg', 'IU', 'units'] as const;
+const RULE_ROUTES = ROUTES.map((r) => r.toUpperCase()) as [string, ...string[]];
+const routeField = z
+  .string()
+  .trim()
+  .transform((r) => normaliseRoute(r))
+  .pipe(z.enum(RULE_ROUTES));
+const limit = z.coerce.number().positive().max(1_000_000).nullable();
+
+const DoseRuleQuery = PaginationSchema.extend({
+  q: z.string().trim().max(100).optional(),
+  ageGroup: z.enum(AGE_GROUPS).optional(),
+  route: routeField.optional(),
+  includeInactive: z.enum(['true', 'false']).optional(),
+});
+
+/** Dose limits by ingredient, route and age group (demo values – see `disclaimer`). */
+safetyRouter.get('/dose-rules', requireRole(...STAFF), async (req, res) => {
+  const ctx = requireAuth(req);
+  const q = parse(DoseRuleQuery, req.query);
+  const filters: SQL[] = [];
+  if (q.q) filters.push(ilike(doseRules.ingredient, `%${q.q.toLowerCase()}%`));
+  if (q.ageGroup) filters.push(eq(doseRules.ageGroup, q.ageGroup));
+  if (q.route) filters.push(eq(doseRules.route, q.route));
+  if (q.includeInactive !== 'true') filters.push(eq(doseRules.isActive, true));
+  const where = filters.length ? and(...filters) : undefined;
+  const { limit: take, offset } = toOffset(q);
+  const [rows, [total], locale] = await Promise.all([
+    db
+      .select()
+      .from(doseRules)
+      .where(where)
+      .orderBy(asc(doseRules.ingredient), asc(doseRules.route), asc(doseRules.ageGroup))
+      .limit(take)
+      .offset(offset),
+    db.select({ total: count() }).from(doseRules).where(where),
+    localeOf(ctx.userId),
+  ]);
+  res.json({
+    ...paginated(
+      rows.map((r) => ({ ...r, noteTranslated: r.note ? tr(locale, r.note) : null })),
+      total?.total ?? 0,
+      q,
+    ),
+    canEdit: ctx.role === 'MINISTRY',
+    disclaimer: tr(locale, DOSE_DISCLAIMER),
+  });
+});
+
+const hasLimit = (v: {
+  maxSingleDose?: number | null;
+  maxDailyDose?: number | null;
+  absoluteMaxDaily?: number | null;
+}) => Boolean(v.maxSingleDose || v.maxDailyDose || v.absoluteMaxDaily);
+
+const DoseRuleInput = z
+  .object({
+    ingredient: z.string().trim().toLowerCase().min(2).max(100),
+    route: routeField.default('ORAL'),
+    ageGroup: z.enum(AGE_GROUPS),
+    unit: z.enum(RULE_UNITS).default('mg'),
+    perKg: z.boolean().default(false),
+    maxSingleDose: limit.optional(),
+    maxDailyDose: limit.optional(),
+    absoluteMaxDaily: limit.optional(),
+    note: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine(hasLimit, { message: 'Give at least one limit', path: ['maxDailyDose'] });
+
+const asNumeric = (v: number | null | undefined) =>
+  v === undefined ? undefined : v === null ? null : String(v);
+
+safetyRouter.post('/dose-rules', requireRole('MINISTRY'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const input = parse(DoseRuleInput, req.body);
+  const [existing] = await db
+    .select({ id: doseRules.id })
+    .from(doseRules)
+    .where(
+      and(
+        eq(doseRules.ingredient, input.ingredient),
+        eq(doseRules.route, input.route),
+        eq(doseRules.ageGroup, input.ageGroup),
+      ),
+    );
+  if (existing) throw conflict('A dose rule for this ingredient, route and age group exists');
+  const [row] = await db
+    .insert(doseRules)
+    .values({
+      ingredient: input.ingredient,
+      route: input.route,
+      ageGroup: input.ageGroup,
+      unit: input.unit,
+      perKg: input.perKg,
+      maxSingleDose: asNumeric(input.maxSingleDose),
+      maxDailyDose: asNumeric(input.maxDailyDose),
+      absoluteMaxDaily: asNumeric(input.absoluteMaxDaily),
+      note: input.note ?? null,
+    })
+    .returning();
+  await audit({
+    action: AuditAction.DOSE_RULES_CHANGED,
+    actor: ctx,
+    resourceType: 'dose_rule',
+    resourceId: row!.id,
+    meta: requestMeta(req),
+    metadata: {
+      op: 'create',
+      rule: `${input.ingredient}|${input.route}|${input.ageGroup}`,
+      maxSingleDose: input.maxSingleDose ?? null,
+      maxDailyDose: input.maxDailyDose ?? null,
+      absoluteMaxDaily: input.absoluteMaxDaily ?? null,
+      perKg: input.perKg,
+    },
+  });
+  invalidateDoseRuleCache();
+  res.status(201).json(row);
+});
+
+const DoseRulePatch = z
+  .object({
+    unit: z.enum(RULE_UNITS).optional(),
+    perKg: z.boolean().optional(),
+    maxSingleDose: limit.optional(),
+    maxDailyDose: limit.optional(),
+    absoluteMaxDaily: limit.optional(),
+    note: z.string().trim().max(300).optional().nullable(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, 'Nothing to change');
+
+safetyRouter.patch('/dose-rules/:id', requireRole('MINISTRY'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const { id } = parse(z.object({ id: z.string().uuid() }), req.params);
+  const input = parse(DoseRulePatch, req.body);
+  const row = await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(doseRules).where(eq(doseRules.id, id)).for('update');
+    if (!before) throw notFound('Dose rule not found');
+    const next = {
+      maxSingleDose:
+        input.maxSingleDose !== undefined ? input.maxSingleDose : Number(before.maxSingleDose) || null,
+      maxDailyDose:
+        input.maxDailyDose !== undefined ? input.maxDailyDose : Number(before.maxDailyDose) || null,
+      absoluteMaxDaily:
+        input.absoluteMaxDaily !== undefined
+          ? input.absoluteMaxDaily
+          : Number(before.absoluteMaxDaily) || null,
+    };
+    if (!hasLimit(next)) throw badRequest('A dose rule needs at least one limit');
+    const [updated] = await tx
+      .update(doseRules)
+      .set({
+        ...(input.unit !== undefined ? { unit: input.unit } : {}),
+        ...(input.perKg !== undefined ? { perKg: input.perKg } : {}),
+        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        maxSingleDose: asNumeric(input.maxSingleDose),
+        maxDailyDose: asNumeric(input.maxDailyDose),
+        absoluteMaxDaily: asNumeric(input.absoluteMaxDaily),
+        updatedAt: new Date(),
+      })
+      .where(eq(doseRules.id, id))
+      .returning();
+    await audit(
+      {
+        action: AuditAction.DOSE_RULES_CHANGED,
+        actor: ctx,
+        resourceType: 'dose_rule',
+        resourceId: id,
+        meta: requestMeta(req),
+        metadata: {
+          op: 'update',
+          rule: `${before.ingredient}|${before.route}|${before.ageGroup}`,
+          changes: Object.fromEntries(
+            Object.entries(input).map(([k, v]) => [
+              k,
+              { from: (before as Record<string, unknown>)[k] ?? null, to: v ?? null },
+            ]),
+          ),
+        },
+      },
+      tx,
+    );
+    return updated!;
+  });
+  invalidateDoseRuleCache();
   res.json(row);
 });

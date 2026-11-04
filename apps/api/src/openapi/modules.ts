@@ -1,7 +1,7 @@
 /**
  * OpenAPI registry entries for the hospital and public-health modules (theatre, stock, images,
  * scheduling, vaccination, account security, medication safety, blood bank, nutrition, billing,
- * early warning, surveillance, video visits). Imported by spec.ts. A test compares this registry
+ * early warning, surveillance, video visits). Imported by spec.ts. A test compares the whole registry
  * with the routes the Express routers actually register, so a new endpoint cannot be forgotten.
  */
 type Schema = Record<string, unknown>;
@@ -27,24 +27,24 @@ export interface ModuleOperation {
   responses?: Record<string, string>;
 }
 
-const str = (extra: Schema = {}): Schema => ({ type: 'string', ...extra });
-const int = (extra: Schema = {}): Schema => ({ type: 'integer', ...extra });
-const num: Schema = { type: 'number' };
-const bool: Schema = { type: 'boolean' };
-const uuid: Schema = { type: 'string', format: 'uuid' };
-const date: Schema = { type: 'string', format: 'date' };
-const dateTime: Schema = { type: 'string', format: 'date-time' };
-const arr = (items: Schema, extra: Schema = {}): Schema => ({ type: 'array', items, ...extra });
-const obj = (properties: Record<string, Schema>, required: string[] = []): Schema => ({
+export const str = (extra: Schema = {}): Schema => ({ type: 'string', ...extra });
+export const int = (extra: Schema = {}): Schema => ({ type: 'integer', ...extra });
+export const num: Schema = { type: 'number' };
+export const bool: Schema = { type: 'boolean' };
+export const uuid: Schema = { type: 'string', format: 'uuid' };
+export const date: Schema = { type: 'string', format: 'date' };
+export const dateTime: Schema = { type: 'string', format: 'date-time' };
+export const arr = (items: Schema, extra: Schema = {}): Schema => ({ type: 'array', items, ...extra });
+export const obj = (properties: Record<string, Schema>, required: string[] = []): Schema => ({
   type: 'object',
   properties,
   required,
 });
-const enumOf = (...values: string[]): Schema => ({ type: 'string', enum: values });
-const reason = obj({ reason: str({ minLength: 3, maxLength: 500 }) }, ['reason']);
+export const enumOf = (...values: string[]): Schema => ({ type: 'string', enum: values });
+export const reason = obj({ reason: str({ minLength: 3, maxLength: 500 }) }, ['reason']);
 
 /** Path parameters are derived from {name} segments; only query/header params are listed. */
-function op(
+export function op(
   method: Method,
   path: string,
   tag: string,
@@ -67,7 +67,7 @@ function op(
     params: [...pathParams, ...(extra.params ?? [])],
   };
 }
-const q = (name: string, schema: Schema, description?: string) => ({
+export const q = (name: string, schema: Schema, description?: string) => ({
   name,
   in: 'query' as const,
   schema,
@@ -674,23 +674,4 @@ export const MODULE_OPERATIONS: ModuleOperation[] = [
   }),
   op('post', '/video/sessions/{id}/end', VV, 'End the visit'),
   op('get', '/video/waiting', VV, 'My patients in the waiting room', { access: 'DOCTOR' }),
-];
-
-export const MODULE_PREFIXES = [
-  '/theatre',
-  '/stock',
-  '/imaging/orders/{id}/study',
-  '/imaging/orders/{id}/images',
-  '/scheduling',
-  '/vaccination',
-  '/auth/security',
-  '/safety',
-  '/blood-bank',
-  '/nutrition',
-  '/billing',
-  '/partner/claims',
-  '/early-warning',
-  '/surveillance',
-  '/partner/surveillance',
-  '/video',
 ];

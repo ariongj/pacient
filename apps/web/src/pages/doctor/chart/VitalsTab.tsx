@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Encounter } from '../../../api/types';
 import {
   consciousnessLabel,
+  ageBandLabel,
   usePatientNews,
   useSetSpo2Scale,
   type NewsScore,
@@ -92,7 +93,13 @@ function NewsCell({ score }: { score: NewsScore | undefined }) {
   return (
     <details className="news-details">
       <summary>
-        <NewsChip score={score.score} risk={score.risk} complete={score.complete} compact />
+        <NewsChip
+          scale={score.scale}
+          score={score.score}
+          risk={score.risk}
+          complete={score.complete}
+          compact
+        />
       </summary>
       <NewsBreakdown components={score.components} />
     </details>
@@ -111,7 +118,10 @@ export function VitalsTab({
   const { isDoctor } = useChartRole();
   const byVitals = new Map((news.data?.items ?? []).map((s) => [s.vitalSignId, s]));
   const latestScore = news.data?.items[0];
+  const pews = latestScore?.scale === 'PEWS';
+  // Trend per scale: a NEWS2 and a PEWS score are not comparable.
   const trend = (news.data?.items ?? [])
+    .filter((s) => s.scale === latestScore?.scale)
     .slice(0, 12)
     .reverse()
     .map((s) => s.score);
@@ -140,7 +150,7 @@ export function VitalsTab({
       title={t('Vital signs')}
       actions={
         <span className="row" style={{ gap: '0.5rem' }}>
-          {isDoctor && latestScore && (
+          {isDoctor && latestScore && !pews && (
             <Spo2ScaleControl patientId={patientId} scale={news.data?.spo2Scale ?? 1} />
           )}
           <Button size="sm" onClick={() => setOpen(true)}>
@@ -154,21 +164,35 @@ export function VitalsTab({
           className="row"
           style={{ gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}
         >
-          <span>{t('Latest NEWS2')}</span>
+          <span>{pews ? t('Latest PEWS') : t('Latest NEWS2')}</span>
           <NewsChip
+            scale={latestScore.scale}
             score={latestScore.score}
             risk={latestScore.risk}
             complete={latestScore.complete}
           />
           <NewsSparkline scores={trend} width={120} />
-          {news.data?.spo2Scale === 2 && <span className="muted">{t('SpO₂ scale 2')}</span>}
+          {!pews && news.data?.spo2Scale === 2 && (
+            <span className="muted">{t('SpO₂ scale 2')}</span>
+          )}
+          {pews && latestScore.components.ageBand && (
+            <span className="muted">
+              {t('Paediatric chart: {band}', {
+                band: ageBandLabel(latestScore.components.ageBand),
+              })}
+            </span>
+          )}
         </div>
       )}
       {latestScore && !latestScore.complete && (
         <Alert tone="info">
-          {t(
-            'The latest set is incomplete: NEWS2 needs respiration, SpO₂, air or oxygen, blood pressure, pulse, consciousness and temperature.',
-          )}
+          {pews
+            ? t(
+                'The latest set is incomplete: PEWS needs respiration, SpO₂, air or oxygen, blood pressure, pulse, consciousness and temperature.',
+              )
+            : t(
+                'The latest set is incomplete: NEWS2 needs respiration, SpO₂, air or oxygen, blood pressure, pulse, consciousness and temperature.',
+              )}
         </Alert>
       )}
       <QueryView query={list}>
@@ -186,7 +210,7 @@ export function VitalsTab({
                   <th className="num">{t('RR')}</th>
                   <th className="num">{t('SpO₂ (%)')}</th>
                   <th>{t('O₂ / ACVPU')}</th>
-                  <th>{t('NEWS2')}</th>
+                  <th>{t('Early warning')}</th>
                   <th className="num">{t('Weight (kg)')}</th>
                   <th className="num">{t('Height (cm)')}</th>
                 </tr>

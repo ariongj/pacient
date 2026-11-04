@@ -3,7 +3,12 @@ import { t } from '../i18n';
 import { api } from './client';
 import type { Vitals } from './types';
 
-/** NEWS2 early warning (Royal College of Physicians, 2017). */
+/**
+ * Early warning: NEWS2 (Royal College of Physicians, 2017) for adults, PEWS for children under 18
+ * at the time of the observations.
+ */
+export type EarlyWarningScale = 'NEWS2' | 'PEWS';
+export type PewsAgeBand = 'INFANT' | 'TODDLER' | 'CHILD' | 'ADOLESCENT';
 export type NewsRisk = 'LOW' | 'LOW_MEDIUM' | 'MEDIUM' | 'HIGH';
 export type NewsParameter =
   'respiration' | 'spo2' | 'air' | 'systolic' | 'pulse' | 'consciousness' | 'temperature';
@@ -21,12 +26,18 @@ export type NewsComponents = Partial<Record<NewsParameter, number | null>> & {
   singleThree?: boolean;
   missing?: NewsParameter[];
   spo2Scale?: 1 | 2;
+  scale?: EarlyWarningScale;
+  /** PEWS only. */
+  ageBand?: PewsAgeBand;
+  ageMonths?: number;
+  notRecorded?: string[];
 };
 
 export interface NewsScore {
   id: string;
   vitalSignId: string;
   admissionId: string | null;
+  scale: EarlyWarningScale;
   score: number;
   risk: NewsRisk;
   complete: boolean;
@@ -51,7 +62,7 @@ export interface NewsBoardItem {
   attendingDoctorName: string;
   admittedAt: string;
   latest: Omit<NewsScore, 'vitalSignId' | 'admissionId' | 'acknowledgedBy'> | null;
-  trend: { score: number; risk: NewsRisk; computedAt: string }[];
+  trend: { scale: EarlyWarningScale; score: number; risk: NewsRisk; computedAt: string }[];
   lastObservationAt: string | null;
   observationIntervalMinutes: number;
   minutesSinceObservation: number;
@@ -186,4 +197,33 @@ export function intervalLabel(minutes: number): string {
   if (minutes < 60) return t('every {count} min', { count: minutes });
   if (minutes === 60) return t('hourly');
   return t('every {count} h', { count: Math.round(minutes / 60) });
+}
+
+/** "PEWS 5" / "NEWS2 5": the scale is always shown with the number. */
+export function scoreLabel(scale: EarlyWarningScale | undefined, score: number): string {
+  return `${scale ?? 'NEWS2'} ${score}`;
+}
+
+export function ageBandLabel(band: PewsAgeBand): string {
+  switch (band) {
+    case 'INFANT':
+      return t('Infant (under 1 year)');
+    case 'TODDLER':
+      return t('Young child (1–4 years)');
+    case 'CHILD':
+      return t('Child (5–11 years)');
+    case 'ADOLESCENT':
+      return t('Adolescent (12–17 years)');
+  }
+}
+
+export function notRecordedLabel(item: string): string {
+  switch (item) {
+    case 'capillaryRefill':
+      return t('Capillary refill');
+    case 'respiratoryEffort':
+      return t('Respiratory effort');
+    default:
+      return item;
+  }
 }

@@ -22,6 +22,7 @@ import {
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { observationIntervalMinutes, RISK_RANK, type News2Risk } from './news2.js';
+import { pewsObservationIntervalMinutes } from './pews.js';
 import {
   acknowledgeScore,
   recentScoresByAdmission,
@@ -110,7 +111,9 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
     const latest = recent[0] ?? null;
     const lastObservationAt = lastObsByPatient.get(s.patientId) ?? null;
     const interval = latest
-      ? observationIntervalMinutes(latest.score, latest.risk as News2Risk)
+      ? latest.scale === 'PEWS'
+        ? pewsObservationIntervalMinutes(latest.score, latest.risk as News2Risk)
+        : observationIntervalMinutes(latest.score, latest.risk as News2Risk)
       : 4 * 60;
     const reference = lastObservationAt ?? s.admittedAt;
     const minutesSince = Math.floor((now.getTime() - reference.getTime()) / 60_000);
@@ -118,6 +121,7 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
       ...s,
       latest: latest && {
         id: latest.id,
+        scale: latest.scale,
         score: latest.score,
         risk: latest.risk,
         complete: latest.complete,
@@ -126,7 +130,12 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
         escalatedAt: latest.escalatedAt,
         acknowledgedAt: latest.acknowledgedAt,
       },
-      trend: recent.map((r) => ({ score: r.score, risk: r.risk, computedAt: r.computedAt })),
+      trend: recent.map((r) => ({
+        scale: r.scale,
+        score: r.score,
+        risk: r.risk,
+        computedAt: r.computedAt,
+      })),
       lastObservationAt,
       observationIntervalMinutes: interval,
       minutesSinceObservation: minutesSince,
@@ -165,6 +174,7 @@ newsRouter.get('/patients/:patientId', async (req, res) => {
       id: earlyWarningScores.id,
       vitalSignId: earlyWarningScores.vitalSignId,
       admissionId: earlyWarningScores.admissionId,
+      scale: earlyWarningScores.scale,
       score: earlyWarningScores.score,
       risk: earlyWarningScores.risk,
       complete: earlyWarningScores.complete,

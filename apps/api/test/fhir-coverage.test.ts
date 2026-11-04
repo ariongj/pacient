@@ -23,7 +23,6 @@ import {
   videoSessions,
   vitalSigns,
 } from '../src/db/schema.js';
-import { MODULE_PREFIXES } from '../src/openapi/modules.js';
 import { openApiDocument } from '../src/openapi/spec.js';
 import { api, app, bearer, createWorld } from './helpers.js';
 
@@ -34,30 +33,61 @@ const parse = (res: { text: string }) => JSON.parse(res.text) as Bundle;
 const ofType = (b: Bundle, type: string) =>
   b.entry.map((e) => e.resource).filter((r) => r.resourceType === type);
 
-describe('OpenAPI covers every module route', () => {
-  it('lists every route the routers register below the module prefixes', () => {
-    const stack = (app as unknown as { router: { stack: never[] } }).router.stack;
-    const routes = listRoutes(stack)
-      .filter((r) => r.includes(' /api/v1/'))
-      .map((r) => r.replace(' /api/v1', ' '));
-    const relevant = [...new Set(routes)].filter((r) => {
-      const path = r.split(' ')[1]!;
-      return MODULE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
-    });
-    expect(relevant.length).toBeGreaterThan(130);
+/**
+ * TODO(openapi): mount prefixes whose routers are still being built. Their routes are not yet in
+ * the OpenAPI registry; remove each prefix from this list once its endpoints are documented.
+ */
+const UNDOCUMENTED_PREFIXES_TODO: string[] = [];
 
-    const doc = openApiDocument() as unknown as {
-      paths: Record<string, Record<string, unknown>>;
-      tags: { name: string }[];
-    };
-    const documented = new Set(
-      Object.entries(doc.paths).flatMap(([path, methods]) =>
-        Object.keys(methods).map((m) => `${m.toUpperCase()} ${path}`),
-      ),
-    );
-    const missing = relevant.filter((r) => !documented.has(r));
-    expect(missing).toEqual([]);
-    expect(doc.tags.map((t) => t.name)).toEqual(
+/** Infrastructure endpoints outside the versioned API (probes and the Prometheus scrape). */
+const INFRASTRUCTURE_ROUTES = ['GET /health/live', 'GET /health/ready', 'GET /metrics'];
+
+describe('OpenAPI covers every API route', () => {
+  const stack = (app as unknown as { router: { stack: never[] } }).router.stack;
+  const all = [...new Set(listRoutes(stack))];
+  const routes = all
+    .filter((r) => r.includes(' /api/v1/'))
+    .map((r) => r.replace(' /api/v1', ' '))
+    .filter((r) => {
+      const path = r.split(' ')[1]!;
+      return !UNDOCUMENTED_PREFIXES_TODO.some((p) => path === p || path.startsWith(`${p}/`));
+    });
+  const doc = openApiDocument() as unknown as {
+    paths: Record<string, Record<string, { tags: string[]; parameters?: { name: string; in: string }[] }>>;
+    tags: { name: string }[];
+  };
+  const documented = Object.entries(doc.paths).flatMap(([path, methods]) =>
+    Object.keys(methods).map((m) => `${m.toUpperCase()} ${path}`),
+  );
+
+  it('documents every route that the routers mounted in app.ts register', () => {
+    expect(routes.length).toBeGreaterThan(350);
+    const known = new Set(documented);
+    expect(routes.filter((r) => !known.has(r))).toEqual([]);
+  });
+
+  it('documents no route that does not exist', () => {
+    const real = new Set(routes);
+    expect(documented.filter((r) => !real.has(r))).toEqual([]);
+    expect(all.filter((r) => !r.includes(' /api/v1/')).sort()).toEqual(INFRASTRUCTURE_ROUTES);
+  });
+
+  it('declares every path parameter and uses only declared tags', () => {
+    const tags = new Set(doc.tags.map((t) => t.name));
+    const problems: string[] = [];
+    for (const [path, methods] of Object.entries(doc.paths)) {
+      const want = [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+      for (const [method, operation] of Object.entries(methods)) {
+        const got = (operation.parameters ?? [])
+          .filter((p) => p.in === 'path')
+          .map((p) => p.name)
+          .sort();
+        if (want.join() !== got.join()) problems.push(`${method} ${path}: path parameters`);
+        if (!tags.has(operation.tags[0]!)) problems.push(`${method} ${path}: unknown tag`);
+      }
+    }
+    expect(problems).toEqual([]);
+    expect([...tags]).toEqual(
       expect.arrayContaining(['Operating theatres', 'Blood bank', 'Billing', 'Video visits']),
     );
   });

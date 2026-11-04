@@ -15,11 +15,7 @@ import {
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import {
-  assertNotMerged,
-  resolveClinicalReadAccess,
-  resolveAndAuditRead,
-} from '../access/policy.js';
+import { assertNotMerged, resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import {

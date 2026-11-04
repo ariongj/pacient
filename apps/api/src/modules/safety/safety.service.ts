@@ -5,7 +5,7 @@ import { prescriptionAlerts, prescriptions, users } from '../../db/schema.js';
 import { forbidden, HttpError } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { toLocale, type Locale } from '../../i18n/index.js';
-import { resolveClinicalReadAccess, resolveAndAuditRead } from '../access/policy.js';
+import { resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import {
   checkMedication,

@@ -21,7 +21,6 @@ import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
   getPatientOrThrow,
-  resolveClinicalReadAccess,
   WRITERS,
   resolveAndAuditRead,
   auditRecordView,

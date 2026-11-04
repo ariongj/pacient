@@ -15,7 +15,6 @@ import { authenticate } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
   getPatientOrThrow,
-  resolveClinicalReadAccess,
   WRITERS,
   resolveAndAuditRead,
 } from '../access/policy.js';
@@ -284,10 +283,12 @@ const KitchenQuery = z.object({
 nutritionRouter.get('/kitchen', async (req, res) => {
   const ctx = requireAuth(req);
   const q = parse(KitchenQuery, req.query);
-  const { facilityId } = await assertNutritionListAccess(ctx, q.unitId);
+  const { facilityId, unitIds } = await assertNutritionListAccess(ctx, q.unitId);
   const date = q.date ?? todayLocal();
   const at = mealInstant(date, q.meal);
-  const lines = await dietLines(facilityId, at, q.unitId);
+  const lines = (await dietLines(facilityId, at, q.unitId)).filter(
+    (l) => !unitIds || unitIds.includes(l.unitId),
+  );
 
   const wards = new Map<string, { unitId: string; unitName: string; patients: unknown[] }>();
   const totals: Record<string, number> = {};
@@ -338,9 +339,11 @@ nutritionRouter.get('/wards/:unitId', async (req, res) => {
 nutritionRouter.get('/screening-due', async (req, res) => {
   const ctx = requireAuth(req);
   const q = parse(z.object({ unitId: z.string().uuid().optional() }), req.query);
-  const { facilityId } = await assertNutritionListAccess(ctx, q.unitId);
+  const { facilityId, unitIds } = await assertNutritionListAccess(ctx, q.unitId);
   const now = new Date();
-  const lines = await dietLines(facilityId, now, q.unitId);
+  const lines = (await dietLines(facilityId, now, q.unitId)).filter(
+    (l) => !unitIds || unitIds.includes(l.unitId),
+  );
   const latest = await latestScreenings(lines.map((l) => l.patientId));
   const items = lines
     .map((l) => ({

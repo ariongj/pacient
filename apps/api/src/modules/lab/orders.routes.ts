@@ -7,12 +7,7 @@ import { labOrders, labPriorityEnum, labResults, users } from '../../db/schema.j
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { authenticate } from '../../middleware/auth.js';
-import {
-  assertClinicalWriteAccess,
-  resolveClinicalReadAccess,
-  WRITERS,
-  resolveAndAuditRead,
-} from '../access/policy.js';
+import { assertClinicalWriteAccess, WRITERS, resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { assertEncounterBelongsToPatient } from '../clinical/clinical.service.js';
 import { catalogByCode, LAB_CATALOG } from './catalog.js';

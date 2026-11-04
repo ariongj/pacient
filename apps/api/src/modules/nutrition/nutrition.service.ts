@@ -311,20 +311,36 @@ export async function unitIdsOf(userId: string, facilityId: string, executor: Ex
  * and doctors assigned to a ward, and doctors of the facility. Kitchen staff never get clinical
  * record access – these lists only carry what is needed to serve the right meal.
  */
-export async function assertNutritionListAccess(ctx: AuthContext, unitId?: string) {
+/**
+ * Who may see meal lists: the hospital kitchen sees every ward of its facility; doctors and nurses
+ * only the wards they work on, plus (doctors) wards where they attend an admitted patient.
+ * Returns the wards the caller may see (`unitIds`), or null for the whole facility.
+ */
+export async function assertNutritionListAccess(
+  ctx: AuthContext,
+  unitId?: string,
+): Promise<{ facilityId: string; kitchen: boolean; unitIds: string[] | null }> {
   if (!ctx.facilityId || !['NURSE', 'DOCTOR'].includes(ctx.role)) {
     throw forbidden('Only ward staff and the hospital kitchen can see meal lists');
   }
   const units = await unitIdsOf(ctx.userId, ctx.facilityId);
-  const kitchen = units.some((u) => u.type === 'NUTRITION');
-  if (kitchen) return { facilityId: ctx.facilityId, kitchen: true };
+  if (units.some((u) => u.type === 'NUTRITION')) {
+    return { facilityId: ctx.facilityId, kitchen: true, unitIds: null };
+  }
+  const allowed = new Set(units.map((u) => u.id));
+  if (ctx.role === 'DOCTOR') {
+    const attending = await db.execute<{ unit_id: string }>(sql`
+      SELECT DISTINCT unit_id FROM admissions
+      WHERE attending_doctor_id = ${ctx.userId} AND status = 'ADMITTED'
+        AND facility_id = ${ctx.facilityId}`);
+    for (const r of attending.rows) allowed.add(r.unit_id);
+  }
   if (unitId) {
-    if (ctx.role === 'DOCTOR' || units.some((u) => u.id === unitId)) {
-      return { facilityId: ctx.facilityId, kitchen: false };
-    }
+    if (allowed.has(unitId))
+      return { facilityId: ctx.facilityId, kitchen: false, unitIds: [unitId] };
     throw forbidden('You are not assigned to this ward');
   }
-  if (ctx.role === 'DOCTOR' || units.length) return { facilityId: ctx.facilityId, kitchen: false };
+  if (allowed.size) return { facilityId: ctx.facilityId, kitchen: false, unitIds: [...allowed] };
   throw forbidden('Only ward staff and the hospital kitchen can see meal lists');
 }
 

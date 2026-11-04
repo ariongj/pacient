@@ -38,11 +38,13 @@ beforeAll(async () => {
   await db.insert(vitalSigns).values({
     patientId: w.patient.id,
     recordedById: w.users.nurse.id,
-    respiratoryRate: 26,
-    oxygenSaturation: 90,
-    systolic: 95,
-    heartRate: 125,
-    temperatureC: '39.1',
+    // Mildly abnormal (low risk): enough for a score, never escalated, so other test files that
+    // run re-escalation over the shared database are not affected.
+    respiratoryRate: 22,
+    oxygenSaturation: 97,
+    systolic: 120,
+    heartRate: 80,
+    temperatureC: '37.0',
     consciousness: 'A',
     onSupplementalOxygen: false,
   });
@@ -117,5 +119,14 @@ describe('NEWS2 board', () => {
     expect(res.body.items.some((i: { patientId: string }) => i.patientId === w.patient.id)).toBe(
       false,
     );
+  });
+});
+
+describe('meal lists are limited to the kitchen and the caller’s own wards', () => {
+  it('refuses a doctor with no ward and no admitted patients', async () => {
+    const { createWorld: world, api: client, bearer: auth } = await import('./helpers.js');
+    const w = await world();
+    const res = await client().get('/api/v1/nutrition/kitchen').set(auth(w.tokens.colleague));
+    expect(res.status).toBe(403);
   });
 });

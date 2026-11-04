@@ -11,7 +11,6 @@ import {
   assertClinicalWriteAccess,
   assertDemographicsAccess,
   getPatientOrThrow,
-  resolveClinicalReadAccess,
   WRITERS,
   resolveAndAuditRead,
 } from '../access/policy.js';

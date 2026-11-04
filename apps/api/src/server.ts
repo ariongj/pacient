@@ -15,6 +15,7 @@ import {
   stopVaccinationReminderWorker,
 } from './modules/vaccination/vaccination.service.js';
 import { startNewsWorker, stopNewsWorker } from './modules/news/news.service.js';
+import { startRetentionWorker, stopRetentionWorker } from './modules/privacy/retention.js';
 import {
   startChargeCaptureWorker,
   stopChargeCaptureWorker,
@@ -32,6 +33,7 @@ startEscalationWorker();
 startAppointmentReminderWorker();
 startVaccinationReminderWorker();
 startNewsWorker();
+startRetentionWorker();
 startChargeCaptureWorker();
 startSurveillanceWorker();
 const server = app.listen(env.PORT, () => {
@@ -49,6 +51,7 @@ function shutdown(signal: string) {
   stopAppointmentReminderWorker();
   stopVaccinationReminderWorker();
   stopNewsWorker();
+  stopRetentionWorker();
   stopChargeCaptureWorker();
   stopSurveillanceWorker();
   server.close(() => {

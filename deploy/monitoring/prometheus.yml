@@ -1,0 +1,33 @@
+# Prometheus scrape configuration for Pacient.
+# The API exposes /metrics on its own port (4000). It is NOT routed through the public nginx.
+# In production the API requires METRICS_TOKEN; put the same value in the token file below.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+  external_labels:
+    system: pacient
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: pacient-api
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/pacient-metrics-token
+    static_configs:
+      - targets: ['api:4000']
+        labels:
+          environment: production
+
+  # Optional: host metrics (disk space, backup age via the textfile collector). See README.
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']

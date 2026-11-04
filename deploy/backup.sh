@@ -9,6 +9,7 @@
 #   PACIENT_COMPOSE       compose file whose `db` service is dumped with `docker compose exec`
 #   BACKUP_DIR            where dumps are written (default /var/backups/pacient)
 #   BACKUP_RETENTION_DAYS delete dumps older than this (default 14)
+#   BACKUP_METRICS_FILE   optional .prom file for node_exporter's textfile collector
 #   BACKUP_AGE_RECIPIENT  age public key; the dump is encrypted to it (strongly recommended: the
 #                         server that makes backups then cannot read them). Required unless
 #                         BACKUP_ALLOW_UNENCRYPTED=1 (development only).
@@ -64,5 +65,11 @@ mv "$TMP" "$OUT"
 (cd "$BACKUP_DIR" && sha256sum "$(basename "$OUT")" >"$(basename "$OUT").sha256")
 
 find "$BACKUP_DIR" -maxdepth 1 -type f -name 'pacient-*.dump*' -mtime +"$RETENTION" -print -delete
+
+# Optional: tell monitoring when the last good backup finished (node_exporter textfile collector).
+if [[ -n "${BACKUP_METRICS_FILE:-}" ]]; then
+  echo "pacient_backup_last_success_timestamp_seconds $(date +%s)" >"$BACKUP_METRICS_FILE.tmp"
+  mv "$BACKUP_METRICS_FILE.tmp" "$BACKUP_METRICS_FILE"
+fi
 
 echo "Backup written: $OUT ($(du -h "$OUT" | cut -f1))"

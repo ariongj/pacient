@@ -1,0 +1,168 @@
+# Alert rules for Pacient. Load with `rule_files` in prometheus.yml; route with Alertmanager.
+# Severity: page = wake someone up (patient safety or outage); ticket = next working hours.
+groups:
+  - name: pacient-availability
+    rules:
+      - alert: PacientApiDown
+        expr: up{job="pacient-api"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: Pacient API is not answering scrapes
+          description: >-
+            Prometheus cannot scrape {{ $labels.instance }} for 2 minutes. Clinicians may be
+            unable to work; start the downtime procedure if it is not restored quickly.
+
+      - alert: PacientDatabaseDown
+        expr: pacient_db_up == 0
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: The API cannot reach PostgreSQL
+          description: The database ping has failed for 1 minute on {{ $labels.instance }}.
+
+      - alert: PacientHigh5xxRate
+        expr: |
+          sum(rate(pacient_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(pacient_http_requests_total[5m])), 1e-9) > 0.02
+          and sum(rate(pacient_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: More than 2 % of API requests fail with 5xx
+          description: '5xx ratio is {{ $value | humanizePercentage }} over the last 5 minutes.'
+
+      - alert: PacientSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(pacient_http_request_duration_seconds_bucket[5m]))) > 1.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: API p95 latency above 1.5 s
+          description: 'p95 is {{ $value | humanizeDuration }} over 10 minutes.'
+
+      - alert: PacientDbPoolWaiting
+        expr: pacient_db_pool_connections{state="waiting"} > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: Requests are queueing for a database connection
+          description: >-
+            {{ $value }} request(s) waiting for a pooled connection for 5 minutes. Look for slow
+            queries or raise the pool size.
+
+      - alert: PacientEventLoopLag
+        expr: pacient_event_loop_delay_seconds{stat="p99"} > 0.2
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: Node.js event loop lag above 200 ms (p99)
+          description: CPU-bound work is blocking request handling on {{ $labels.instance }}.
+
+      - alert: PacientApiRestartLoop
+        expr: resets(pacient_process_uptime_seconds[30m]) >= 3
+        labels: { severity: page }
+        annotations:
+          summary: The API restarted 3 or more times in 30 minutes
+          description: The process is crash-looping on {{ $labels.instance }}. Check the logs.
+
+  - name: pacient-notifications
+    rules:
+      - alert: PacientOutboxBacklog
+        expr: pacient_outbox_oldest_pending_seconds > 900
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: '{{ $labels.channel }} notifications are not being delivered'
+          description: >-
+            The oldest pending {{ $labels.channel }} message has waited
+            {{ $value | humanizeDuration }}. Critical-result and appointment notices may be late.
+
+      - alert: PacientOutboxFailures
+        expr: increase(pacient_outbox_messages{state="failed_7d"}[1h]) > 10
+        labels: { severity: ticket }
+        annotations:
+          summary: '{{ $labels.channel }} delivery failures are increasing'
+          description: More than 10 messages failed permanently in the last hour; check the provider.
+
+  - name: pacient-clinical-safety
+    rules:
+      - alert: PacientCriticalResultsUnacknowledged
+        expr: pacient_critical_results_unacknowledged_over_30m > 0
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: Critical laboratory results unacknowledged for more than 30 minutes
+          description: >-
+            {{ $value }} critical result(s) older than 30 minutes have no acknowledgement. The
+            in-app escalation should already have fired; contact the facility on call.
+
+      - alert: PacientNews2HighUnacknowledged
+        expr: pacient_news2_high_unacknowledged > 0
+        for: 15m
+        labels: { severity: page }
+        annotations:
+          summary: High NEWS2 scores without a clinical response
+          description: '{{ $value }} high-risk NEWS2 score(s) unacknowledged for 15 minutes.'
+
+      - alert: PacientEdBreaches
+        expr: pacient_ed_waiting_beyond_target > 10
+        for: 30m
+        labels: { severity: ticket }
+        annotations:
+          summary: Many emergency department patients waiting beyond their triage target
+          description: '{{ $value }} patients have waited beyond target for 30 minutes.'
+
+      - alert: PacientIntegrationReviewQueue
+        expr: pacient_integration_messages_needing_review > 25
+        for: 1h
+        labels: { severity: ticket }
+        annotations:
+          summary: Laboratory messages are piling up for manual review
+          description: '{{ $value }} inbound messages could not be matched automatically.'
+
+      - alert: PacientCaseReportDrafts
+        expr: pacient_case_report_drafts_over_24h > 0
+        for: 1h
+        labels: { severity: ticket }
+        annotations:
+          summary: Notifiable-disease case reports left in draft for more than 24 hours
+          description: Statutory reporting deadlines may be missed ({{ $value }} drafts).
+
+      - alert: PacientFacilityDowntime
+        expr: pacient_facilities_in_downtime > 0
+        for: 0m
+        labels: { severity: ticket }
+        annotations:
+          summary: A facility has declared downtime
+          description: '{{ $value }} facility(ies) are working on paper. Plan back-entry.'
+
+  # Placeholders: need node_exporter (disk) and a backup job that writes a textfile metric.
+  - name: pacient-host
+    rules:
+      - alert: PacientDiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.15
+        for: 15m
+        labels: { severity: page }
+        annotations:
+          summary: Less than 15 % disk space left on {{ $labels.mountpoint }}
+          description: PostgreSQL stops accepting writes when its volume fills up.
+
+      - alert: PacientBackupTooOld
+        expr: time() - pacient_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 0m
+        labels: { severity: page }
+        annotations:
+          summary: No successful database backup in the last 26 hours
+          description: See deploy/backup.sh and the README section on backup age.
+
+      - alert: PacientBackupMetricMissing
+        expr: absent(pacient_backup_last_success_timestamp_seconds)
+        for: 1h
+        labels: { severity: ticket }
+        annotations:
+          summary: Backup age is not being reported
+          description: Configure the node_exporter textfile collector as described in the README.

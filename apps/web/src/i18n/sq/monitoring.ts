@@ -1,4 +1,80 @@
 /**
  * Albanian (sq) translations, keyed by the English source text. Keep {placeholders}.
  */
-export const monitoring: Record<string, string> = {};
+export const monitoring: Record<string, string> = {
+  'System health': 'Gjendja e sistemit',
+  'Platform status, queues and clinical safety indicators. Refreshes every 30 seconds.':
+    'Gjendja e platformës, radhët dhe treguesit e sigurisë klinike. Rifreskohet çdo 30 sekonda.',
+  'Open Grafana dashboards': 'Hapni panelet e Grafana-s',
+  'The database is not responding.': 'Baza e të dhënave nuk po përgjigjet.',
+  'Clinical systems may be unavailable. Follow the downtime procedure.':
+    'Sistemet klinike mund të mos jenë në dispozicion. Ndiqni procedurën për ndërprerje.',
+  API: 'API',
+  Running: 'Në punë',
+  'Up for {time}': 'Në punë prej {time}',
+  Database: 'Baza e të dhënave',
+  Available: 'Në dispozicion',
+  Unavailable: 'Jo në dispozicion',
+  'Response time {ms} ms': 'Koha e përgjigjes {ms} ms',
+  'Database connections': 'Lidhjet me bazën e të dhënave',
+  '{busy} of {total} in use': '{busy} nga {total} në përdorim',
+  '{count} request waiting': '{count} kërkesë në pritje',
+  '{count} requests waiting': '{count} kërkesa në pritje',
+  'Server errors since start': 'Gabime të serverit që nga nisja',
+  'HTTP 5xx responses from this API instance': 'Përgjigje HTTP 5xx nga kjo instancë e API-së',
+  'Clinical safety indicators': 'Treguesit e sigurisë klinike',
+  'Critical results not acknowledged': 'Rezultate kritike pa u konfirmuar',
+  '{count} older than 30 minutes': '{count} më të vjetra se 30 minuta',
+  'Escalated results pending': 'Rezultate të përshkallëzuara në pritje',
+  'Escalated to the next clinician, not yet acknowledged':
+    'Përshkallëzuar te klinicisti i radhës, ende pa u konfirmuar',
+  'NEWS2 high risk not acknowledged': 'NEWS2 rrezik i lartë pa u konfirmuar',
+  'Emergency response expected': 'Pritet reagim emergjent',
+  'Emergency department waits beyond target': 'Pritje në emergjencë mbi objektivin',
+  'Waiting longer than the triage category target':
+    'Pritje më e gjatë se objektivi i kategorisë së triazhit',
+  'Open transfusion requests': 'Kërkesa të hapura për transfuzion',
+  'Requested, not yet issued': 'Kërkuar, ende pa u lëshuar',
+  'Lab orders waiting': 'Kërkesa për analiza në pritje',
+  'Ordered or collected, no final result yet':
+    'Porositur ose marrë mostra, ende pa rezultat përfundimtar',
+  'Case report drafts older than 24 hours': 'Drafte të raporteve të rasteve më të vjetra se 24 orë',
+  'Notifiable disease reports not yet submitted':
+    'Raporte të sëmundjeve ngjitëse ende pa u dorëzuar',
+  'Integration messages needing review': 'Mesazhe integrimi që kërkojnë shqyrtim',
+  'Inbound laboratory messages that could not be matched':
+    'Mesazhe hyrëse laboratorike që nuk u përputhën',
+  'Facilities in downtime': 'Institucione në ndërprerje',
+  'Working on paper with the downtime kit': 'Punojnë në letër me paketën për ndërprerje',
+  'Notification queues': 'Radhët e njoftimeve',
+  Email: 'Email',
+  SMS: 'SMS',
+  '{count} pending': '{count} në pritje',
+  '{count} failed in 7 days': '{count} të dështuara në 7 ditë',
+  'No failures': 'Pa dështime',
+  'Oldest waiting {age}': 'Më e vjetra pret {age}',
+  Version: 'Versioni',
+  'Application version': 'Versioni i aplikacionit',
+  Release: 'Publikimi',
+  'Node.js': 'Node.js',
+  'Memory in use': 'Memoria në përdorim',
+  'Last updated': 'Përditësuar së fundi',
+  'Audit export for the SIEM': 'Eksporti i auditimit për SIEM',
+  'Download the audit trail as JSON lines or CEF for the security operations centre. Each export is itself recorded in the audit log.':
+    'Shkarkoni gjurmën e auditimit si rreshta JSON ose CEF për qendrën e operacioneve të sigurisë. Çdo eksport regjistrohet edhe vetë në regjistrin e auditimit.',
+  From: 'Nga',
+  'To (inclusive)': 'Deri (përfshirë)',
+  Format: 'Formati',
+  'JSON lines (Loki, Elastic, Splunk)': 'Rreshta JSON (Loki, Elastic, Splunk)',
+  'CEF (ArcSight, QRadar)': 'CEF (ArcSight, QRadar)',
+  'Download audit export': 'Shkarkoni eksportin e auditimit',
+  'Choose both dates.': 'Zgjidhni të dyja datat.',
+  'The end date must be after the start date.':
+    'Data e mbarimit duhet të jetë pas datës së fillimit.',
+  'At most {days} days per export.': 'Më së shumti {days} ditë për eksport.',
+  '{n} s': '{n} s',
+  '{n} min': '{n} min',
+  '{h} h {m} min': '{h} orë {m} min',
+  '{d} d {h} h': '{d} ditë {h} orë',
+  '{n} MB': '{n} MB',
+};

@@ -89,6 +89,43 @@ const EnvSchema = z.object({
   WEBRTC_TURN_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   WEBRTC_TURN_USERNAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   WEBRTC_TURN_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /**
+   * Monitoring. With METRICS_TOKEN, GET /metrics requires `Authorization: Bearer <token>`;
+   * without it, production serves /metrics only to loopback (a scraper on the same host).
+   */
+  METRICS_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(16).optional()),
+  /** Release identifier shown on the System health page (e.g. the git commit). */
+  APP_VERSION: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(80).optional()),
+  /**
+   * Downtime packs (paper fallback): directory for the encrypted hourly packs, and an optional age
+   * public key – packs are then also written as .age files that only the holder of the private key
+   * can open (e.g. on an offline ward PC). Without it they are sealed with a key derived from
+   * MFA_ENCRYPTION_KEY and can only be opened through the API.
+   */
+  DOWNTIME_DIR: z.string().default('./downtime-packs'),
+  DOWNTIME_AGE_RECIPIENT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^age1[0-9a-z]{58}$/, 'DOWNTIME_AGE_RECIPIENT must be an age public key (age1…)')
+      .optional(),
+  ),
+  DOWNTIME_WORKER: z.enum(['true', 'false']).default('true'),
+  /**
+   * Keys for ward "downtime PCs" (scripts/downtime-sync.mjs), comma-separated
+   * `<facility code>:<sha256 hex of the key>` – only hashes are configured here. A sync key can
+   * fetch nothing but the latest age-encrypted pack of its own facility.
+   */
+  DOWNTIME_SYNC_KEYS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(
+        /^[A-Za-z0-9_-]{1,32}:[0-9a-f]{64}(,[A-Za-z0-9_-]{1,32}:[0-9a-f]{64})*$/,
+        'DOWNTIME_SYNC_KEYS must be "<facility code>:<sha256 hex>" pairs separated by commas',
+      )
+      .optional(),
+  ),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(

@@ -37,7 +37,8 @@ import { newsRouter } from './modules/news/news.routes.js';
 import { surveillanceRouter } from './modules/surveillance/surveillance.routes.js';
 import { telemedicineRouter } from './modules/telemedicine/telemedicine.routes.js';
 import { downtimeRouter } from './modules/downtime/downtime.routes.js';
-import { monitoringRouter } from './modules/monitoring/monitoring.routes.js';
+import { metricsHandler, monitoringRouter } from './modules/monitoring/monitoring.routes.js';
+import { httpMetrics } from './lib/metrics.js';
 import { privacyRouter } from './modules/privacy/privacy.routes.js';
 import { schedulingRouter } from './modules/scheduling/scheduling.routes.js';
 import { securityRouter } from './modules/security/security.routes.js';
@@ -70,6 +71,7 @@ export function createApp(): Express {
   app.set('trust proxy', env.TRUST_PROXY);
 
   app.use(requestId);
+  app.use(httpMetrics);
   app.use(
     pinoHttp({
       logger,
@@ -124,6 +126,9 @@ export function createApp(): Express {
     res.setHeader('Pragma', 'no-cache');
     next();
   });
+
+  // Prometheus scrape endpoint (outside /api/v1; token or same-host only).
+  app.get('/metrics', metricsHandler);
 
   app.get('/health/live', (_req, res) => {
     res.json({ status: 'ok' });

@@ -31,7 +31,10 @@ const CreateSchema = z.object({
     .refine((d) => new Date(d) > new Date(), 'Appointment must be in the future'),
   durationMinutes: z.number().int().min(5).max(480).default(20),
   reason: z.string().trim().min(2).max(500),
+  /** IN_PERSON or VIDEO (video visit in the browser). */
+  mode: z.enum(['IN_PERSON', 'VIDEO']).default('IN_PERSON'),
 });
+const ModeSchema = z.object({ mode: z.enum(['IN_PERSON', 'VIDEO']) });
 
 const ListQuery = z.object({
   from: z.string().datetime({ offset: true }).optional(),
@@ -122,6 +125,7 @@ appointmentsRouter.get('/', async (req, res) => {
       reason: appointments.reason,
       status: appointments.status,
       bookedVia: appointments.bookedVia,
+      mode: appointments.mode,
       patientId: appointments.patientId,
       patientName: sql<string>`${patients.firstName} || ' ' || ${patients.lastName}`,
       doctorId: appointments.doctorId,
@@ -199,6 +203,7 @@ appointmentsRouter.post('/', requireRole('PATIENT', 'DOCTOR', 'RECEPTION'), asyn
         durationMinutes: input.durationMinutes,
         reason: input.reason,
         status,
+        mode: input.mode,
         createdById: ctx.userId,
       })
       .returning();
@@ -335,3 +340,60 @@ appointmentsRouter.patch(
     res.json(row);
   },
 );
+
+/**
+ * Switch an appointment between in person and video. The doctor of the appointment or the front
+ * desk of its facility may do so while it is still requested or confirmed; the patient is told.
+ */
+appointmentsRouter.patch('/:id/mode', requireRole('DOCTOR', 'RECEPTION'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const { id } = parse(IdParam, req.params);
+  const { mode } = parse(ModeSchema, req.body);
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, id), scopeFilter(ctx)));
+  if (!appt) throw notFound('Appointment not found');
+  if (appt.status !== 'REQUESTED' && appt.status !== 'CONFIRMED') {
+    throw badRequest('Only requested or confirmed appointments can be changed');
+  }
+  if (appt.mode === mode) {
+    res.json(appt);
+    return;
+  }
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(appointments)
+      .set({ mode })
+      .where(eq(appointments.id, id))
+      .returning();
+    await audit(
+      {
+        action: AuditAction.APPOINTMENT_UPDATED,
+        actor: ctx,
+        resourceType: 'appointment',
+        resourceId: id,
+        patientId: appt.patientId,
+        meta: requestMeta(req),
+        metadata: { mode: { from: appt.mode, to: mode } },
+      },
+      tx,
+    );
+    await notifyPatient(
+      appt.patientId,
+      {
+        type: 'appointment',
+        title:
+          mode === 'VIDEO'
+            ? 'Your appointment on {time} is now a video visit'
+            : 'Your appointment on {time} is now an in-person visit',
+        vars: { time: appt.scheduledAt },
+        important: true,
+        link: '/portal/appointments',
+      },
+      tx,
+    );
+    return updated!;
+  });
+  res.json(row);
+});

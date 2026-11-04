@@ -67,6 +67,8 @@ const BookSchema = z.object({
   doctorId: z.string().uuid(),
   start: z.string().datetime({ offset: true }),
   reason: z.string().trim().min(2).max(500),
+  /** Any online-bookable slot can be booked as a video visit. */
+  mode: z.enum(['IN_PERSON', 'VIDEO']).default('IN_PERSON'),
 });
 
 async function getDoctor(doctorId: string) {
@@ -419,6 +421,7 @@ schedulingRouter.post('/book', requireRole('PATIENT'), async (req, res) => {
         reason: input.reason,
         status: 'CONFIRMED',
         bookedVia: 'PORTAL',
+        mode: input.mode,
         createdById: ctx.userId,
       })
       .returning();
@@ -438,7 +441,10 @@ schedulingRouter.post('/book', requireRole('PATIENT'), async (req, res) => {
       [doctor.id],
       {
         type: 'appointment',
-        title: 'New appointment booked online for {time}',
+        title:
+          input.mode === 'VIDEO'
+            ? 'New video visit booked online for {time}'
+            : 'New appointment booked online for {time}',
         vars: { time: start },
         link: '/doctor/schedule',
       },

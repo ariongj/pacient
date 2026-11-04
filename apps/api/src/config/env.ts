@@ -80,6 +80,15 @@ const EnvSchema = z.object({
   WEBAUTHN_RP_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   WEBAUTHN_RP_NAME: z.string().default('Pacient'),
   WEBAUTHN_ORIGINS: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /**
+   * Video visits (WebRTC). STUN servers (comma-separated) let devices find a direct path; a TURN
+   * relay is needed behind strict NATs. With WEBRTC_TURN_SECRET, short-lived TURN credentials are
+   * issued in the coturn "REST API" style (username "<expiry>:<user>", HMAC-SHA1 password).
+   */
+  WEBRTC_STUN_URLS: z.string().default('stun:stun.l.google.com:19302'),
+  WEBRTC_TURN_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  WEBRTC_TURN_USERNAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  WEBRTC_TURN_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   /** Run the email delivery worker in this process (disable on read-only replicas). */
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
   REQUIRE_STAFF_MFA: z.preprocess(

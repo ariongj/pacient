@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
+import { scoreVitalSign } from '../news/news.service.js';
 import { db, type Executor } from '../../db/client.js';
 import type { Role } from '../../db/schema.js';
 import {
@@ -48,6 +49,12 @@ import {
   notifyUsers,
 } from '../notifications/notifications.service.js';
 import * as clinical from './clinical.service.js';
+import {
+  checkBeforePrescribing,
+  localeOf as safetyLocaleOf,
+  recordPrescriptionAlerts,
+} from '../safety/safety.service.js';
+import { toPublicAlert } from '../safety/engine.js';
 
 const PatientParam = z.object({ patientId: z.string().uuid() });
 const EntryParams = PatientParam.extend({ entryId: z.string().uuid() });
@@ -102,6 +109,16 @@ const PrescriptionInput = z
     instructions: z.string().trim().max(2000).optional().nullable(),
     startDate: z.string().date(),
     endDate: z.string().date().optional().nullable(),
+    /** Reasons for proceeding despite blocking safety alerts (one per alert code). */
+    overrides: z
+      .array(
+        z.object({
+          code: z.string().trim().min(3).max(200),
+          reason: z.string().trim().min(10, 'Give a reason of at least 10 characters').max(500),
+        }),
+      )
+      .max(30)
+      .optional(),
   })
   .refine((p) => !p.endDate || p.endDate >= p.startDate, {
     message: 'End date must be on or after start date',
@@ -130,6 +147,10 @@ const VitalsInput = z
     oxygenSaturation: z.number().int().min(30).max(100).optional(),
     weightKg: z.number().min(0.3).max(500).optional(),
     heightCm: z.number().min(20).max(260).optional(),
+    /** ACVPU level of consciousness and supplemental oxygen – both needed for NEWS2. */
+    consciousness: z.enum(['A', 'C', 'V', 'P', 'U']).optional(),
+    onSupplementalOxygen: z.boolean().optional(),
+    painScore: z.number().int().min(0).max(10).optional(),
   })
   .refine(
     (v) => Object.entries(v).some(([k, val]) => k !== 'encounterId' && val !== undefined),
@@ -526,12 +547,28 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
       );
     if (!item) throw badRequest('Unknown medication catalogue item');
   }
+  // Medication safety: blocking alerts need an override reason (409 SAFETY_ALERTS otherwise).
+  const { overrides, ...rxInput } = input;
+  const safetyAlerts = await checkBeforePrescribing(ctx, {
+    patientId,
+    medication: rxInput.medication,
+    catalogItemId: rxInput.catalogItemId,
+    overrides,
+  });
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(prescriptions)
-      .values({ ...input, patientId, doctorId: ctx.userId })
+      .values({ ...rxInput, patientId, doctorId: ctx.userId })
       .returning();
     await auditChange(req, ctx, patientId, 'prescription', created!.id, tx);
+    await recordPrescriptionAlerts(tx, {
+      ctx,
+      meta: requestMeta(req),
+      prescriptionId: created!.id,
+      patientId,
+      alerts: safetyAlerts,
+      overrides,
+    });
     await notifyFacilityRole(
       ctx.facilityId!,
       ['PHARMACIST'],
@@ -544,7 +581,8 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
     );
     return created!;
   });
-  res.status(201).json(row);
+  const locale = await safetyLocaleOf(ctx.userId);
+  res.status(201).json({ ...row, alerts: safetyAlerts.map((a) => toPublicAlert(a, locale)) });
 });
 
 clinicalRouter.patch('/prescriptions/:entryId', async (req, res) => {
@@ -686,7 +724,12 @@ clinicalRouter.post('/vitals', async (req, res) => {
     await auditChange(req, ctx, patientId, 'vital_signs', created!.id, tx);
     return created!;
   });
-  res.status(201).json(row);
+  // NEWS2 is scored straight away (and escalated for inpatients); a failure never loses the vitals.
+  const news = await scoreVitalSign(row.id).catch(() => null);
+  res.status(201).json({
+    ...row,
+    news: news && { id: news.id, score: news.score, risk: news.risk, complete: news.complete },
+  });
 });
 
 const ImmunizationInput = z.object({

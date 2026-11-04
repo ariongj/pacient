@@ -1,3 +1,5 @@
+import type { AppointmentMode } from '../../api/telemedicine';
+import { ModeChoice } from '../video/VideoBits';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -217,6 +219,7 @@ function BookingForm({
     },
   });
 
+  const [visitMode, setVisitMode] = useState<AppointmentMode>('IN_PERSON');
   const min = localInput(new Date(Date.now() + 5 * 60_000));
   const when = mode === 'slot' ? slot?.start : manual ? new Date(manual).toISOString() : '';
 
@@ -230,6 +233,7 @@ function BookingForm({
       scheduledAt: when,
       durationMinutes: mode === 'slot' && slot ? slot.minutes : Number(duration),
       reason: String(f.get('reason') ?? '').trim(),
+      mode: visitMode,
     });
   }
 
@@ -327,6 +331,7 @@ function BookingForm({
             setDuration={setDuration}
           />
         )}
+        <ModeChoice value={visitMode} onChange={setVisitMode} />
         <TextAreaField
           label={t('Reason for the visit')}
           name="reason"

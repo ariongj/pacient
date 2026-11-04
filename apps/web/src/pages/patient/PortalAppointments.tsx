@@ -17,15 +17,12 @@ import {
   TextAreaField,
   TextField,
 } from '../../components/ui';
-import {
-  slotTime,
-  useBookableDoctors,
-  type AppointmentWithChannel,
-  type Slot,
-} from '../../api/scheduling';
+import { slotTime, useBookableDoctors, type Slot } from '../../api/scheduling';
 import { Badge } from '../../components/ui';
 import { formatDateTime, formatDayHeading } from '../../format';
 import { SlotPicker } from '../reception/BookAppointmentDialog';
+import { canJoinNow, type AppointmentMode, type AppointmentWithMode } from '../../api/telemedicine';
+import { JoinVideoLink, ModeChoice } from '../video/VideoBits';
 import { useCareTeam } from './shared';
 
 /** Patients may cancel online until 2 hours before (the server enforces the same rule). */
@@ -38,9 +35,13 @@ function BookOnline({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
   const [doctorId, setDoctorId] = useState('');
   const [slot, setSlot] = useState<Slot | null>(null);
   const [reason, setReason] = useState('');
+  const [mode, setMode] = useState<AppointmentMode>('IN_PERSON');
   const book = useMutation({
     mutationFn: () =>
-      api('/scheduling/book', { method: 'POST', body: { doctorId, start: slot!.start, reason } }),
+      api('/scheduling/book', {
+        method: 'POST',
+        body: { doctorId, start: slot!.start, reason, mode },
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['appointments'] });
       void queryClient.invalidateQueries({ queryKey: ['scheduling'] });
@@ -104,6 +105,7 @@ function BookOnline({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
                   {formatDayHeading(new Date(slot.start))} · {slotTime(slot.start)} ·{' '}
                   {doctor?.fullName}
                 </Alert>
+                <ModeChoice value={mode} onChange={setMode} />
                 <TextAreaField
                   label={t('Reason for the visit')}
                   required
@@ -218,7 +220,7 @@ export function PortalAppointments() {
   const [booked, setBooked] = useState(false);
   const q = useQuery({
     queryKey: ['appointments', 'all'],
-    queryFn: () => api<{ items: AppointmentWithChannel[] }>('/appointments'),
+    queryFn: () => api<{ items: AppointmentWithMode[] }>('/appointments'),
   });
   const cancel = useMutation({
     mutationFn: (id: string) =>
@@ -258,7 +260,7 @@ export function PortalAppointments() {
         {(d) => {
           const upcoming = d.items.filter((a) => new Date(a.scheduledAt).getTime() >= now);
           const past = d.items.filter((a) => new Date(a.scheduledAt).getTime() < now).reverse();
-          const rows = (items: AppointmentWithChannel[], allowCancel: boolean) => (
+          const rows = (items: AppointmentWithMode[], allowCancel: boolean) => (
             <Table caption={t('Appointments')}>
               <thead>
                 <tr>
@@ -287,7 +289,9 @@ export function PortalAppointments() {
                         {a.bookedVia === 'PORTAL' && (
                           <Badge tone="info">{t('Booked online')}</Badge>
                         )}
+                        {a.mode === 'VIDEO' && <Badge tone="info">{t('Video visit')}</Badge>}
                       </span>
+                      {canJoinNow(a, now) && <JoinVideoLink appointmentId={a.id} />}
                     </td>
                     {allowCancel && (
                       <td>

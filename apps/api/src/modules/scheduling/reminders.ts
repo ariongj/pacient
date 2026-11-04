@@ -25,12 +25,13 @@ export async function runAppointmentRemindersOnce(now = new Date()): Promise<num
       patient_id: string;
       scheduled_at: string | Date;
       doctor_name: string;
+      mode: string;
     }>(sql`
       UPDATE appointments a SET reminder_sent_at = ${now.toISOString()}
       FROM users d
       WHERE d.id = a.doctor_id AND a.status = 'CONFIRMED' AND a.reminder_sent_at IS NULL
         AND a.scheduled_at >= ${from.toISOString()} AND a.scheduled_at < ${to.toISOString()}
-      RETURNING a.id, a.patient_id, a.scheduled_at, d.full_name AS doctor_name`);
+      RETURNING a.id, a.patient_id, a.scheduled_at, a.mode, d.full_name AS doctor_name`);
     for (const row of claimed.rows) {
       const at = new Date(row.scheduled_at);
       // No reason or other health information – only that an appointment is coming up.
@@ -38,7 +39,10 @@ export async function runAppointmentRemindersOnce(now = new Date()): Promise<num
         row.patient_id,
         {
           type: 'appointment',
-          title: 'Reminder: appointment tomorrow at {time} with {doctor}',
+          title:
+            row.mode === 'VIDEO'
+              ? 'Reminder: video visit tomorrow at {time} with {doctor} – join from Appointments in the portal'
+              : 'Reminder: appointment tomorrow at {time} with {doctor}',
           vars: { time: localTime(at), doctor: row.doctor_name },
           important: true,
           link: '/portal/appointments',

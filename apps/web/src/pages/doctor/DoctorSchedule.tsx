@@ -1,8 +1,15 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { AppointmentWithChannel as Appointment } from '../../api/scheduling';
+import {
+  canJoinNow,
+  setAppointmentMode,
+  useWaitingPatients,
+  type AppointmentMode,
+  type AppointmentWithMode as Appointment,
+} from '../../api/telemedicine';
+import { JoinVideoLink } from '../video/VideoBits';
 import type { AppointmentStatus } from '../../api/types';
 import {
   Badge,
@@ -63,6 +70,21 @@ export function DoctorSchedule() {
     placeholderData: keepPreviousData,
   });
 
+  const waiting = useWaitingPatients();
+  const refetchWaiting = waiting.refetch;
+  // A patient entering a waiting room wakes this page through the live 'video.signal' event.
+  useEffect(() => {
+    const onSignal = () => void refetchWaiting();
+    window.addEventListener('pacient:video-signal', onSignal);
+    return () => window.removeEventListener('pacient:video-signal', onSignal);
+  }, [refetchWaiting]);
+  const waitingIds = new Set((waiting.data ?? []).map((w) => w.appointmentId));
+  const switchMode = useMutation({
+    mutationFn: ({ id, mode }: { id: string; mode: AppointmentMode }) =>
+      setAppointmentMode(id, mode),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['appointments'] }),
+  });
+
   const change = useMutation({
     mutationFn: ({ id, to: next }: { id: string; to: AppointmentStatus }) =>
       api(`/appointments/${id}/status`, { method: 'PATCH', body: { status: next } }),
@@ -80,6 +102,20 @@ export function DoctorSchedule() {
           </Link>
         }
       />
+      {(waiting.data ?? []).length > 0 && (
+        <Card title={t('Patients in the video waiting room')}>
+          <ul className="list">
+            {waiting.data!.map((w) => (
+              <li key={w.sessionId} className="row-between">
+                <span>
+                  <strong>{formatTime(w.scheduledAt)}</strong> · {w.patientName}
+                </span>
+                <JoinVideoLink appointmentId={w.appointmentId} waiting />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <Card>
         <div className="search-bar">
           <TextField
@@ -103,7 +139,7 @@ export function DoctorSchedule() {
             options={enumOptions(['REQUESTED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'])}
           />
         </div>
-        <ErrorAlert error={change.error} />
+        <ErrorAlert error={change.error ?? switchMode.error} />
         <QueryView query={list}>
           {(items) => {
             if (items.length === 0)
@@ -147,7 +183,26 @@ export function DoctorSchedule() {
                             {a.bookedVia === 'PORTAL' && (
                               <Badge tone="info">{t('Booked online')}</Badge>
                             )}
+                            {a.mode === 'VIDEO' && <Badge tone="info">{t('Video visit')}</Badge>}
                             <StatusBadge value={a.status} />
+                            {canJoinNow(a) && (
+                              <JoinVideoLink appointmentId={a.id} waiting={waitingIds.has(a.id)} />
+                            )}
+                            {(a.status === 'REQUESTED' || a.status === 'CONFIRMED') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                loading={switchMode.isPending && switchMode.variables?.id === a.id}
+                                onClick={() =>
+                                  switchMode.mutate({
+                                    id: a.id,
+                                    mode: a.mode === 'VIDEO' ? 'IN_PERSON' : 'VIDEO',
+                                  })
+                                }
+                              >
+                                {a.mode === 'VIDEO' ? t('Make in person') : t('Make video visit')}
+                              </Button>
+                            )}
                             {(ACTIONS[a.status] ?? []).map((act) => (
                               <Button
                                 key={act.to}

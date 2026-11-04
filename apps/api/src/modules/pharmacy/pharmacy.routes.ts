@@ -15,7 +15,16 @@ import {
 } from '../../db/schema.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
-import { checkPrescription, type SafetyAlert } from '../../lib/medication-safety.js';
+import {
+  evaluate,
+  ingredientsFromText,
+  loadContexts,
+  toPublicAlert,
+  type PublicAlert,
+} from '../../lib/medication-safety.js';
+import { interactionIndex } from '../safety/engine.js';
+import { localeOf, storedAlertsFor } from '../safety/safety.service.js';
+import type { Locale } from '../../i18n/index.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
@@ -42,7 +51,11 @@ const VerifySchema = z.object({
   /** Required when safety alerts exist: the pharmacist confirms they reviewed them. */
   alertsReviewed: z.boolean().default(false),
 });
-const ReturnSchema = z.object({ note: z.string().trim().min(5).max(2000) });
+const ReturnSchema = z.object({
+  note: z.string().trim().min(5).max(2000),
+  /** Safety alert the return refers to (code from the alerts list). */
+  alertCode: z.string().trim().max(200).optional(),
+});
 /**
  * Dispensing draws stock: `stock` names the catalogue item (defaults to the prescription's) and the
  * units handed out; without `lines` the units are taken first-expiry-first-out. A medicine that is
@@ -123,47 +136,35 @@ const queueColumns = {
 /** Prescriptions belong to the facility of the prescribing doctor. */
 const atFacility = (ctx: AuthContext) => eq(prescriber.facilityId, ctx.facilityId!);
 
-async function contextFor(patientIds: string[], excludePrescriptionIds: string[] = []) {
-  if (!patientIds.length) return { allergyMap: new Map(), medsMap: new Map() };
-  const [allergyRows, medRows] = await Promise.all([
-    db
-      .select({
-        patientId: allergies.patientId,
-        substance: allergies.substance,
-        severity: allergies.severity,
-        verificationStatus: allergies.verificationStatus,
-      })
-      .from(allergies)
-      .where(inArray(allergies.patientId, patientIds)),
-    db
-      .select({
-        id: prescriptions.id,
-        patientId: prescriptions.patientId,
-        medication: prescriptions.medication,
-      })
-      .from(prescriptions)
-      .where(and(inArray(prescriptions.patientId, patientIds), eq(prescriptions.status, 'ACTIVE'))),
-  ]);
-  const allergyMap = new Map<string, typeof allergyRows>();
-  for (const a of allergyRows)
-    allergyMap.set(a.patientId, [...(allergyMap.get(a.patientId) ?? []), a]);
-  const medsMap = new Map<string, { id: string; medication: string }[]>();
-  for (const m of medRows) {
-    if (excludePrescriptionIds.includes(m.id)) continue;
-    medsMap.set(m.patientId, [...(medsMap.get(m.patientId) ?? []), m]);
-  }
-  return { allergyMap, medsMap };
+/**
+ * Safety context for prescriptions in the queue: the engine's patient contexts (other medicines,
+ * allergies, kidney function, age, pregnancy) plus the interaction index – loaded once per request.
+ */
+async function contextFor(patientIds: string[]) {
+  const [contexts, index] = await Promise.all([loadContexts(patientIds), interactionIndex()]);
+  return { contexts, index };
 }
 
+/** Fresh alerts for one prescription, comparing it with the patient's other medicines. */
 function alertsFor(
   row: { id: string; patientId: string; medication: string },
   ctx: Awaited<ReturnType<typeof contextFor>>,
-): SafetyAlert[] {
-  const others = ((ctx.medsMap.get(row.patientId) ?? []) as { id: string; medication: string }[])
-    .filter((m) => m.id !== row.id)
-    .map((m) => m.medication);
-  return checkPrescription(row.medication, ctx.allergyMap.get(row.patientId) ?? [], others);
+  locale: Locale,
+): PublicAlert[] {
+  const pctx = ctx.contexts.get(row.patientId);
+  if (!pctx) return [];
+  const self = pctx.medications.find((m) => m.id === row.id);
+  const candidate = self ?? {
+    medication: row.medication,
+    ingredients: ingredientsFromText(row.medication, ctx.index.names),
+    atc: null,
+  };
+  const others = { ...pctx, medications: pctx.medications.filter((m) => m.id !== row.id) };
+  return evaluate(others, candidate, ctx.index.pairs).map((a) => toPublicAlert(a, locale));
 }
+
+/** Alerts that require the pharmacist's documented review (everything except minor notes). */
+const needsReview = (alerts: PublicAlert[]) => alerts.filter((a) => a.severity !== 'MINOR');
 
 async function loadAtFacility(ctx: AuthContext, id: string) {
   const [row] = await db
@@ -200,7 +201,10 @@ pharmacyRouter.get('/queue', async (req, res) => {
         : desc(prescriptions.createdAt),
     )
     .limit(200);
-  const context = await contextFor([...new Set(rows.map((r) => r.patientId))]);
+  const [context, locale] = await Promise.all([
+    contextFor([...new Set(rows.map((r) => r.patientId))]),
+    localeOf(ctx.userId),
+  ]);
   const counts = await db
     .select({ status: prescriptions.pharmacyStatus, total: sql<number>`count(*)::int` })
     .from(prescriptions)
@@ -208,7 +212,7 @@ pharmacyRouter.get('/queue', async (req, res) => {
     .where(and(atFacility(ctx), ne(prescriptions.status, 'CANCELLED')))
     .groupBy(prescriptions.pharmacyStatus);
   res.json({
-    items: rows.map((r) => ({ ...r, alerts: alertsFor(r, context) })),
+    items: rows.map((r) => ({ ...r, alerts: alertsFor(r, context, locale) })),
     counts: Object.fromEntries(counts.map((c) => [c.status, c.total])),
   });
 });
@@ -280,6 +284,8 @@ pharmacyRouter.get('/prescriptions/:id', async (req, res) => {
       .orderBy(desc(vitalSigns.recordedAt))
       .limit(1),
   ]);
+  const [context, locale] = await Promise.all([contextFor([rx.patientId]), localeOf(ctx.userId)]);
+  const stored = await storedAlertsFor({ prescriptionIds: [id] }, locale);
   await audit({
     action: AuditAction.PHARMACY_CONTEXT_VIEWED,
     actor: ctx,
@@ -297,11 +303,9 @@ pharmacyRouter.get('/prescriptions/:id', async (req, res) => {
     activeProblems: problems,
     renalAndElectrolytes: renal,
     latestWeight: weight[0] ?? null,
-    alerts: checkPrescription(
-      rx.medication,
-      allergyList,
-      otherMeds.map((m) => m.medication),
-    ),
+    alerts: alertsFor(rx, context, locale),
+    /** Alerts raised when the prescription was written, with the prescriber's override reasons. */
+    prescribingAlerts: stored.get(id) ?? [],
   });
 });
 
@@ -313,8 +317,8 @@ pharmacyRouter.post('/prescriptions/:id/verify', async (req, res) => {
   if (rx.pharmacyStatus !== 'PENDING')
     throw conflict(`Prescription is ${rx.pharmacyStatus.toLowerCase()}`);
   if (rx.status !== 'ACTIVE') throw conflict('Only active prescriptions can be verified');
-  const context = await contextFor([rx.patientId]);
-  const alerts = alertsFor(rx, context);
+  const [context, locale] = await Promise.all([contextFor([rx.patientId]), localeOf(ctx.userId)]);
+  const alerts = needsReview(alertsFor(rx, context, locale));
   if (alerts.length && (!input.alertsReviewed || !input.note || input.note.length < 5)) {
     throw badRequest(
       'Review the safety alerts and record a note explaining why it is safe to proceed',
@@ -341,7 +345,7 @@ pharmacyRouter.post('/prescriptions/:id/verify', async (req, res) => {
         resourceId: id,
         patientId: rx.patientId,
         meta: requestMeta(req),
-        metadata: { alerts: alerts.map((a) => a.kind) },
+        metadata: { alerts: alerts.map((a) => a.code) },
       },
       tx,
     );
@@ -353,7 +357,7 @@ pharmacyRouter.post('/prescriptions/:id/verify', async (req, res) => {
 pharmacyRouter.post('/prescriptions/:id/return', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
-  const { note } = parse(ReturnSchema, req.body);
+  const { note, alertCode } = parse(ReturnSchema, req.body);
   const rx = await loadAtFacility(ctx, id);
   if (!['PENDING', 'VERIFIED'].includes(rx.pharmacyStatus)) {
     throw conflict(`Prescription is ${rx.pharmacyStatus.toLowerCase()}`);
@@ -376,6 +380,7 @@ pharmacyRouter.post('/prescriptions/:id/return', async (req, res) => {
         resourceId: id,
         patientId: rx.patientId,
         meta: requestMeta(req),
+        metadata: alertCode ? { alertCode } : undefined,
       },
       tx,
     );

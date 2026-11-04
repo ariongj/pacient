@@ -6,6 +6,8 @@ import { useUser } from '../../../auth/AuthContext';
 import { Button, Dialog, ErrorAlert, formValues, TextField } from '../../../components/ui';
 import { t } from '../../../i18n';
 import { TimeChooser, useManualTimeCheck } from '../../reception/BookAppointmentDialog';
+import type { AppointmentMode } from '../../../api/telemedicine';
+import { ModeChoice } from '../../video/VideoBits';
 
 /** A doctor books a follow-up with themself: pick one of their free slots or any other time. */
 export function BookAppointmentDialog({
@@ -23,6 +25,7 @@ export function BookAppointmentDialog({
   const [slot, setSlot] = useState<Slot | null>(null);
   const [manual, setManual] = useState('');
   const [duration, setDuration] = useState('20');
+  const [visitMode, setVisitMode] = useState<AppointmentMode>('IN_PERSON');
   const warning = useManualTimeCheck(mode === 'manual' ? user.id : null, manual);
   const book = useMutation({
     mutationFn: (body: Record<string, unknown>) => api('/appointments', { method: 'POST', body }),
@@ -48,6 +51,7 @@ export function BookAppointmentDialog({
             scheduledAt: when,
             durationMinutes: mode === 'slot' && slot ? slot.minutes : Number(duration),
             reason: v.reason,
+            mode: visitMode,
           });
         }}
       >
@@ -63,6 +67,7 @@ export function BookAppointmentDialog({
           duration={duration}
           setDuration={setDuration}
         />
+        <ModeChoice value={visitMode} onChange={setVisitMode} />
         <TextField label={t('Reason')} name="reason" required minLength={2} maxLength={500} />
         <p className="muted">{t('Appointments you book are confirmed immediately.')}</p>
         <ErrorAlert error={book.error} />

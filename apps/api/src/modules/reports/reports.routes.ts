@@ -49,6 +49,7 @@ export const REPORT_NAMES = [
   'births',
   'imaging',
   'theatre',
+  'billing',
 ] as const;
 const ReportName = z.object({ report: z.enum(REPORT_NAMES) });
 
@@ -659,6 +660,75 @@ async function theatreReport(ctx: AuthContext, q: ReportQuery) {
   };
 }
 
+/**
+ * Billing per facility and month (euro cents): what care produced by category, the part owed by
+ * the Health Insurance Fund and by patients, co-payments received, and the state of claims.
+ * Money totals are not patient counts, so they are not suppressed; no patient data is included.
+ */
+async function billingReport(ctx: AuthContext, q: ReportQuery) {
+  const scope = scopeFor(ctx, q);
+  const from = q.from.toISOString().slice(0, 10);
+  const to = q.to.toISOString().slice(0, 10);
+  const result = await db.execute<Row>(sql`
+    WITH c AS (
+      SELECT ch.*, b.category, to_char(ch.service_date, 'YYYY-MM') AS month
+      FROM charges ch JOIN billable_services b ON b.id = ch.service_id
+      WHERE ch.status <> 'VOID' AND ch.service_date BETWEEN ${from}::date AND ${to}::date
+    ),
+    paid AS (
+      SELECT p.facility_id, to_char(p.received_at AT TIME ZONE 'Europe/Belgrade', 'YYYY-MM') AS month,
+        sum(p.amount_cents)::int AS cents
+      FROM payments p
+      WHERE (p.received_at AT TIME ZONE 'Europe/Belgrade')::date BETWEEN ${from}::date AND ${to}::date
+      GROUP BY 1, 2
+    )
+    SELECT f.code, f.name, f.region, c.month,
+      count(*)::int AS charges,
+      sum(c.total_cents)::int AS "totalCents",
+      sum(c.insurer_cents)::int AS "insurerCents",
+      sum(c.copay_cents)::int AS "copayCents",
+      coalesce(max(pd.cents), 0)::int AS "copayReceivedCents",
+      coalesce(sum(c.insurer_cents) FILTER (WHERE c.status = 'CLAIMED'), 0)::int AS "claimedCents",
+      coalesce(sum(c.insurer_cents) FILTER (WHERE c.status = 'PAID'), 0)::int AS "paidByFundCents",
+      coalesce(sum(c.insurer_cents) FILTER (WHERE c.status = 'REJECTED'), 0)::int AS "rejectedCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'CONSULTATION'), 0)::int AS "consultationCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'EMERGENCY'), 0)::int AS "emergencyCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'LABORATORY'), 0)::int AS "laboratoryCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'IMAGING'), 0)::int AS "imagingCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'BED_DAY'), 0)::int AS "bedDayCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'SURGERY'), 0)::int AS "surgeryCents",
+      coalesce(sum(c.total_cents) FILTER (WHERE c.category = 'PHARMACY'), 0)::int AS "pharmacyCents"
+    FROM c
+    JOIN facilities f ON f.id = c.facility_id
+    LEFT JOIN paid pd ON pd.facility_id = c.facility_id AND pd.month = c.month
+    WHERE ${facilityFilter('f', scope)}
+    GROUP BY f.id, c.month ORDER BY c.month DESC, f.region, f.name`);
+  return {
+    columns: [
+      'code',
+      'name',
+      'region',
+      'month',
+      'charges',
+      'totalCents',
+      'insurerCents',
+      'copayCents',
+      'copayReceivedCents',
+      'claimedCents',
+      'paidByFundCents',
+      'rejectedCents',
+      'consultationCents',
+      'emergencyCents',
+      'laboratoryCents',
+      'imagingCents',
+      'bedDayCents',
+      'surgeryCents',
+      'pharmacyCents',
+    ],
+    rows: result.rows,
+  };
+}
+
 const REPORTS: Record<
   (typeof REPORT_NAMES)[number],
   (ctx: AuthContext, q: ReportQuery) => Promise<{ columns: string[]; rows: unknown[] }>
@@ -677,6 +747,7 @@ const REPORTS: Record<
   births: birthsReport,
   imaging: imagingReport,
   theatre: theatreReport,
+  billing: billingReport,
 };
 
 /** CSV with protection against spreadsheet formula injection. */

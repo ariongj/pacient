@@ -216,7 +216,10 @@ export function App() {
           path="/tools/interactions"
           element={guard(['DOCTOR', 'PHARMACIST', 'NURSE'], <InteractionChecker />)}
         />
-        <Route path="/blood-bank" element={guard(['DOCTOR', 'NURSE'], <BloodBankPage />)} />
+        <Route
+          path="/blood-bank"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR'], <BloodBankPage />)}
+        />
         <Route path="/nutrition" element={guard(['NURSE', 'DOCTOR'], <NutritionPage />)} />
         <Route path="/billing" element={guard(['RECEPTION', 'DIRECTOR'], <BillingPage />)} />
         <Route path="/portal/billing" element={guard(['PATIENT'], <PortalBilling />)} />

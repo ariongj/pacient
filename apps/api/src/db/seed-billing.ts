@@ -5,15 +5,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from './client.js';
-import {
-  charges,
-  claims,
-  facilities,
-  insuranceCoverages,
-  patients,
-  payments,
-  users,
-} from './schema.js';
+import { claims, facilities, insuranceCoverages, patients, payments, users } from './schema.js';
 import { captureCharges, nextReceiptNumber } from '../modules/billing/billing.service.js';
 import { ensureTariff } from '../modules/billing/tariff.js';
 

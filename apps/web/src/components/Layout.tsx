@@ -163,6 +163,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
         { to: '/billing', label: 'Billing & claims', icon: 'clipboard' },
         { to: '/surveillance', label: 'Notifiable diseases', icon: 'alert' },
+        { to: '/blood-bank', label: 'Blood bank', icon: 'flask' },
         { to: '/wards', label: 'Bed board', icon: 'desk' },
         { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
       ],

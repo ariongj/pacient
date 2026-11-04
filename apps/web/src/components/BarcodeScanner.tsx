@@ -94,7 +94,9 @@ export function BarcodeScanner({
   async function startCamera() {
     if (!ctor) return;
     try {
-      const supported = ctor.getSupportedFormats ? await ctor.getSupportedFormats() : WANTED_FORMATS;
+      const supported = ctor.getSupportedFormats
+        ? await ctor.getSupportedFormats()
+        : WANTED_FORMATS;
       const formats = WANTED_FORMATS.filter((f) => supported.includes(f));
       const detector = new ctor(formats.length ? { formats } : undefined);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -151,7 +153,12 @@ export function BarcodeScanner({
           aria-describedby={`${hintId} ${statusId}`}
           placeholder={t('Scan or type, then Enter')}
         />
-        <Button variant="secondary" size="sm" disabled={disabled || !value.trim()} onClick={() => submit(value)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled || !value.trim()}
+          onClick={() => submit(value)}
+        >
           {t('Enter code')}
         </Button>
         {ctor &&
@@ -160,7 +167,12 @@ export function BarcodeScanner({
               {t('Stop camera')}
             </Button>
           ) : (
-            <Button variant="ghost" size="sm" disabled={disabled} onClick={() => void startCamera()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={() => void startCamera()}
+            >
               {t('Use camera')}
             </Button>
           ))}

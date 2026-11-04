@@ -12,7 +12,11 @@ import {
 } from '../src/db/schema.js';
 import { internalEan13, isValidGtin, normaliseBarcode } from '../src/modules/bcma/barcode.js';
 import { doseInterval, timingCheck } from '../src/modules/bcma/timing.js';
-import { signWristband, verifyWristband, WRISTBAND_MAX_AGE_DAYS } from '../src/modules/bcma/token.js';
+import {
+  signWristband,
+  verifyWristband,
+  WRISTBAND_MAX_AGE_DAYS,
+} from '../src/modules/bcma/token.js';
 import { api, bearer, createPatient, createWorld } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -30,7 +34,12 @@ const items: Record<keyof typeof codes, string> = {} as never;
 const base = () => `/api/v1/patients/${w.patient.id}`;
 const nurse = () => bearer(w.tokens.nurse);
 
-async function catalogItem(key: keyof typeof codes, name: string, strength: string, ingredients: string[]) {
+async function catalogItem(
+  key: keyof typeof codes,
+  name: string,
+  strength: string,
+  ingredients: string[],
+) {
   const [row] = await db
     .insert(medicationCatalog)
     .values({
@@ -45,7 +54,11 @@ async function catalogItem(key: keyof typeof codes, name: string, strength: stri
   items[key] = row!.id;
 }
 
-async function prescription(medication: string, catalogKey: keyof typeof codes | null, frequency: string) {
+async function prescription(
+  medication: string,
+  catalogKey: keyof typeof codes | null,
+  frequency: string,
+) {
   const [rx] = await db
     .insert(prescriptions)
     .values({
@@ -69,7 +82,12 @@ beforeAll(async () => {
   w = await createWorld();
   const [unit] = await db
     .insert(careUnits)
-    .values({ facilityId: w.facility.id, name: 'Interna B', code: `IB${seq}`.slice(0, 20), type: 'GENERAL_WARD' })
+    .values({
+      facilityId: w.facility.id,
+      name: 'Interna B',
+      code: `IB${seq}`.slice(0, 20),
+      type: 'GENERAL_WARD',
+    })
     .returning();
   unitId = unit!.id;
   const other = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
@@ -110,7 +128,9 @@ describe('wristband token', () => {
     expect(ok).toMatchObject({ valid: true, patientId: id, expired: false });
 
     const [prefix, payload, sig] = t.split('.');
-    const forged = Buffer.from(JSON.stringify({ p: '11111111-1111-4111-8111-111111111111', i: 1 })).toString('base64url');
+    const forged = Buffer.from(
+      JSON.stringify({ p: '11111111-1111-4111-8111-111111111111', i: 1 }),
+    ).toString('base64url');
     expect(verifyWristband(`${prefix}.${forged}.${sig}`).valid).toBe(false);
     const flipped = sig!.slice(0, -1) + (sig!.endsWith('A') ? 'B' : 'A');
     expect(verifyWristband(`${prefix}.${payload}.${flipped}`).valid).toBe(false);
@@ -144,9 +164,10 @@ describe('wristband token', () => {
     expect(timingCheck(q8, new Date('2026-11-04T11:40:00Z'), now).problem).toBe('ALREADY_GIVEN');
     expect(timingCheck(q8, new Date('2026-11-04T08:00:00Z'), now).problem).toBe('NOT_DUE');
     expect(timingCheck(q8, new Date('2026-11-04T04:30:00Z'), now).problem).toBeNull();
-    expect(timingCheck(doseInterval({ frequency: 'STAT' }), new Date('2026-11-03T08:00:00Z'), now).problem).toBe(
-      'ALREADY_GIVEN',
-    );
+    expect(
+      timingCheck(doseInterval({ frequency: 'STAT' }), new Date('2026-11-03T08:00:00Z'), now)
+        .problem,
+    ).toBe('ALREADY_GIVEN');
   });
 });
 
@@ -164,18 +185,31 @@ describe('printing a wristband', () => {
     const audits = await db
       .select()
       .from(auditLogs)
-      .where(and(eq(auditLogs.patientId, w.patient.id), eq(auditLogs.action, 'patient.wristband_printed')));
+      .where(
+        and(
+          eq(auditLogs.patientId, w.patient.id),
+          eq(auditLogs.action, 'patient.wristband_printed'),
+        ),
+      );
     expect(audits.length).toBe(1);
 
-    const other = await api().post(`/api/v1/patients/${otherAdmittedId}/wristband`).set(bearer(w.tokens.nurse));
+    const other = await api()
+      .post(`/api/v1/patients/${otherAdmittedId}/wristband`)
+      .set(bearer(w.tokens.nurse));
     expect(other.status).toBe(201);
     otherBand = other.body.token;
   });
 
   it('is refused for pharmacists, patients and patients not admitted', async () => {
-    expect((await api().post(`${base()}/wristband`).set(bearer(w.tokens.pharmacist))).status).toBe(403);
-    expect((await api().post(`${base()}/wristband`).set(bearer(w.tokens.patient))).status).toBe(403);
-    expect((await api().post(`${base()}/wristband`).set(bearer(w.tokens.outsideDoctor))).status).toBe(403);
+    expect((await api().post(`${base()}/wristband`).set(bearer(w.tokens.pharmacist))).status).toBe(
+      403,
+    );
+    expect((await api().post(`${base()}/wristband`).set(bearer(w.tokens.patient))).status).toBe(
+      403,
+    );
+    expect(
+      (await api().post(`${base()}/wristband`).set(bearer(w.tokens.outsideDoctor))).status,
+    ).toBe(403);
     const notAdmitted = await api()
       .post(`/api/v1/patients/${w.otherPatient.id}/wristband`)
       .set(bearer(w.tokens.reception));
@@ -196,9 +230,18 @@ describe('bedside verification', () => {
     api().post(`${base()}/bcma/verify`).set(nurse()).send(body);
 
   it('passes when the right patient and the right medicine are scanned', async () => {
-    const res = await verify({ prescriptionId: paraRx, patientToken: band, medicationBarcode: codes.paracetamol });
+    const res = await verify({
+      prescriptionId: paraRx,
+      patientToken: band,
+      medicationBarcode: codes.paracetamol,
+    });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ ok: true, patientConfirmed: true, medicationConfirmed: true, problems: [] });
+    expect(res.body).toMatchObject({
+      ok: true,
+      patientConfirmed: true,
+      medicationConfirmed: true,
+      problems: [],
+    });
     // Another brand with the same ingredient and strength is fine; a GS1 string is accepted.
     const generic = await verify({
       prescriptionId: paraRx,
@@ -207,36 +250,79 @@ describe('bedside verification', () => {
     });
     expect(generic.body.ok).toBe(true);
     // Free-text prescription matched by ingredient.
-    const text = await verify({ prescriptionId: textRx, patientToken: band, medicationBarcode: codes.ibuprofen });
+    const text = await verify({
+      prescriptionId: textRx,
+      patientToken: band,
+      medicationBarcode: codes.ibuprofen,
+    });
     expect(text.body.ok).toBe(true);
   });
 
   it('stops a wrong patient, a forged wristband and a wrong medicine', async () => {
-    const wrong = await verify({ prescriptionId: paraRx, patientToken: otherBand, medicationBarcode: codes.paracetamol });
+    const wrong = await verify({
+      prescriptionId: paraRx,
+      patientToken: otherBand,
+      medicationBarcode: codes.paracetamol,
+    });
     expect(wrong.body.ok).toBe(false);
-    expect(wrong.body.problems[0]).toMatchObject({ code: 'WRONG_PATIENT', overridable: false, severity: 'STOP' });
+    expect(wrong.body.problems[0]).toMatchObject({
+      code: 'WRONG_PATIENT',
+      overridable: false,
+      severity: 'STOP',
+    });
 
     const forged = await verify({ prescriptionId: paraRx, patientToken: `${band}x` });
     expect(forged.body.problems.map((p: { code: string }) => p.code)).toContain('INVALID_TOKEN');
 
-    const drug = await verify({ prescriptionId: paraRx, patientToken: band, medicationBarcode: codes.ibuprofen });
-    expect(drug.body.problems).toEqual([expect.objectContaining({ code: 'WRONG_DRUG', overridable: false })]);
+    const drug = await verify({
+      prescriptionId: paraRx,
+      patientToken: band,
+      medicationBarcode: codes.ibuprofen,
+    });
+    expect(drug.body.problems).toEqual([
+      expect.objectContaining({ code: 'WRONG_DRUG', overridable: false }),
+    ]);
     expect(drug.body.medicationConfirmed).toBe(false);
 
-    const strength = await verify({ prescriptionId: paraRx, patientToken: band, medicationBarcode: codes.paracetamol1g });
-    expect(strength.body.problems).toEqual([expect.objectContaining({ code: 'DIFFERENT_STRENGTH', overridable: true })]);
+    const strength = await verify({
+      prescriptionId: paraRx,
+      patientToken: band,
+      medicationBarcode: codes.paracetamol1g,
+    });
+    expect(strength.body.problems).toEqual([
+      expect.objectContaining({ code: 'DIFFERENT_STRENGTH', overridable: true }),
+    ]);
 
-    const unknown = await verify({ prescriptionId: paraRx, patientToken: band, medicationBarcode: '2999999999992' });
+    const unknown = await verify({
+      prescriptionId: paraRx,
+      patientToken: band,
+      medicationBarcode: '2999999999992',
+    });
     expect(unknown.body.problems.map((p: { code: string }) => p.code)).toEqual(['UNKNOWN_BARCODE']);
   });
 
   it('reports an expired wristband and an allergy', async () => {
-    const old = signWristband(w.patient.id, new Date(Date.now() - (WRISTBAND_MAX_AGE_DAYS + 5) * 86_400_000));
-    const expired = await verify({ prescriptionId: paraRx, patientToken: old, medicationBarcode: codes.paracetamol });
-    expect(expired.body.problems).toEqual([expect.objectContaining({ code: 'EXPIRED_TOKEN', overridable: true })]);
+    const old = signWristband(
+      w.patient.id,
+      new Date(Date.now() - (WRISTBAND_MAX_AGE_DAYS + 5) * 86_400_000),
+    );
+    const expired = await verify({
+      prescriptionId: paraRx,
+      patientToken: old,
+      medicationBarcode: codes.paracetamol,
+    });
+    expect(expired.body.problems).toEqual([
+      expect.objectContaining({ code: 'EXPIRED_TOKEN', overridable: true }),
+    ]);
 
-    const allergy = await verify({ prescriptionId: amoxRx, patientToken: band, medicationBarcode: codes.amoxicillin });
-    expect(allergy.body.problems).toEqual([expect.objectContaining({ code: 'ALLERGY', overridable: true })]);
+    const allergy = await verify({
+      prescriptionId: amoxRx,
+      patientToken: band,
+      medicationBarcode: codes.amoxicillin,
+    });
+    expect(allergy.body.problems).toEqual([
+      expect.objectContaining({ code: 'ALLERGY', overridable: true }),
+    ]);
     expect(allergy.body.problems[0].message).toMatch(/penicillin/i);
   });
 
@@ -264,13 +350,21 @@ describe('bedside verification', () => {
         barcode: codes.paracetamol,
       });
       expect(res.status).toBe(201);
-      expect(res.body).toMatchObject({ patientScanned: true, medicationScanned: true, scanOverrideReason: null });
+      expect(res.body).toMatchObject({
+        patientScanned: true,
+        medicationScanned: true,
+        scanOverrideReason: null,
+      });
       const mar = await api().get(`${base()}/medication-administrations`).set(nurse());
       expect(mar.body.items[0]).toMatchObject({ patientScanned: true, medicationScanned: true });
     });
 
     it('flags a second dose too soon as already given / not due', async () => {
-      const res = await verify({ prescriptionId: paraRx, patientToken: band, medicationBarcode: codes.paracetamol });
+      const res = await verify({
+        prescriptionId: paraRx,
+        patientToken: band,
+        medicationBarcode: codes.paracetamol,
+      });
       expect(res.body.problems.map((p: { code: string }) => p.code)).toEqual(['ALREADY_GIVEN']);
       const again = await give({
         prescriptionId: paraRx,
@@ -290,7 +384,11 @@ describe('bedside verification', () => {
         status: 'GIVEN',
         administeredAt: new Date(Date.now() - 2 * 3_600_000),
       });
-      const early = await verify({ prescriptionId: textRx, patientToken: band, medicationBarcode: codes.ibuprofen });
+      const early = await verify({
+        prescriptionId: textRx,
+        patientToken: band,
+        medicationBarcode: codes.ibuprofen,
+      });
       expect(early.body.problems.map((p: { code: string }) => p.code)).toEqual(['NOT_DUE']);
     });
 
@@ -316,17 +414,31 @@ describe('bedside verification', () => {
       const refused = await api()
         .post(`${base()}/medication-administrations`)
         .set(nurse())
-        .send({ prescriptionId: textRx, status: 'REFUSED', reason: 'Patient refused', scanToken: otherBand });
+        .send({
+          prescriptionId: textRx,
+          status: 'REFUSED',
+          reason: 'Patient refused',
+          scanToken: otherBand,
+        });
       expect(refused.status).toBe(409);
       const denied = await db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.patientId, w.patient.id), eq(auditLogs.action, 'medication.barcode_override')));
+        .where(
+          and(
+            eq(auditLogs.patientId, w.patient.id),
+            eq(auditLogs.action, 'medication.barcode_override'),
+          ),
+        );
       expect(denied.filter((a) => a.outcome === 'DENIED').length).toBe(3);
     });
 
     it('cannot claim a scan that did not happen', async () => {
-      const res = await give({ prescriptionId: amoxRx, patientScanned: true, medicationScanned: true });
+      const res = await give({
+        prescriptionId: amoxRx,
+        patientScanned: true,
+        medicationScanned: true,
+      });
       expect(res.status).toBe(400);
       const fake = await give({
         prescriptionId: amoxRx,
@@ -342,7 +454,10 @@ describe('bedside verification', () => {
     it('an override needs a reason of at least 10 characters and is audited', async () => {
       const none = await give({ prescriptionId: amoxRx });
       expect(none.status).toBe(400);
-      expect(none.body.error.details).toMatchObject({ patientScanned: false, medicationScanned: false });
+      expect(none.body.error.details).toMatchObject({
+        patientScanned: false,
+        medicationScanned: false,
+      });
       const short = await give({ prescriptionId: amoxRx, scanOverrideReason: 'too short' });
       expect(short.status).toBe(400);
       // Scanned, but the allergy warning still needs a reason.
@@ -371,7 +486,12 @@ describe('bedside verification', () => {
       const audits = await db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.resourceId, ok.body.id), eq(auditLogs.action, 'medication.barcode_override')));
+        .where(
+          and(
+            eq(auditLogs.resourceId, ok.body.id),
+            eq(auditLogs.action, 'medication.barcode_override'),
+          ),
+        );
       expect(audits).toHaveLength(1);
       expect(audits[0]!.metadata).toMatchObject({
         patientScanned: true,
@@ -384,7 +504,11 @@ describe('bedside verification', () => {
       const res = await api()
         .post(`${base()}/medication-administrations`)
         .set(nurse())
-        .send({ prescriptionId: paraRx, status: 'WITHHELD', reason: 'Nil by mouth before surgery' });
+        .send({
+          prescriptionId: paraRx,
+          status: 'WITHHELD',
+          reason: 'Nil by mouth before surgery',
+        });
       expect(res.status).toBe(201);
       expect(res.body.scanOverrideReason).toBeNull();
     });
@@ -396,7 +520,9 @@ describe('bedside verification', () => {
       // Given: paracetamol (both scanned), ibuprofen (seeded, unscanned), amoxicillin (override).
       expect(res.body.compliance).toMatchObject({ given: 3, bothScanned: 1, overridden: 1 });
       expect(res.body.compliance.compliancePct).toBeCloseTo(33.3, 1);
-      expect((await api().get(`${base()}/bcma/compliance`).set(bearer(w.tokens.patient))).status).toBe(403);
+      expect(
+        (await api().get(`${base()}/bcma/compliance`).set(bearer(w.tokens.patient))).status,
+      ).toBe(403);
     });
   });
 });

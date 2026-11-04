@@ -74,7 +74,9 @@ export async function wristbandData(patientId: string) {
   if (!p) throw notFound('Patient not found');
   const stay = await currentStay(patientId);
   if (!stay) {
-    throw conflict('Wristbands are printed only for admitted patients or patients in the emergency department');
+    throw conflict(
+      'Wristbands are printed only for admitted patients or patients in the emergency department',
+    );
   }
   const activeAllergies = await db
     .select({ substance: allergies.substance, severity: allergies.severity })
@@ -181,7 +183,13 @@ export interface CheckResult {
   /** The pack was read and is the prescribed medicine. */
   medicationConfirmed: boolean;
   scannedItem: { id: string; name: string; strength: string | null; form: string } | null;
-  prescription: { id: string; medication: string; dosage: string; route: string; frequency: string };
+  prescription: {
+    id: string;
+    medication: string;
+    dosage: string;
+    route: string;
+    frequency: string;
+  };
   lastGivenAt: Date | null;
   nextDueAt: Date | null;
 }
@@ -221,7 +229,11 @@ export async function runChecks(
   const now = opts.now ?? new Date();
   const rx = opts.rx ?? (await loadAdministrablePrescription(patientId, input.prescriptionId));
   const problems: BcmaProblem[] = [];
-  const add = (code: ProblemCode, vars: Record<string, string | Date | null> = {}, details?: Record<string, unknown>) =>
+  const add = (
+    code: ProblemCode,
+    vars: Record<string, string | Date | null> = {},
+    details?: Record<string, unknown>,
+  ) =>
     problems.push({
       code,
       overridable: !NEVER_OVERRIDABLE.has(code),
@@ -270,7 +282,10 @@ export async function runChecks(
         const scannedIngredients = item.ingredients?.length
           ? item.ingredients
           : (await resolveCandidate(item.name, item.id)).ingredients;
-        if (!prescribed.ingredients.length || !sameSet(prescribed.ingredients, scannedIngredients)) {
+        if (
+          !prescribed.ingredients.length ||
+          !sameSet(prescribed.ingredients, scannedIngredients)
+        ) {
           add('WRONG_DRUG', { scanned: label, prescribed: rx.medication });
         } else {
           medicationConfirmed = true;
@@ -282,7 +297,10 @@ export async function runChecks(
               .where(eq(medicationCatalog.id, rx.catalogItemId));
             prescribedStrength = p?.strength ?? null;
           }
-          if (prescribedStrength && normStrength(prescribedStrength) !== normStrength(item.strength)) {
+          if (
+            prescribedStrength &&
+            normStrength(prescribedStrength) !== normStrength(item.strength)
+          ) {
             add('DIFFERENT_STRENGTH', { scanned: label });
           }
         }
@@ -308,9 +326,14 @@ export async function runChecks(
   }
 
   /* Allergy (the prescriber may have overridden it, but the nurse must see it at the bedside). */
-  const alerts = await checkMedication(patientId, rx.medication, scannedItem?.id ?? rx.catalogItemId, {
-    excludePrescriptionIds: [rx.id],
-  });
+  const alerts = await checkMedication(
+    patientId,
+    rx.medication,
+    scannedItem?.id ?? rx.catalogItemId,
+    {
+      excludePrescriptionIds: [rx.id],
+    },
+  );
   for (const a of alerts.filter((x) => x.kind === 'ALLERGY')) {
     const pub = toPublicAlert(a, locale);
     add('ALLERGY', { message: pub.message }, { alertCode: a.code, severity: a.severity });

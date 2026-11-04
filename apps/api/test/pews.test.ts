@@ -358,16 +358,17 @@ beforeAll(async () => {
     ])
     .returning();
   await db.insert(unitStaff).values({ unitId: unit.id, userId: w.users.nurse.id });
-  toddler = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
-  [toddler] = await db
+  const created2 = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
+  const [aged] = await db
     .update(patients)
     .set({ dateOfBirth: bornMonthsAgo(30) })
-    .where(eq(patients.id, toddler.id))
+    .where(eq(patients.id, created2.id))
     .returning();
+  toddler = aged!;
   adult = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
   await db.insert(admissions).values([
     {
-      patientId: toddler!.id,
+      patientId: toddler.id,
       facilityId: w.facility.id,
       unitId: unit.id,
       bedId: b1!.id,

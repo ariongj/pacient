@@ -33,7 +33,13 @@ export interface BcmaCheck {
   patientConfirmed: boolean;
   medicationConfirmed: boolean;
   scannedItem: { id: string; name: string; strength: string | null; form: string } | null;
-  prescription: { id: string; medication: string; dosage: string; route: string; frequency: string };
+  prescription: {
+    id: string;
+    medication: string;
+    dosage: string;
+    route: string;
+    frequency: string;
+  };
   lastGivenAt: string | null;
   nextDueAt: string | null;
 }
@@ -88,25 +94,31 @@ export type ScannedAdministration = MedicationAdministration & {
 export const MIN_SCAN_OVERRIDE = 10;
 
 /** True when a scanned value looks like one of our wristbands rather than a pack barcode. */
-export const isWristbandCode = (value: string) => /^PAC1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value.trim());
+export const isWristbandCode = (value: string) =>
+  /^PAC1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value.trim());
 
 export function usePrintWristband(patientId: string) {
   return useMutation({
-    mutationFn: () => api<Wristband>(`/patients/${patientId}/wristband`, { method: 'POST', body: {} }),
+    mutationFn: () =>
+      api<Wristband>(`/patients/${patientId}/wristband`, { method: 'POST', body: {} }),
   });
 }
 
 export function useBcmaVerify(patientId: string) {
   return useMutation({
-    mutationFn: (body: { prescriptionId: string; patientToken?: string; medicationBarcode?: string }) =>
-      api<BcmaCheck>(`/patients/${patientId}/bcma/verify`, { method: 'POST', body }),
+    mutationFn: (body: {
+      prescriptionId: string;
+      patientToken?: string;
+      medicationBarcode?: string;
+    }) => api<BcmaCheck>(`/patients/${patientId}/bcma/verify`, { method: 'POST', body }),
   });
 }
 
 export function useBcmaCompliance(patientId: string, enabled = true, days = 7) {
   return useQuery({
     queryKey: ['patient', patientId, 'bcma-compliance', days],
-    queryFn: () => api<BcmaCompliance>(`/patients/${patientId}/bcma/compliance`, { query: { days } }),
+    queryFn: () =>
+      api<BcmaCompliance>(`/patients/${patientId}/bcma/compliance`, { query: { days } }),
     enabled,
     staleTime: 60_000,
   });

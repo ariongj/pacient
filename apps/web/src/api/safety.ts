@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { t } from '../i18n';
+import type { DoseSummary, DosingPatient, StructuredDose } from './dosing';
 
 export type AlertSeverity = 'CONTRAINDICATED' | 'MAJOR' | 'MODERATE' | 'MINOR';
 export type AlertKind =
@@ -77,19 +78,41 @@ export function kindLabel(k: AlertKind): string {
   }
 }
 
-/** Live check of one medication for a patient (debounce the inputs before calling). */
+export interface SafetyCheckResult {
+  ingredients: string[];
+  /** Catalogue strength used to convert tablets/ml to mg ("500 mg"). */
+  strength?: string | null;
+  alerts: SafetyAlert[];
+  /** Age group and latest weight used by dose checks. */
+  patient?: DosingPatient | null;
+  /** Computed doses and applied rules (only with a structured dose). */
+  dose?: DoseSummary | null;
+  /** Dosage and frequency text generated from the structured dose. */
+  text?: { dosage: string; frequency: string } | null;
+}
+
+/**
+ * Live check of one medication for a patient (debounce the inputs before calling). With a
+ * structured dose it also checks the dose range against the dose rules.
+ */
 export function useSafetyCheck(
   patientId: string,
   medication: string,
   catalogItemId: string | null,
   enabled: boolean,
+  dose?: StructuredDose | null,
 ) {
   return useQuery({
-    queryKey: ['patient', patientId, 'safety-check', medication, catalogItemId],
+    queryKey: ['patient', patientId, 'safety-check', medication, catalogItemId, dose ?? null],
     queryFn: () =>
-      api<{ ingredients: string[]; alerts: SafetyAlert[] }>('/safety/check', {
+      api<SafetyCheckResult>('/safety/check', {
         method: 'POST',
-        body: { patientId, medication, catalogItemId: catalogItemId ?? undefined },
+        body: {
+          patientId,
+          medication,
+          catalogItemId: catalogItemId ?? undefined,
+          ...(dose ? { dose } : {}),
+        },
       }),
     enabled: enabled && medication.trim().length >= 3,
     staleTime: 30_000,

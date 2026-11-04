@@ -1,8 +1,10 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
@@ -28,7 +30,9 @@ import {
   PACK_RETENTION,
 } from '../src/modules/downtime/downtime.service.js';
 import { dueTimes, frequencyHours } from '../src/modules/downtime/pack.js';
-import { api, bearer, createWorld } from './helpers.js';
+import { api, app, bearer, createWorld } from './helpers.js';
+
+const execFileAsync = promisify(execFile);
 
 let w: Awaited<ReturnType<typeof createWorld>>;
 let dir: string;
@@ -364,6 +368,31 @@ describe('downtime packs', () => {
       expect(res.status).toBe(200);
       expect(res.headers['x-pack-sha256']).toBe(age.sha256);
       expect((res.body as Buffer).subarray(0, 21).toString()).toBe('age-encryption.org/v1');
+
+      // The ward PC script stores the encrypted copy and opens it with the offline key.
+      const server = app.listen(0);
+      try {
+        const port = (server.address() as AddressInfo).port;
+        const out = path.join(dir, 'ward-pc');
+        const script = path.resolve(__dirname, '../../../scripts/downtime-sync.mjs');
+        const envVars = {
+          ...process.env,
+          PACIENT_URL: `http://127.0.0.1:${port}`,
+          DOWNTIME_SYNC_KEY: key,
+          DOWNTIME_OUT_DIR: out,
+        };
+        await execFileAsync(process.execPath, [script, 'sync'], { env: envVars });
+        const opened = await execFileAsync(
+          process.execPath,
+          [script, 'open', '--identity', keyFile],
+          { env: envVars },
+        );
+        const htmlPath = opened.stdout.trim();
+        expect(sha(readFileSync(htmlPath))).toBe(age.sha256);
+        await execFileAsync(process.execPath, [script, 'check'], { env: envVars });
+      } finally {
+        server.close();
+      }
     } finally {
       downtimeConfig.ageRecipient = undefined;
       setSyncKeysForTests(undefined);

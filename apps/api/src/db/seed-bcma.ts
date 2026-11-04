@@ -26,7 +26,11 @@ export async function seedBcma({ facilityId }: { facilityId: string }) {
   const catalog = await db
     .select()
     .from(medicationCatalog)
-    .orderBy(asc(medicationCatalog.name), asc(medicationCatalog.form), asc(medicationCatalog.strength));
+    .orderBy(
+      asc(medicationCatalog.name),
+      asc(medicationCatalog.form),
+      asc(medicationCatalog.strength),
+    );
   for (let i = 0; i < catalog.length; i++) {
     const item = catalog[i]!;
     if (item.barcode) continue;
@@ -40,7 +44,11 @@ export async function seedBcma({ facilityId }: { facilityId: string }) {
   const [nurse] = await db.select().from(users).where(eq(users.email, 'nurse@pacient.local'));
   if (!nurse) return;
   const stays = await db
-    .select({ patientId: admissions.patientId, doctorId: admissions.attendingDoctorId, admittedAt: admissions.admittedAt })
+    .select({
+      patientId: admissions.patientId,
+      doctorId: admissions.attendingDoctorId,
+      admittedAt: admissions.admittedAt,
+    })
     .from(admissions)
     .where(and(eq(admissions.facilityId, facilityId), eq(admissions.status, 'ADMITTED')))
     .orderBy(asc(admissions.admittedAt))
@@ -49,11 +57,18 @@ export async function seedBcma({ facilityId }: { facilityId: string }) {
   const [paracetamol] = await db
     .select()
     .from(medicationCatalog)
-    .where(and(eq(medicationCatalog.name, 'Paracetamol'), eq(medicationCatalog.strength, '500 mg')));
+    .where(
+      and(eq(medicationCatalog.name, 'Paracetamol'), eq(medicationCatalog.strength, '500 mg')),
+    );
   const existing = await db
     .select({ patientId: medicationAdministrations.patientId })
     .from(medicationAdministrations)
-    .where(inArray(medicationAdministrations.patientId, stays.map((s) => s.patientId)));
+    .where(
+      inArray(
+        medicationAdministrations.patientId,
+        stays.map((s) => s.patientId),
+      ),
+    );
   const done = new Set(existing.map((e) => e.patientId));
 
   let overrideIdx = 0;
@@ -111,4 +126,3 @@ export async function seedBcma({ facilityId }: { facilityId: string }) {
     if (rows.length) await db.insert(medicationAdministrations).values(rows);
   }
 }
-

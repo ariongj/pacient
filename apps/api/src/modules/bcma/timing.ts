@@ -42,7 +42,8 @@ export function doseInterval(rx: {
   frequencyCode?: string | null;
   asNeeded?: boolean | null;
 }): DoseInterval {
-  const asNeeded = Boolean(rx.asNeeded) || /\bprn\b|sipas nevojës|po potrebi|as needed/i.test(rx.frequency);
+  const asNeeded =
+    Boolean(rx.asNeeded) || /\bprn\b|sipas nevojës|po potrebi|as needed/i.test(rx.frequency);
   const code = rx.frequencyCode ? CODE_HOURS[rx.frequencyCode.toUpperCase()] : undefined;
   if (code === 'ONCE') return { hours: null, once: true, asNeeded };
   if (code === 'PRN') return { hours: null, once: false, asNeeded: true };
@@ -50,7 +51,9 @@ export function doseInterval(rx: {
   if (/\bstat\b|single dose|vetëm një herë|jednokratno/i.test(rx.frequency)) {
     return { hours: null, once: true, asNeeded };
   }
-  const every = /every\s+(\d{1,3})\s*h|çdo\s+(\d{1,3})\s*or|svakih\s+(\d{1,3})\s*(?:h|sat)/i.exec(rx.frequency);
+  const every = /every\s+(\d{1,3})\s*h|çdo\s+(\d{1,3})\s*or|svakih\s+(\d{1,3})\s*(?:h|sat)/i.exec(
+    rx.frequency,
+  );
   if (every) return { hours: Number(every[1] ?? every[2] ?? every[3]), once: false, asNeeded };
   const numeric = NUMERIC_PER_DAY.exec(rx.frequency);
   const perDay = numeric
@@ -70,15 +73,24 @@ export interface TimingResult {
   nextDueAt: Date | null;
 }
 
-export function timingCheck(interval: DoseInterval, lastGivenAt: Date | null, now = new Date()): TimingResult {
+export function timingCheck(
+  interval: DoseInterval,
+  lastGivenAt: Date | null,
+  now = new Date(),
+): TimingResult {
   if (!lastGivenAt) return { problem: null, lastGivenAt: null, nextDueAt: null };
   if (interval.once) return { problem: 'ALREADY_GIVEN', lastGivenAt, nextDueAt: null };
   const sinceMin = (now.getTime() - lastGivenAt.getTime()) / 60_000;
-  if (sinceMin < DUE_WINDOW_MINUTES && (interval.hours === null || interval.hours * 60 > DUE_WINDOW_MINUTES * 2)) {
+  if (
+    sinceMin < DUE_WINDOW_MINUTES &&
+    (interval.hours === null || interval.hours * 60 > DUE_WINDOW_MINUTES * 2)
+  ) {
     return {
       problem: 'ALREADY_GIVEN',
       lastGivenAt,
-      nextDueAt: interval.hours ? new Date(lastGivenAt.getTime() + interval.hours * 3_600_000) : null,
+      nextDueAt: interval.hours
+        ? new Date(lastGivenAt.getTime() + interval.hours * 3_600_000)
+        : null,
     };
   }
   if (interval.hours === null) return { problem: null, lastGivenAt, nextDueAt: null };

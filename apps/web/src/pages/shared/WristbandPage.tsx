@@ -57,12 +57,15 @@ function useQr(value: string | undefined) {
 
 function identifierLabel(b: Wristband) {
   if (b.patient.identifierKind === 'NATIONAL_ID') return t('National ID');
-  return b.patient.temporaryIdentity === 'NEWBORN' ? t('Temporary number (newborn)') : t('Temporary number');
+  return b.patient.temporaryIdentity === 'NEWBORN'
+    ? t('Temporary number (newborn)')
+    : t('Temporary number');
 }
 
 function Label({ band }: { band: Wristband }) {
   const qr = useQr(band.token);
-  const sexShort = band.patient.sex === 'FEMALE' ? t('F') : band.patient.sex === 'MALE' ? t('M') : '';
+  const sexShort =
+    band.patient.sex === 'FEMALE' ? t('F') : band.patient.sex === 'MALE' ? t('M') : '';
   return (
     <div className="wristband-label" aria-label={t('Wristband preview')}>
       {qr && <img src={qr} alt={t('Wristband code')} />}
@@ -147,7 +150,10 @@ export function WristbandPage() {
                         ? t('No known allergies')
                         : t('Not recorded'),
                   ],
-                  [t('Blood group'), band.bloodGroup ?? t('Not confirmed by the laboratory – not printed')],
+                  [
+                    t('Blood group'),
+                    band.bloodGroup ?? t('Not confirmed by the laboratory – not printed'),
+                  ],
                   [t('Stay'), `${humanize(band.stay.kind)} · ${formatDateTime(band.stay.since)}`],
                   [t('Issued'), formatDateTime(band.issuedAt)],
                 ]}

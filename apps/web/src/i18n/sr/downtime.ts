@@ -72,5 +72,5 @@ export const downtime: Record<string, string> = {
   English: 'Engleski',
   'Downtime procedures in effect – record on paper; back-enter afterwards':
     'Na snazi su procedure za prekid rada – evidentirajte na papiru; unesite naknadno',
-  'Open the downtime kit': 'Otvori komplet za prekid rada',
+  'Open the downtime kit': 'Otvori paket za prekid rada',
 };

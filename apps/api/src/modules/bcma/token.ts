@@ -21,15 +21,15 @@ export function signWristband(patientId: string, issuedAt = new Date()): string 
 }
 
 export type WristbandCheck =
-  | { valid: true; patientId: string; issuedAt: Date; expired: boolean }
-  | { valid: false };
+  { valid: true; patientId: string; issuedAt: Date; expired: boolean } | { valid: false };
 
 export function verifyWristband(token: string, now = new Date()): WristbandCheck {
   const parts = token.trim().split('.');
   if (parts.length !== 3 || parts[0] !== PREFIX) return { valid: false };
   const [, payload, sig] = parts as [string, string, string];
   // Only canonical base64url: Buffer decoding would otherwise ignore stray trailing characters.
-  if (!/^[A-Za-z0-9_-]{24}$/.test(sig) || !/^[A-Za-z0-9_-]+$/.test(payload)) return { valid: false };
+  if (!/^[A-Za-z0-9_-]{24}$/.test(sig) || !/^[A-Za-z0-9_-]+$/.test(payload))
+    return { valid: false };
   const expected = sign(`${PREFIX}.${payload}`);
   let given: Buffer;
   try {
@@ -37,7 +37,8 @@ export function verifyWristband(token: string, now = new Date()): WristbandCheck
   } catch {
     return { valid: false };
   }
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { valid: false };
+  if (given.length !== expected.length || !timingSafeEqual(given, expected))
+    return { valid: false };
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
       p?: unknown;

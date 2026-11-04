@@ -108,9 +108,11 @@ export function AdmitDialog({
   const [unitId, setUnitId] = useState(preset?.unitId ?? '');
   const [bedId, setBedId] = useState(preset?.bedId ?? '');
   /** After admission: offer to print the wristband straight away. */
-  const [admitted, setAdmitted] = useState<{ id: string; firstName: string; lastName: string } | null>(
-    null,
-  );
+  const [admitted, setAdmitted] = useState<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
   const doctors = useHospitalDoctors();
   useEffect(() => {
     if (open) {
@@ -164,97 +166,101 @@ export function AdmitDialog({
             <Button variant="secondary" onClick={onClose}>
               {t('Later')}
             </Button>
-            <Link className="btn btn-primary btn-md" to={`/wristband/${admitted.id}`} onClick={onClose}>
+            <Link
+              className="btn btn-primary btn-md"
+              to={`/wristband/${admitted.id}`}
+              onClick={onClose}
+            >
               {t('Print wristband')}
             </Link>
           </div>
         </div>
       ) : (
-      <form onSubmit={onSubmit} className="stack">
-        {patient ? (
-          <div className="row-between">
-            <span>
-              {t('Patient')}: <strong>{fullName(patient)}</strong>
-            </span>
-            {!preset?.patient && (
-              <Button size="sm" variant="secondary" onClick={() => setPatient(null)}>
-                {t('Change')}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="stack" style={{ gap: '0.5rem' }}>
-            <TextField
-              label={t('Find the patient')}
-              placeholder={t('Name or national ID')}
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              autoFocus
-            />
-            {found.data?.items.length === 0 && <p className="muted">{t('No patients found')}</p>}
-            <ul className="list">
-              {found.data?.items.map((p) => (
-                <li key={p.id} className="row-between">
-                  <span>
-                    <strong>{fullName(p)}</strong>{' '}
-                    <span className="muted">
-                      {p.nationalId} · {formatDate(p.dateOfBirth)}
+        <form onSubmit={onSubmit} className="stack">
+          {patient ? (
+            <div className="row-between">
+              <span>
+                {t('Patient')}: <strong>{fullName(patient)}</strong>
+              </span>
+              {!preset?.patient && (
+                <Button size="sm" variant="secondary" onClick={() => setPatient(null)}>
+                  {t('Change')}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="stack" style={{ gap: '0.5rem' }}>
+              <TextField
+                label={t('Find the patient')}
+                placeholder={t('Name or national ID')}
+                value={search}
+                onChange={(e) => setSearch(e.currentTarget.value)}
+                autoFocus
+              />
+              {found.data?.items.length === 0 && <p className="muted">{t('No patients found')}</p>}
+              <ul className="list">
+                {found.data?.items.map((p) => (
+                  <li key={p.id} className="row-between">
+                    <span>
+                      <strong>{fullName(p)}</strong>{' '}
+                      <span className="muted">
+                        {p.nationalId} · {formatDate(p.dateOfBirth)}
+                      </span>
                     </span>
-                  </span>
-                  <Button size="sm" variant="secondary" onClick={() => setPatient(p)}>
-                    {t('Select')}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <UnitBedFields unitId={unitId} bedId={bedId} onUnit={setUnitId} onBed={setBedId} />
-        <div className="form-grid">
-          <SelectField
-            label={t('Attending doctor')}
-            name="attendingDoctorId"
-            defaultValue={user.id}
-            options={(doctors.data ?? []).map((d) => ({
-              value: d.id,
-              label: d.specialty ? `${d.fullName} · ${t(d.specialty)}` : d.fullName,
-            }))}
-          />
-          {!preset?.edVisitId && (
-            <SelectField
-              label={t('Admission type')}
-              name="source"
-              defaultValue="ELECTIVE"
-              options={SOURCES.map((s) => ({ value: s, label: sourceLabel(s) }))}
-            />
+                    <Button size="sm" variant="secondary" onClick={() => setPatient(p)}>
+                      {t('Select')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-          <TextField label={t('Expected discharge')} name="expectedDischargeAt" type="date" />
-        </div>
-        <TextAreaField
-          label={t('Reason for admission')}
-          name="reason"
-          required
-          minLength={3}
-          maxLength={500}
-          rows={3}
-          defaultValue={preset?.reason}
-          hint={t('Visible only to the care team and staff of the ward.')}
-        />
-        {preset?.edVisitId && (
-          <Alert tone="info">
-            {t('The emergency attendance is closed as “admitted” when you confirm.')}
-          </Alert>
-        )}
-        <ErrorAlert error={admit.error} />
-        <div className="form-actions">
-          <Button variant="secondary" onClick={onClose}>
-            {t('Cancel')}
-          </Button>
-          <Button type="submit" loading={admit.isPending} disabled={!patient || !unitId}>
-            {t('Admit')}
-          </Button>
-        </div>
-      </form>
+          <UnitBedFields unitId={unitId} bedId={bedId} onUnit={setUnitId} onBed={setBedId} />
+          <div className="form-grid">
+            <SelectField
+              label={t('Attending doctor')}
+              name="attendingDoctorId"
+              defaultValue={user.id}
+              options={(doctors.data ?? []).map((d) => ({
+                value: d.id,
+                label: d.specialty ? `${d.fullName} · ${t(d.specialty)}` : d.fullName,
+              }))}
+            />
+            {!preset?.edVisitId && (
+              <SelectField
+                label={t('Admission type')}
+                name="source"
+                defaultValue="ELECTIVE"
+                options={SOURCES.map((s) => ({ value: s, label: sourceLabel(s) }))}
+              />
+            )}
+            <TextField label={t('Expected discharge')} name="expectedDischargeAt" type="date" />
+          </div>
+          <TextAreaField
+            label={t('Reason for admission')}
+            name="reason"
+            required
+            minLength={3}
+            maxLength={500}
+            rows={3}
+            defaultValue={preset?.reason}
+            hint={t('Visible only to the care team and staff of the ward.')}
+          />
+          {preset?.edVisitId && (
+            <Alert tone="info">
+              {t('The emergency attendance is closed as “admitted” when you confirm.')}
+            </Alert>
+          )}
+          <ErrorAlert error={admit.error} />
+          <div className="form-actions">
+            <Button variant="secondary" onClick={onClose}>
+              {t('Cancel')}
+            </Button>
+            <Button type="submit" loading={admit.isPending} disabled={!patient || !unitId}>
+              {t('Admit')}
+            </Button>
+          </div>
+        </form>
       )}
     </Dialog>
   );

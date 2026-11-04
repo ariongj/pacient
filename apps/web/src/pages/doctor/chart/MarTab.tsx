@@ -42,7 +42,8 @@ const STATUS_OPTIONS: { value: AdministrationStatus; label: string }[] = [
 
 /** Problems the server returned with a refused save (409 stop or 400 reason required). */
 function problemsOf(error: unknown): BcmaProblem[] {
-  if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object') return [];
+  if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object')
+    return [];
   const p = (error.details as { problems?: unknown }).problems;
   return Array.isArray(p) ? (p as BcmaProblem[]) : [];
 }
@@ -60,7 +61,9 @@ function ProblemList({ problems }: { problems: BcmaProblem[] }) {
               <li key={i}>{p.message}</li>
             ))}
           </ul>
-          <div>{t('This cannot be overridden. Check the patient and the medicine and scan again.')}</div>
+          <div>
+            {t('This cannot be overridden. Check the patient and the medicine and scan again.')}
+          </div>
         </div>
       )}
       {warnings.length > 0 && (
@@ -122,7 +125,11 @@ function ScanToGiveDialog({
   const [hint, setHint] = useState<string | null>(null);
   const record = useChartMutation(
     patientId,
-    (body: Record<string, unknown>) => ({ path: '/medication-administrations', method: 'POST', body }),
+    (body: Record<string, unknown>) => ({
+      path: '/medication-administrations',
+      method: 'POST',
+      body,
+    }),
     onClose,
   );
 
@@ -140,7 +147,11 @@ function ScanToGiveDialog({
   const patientStop = stops.some((p) => p.code === 'WRONG_PATIENT' || p.code === 'INVALID_TOKEN');
   const drugStop = stops.some((p) => p.code === 'WRONG_DRUG');
   const step: 'patient' | 'pack' | 'confirm' =
-    (!token && !skipPatient) || patientStop ? 'patient' : (!barcode && !skipPack) || drugStop ? 'pack' : 'confirm';
+    (!token && !skipPatient) || patientStop
+      ? 'patient'
+      : (!barcode && !skipPack) || drugStop
+        ? 'pack'
+        : 'confirm';
 
   function onPatientScan(v: string) {
     if (!isWristbandCode(v)) {
@@ -276,7 +287,12 @@ function ScanToGiveDialog({
             )}
           </ul>
           <div className="form-grid">
-            <TextField label={t('Dose given')} name="doseGiven" defaultValue={rx.dosage} maxLength={100} />
+            <TextField
+              label={t('Dose given')}
+              name="doseGiven"
+              defaultValue={rx.dosage}
+              maxLength={100}
+            />
           </div>
           {needsReason && (
             <TextAreaField
@@ -307,7 +323,11 @@ function ScanToGiveDialog({
             >
               {t('Start again')}
             </Button>
-            <Button type="submit" loading={record.isPending} variant={needsReason ? 'danger' : 'primary'}>
+            <Button
+              type="submit"
+              loading={record.isPending}
+              variant={needsReason ? 'danger' : 'primary'}
+            >
               {needsReason ? t('Give with reason') : t('Confirm dose given')}
             </Button>
           </div>
@@ -336,16 +356,21 @@ function ComplianceNote({ patientId }: { patientId: string }) {
       <Badge tone={tone}>
         {pct === null
           ? t('No doses given yet')
-          : t('Scanning {pct}%', { pct: pct.toLocaleString(undefined, { maximumFractionDigits: 1 }) })}
+          : t('Scanning {pct}%', {
+              pct: pct.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+            })}
       </Badge>
       <span className="muted">
-        {t('{unit}, last {days} days: {scanned} of {given} doses given with both scans; {overridden} overrides', {
-          unit: q.data.unit.name,
-          days: c.days,
-          scanned: c.bothScanned,
-          given: c.given,
-          overridden: c.overridden,
-        })}
+        {t(
+          '{unit}, last {days} days: {scanned} of {given} doses given with both scans; {overridden} overrides',
+          {
+            unit: q.data.unit.name,
+            days: c.days,
+            scanned: c.bothScanned,
+            given: c.given,
+            overridden: c.overridden,
+          },
+        )}
       </span>
     </p>
   );
@@ -489,9 +514,19 @@ export function MarTab({ patientId }: { patientId: string }) {
         </QueryView>
       </Card>
 
-      <Dialog open={scanning !== null} onClose={() => setScanning(null)} title={t('Scan to give')} wide>
+      <Dialog
+        open={scanning !== null}
+        onClose={() => setScanning(null)}
+        title={t('Scan to give')}
+        wide
+      >
         {scanning && (
-          <ScanToGiveDialog key={scanning.id} patientId={patientId} rx={scanning} onClose={() => setScanning(null)} />
+          <ScanToGiveDialog
+            key={scanning.id}
+            patientId={patientId}
+            rx={scanning}
+            onClose={() => setScanning(null)}
+          />
         )}
       </Dialog>
 
@@ -510,7 +545,9 @@ export function MarTab({ patientId }: { patientId: string }) {
             />
             {status === 'GIVEN' && (
               <Alert tone="warning" title={t('Giving without scanning')}>
-                {t('Use “Scan to give” whenever possible. A dose recorded as given without scanning the wristband and the pack needs a reason, which is audited.')}
+                {t(
+                  'Use “Scan to give” whenever possible. A dose recorded as given without scanning the wristband and the pack needs a reason, which is audited.',
+                )}
               </Alert>
             )}
             <div className="form-grid">

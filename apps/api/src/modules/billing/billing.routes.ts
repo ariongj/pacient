@@ -537,20 +537,30 @@ billingRouter.post('/charges/:id/void', requireRole(...STAFF), async (req, res) 
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(300) }), req.body);
-  const [charge] = await db
-    .select()
-    .from(charges)
-    .where(and(eq(charges.id, id), eq(charges.facilityId, ctx.facilityId!)));
-  if (!charge) throw notFound('Charge not found');
-  if (charge.status !== 'OPEN' || charge.claimId) {
-    throw conflict('Only open charges that are not in a claim can be voided');
-  }
-  const receipts = await receiptsFor([id]);
-  if (receipts.has(id)) {
-    throw conflict('The co-payment of this charge was already paid; it cannot be voided here');
-  }
+  // Checks and update in one transaction with the row locked, so a concurrent payment or claim
+  // cannot be overwritten by the void.
   await db.transaction(async (tx) => {
-    await tx.update(charges).set({ status: 'VOID', voidReason: reason }).where(eq(charges.id, id));
+    const [charge] = await tx
+      .select()
+      .from(charges)
+      .where(and(eq(charges.id, id), eq(charges.facilityId, ctx.facilityId!)))
+      .for('update');
+    if (!charge) throw notFound('Charge not found');
+    if (charge.status !== 'OPEN' || charge.claimId) {
+      throw conflict('Only open charges that are not in a claim can be voided');
+    }
+    const paid = await tx.execute<{ c: string }>(
+      sql`SELECT c FROM payments p, unnest(p.charge_ids) c WHERE c = ${id}::uuid LIMIT 1`,
+    );
+    if (paid.rows.length) {
+      throw conflict('The co-payment of this charge was already paid; it cannot be voided here');
+    }
+    const updated = await tx
+      .update(charges)
+      .set({ status: 'VOID', voidReason: reason })
+      .where(and(eq(charges.id, id), eq(charges.status, 'OPEN'), isNull(charges.claimId)))
+      .returning({ id: charges.id });
+    if (!updated.length) throw conflict('Only open charges that are not in a claim can be voided');
     await audit(
       {
         action: AuditAction.CHARGE_VOIDED,

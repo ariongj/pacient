@@ -13,6 +13,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { viewFor } from '../clinical/clinical.service.js';
@@ -168,7 +169,7 @@ vaccinationRouter.get('/patients/:patientId/status', async (req, res) => {
     return;
   }
 
-  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'vaccinations');
   const view = viewFor(basis);
   const patient = await getPatientOrThrow(patientId);
   const schedule = await activeSchedule();

@@ -23,6 +23,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { assertEncounterBelongsToPatient, viewFor } from '../clinical/clinical.service.js';
@@ -272,7 +273,7 @@ imagingRouter.get('/worklist', requireRole('DOCTOR', 'NURSE'), async (req, res) 
 imagingRouter.get('/patients/:patientId/orders', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  const view = viewFor(await resolveClinicalReadAccess(ctx, patientId, requestMeta(req)));
+  const view = viewFor(await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'imaging'));
   const filters: SQL[] = [eq(imagingOrders.patientId, patientId)];
   if (view.patientView) {
     filters.push(eq(imagingOrders.status, 'REPORTED'), isNotNull(imagingOrders.releasedAt));

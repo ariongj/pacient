@@ -15,6 +15,7 @@ import * as clinical from '../clinical/clinical.service.js';
 import type { ViewOptions } from '../clinical/clinical.service.js';
 import { listDocuments } from '../documents/documents.service.js';
 import * as fhir from './fhir.mapper.js';
+import * as extra from './fhir.extra.js';
 
 type R = Record<string, unknown>;
 
@@ -159,6 +160,7 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
     vaccines,
     documents,
     hospital,
+    more,
   ] = await Promise.all([
     db.select().from(patients).where(eq(patients.id, patientId)),
     clinical.listEncounters(patientId, { page: 1, pageSize: 10_000 }, view),
@@ -171,7 +173,12 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
     full || publicHealth ? clinical.listImmunizations(patientId, view) : Promise.resolve([]),
     full ? listDocuments(patientId, view) : Promise.resolve([]),
     hospitalData(patientId, view),
+    extra.loadExtra(patientId, view),
   ]);
+  // Operations: code and dates for every purpose except public health; notes only in the
+  // clinical (staff) view.
+  const surgery = publicHealth ? [] : more.surgery;
+  const clinicalView = purpose === 'FULL' && !view.patientView;
 
   const imaging = full ? hospital.imaging : [];
   const facilityIds = new Set<string>([
@@ -179,6 +186,7 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
     ...encounters.items.map((e) => e.facilityId),
     ...hospital.stays.map((s) => s.facilityId),
     ...hospital.edAttendances.map((e) => e.facilityId),
+    ...(full || payment ? more.video.map((v) => v.facilityId) : []),
   ]);
   const practitionerIds = new Set<string>([
     ...encounters.items.map((e) => e.doctorId),
@@ -188,6 +196,14 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
     ...documents.filter((d) => d.uploadedByRole !== 'PATIENT').map((d) => d.uploadedById),
     ...hospital.stays.map((s) => s.attendingDoctorId),
     ...hospital.edAttendances.flatMap((e) => (e.assignedDoctorId ? [e.assignedDoctorId] : [])),
+    ...surgery.flatMap((c) => [
+      c.primarySurgeonId,
+      ...(c.anaesthetistId ? [c.anaesthetistId] : []),
+    ]),
+    ...(full ? more.diets.map((d) => d.orderedById) : []),
+    ...(full ? more.dispenses.flatMap((d) => (d.dispensedById ? [d.dispensedById] : [])) : []),
+    ...(full ? more.transfused.flatMap((t) => (t.checkedById ? [t.checkedById] : [])) : []),
+    ...(full || payment ? more.video.map((v) => v.doctorId) : []),
     ...imaging.flatMap((o) => [
       o.orderedById,
       ...(o.reportedById && hospital.reportVisible(o) ? [o.reportedById] : []),
@@ -237,9 +253,51 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
     ...prescriptions.map((p) => fhir.medicationRequestResource(p, patientId)),
     ...administrations.map((a) => fhir.medicationAdministrationResource(a, patientId)),
     ...allergies.map((a) => fhir.allergyResource(a, patientId)),
-    ...vitals.flatMap((v) => fhir.vitalObservations(v, patientId)),
+    ...vitals.flatMap((v) => [
+      ...fhir.vitalObservations(v, patientId),
+      ...extra.extraVitalObservations(v, patientId),
+    ]),
+    ...(full ? more.scores.map((sc) => extra.news2Observation(sc, patientId)) : []),
+    ...surgery.map((c) =>
+      extra.surgeryProcedure(c, patientId, {
+        includeNote: clinicalView,
+        includeIndication: withReasons,
+      }),
+    ),
+    ...(full ? more.dispenses.map((d) => extra.medicationDispense(d, patientId)) : []),
+    ...(full
+      ? more.diets.map((o) => extra.nutritionOrder(o, patientId, { includeNotes: clinicalView }))
+      : []),
+    ...(full ? more.groups.map((g) => extra.bloodGroupObservation(g, patientId)) : []),
+    ...(full
+      ? more.transfused.map((t) =>
+          extra.transfusionProcedure(t, patientId, { includeDetails: clinicalView }),
+        )
+      : []),
+    ...(full || payment
+      ? more.coverages.flatMap((c) => {
+          const r = extra.coverageResource(c, patientId);
+          return r ? [r] : [];
+        })
+      : []),
+    ...(full || payment
+      ? more.video.map((v) => extra.videoEncounter(v, patientId, { includeReason: withReasons }))
+      : []),
     ...labs.map((l) => fhir.labObservation(l, patientId)),
-    ...vaccines.map((v) => fhir.immunizationResource(v, patientId)),
+    ...vaccines.map((v) => {
+      const r = fhir.immunizationResource(v, patientId);
+      const series = more.seriesByImmunization.get(v.id);
+      if (series) {
+        r.protocolApplied = [
+          {
+            series: `${series.code} – ${series.vaccine}`,
+            authority: { display: 'National immunization calendar (Kosovo)' },
+            doseNumberPositiveInt: series.doseNumber,
+          },
+        ];
+      }
+      return r;
+    }),
     ...imaging.map((o) => fhir.imagingServiceRequest(o, patientId)),
     ...imaging
       .filter(hospital.reportVisible)
@@ -278,9 +336,9 @@ export function capabilityStatement(security: string) {
   return {
     resourceType: 'CapabilityStatement',
     status: 'active',
-    date: '2026-11-03',
+    date: '2026-11-04',
     kind: 'instance',
-    software: { name: 'Pacient', version: '0.3.0' },
+    software: { name: 'Pacient', version: '0.4.0' },
     fhirVersion: '4.0.1',
     format: ['application/fhir+json'],
     rest: [
@@ -314,6 +372,10 @@ export function capabilityStatement(security: string) {
             'AllergyIntolerance',
             'Observation',
             'Immunization',
+            'Procedure',
+            'MedicationDispense',
+            'NutritionOrder',
+            'Coverage',
             'ServiceRequest',
             'DiagnosticReport',
             'DocumentReference',

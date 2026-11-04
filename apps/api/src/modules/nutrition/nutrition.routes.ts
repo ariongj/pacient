@@ -17,6 +17,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { viewFor } from '../clinical/clinical.service.js';
@@ -133,7 +134,7 @@ nutritionRouter.post('/admissions/:admissionId/diet', async (req, res) => {
 nutritionRouter.get('/patients/:patientId', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'nutrition');
   const view = viewFor(basis);
   const patient = await getPatientOrThrow(patientId);
   const now = new Date();

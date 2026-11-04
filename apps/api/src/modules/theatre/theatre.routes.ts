@@ -23,6 +23,8 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
+  auditRecordView,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { viewFor } from '../clinical/clinical.service.js';
@@ -754,7 +756,9 @@ theatreRouter.get('/cases/:id', requireRole('DOCTOR', 'NURSE'), async (req, res)
   if (!row) throw notFound('Operation not found');
   const clinical = await seesClinical(ctx);
   if (!clinical(row) || row.facilityId !== ctx.facilityId) {
-    await resolveClinicalReadAccess(ctx, row.patientId, requestMeta(req));
+    await resolveAndAuditRead(ctx, row.patientId, requestMeta(req), 'operations');
+  } else {
+    await auditRecordView(ctx, row.patientId, 'UNIT', 'operations', requestMeta(req));
   }
   res.json(present(row, true));
 });
@@ -765,7 +769,7 @@ theatreRouter.get('/patients/:patientId/cases', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
   const q = parse(PatientCasesQuery, req.query);
-  const view = viewFor(await resolveClinicalReadAccess(ctx, patientId, requestMeta(req)));
+  const view = viewFor(await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'operations'));
   const filters: SQL[] = [eq(surgicalCases.patientId, patientId)];
   if (q.status) filters.push(eq(surgicalCases.status, q.status));
   if (view.patientView) filters.push(inArray(surgicalCases.status, ['SCHEDULED', 'COMPLETED']));

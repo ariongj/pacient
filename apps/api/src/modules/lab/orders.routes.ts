@@ -7,7 +7,12 @@ import { labOrders, labPriorityEnum, labResults, users } from '../../db/schema.j
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { authenticate } from '../../middleware/auth.js';
-import { assertClinicalWriteAccess, resolveClinicalReadAccess, WRITERS } from '../access/policy.js';
+import {
+  assertClinicalWriteAccess,
+  resolveClinicalReadAccess,
+  WRITERS,
+  resolveAndAuditRead,
+} from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { assertEncounterBelongsToPatient } from '../clinical/clinical.service.js';
 import { catalogByCode, LAB_CATALOG } from './catalog.js';
@@ -38,7 +43,7 @@ labOrdersRouter.use(authenticate);
 labOrdersRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'lab-orders');
   const rows = await db
     .select({
       id: labOrders.id,

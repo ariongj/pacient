@@ -27,6 +27,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { viewFor } from '../clinical/clinical.service.js';
@@ -686,7 +687,7 @@ inpatientRouter.get('/admissions/:id', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(Id, req.params);
   const row = await loadAdmission(id);
-  const basis = await resolveClinicalReadAccess(ctx, row.patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, row.patientId, requestMeta(req), 'admissions');
   const [detail] = await stayDetails([row], viewFor(basis).patientView);
   res.json(detail);
 });
@@ -1033,7 +1034,7 @@ async function stayDetails(rows: (typeof admissions.$inferSelect)[], patientView
 inpatientRouter.get('/patients/:patientId/admissions', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(z.object({ patientId: z.string().uuid() }), req.params);
-  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'admissions');
   const { patientView } = viewFor(basis);
   const rows = await db
     .select()

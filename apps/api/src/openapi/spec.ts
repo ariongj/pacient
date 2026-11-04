@@ -6,6 +6,8 @@
  * Request bodies are given as JSON Schema; the authoritative validation is the Zod schema in each
  * route. When adding an endpoint, add it here too.
  */
+import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
+
 type Schema = Record<string, unknown>;
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
 type Auth = 'user' | 'partner' | 'lab' | 'none';
@@ -91,6 +93,7 @@ export const TAGS: { name: string; description: string }[] = [
   },
   { name: 'Oversight', description: 'Reports, statistics, audit, emergency-access review.' },
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
+  ...MODULE_TAGS,
   { name: 'FHIR', description: 'HL7 FHIR R4 export for authorised staff and patients.' },
   {
     name: 'Partner API',
@@ -783,6 +786,8 @@ const OPERATIONS: Operation[] = [
     responses: { '200': 'Registered', '409': 'IDENTITY_EXISTS or already registered' },
   },
 ];
+
+OPERATIONS.push(...MODULE_OPERATIONS);
 
 export function partnerOperations() {
   return OPERATIONS.filter((o) => o.auth === 'partner');

@@ -499,6 +499,11 @@ describe('usage, revocation and the API description', () => {
       ['get', '/partner/directory/practitioners'],
       ['get', '/partner/births'],
       ['post', '/partner/births/{birthId}/registration'],
+      ['get', '/partner/claims'],
+      ['get', '/partner/claims/{id}'],
+      ['post', '/partner/claims/{id}/decision'],
+      ['get', '/partner/surveillance/cases'],
+      ['get', '/partner/surveillance/summary'],
     ] as const;
     for (const [method, path] of expected) {
       expect(doc.paths[path]?.[method]?.tags, `${method} ${path}`).toContain('Partner API');

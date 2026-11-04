@@ -5,7 +5,7 @@ import { prescriptionAlerts, prescriptions, users } from '../../db/schema.js';
 import { forbidden, HttpError } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { toLocale, type Locale } from '../../i18n/index.js';
-import { resolveClinicalReadAccess } from '../access/policy.js';
+import { resolveClinicalReadAccess, resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import {
   checkMedication,
@@ -26,7 +26,7 @@ export async function localeOf(userId: string): Promise<Locale> {
  */
 export async function assertSafetyAccess(ctx: AuthContext, patientId: string, meta?: RequestMeta) {
   if (ctx.role === 'DOCTOR' || ctx.role === 'NURSE') {
-    await resolveClinicalReadAccess(ctx, patientId, meta);
+    await resolveAndAuditRead(ctx, patientId, meta, 'medication-safety');
     return;
   }
   if (ctx.role === 'PHARMACIST' && ctx.facilityId) {

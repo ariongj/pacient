@@ -15,7 +15,11 @@ import {
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { assertNotMerged, resolveClinicalReadAccess } from '../access/policy.js';
+import {
+  assertNotMerged,
+  resolveClinicalReadAccess,
+  resolveAndAuditRead,
+} from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import {
@@ -496,7 +500,7 @@ edRouter.get('/board', async (req, res) => {
 edRouter.get('/patients/:patientId/visits', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(z.object({ patientId: z.string().uuid() }), req.params);
-  await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'emergency-visits');
   const triager = alias(users, 'ed_triager');
   const rows = await db
     .select({

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
@@ -15,7 +15,11 @@ import {
 import { forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { assertClinicalWriteAccess, resolveClinicalReadAccess } from '../access/policy.js';
+import {
+  assertClinicalWriteAccess,
+  resolveClinicalReadAccess,
+  resolveAndAuditRead,
+} from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { observationIntervalMinutes, RISK_RANK, type News2Risk } from './news2.js';
 import {
@@ -66,6 +70,20 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
         eq(admissions.status, 'ADMITTED'),
         eq(careUnits.facilityId, ctx.facilityId),
         unitId ? eq(careUnits.id, unitId) : undefined,
+        // Scores carry vital-sign values: only for patients the caller is responsible for – staff of
+        // the ward, the attending doctor, the care team, or a doctor covering the attending.
+        sql`(
+          EXISTS (SELECT 1 FROM unit_staff us
+                  WHERE us.unit_id = ${admissions.unitId} AND us.user_id = ${ctx.userId})
+          OR ${admissions.attendingDoctorId} = ${ctx.userId}
+          OR EXISTS (SELECT 1 FROM care_assignments ca
+                     WHERE ca.patient_id = ${admissions.patientId} AND ca.doctor_id = ${ctx.userId}
+                       AND ca.ended_at IS NULL)
+          OR EXISTS (SELECT 1 FROM cover_arrangements cv
+                     WHERE cv.cover_doctor_id = ${ctx.userId}
+                       AND cv.doctor_id = ${admissions.attendingDoctorId}
+                       AND cv.cancelled_at IS NULL AND cv.starts_at <= now() AND cv.ends_at > now())
+        )`,
       ),
     )
     .orderBy(asc(careUnits.name), asc(beds.label));
@@ -141,7 +159,7 @@ newsRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
 newsRouter.get('/patients/:patientId', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(z.object({ patientId: z.string().uuid() }), req.params);
-  await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'early-warning');
   const rows = await db
     .select({
       id: earlyWarningScores.id,

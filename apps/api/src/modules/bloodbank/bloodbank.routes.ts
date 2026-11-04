@@ -23,6 +23,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  auditRecordView,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
@@ -176,6 +177,7 @@ bloodBankRouter.get('/patients/:id', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const patient = await assertPatientRead(ctx, id, requestMeta(req));
+  await auditRecordView(ctx, id, 'CARE_TEAM', 'blood-bank', requestMeta(req));
   const group = await currentBloodGroup(id);
   const [requests, given] = await Promise.all([
     db

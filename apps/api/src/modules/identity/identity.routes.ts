@@ -23,6 +23,7 @@ import {
   getPatientOrThrow,
   resolveClinicalReadAccess,
   WRITERS,
+  resolveAndAuditRead,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient } from '../notifications/notifications.service.js';
@@ -487,7 +488,7 @@ identityRouter.get('/births', requireRole('DOCTOR', 'NURSE', 'RECEPTION'), async
 identityRouter.get('/patients/:patientId/birth', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'birth');
   const base = {
     id: births.id,
     bornAt: births.bornAt,

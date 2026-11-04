@@ -337,3 +337,46 @@ export function assertFullProxyScope(ctx: AuthContext) {
     throw forbidden('Your guardian access covers appointments only');
   }
 }
+
+const recentViewAudits = new Map<string, number>();
+
+/**
+ * Records that someone other than the patient read part of their record, so it appears in the
+ * patient's "who viewed my record" log. Repeated reads of the same section by the same person are
+ * recorded at most once every 10 minutes (boards and charts refresh often).
+ */
+export async function auditRecordView(
+  ctx: AuthContext,
+  patientId: string,
+  basis: ClinicalAccessBasis | 'UNIT',
+  section: string,
+  meta?: RequestMeta,
+) {
+  if (basis === 'SELF') return;
+  const key = `${ctx.userId}:${patientId}:${section}`;
+  const now = Date.now();
+  if ((recentViewAudits.get(key) ?? 0) > now - 10 * 60_000) return;
+  recentViewAudits.set(key, now);
+  if (recentViewAudits.size > 20_000) recentViewAudits.clear();
+  await auditSafe({
+    action: AuditAction.PATIENT_RECORD_VIEWED,
+    actor: ctx,
+    resourceType: 'patient',
+    resourceId: patientId,
+    patientId,
+    meta,
+    metadata: { section, basis },
+  });
+}
+
+/** resolveClinicalReadAccess + auditRecordView, for endpoints that return clinical data. */
+export async function resolveAndAuditRead(
+  ctx: AuthContext,
+  patientId: string,
+  meta: RequestMeta | undefined,
+  section: string,
+): Promise<ClinicalAccessBasis> {
+  const basis = await resolveClinicalReadAccess(ctx, patientId, meta);
+  await auditRecordView(ctx, patientId, basis, section, meta);
+  return basis;
+}

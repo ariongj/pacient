@@ -214,7 +214,7 @@ export function App() {
         <Route path="/account/security" element={<SecurityPage />} />
         <Route
           path="/tools/interactions"
-          element={guard(['DOCTOR', 'PHARMACIST', 'NURSE'], <InteractionChecker />)}
+          element={guard(['DOCTOR', 'PHARMACIST', 'NURSE', 'MINISTRY'], <InteractionChecker />)}
         />
         <Route
           path="/blood-bank"

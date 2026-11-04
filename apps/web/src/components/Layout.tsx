@@ -194,6 +194,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
         { to: '/ministry/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
         { to: '/surveillance', label: 'Disease surveillance', icon: 'alert' },
+        { to: '/tools/interactions', label: 'Drug interaction database', icon: 'pill' },
         { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
         { to: '/developers', label: 'API documentation', icon: 'settings' },
       ],

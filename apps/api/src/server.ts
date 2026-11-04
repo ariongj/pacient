@@ -15,6 +15,10 @@ import {
   stopVaccinationReminderWorker,
 } from './modules/vaccination/vaccination.service.js';
 import { startNewsWorker, stopNewsWorker } from './modules/news/news.service.js';
+import {
+  startSurveillanceWorker,
+  stopSurveillanceWorker,
+} from './modules/surveillance/surveillance.service.js';
 import { logger } from './lib/logger.js';
 
 const app = createApp();
@@ -24,6 +28,7 @@ startEscalationWorker();
 startAppointmentReminderWorker();
 startVaccinationReminderWorker();
 startNewsWorker();
+startSurveillanceWorker();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -39,6 +44,7 @@ function shutdown(signal: string) {
   stopAppointmentReminderWorker();
   stopVaccinationReminderWorker();
   stopNewsWorker();
+  stopSurveillanceWorker();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

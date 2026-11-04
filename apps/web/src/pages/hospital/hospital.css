@@ -51,7 +51,7 @@
 }
 .bed-OUT_OF_SERVICE {
   border-left-color: var(--text-muted);
-  opacity: 0.75;
+  background: var(--surface-2);
 }
 .bed-mine {
   box-shadow: 0 0 0 2px var(--primary-soft) inset;

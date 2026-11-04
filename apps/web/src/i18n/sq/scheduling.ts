@@ -35,7 +35,7 @@ export const scheduling: Record<string, string> = {
   'Patients can book online': 'Pacientët mund të rezervojnë online',
   'Valid from (optional)': 'E vlefshme nga (opsionale)',
   'Valid until (optional)': 'E vlefshme deri (opsionale)',
-  'Remove block on {day}': 'Hiqe bllokun e ditës {day}',
+  'Remove block on {day}': 'Hiq bllokun e ditës {day}',
   'Add hours on {day}': 'Shto orar për {day}',
   'Consulting hours saved': 'Orari i pritjeve u ruajt',
   'Leave and other absences': 'Pushimet dhe mungesat e tjera',

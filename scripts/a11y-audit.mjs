@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, axe */
 /**
  * Automated accessibility audit (WCAG 2.2 A/AA rules of axe-core) of every workspace page.
  * Needs the app running with demo data: `npm run dev` (web on 5173). Usage:
@@ -90,7 +91,15 @@ for (const [email, paths] of Object.entries(PAGES)) {
   await page.locator('input[type=email]').fill(email);
   await page.locator('input[type=password]').fill(PASSWORD);
   await page.locator('button[type=submit]').click();
-  await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15000 });
+  try {
+    await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15000 });
+  } catch {
+    const alert = await page.locator('.alert').allInnerTexts();
+    console.log(`${email}: sign-in failed ${alert.join(' | ')}`);
+    results.push({ email, path: '/login', violations: [], signInFailed: true });
+    await ctx.close();
+    continue;
+  }
   for (const path of ['/login', ...paths]) {
     if (path === '/login') continue;
     await page.goto(BASE + path);
@@ -101,7 +110,6 @@ for (const [email, paths] of Object.entries(PAGES)) {
     await page.waitForTimeout(400);
     await page.addScriptTag({ content: axeSource });
     const res = await page.evaluate(async () => {
-      // eslint-disable-next-line no-undef
       const r = await axe.run(document, {
         runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
       });

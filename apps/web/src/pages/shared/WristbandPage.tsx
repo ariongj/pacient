@@ -1,8 +1,8 @@
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { usePrintWristband, type Wristband } from '../../api/bcma';
-import { Alert, Button, Card, ErrorAlert, PageHeader } from '../../components/ui';
+import { Alert, Button, Card, DefinitionList, ErrorAlert, PageHeader } from '../../components/ui';
 import { formatDate, formatDateTime, humanize } from '../../format';
 import { t } from '../../i18n';
 
@@ -93,6 +93,7 @@ function Label({ band }: { band: Wristband }) {
  */
 export function WristbandPage() {
   const { patientId = '' } = useParams();
+  const navigate = useNavigate();
   const issue = usePrintWristband(patientId);
   const band = issue.data;
   const [printRequested, setPrintRequested] = useState(false);
@@ -118,9 +119,9 @@ export function WristbandPage() {
         title={t('Patient wristband')}
         subtitle={t('A wristband identifies the patient at every dose, sample and transfusion.')}
         actions={
-          <Link to={`/patients/${patientId}`} className="btn btn-secondary btn-md">
-            {t('Back to chart')}
-          </Link>
+          <Button variant="secondary" onClick={() => navigate(-1)}>
+            {t('Back')}
+          </Button>
         }
       />
       <Card title={band ? t('Wristband ready') : t('Print wristband')}>
@@ -135,24 +136,23 @@ export function WristbandPage() {
         {band && (
           <>
             <Label band={band} />
-            <dl className="definition-list" style={{ marginTop: '1rem' }}>
-              <dt>{t('Allergies')}</dt>
-              <dd>
-                {band.allergyStatus === 'ALLERGIES'
-                  ? band.allergies.join(', ')
-                  : band.allergyStatus === 'NONE_KNOWN'
-                    ? t('No known allergies')
-                    : t('Not recorded')}
-              </dd>
-              <dt>{t('Blood group')}</dt>
-              <dd>{band.bloodGroup ?? t('Not confirmed by the laboratory – not printed')}</dd>
-              <dt>{t('Stay')}</dt>
-              <dd>
-                {humanize(band.stay.kind)} · {formatDateTime(band.stay.since)}
-              </dd>
-              <dt>{t('Issued')}</dt>
-              <dd>{formatDateTime(band.issuedAt)}</dd>
-            </dl>
+            <div style={{ marginTop: '1rem' }}>
+              <DefinitionList
+                items={[
+                  [
+                    t('Allergies'),
+                    band.allergyStatus === 'ALLERGIES'
+                      ? band.allergies.join(', ')
+                      : band.allergyStatus === 'NONE_KNOWN'
+                        ? t('No known allergies')
+                        : t('Not recorded'),
+                  ],
+                  [t('Blood group'), band.bloodGroup ?? t('Not confirmed by the laboratory – not printed')],
+                  [t('Stay'), `${humanize(band.stay.kind)} · ${formatDateTime(band.stay.since)}`],
+                  [t('Issued'), formatDateTime(band.issuedAt)],
+                ]}
+              />
+            </div>
             {band.allergyStatus === 'NOT_RECORDED' && (
               <Alert tone="warning" title={t('Allergies not recorded')}>
                 {t('Record the allergy status in the chart as soon as possible.')}

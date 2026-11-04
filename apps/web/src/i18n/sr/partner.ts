@@ -532,4 +532,24 @@ export const partner: Record<string, string> = {
   'Export the audit trail for a SIEM (at most 31 days)':
     'Izvezi revizioni trag za SIEM (najviše 31 dan)',
   'Download a report as CSV': 'Preuzmi izveštaj kao CSV',
+  Downtime: 'Prekid rada sistema',
+  'Downtime mode, encrypted paper packs for outages and back-entry afterwards.':
+    'Režim prekida rada, šifrovani paketi za papirni rad tokom prekida i naknadni unos podataka.',
+  'Bedside barcode check before giving a dose': 'Provera bar-kodom uz krevet pre davanja doze',
+  'Barcode scanning compliance of the patient’s ward':
+    'Usklađenost skeniranja bar-koda na odeljenju pacijenta',
+  'Print a wristband (signed identity code)':
+    'Odštampaj identifikacionu narukvicu (potpisan kod identiteta)',
+  'Dose limits by ingredient, route and age group':
+    'Granice doza po sastojku, putu primene i starosnoj grupi',
+  'Add a dose rule': 'Dodaj pravilo doziranja',
+  'Change or deactivate a dose rule': 'Promeni ili deaktiviraj pravilo doziranja',
+  'Downtime mode of my facility': 'Režim prekida rada u mojoj ustanovi',
+  'Declare downtime (switch to paper)': 'Proglasi prekid rada (prelazak na papir)',
+  'End downtime': 'Završi prekid rada',
+  'Downtime packs of my facility': 'Paketi za prekid rada moje ustanove',
+  'Generate downtime packs now': 'Generiši sada pakete za prekid rada',
+  'Download a downtime pack (HTML, audited)': 'Preuzmi paket za prekid rada (HTML, evidentira se)',
+  'What to enter after downtime': 'Šta treba uneti nakon prekida rada',
+  'Latest encrypted pack for a ward PC': 'Najnoviji šifrovani paket za računar odeljenja',
 };

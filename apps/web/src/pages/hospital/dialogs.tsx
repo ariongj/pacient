@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import {
   dispositionLabel,
@@ -106,9 +107,14 @@ export function AdmitDialog({
   const [search, setSearch] = useState('');
   const [unitId, setUnitId] = useState(preset?.unitId ?? '');
   const [bedId, setBedId] = useState(preset?.bedId ?? '');
+  /** After admission: offer to print the wristband straight away. */
+  const [admitted, setAdmitted] = useState<{ id: string; firstName: string; lastName: string } | null>(
+    null,
+  );
   const doctors = useHospitalDoctors();
   useEffect(() => {
     if (open) {
+      setAdmitted(null);
       setPatient(preset?.patient ?? null);
       setUnitId(preset?.unitId ?? '');
       setBedId(preset?.bedId ?? '');
@@ -127,7 +133,7 @@ export function AdmitDialog({
 
   const admit = useHospitalMutation(
     (body: Record<string, unknown>) => api('/hospital/admissions', { method: 'POST', body }),
-    { patientId: patient?.id, onDone: onClose },
+    { patientId: patient?.id, onDone: () => setAdmitted(patient) },
   );
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -149,6 +155,21 @@ export function AdmitDialog({
 
   return (
     <Dialog open={open} onClose={onClose} title={t('Admit a patient')} wide>
+      {admitted ? (
+        <div className="stack">
+          <Alert tone="success" title={t('{name} has been admitted', { name: fullName(admitted) })}>
+            {t('Print the wristband now – it is scanned before every dose.')}
+          </Alert>
+          <div className="form-actions">
+            <Button variant="secondary" onClick={onClose}>
+              {t('Later')}
+            </Button>
+            <Link className="btn btn-primary btn-md" to={`/wristband/${admitted.id}`} onClick={onClose}>
+              {t('Print wristband')}
+            </Link>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={onSubmit} className="stack">
         {patient ? (
           <div className="row-between">
@@ -234,6 +255,7 @@ export function AdmitDialog({
           </Button>
         </div>
       </form>
+      )}
     </Dialog>
   );
 }

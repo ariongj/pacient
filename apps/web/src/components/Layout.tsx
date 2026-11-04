@@ -13,6 +13,7 @@ import type { Role } from '../api/types';
 import { useAuth, useUser } from '../auth/AuthContext';
 import { useLiveEvents } from '../auth/useLiveEvents';
 import { formatDate, humanize } from '../format';
+import { DOWNTIME_STATUS_ROLES, useDowntimeStatus } from '../api/downtime';
 import { Icon, type IconName } from './icons';
 import { NotificationBell } from './Notifications';
 
@@ -273,6 +274,25 @@ function RecordSwitcher() {
   );
 }
 
+/** Red banner while the user's facility has declared downtime procedures (see /downtime). */
+function DowntimeBanner({ role, hasFacility }: { role: Role; hasFacility: boolean }) {
+  const status = useDowntimeStatus(hasFacility && DOWNTIME_STATUS_ROLES.includes(role));
+  if (!status.data?.active) return null;
+  return (
+    <div className="alert alert-danger" role="alert">
+      <strong>
+        {t('Downtime procedures in effect – record on paper; back-enter afterwards')}
+      </strong>
+      {status.data.note && <div>{status.data.note}</div>}
+      {role !== 'PHARMACIST' && (
+        <div>
+          <NavLink to="/downtime">{t('Open the downtime kit')}</NavLink>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Layout() {
   const user = useUser();
   const { logout } = useAuth();
@@ -390,6 +410,7 @@ export function Layout() {
           ))}
         </nav>
         <main id="main" tabIndex={-1}>
+          <DowntimeBanner role={user.role} hasFacility={Boolean(user.facility)} />
           {acting && (
             <div className="acting-banner" role="status">
               <div>

@@ -462,14 +462,19 @@ describe('board', () => {
       .get(`/api/v1/early-warning/board?unitId=${unit.id}`)
       .set(bearer(w.tokens.nurse));
     expect(board.status).toBe(200);
-    const byPatient = new Map(
-      board.body.items.map((i: { patientId: string }) => [i.patientId, i]),
-    ) as Map<string, any>;
-    const child = byPatient.get(toddler.id);
+    type Item = {
+      patientId: string;
+      latest: Record<string, unknown>;
+      trend: Record<string, unknown>[];
+      observationIntervalMinutes: number;
+    };
+    const items = board.body.items as Item[];
+    const byPatient = new Map(items.map((i) => [i.patientId, i]));
+    const child = byPatient.get(toddler.id)!;
     expect(child.latest).toMatchObject({ scale: 'PEWS', score: 5, risk: 'MEDIUM' });
     expect(child.trend[0]).toMatchObject({ scale: 'PEWS', score: 5 });
     expect(child.observationIntervalMinutes).toBe(60);
-    const grown = byPatient.get(adult.id);
+    const grown = byPatient.get(adult.id)!;
     expect(grown.latest).toMatchObject({ scale: 'NEWS2', score: 10 });
     expect(grown.observationIntervalMinutes).toBe(15);
     // Highest risk first regardless of scale.

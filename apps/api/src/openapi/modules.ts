@@ -34,7 +34,11 @@ export const bool: Schema = { type: 'boolean' };
 export const uuid: Schema = { type: 'string', format: 'uuid' };
 export const date: Schema = { type: 'string', format: 'date' };
 export const dateTime: Schema = { type: 'string', format: 'date-time' };
-export const arr = (items: Schema, extra: Schema = {}): Schema => ({ type: 'array', items, ...extra });
+export const arr = (items: Schema, extra: Schema = {}): Schema => ({
+  type: 'array',
+  items,
+  ...extra,
+});
 export const obj = (properties: Record<string, Schema>, required: string[] = []): Schema => ({
   type: 'object',
   properties,

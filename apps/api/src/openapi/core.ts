@@ -20,7 +20,6 @@ import {
   consentMethodEnum,
   consentTypeEnum,
   diagnosisStatusEnum,
-  encounterTypeEnum,
   facilityTypeEnum,
   guardianRelationshipEnum,
   integrationMessageStatusEnum,
@@ -102,16 +101,6 @@ const DOCTOR = 'DOCTOR (care team)';
 const CARE = 'DOCTOR, NURSE (care team)';
 const pp = '/patients/{patientId}';
 
-const encounterInput = obj(
-  {
-    type: values(encounterTypeEnum),
-    reason: text(2, 500),
-    notes: opt(20_000),
-    startedAt: dateTime,
-    endedAt: dateTime,
-  },
-  ['type', 'reason'],
-);
 const overrides = arr(obj({ code: text(3, 200), reason: text(10, 500) }, ['code', 'reason']), {
   maxItems: 30,
   description: 'Reasons for proceeding despite medication-safety alerts (one per alert code).',
@@ -205,9 +194,7 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   // Clinical record: visits
   op('patch', `${pp}/encounters/{entryId}`, CR, 'Edit a draft visit note', {
     access: DOCTOR,
-    body: obj({ version: int({ minimum: 1 }), notes: opt(20_000), endedAt: dateTime }, [
-      'version',
-    ]),
+    body: obj({ version: int({ minimum: 1 }), notes: opt(20_000), endedAt: dateTime }, ['version']),
     responses: { '409': 'Signed already, or changed since it was loaded' },
   }),
   op('post', `${pp}/encounters/{entryId}/addenda`, CR, 'Add an addendum to a signed note', {
@@ -456,14 +443,26 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
     access: 'care team, patient, guardian (if shared)',
     responses: { '200': 'The file (Content-Type as uploaded)' },
   }),
-  op('patch', `${pp}/documents/{documentId}`, CR, 'Share with the patient or withhold from guardians', {
-    access: DOCTOR,
-    body: obj({ visibleToPatient: bool, confidentialFromGuardians: bool }),
-  }),
-  op('post', `${pp}/documents/{documentId}/entered-in-error`, CR, 'Mark a document entered in error', {
-    access: 'the uploader, or a DOCTOR of the care team',
-    body: obj({ reason: text(5, 300) }, ['reason']),
-  }),
+  op(
+    'patch',
+    `${pp}/documents/{documentId}`,
+    CR,
+    'Share with the patient or withhold from guardians',
+    {
+      access: DOCTOR,
+      body: obj({ visibleToPatient: bool, confidentialFromGuardians: bool }),
+    },
+  ),
+  op(
+    'post',
+    `${pp}/documents/{documentId}/entered-in-error`,
+    CR,
+    'Mark a document entered in error',
+    {
+      access: 'the uploader, or a DOCTOR of the care team',
+      body: obj({ reason: text(5, 300) }, ['reason']),
+    },
+  ),
   op('post', `${pp}/consents`, CR, 'Record a consent decision', {
     access: 'the patient or guardian (PORTAL); DOCTOR, NURSE, RECEPTION in person',
     body: obj(
@@ -497,28 +496,30 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/integrations/messages', ADM, 'HL7 message log of my facility', {
     access: 'DIRECTOR',
-    params: [
-      q('status', values(integrationMessageStatusEnum)),
-      q('clientId', uuid),
-      ...page,
-    ],
+    params: [q('status', values(integrationMessageStatusEnum)), q('clientId', uuid), ...page],
   }),
   op('get', '/integrations/messages/{id}', ADM, 'One HL7 message with its outcome', {
     access: 'DIRECTOR',
   }),
-  op('post', '/integrations/messages/{id}/review', ADM, 'File a held message to a patient or ignore it', {
-    access: 'DIRECTOR',
-    body: {
-      oneOf: [
-        obj({ action: enumOf('FILE'), patientId: uuid, note: text(5, 500) }, [
-          'action',
-          'patientId',
-          'note',
-        ]),
-        obj({ action: enumOf('IGNORE'), note: text(5, 500) }, ['action', 'note']),
-      ],
+  op(
+    'post',
+    '/integrations/messages/{id}/review',
+    ADM,
+    'File a held message to a patient or ignore it',
+    {
+      access: 'DIRECTOR',
+      body: {
+        oneOf: [
+          obj({ action: enumOf('FILE'), patientId: uuid, note: text(5, 500) }, [
+            'action',
+            'patientId',
+            'note',
+          ]),
+          obj({ action: enumOf('IGNORE'), note: text(5, 500) }, ['action', 'note']),
+        ],
+      },
     },
-  }),
+  ),
 
   // Appointments
   op('get', '/appointments', APP, 'My appointments (patients, clinicians, reception)', {
@@ -551,10 +552,10 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   // Collaboration: messages
   op('post', '/messages/threads', COL, 'Start a conversation', {
     access: 'PATIENT, DOCTOR, NURSE',
-    body: obj(
-      { doctorId: uuid, patientId: uuid, subject: text(2, 200), body: text(1, 5000) },
-      ['subject', 'body'],
-    ),
+    body: obj({ doctorId: uuid, patientId: uuid, subject: text(2, 200), body: text(1, 5000) }, [
+      'subject',
+      'body',
+    ]),
   }),
   op('get', '/messages/threads/{id}', COL, 'A conversation with its messages', {
     access: 'participants',
@@ -634,7 +635,9 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
       ['coverDoctorId', 'startsAt', 'endsAt'],
     ),
   }),
-  op('post', '/cover/{id}/cancel', COL, 'Cancel a cover arrangement', { access: 'DOCTOR, DIRECTOR' }),
+  op('post', '/cover/{id}/cancel', COL, 'Cancel a cover arrangement', {
+    access: 'DOCTOR, DIRECTOR',
+  }),
   op('get', '/cover/colleagues', COL, 'Doctors who can cover', { access: 'DOCTOR, DIRECTOR' }),
   op('get', '/cover/escalations', COL, 'Unanswered patient messages without cover', {
     access: 'DIRECTOR',
@@ -696,27 +699,33 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   op('get', '/pharmacy/prescriptions/{id}/stock', PH, 'Stock batches available for dispensing', {
     access: 'PHARMACIST',
   }),
-  op('post', '/pharmacy/prescriptions/{id}/dispense', PH, 'Dispense (draws stock first-expiry-first-out)', {
-    access: 'PHARMACIST',
-    body: obj({
-      quantity: { ...text(1, 100), description: 'Label, e.g. "30 tablets"' },
-      note: opt(2000),
-      stock: obj(
-        {
-          itemId: uuid,
-          units: int({ minimum: 1, maximum: 100_000 }),
-          lines: arr(obj({ batchId: uuid, units: int({ minimum: 1 }) }, ['batchId', 'units']), {
-            maxItems: 20,
-          }),
+  op(
+    'post',
+    '/pharmacy/prescriptions/{id}/dispense',
+    PH,
+    'Dispense (draws stock first-expiry-first-out)',
+    {
+      access: 'PHARMACIST',
+      body: obj({
+        quantity: { ...text(1, 100), description: 'Label, e.g. "30 tablets"' },
+        note: opt(2000),
+        stock: obj(
+          {
+            itemId: uuid,
+            units: int({ minimum: 1, maximum: 100_000 }),
+            lines: arr(obj({ batchId: uuid, units: int({ minimum: 1 }) }, ['batchId', 'units']), {
+              maxItems: 20,
+            }),
+          },
+          ['units'],
+        ),
+        untrackedReason: {
+          ...text(5, 500),
+          description: 'Medicine not in the catalogue: dispensed without stock tracking',
         },
-        ['units'],
-      ),
-      untrackedReason: {
-        ...text(5, 500),
-        description: 'Medicine not in the catalogue: dispensed without stock tracking',
-      },
-    }),
-  }),
+      }),
+    },
+  ),
 
   // Hospital (inpatient)
   op('post', '/hospital/units', H, 'Create a ward or unit', {
@@ -774,9 +783,15 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
     access: 'DOCTOR',
     body: obj({ dischargeSummary: text(1, 20_000) }, ['dischargeSummary']),
   }),
-  op('post', '/hospital/admissions/{id}/release', H, 'Release the signed discharge letter to the patient', {
-    access: 'DOCTOR',
-  }),
+  op(
+    'post',
+    '/hospital/admissions/{id}/release',
+    H,
+    'Release the signed discharge letter to the patient',
+    {
+      access: 'DOCTOR',
+    },
+  ),
   op('get', '/hospital/patients/{patientId}/admissions', H, 'Hospital stays of a patient', {
     access: 'care team, patient, guardian',
   }),
@@ -788,26 +803,40 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   }),
 
   // Emergency department
-  op('get', '/ed/units', ED, 'Emergency units of my facility', { access: 'DOCTOR, NURSE, RECEPTION' }),
+  op('get', '/ed/units', ED, 'Emergency units of my facility', {
+    access: 'DOCTOR, NURSE, RECEPTION',
+  }),
   op('post', '/ed/visits/{id}/start', ED, 'Start treatment (assign a doctor)', {
     access: 'DOCTOR, NURSE',
     body: obj({ doctorId: uuid }),
   }),
-  op('post', '/ed/visits/{id}/depart', ED, 'Discharge, transfer or record left without being seen', {
-    access: 'DOCTOR, NURSE',
-    body: obj(
-      { status: enumOf('DISCHARGED', 'TRANSFERRED', 'LEFT_WITHOUT_BEING_SEEN'), note: opt(1000) },
-      ['status'],
-    ),
-  }),
+  op(
+    'post',
+    '/ed/visits/{id}/depart',
+    ED,
+    'Discharge, transfer or record left without being seen',
+    {
+      access: 'DOCTOR, NURSE',
+      body: obj(
+        { status: enumOf('DISCHARGED', 'TRANSFERRED', 'LEFT_WITHOUT_BEING_SEEN'), note: opt(1000) },
+        ['status'],
+      ),
+    },
+  ),
   op('get', '/ed/patients/{patientId}/visits', ED, 'Emergency visits of a patient', {
     access: 'DOCTOR, NURSE, RECEPTION',
   }),
 
   // Imaging
-  op('get', '/imaging/patients/{patientId}/orders', IMG, 'Imaging orders and reports of a patient', {
-    access: 'care team, patient, guardian (released reports)',
-  }),
+  op(
+    'get',
+    '/imaging/patients/{patientId}/orders',
+    IMG,
+    'Imaging orders and reports of a patient',
+    {
+      access: 'care team, patient, guardian (released reports)',
+    },
+  ),
   op('post', '/imaging/orders/{id}/schedule', IMG, 'Schedule an examination', {
     access: 'radiology DOCTOR, NURSE',
     body: obj({ scheduledAt: dateTime }, ['scheduledAt']),
@@ -840,7 +869,10 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   op('get', '/patient-merges', ID, 'Merges done at my facility', { access: 'DIRECTOR' }),
   op('get', '/patient-merges/compare', ID, 'Compare two records before merging', {
     access: 'DIRECTOR',
-    params: [{ ...q('a', uuid), required: true }, { ...q('b', uuid), required: true }],
+    params: [
+      { ...q('a', uuid), required: true },
+      { ...q('b', uuid), required: true },
+    ],
   }),
   op('post', '/patient-merges/{id}/unmerge', ID, 'Undo a merge', {
     access: 'DIRECTOR',
@@ -848,7 +880,9 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   }),
 
   // Oversight
-  op('get', '/emergency-access/summary', OV, 'National break-glass summary', { access: 'MINISTRY' }),
+  op('get', '/emergency-access/summary', OV, 'National break-glass summary', {
+    access: 'MINISTRY',
+  }),
   op('post', '/emergency-access/{id}/review', OV, 'Review a break-glass access', {
     access: 'DIRECTOR',
     body: obj({ outcome: values(reviewOutcomeEnum), notes: text(5, 2000) }, ['outcome', 'notes']),
@@ -982,15 +1016,21 @@ CORE_OPERATIONS.push(
   op('get', '/monitoring/health', MON, 'Health indicators (national or my facility)', {
     access: 'MINISTRY, DIRECTOR',
   }),
-  op('get', '/monitoring/audit-export', MON, 'Export the audit trail for a SIEM (at most 31 days)', {
-    access: 'MINISTRY',
-    params: [
-      { ...q('from', dateTime), required: true },
-      { ...q('to', dateTime), required: true },
-      q('format', enumOf('jsonl', 'cef'), 'JSON lines (default) or ArcSight CEF'),
-    ],
-    responses: { '200': 'application/x-ndjson or text/plain (CEF)' },
-  }),
+  op(
+    'get',
+    '/monitoring/audit-export',
+    MON,
+    'Export the audit trail for a SIEM (at most 31 days)',
+    {
+      access: 'MINISTRY',
+      params: [
+        { ...q('from', dateTime), required: true },
+        { ...q('to', dateTime), required: true },
+        q('format', enumOf('jsonl', 'cef'), 'JSON lines (default) or ArcSight CEF'),
+      ],
+      responses: { '200': 'application/x-ndjson or text/plain (CEF)' },
+    },
+  ),
 );
 
 CORE_OPERATIONS.push(

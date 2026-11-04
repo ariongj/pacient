@@ -53,7 +53,10 @@ describe('OpenAPI covers every API route', () => {
       return !UNDOCUMENTED_PREFIXES_TODO.some((p) => path === p || path.startsWith(`${p}/`));
     });
   const doc = openApiDocument() as unknown as {
-    paths: Record<string, Record<string, { tags: string[]; parameters?: { name: string; in: string }[] }>>;
+    paths: Record<
+      string,
+      Record<string, { tags: string[]; parameters?: { name: string; in: string }[] }>
+    >;
     tags: { name: string }[];
   };
   const documented = Object.entries(doc.paths).flatMap(([path, methods]) =>

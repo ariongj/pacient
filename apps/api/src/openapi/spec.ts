@@ -6,6 +6,7 @@
  * Request bodies are given as JSON Schema; the authoritative validation is the Zod schema in each
  * route. When adding an endpoint, add it here too.
  */
+import { encounterTypeEnum } from '../db/schema.js';
 import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
 
@@ -239,6 +240,16 @@ const OPERATIONS: Operation[] = [
     auth: 'user',
     access: 'DOCTOR',
     params: [patientPath],
+    body: obj(
+      {
+        type: enumOf(...encounterTypeEnum.enumValues),
+        reason: str({ minLength: 2, maxLength: 500 }),
+        notes: str({ maxLength: 20_000 }),
+        startedAt: dateTime,
+        endedAt: dateTime,
+      },
+      ['type', 'reason'],
+    ),
   },
   {
     method: 'post',

@@ -542,4 +542,26 @@ export const partner: Record<string, string> = {
   'Export the audit trail for a SIEM (at most 31 days)':
     'Eksporto gjurmën e auditimit për një SIEM (deri në 31 ditë)',
   'Download a report as CSV': 'Shkarko një raport si CSV',
+  Downtime: 'Ndërprerja e sistemit',
+  'Downtime mode, encrypted paper packs for outages and back-entry afterwards.':
+    'Mënyra e ndërprerjes, paketat e enkriptuara në letër për ndërprerjet dhe regjistrimi i mëvonshëm i të dhënave.',
+  'Bedside barcode check before giving a dose':
+    'Kontrolli me barkod pranë shtratit para dhënies së dozës',
+  'Barcode scanning compliance of the patient’s ward':
+    'Përputhshmëria e skanimit me barkod në repartin e pacientit',
+  'Print a wristband (signed identity code)':
+    'Printo një byzylyk identifikimi (kod identiteti i nënshkruar)',
+  'Dose limits by ingredient, route and age group':
+    'Kufijtë e dozave sipas përbërësit, rrugës dhe grupmoshës',
+  'Add a dose rule': 'Shto një rregull dozimi',
+  'Change or deactivate a dose rule': 'Ndrysho ose çaktivizo një rregull dozimi',
+  'Downtime mode of my facility': 'Mënyra e ndërprerjes në institucionin tim',
+  'Declare downtime (switch to paper)': 'Shpall ndërprerjen (kalo në letër)',
+  'End downtime': 'Përfundo ndërprerjen',
+  'Downtime packs of my facility': 'Paketat e ndërprerjes të institucionit tim',
+  'Generate downtime packs now': 'Gjenero tani paketat e ndërprerjes',
+  'Download a downtime pack (HTML, audited)': 'Shkarko një paketë ndërprerjeje (HTML, auditohet)',
+  'What to enter after downtime': 'Çfarë duhet regjistruar pas ndërprerjes',
+  'Latest encrypted pack for a ward PC':
+    'Paketa më e fundit e enkriptuar për kompjuterin e repartit',
 };

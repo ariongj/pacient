@@ -257,6 +257,11 @@ export function PatientChart() {
                 {t('Message patient')}
               </Link>
             )}
+            {(user.role === 'NURSE' || user.role === 'DOCTOR' || user.role === 'RECEPTION') && (
+              <Link className="btn btn-secondary btn-sm" to={`/wristband/${patientId}`}>
+                {t('Print wristband')}
+              </Link>
+            )}
             <Button
               variant="ghost"
               size="sm"

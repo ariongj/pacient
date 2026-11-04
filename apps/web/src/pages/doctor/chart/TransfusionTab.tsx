@@ -161,7 +161,9 @@ function BloodGroupCard({ data }: { data: PatientBloodBank }) {
       </div>
       {!g.group && (
         <p className="muted">
-          {t('No blood group on record. The blood bank tests the sample sent with the first request.')}
+          {t(
+            'No blood group on record. The blood bank tests the sample sent with the first request.',
+          )}
         </p>
       )}
       {g.history.length > 0 && (
@@ -306,7 +308,9 @@ function RequestDialog({
               max={250}
               value={hb}
               onChange={(e) => setHb(e.target.value)}
-              hint={redCells ? t('Restrictive threshold: usually transfuse below 70–80 g/L') : undefined}
+              hint={
+                redCells ? t('Restrictive threshold: usually transfuse below 70–80 g/L') : undefined
+              }
             />
           </div>
           <TextAreaField
@@ -404,7 +408,13 @@ function TransfusionsCard({ data }: { data: PatientBloodBank }) {
   );
 }
 
-function ObservationList({ obs, compact }: { obs: Transfusion['observations']; compact?: boolean }) {
+function ObservationList({
+  obs,
+  compact,
+}: {
+  obs: Transfusion['observations'];
+  compact?: boolean;
+}) {
   if (!obs.length) return null;
   const list = (
     <ul className="list bb-obs">
@@ -432,8 +442,20 @@ function ObservationList({ obs, compact }: { obs: Transfusion['observations']; c
 function VitalsFields({ prefix = '' }: { prefix?: string }) {
   return (
     <div className="form-grid bb-vitals">
-      <TextField label={t('Systolic BP')} name={`${prefix}systolic`} type="number" min={40} max={300} />
-      <TextField label={t('Diastolic BP')} name={`${prefix}diastolic`} type="number" min={20} max={200} />
+      <TextField
+        label={t('Systolic BP')}
+        name={`${prefix}systolic`}
+        type="number"
+        min={40}
+        max={300}
+      />
+      <TextField
+        label={t('Diastolic BP')}
+        name={`${prefix}diastolic`}
+        type="number"
+        min={20}
+        max={200}
+      />
       <TextField label={t('Pulse')} name={`${prefix}heartRate`} type="number" min={20} max={250} />
       <TextField
         label={t('Temperature (°C)')}
@@ -443,7 +465,13 @@ function VitalsFields({ prefix = '' }: { prefix?: string }) {
         min={30}
         max={44}
       />
-      <TextField label={t('Respiratory rate')} name={`${prefix}respiratoryRate`} type="number" min={4} max={80} />
+      <TextField
+        label={t('Respiratory rate')}
+        name={`${prefix}respiratoryRate`}
+        type="number"
+        min={4}
+        max={80}
+      />
       <TextField label="SpO₂ (%)" name={`${prefix}spo2`} type="number" min={50} max={100} />
     </div>
   );
@@ -459,11 +487,16 @@ function ActiveTransfusion({
 }) {
   const me = useUser();
   const [dialog, setDialog] = useState<'start' | 'observe' | 'complete' | 'reaction' | null>(null);
-  const confirm = useBloodBankAction<Record<string, never>>(() => `/transfusions/${tr.id}/confirm-check`);
+  const confirm = useBloodBankAction<Record<string, never>>(
+    () => `/transfusions/${tr.id}/confirm-check`,
+  );
   const amSecondChecker = tr.status === 'AWAITING_CHECK' && tr.secondCheckerId === me.id;
   const canAct = me.role === 'DOCTOR' || me.role === 'NURSE';
   return (
-    <section className="bb-active" aria-label={t('Transfusion of unit {unit}', { unit: tr.unitNumber })}>
+    <section
+      className="bb-active"
+      aria-label={t('Transfusion of unit {unit}', { unit: tr.unitNumber })}
+    >
       <div className="row-between">
         <div>
           <strong className="mono">{tr.unitNumber}</strong> · {productLabel(tr.product)} ·{' '}
@@ -478,10 +511,13 @@ function ActiveTransfusion({
       </div>
       {tr.status === 'AWAITING_CHECK' && (
         <Alert tone="info">
-          {t('{first} completed the first check. {second} must confirm with their own sign-in within 10 minutes.', {
-            first: tr.checkedBy ?? '—',
-            second: tr.secondChecker ?? '—',
-          })}
+          {t(
+            '{first} completed the first check. {second} must confirm with their own sign-in within 10 minutes.',
+            {
+              first: tr.checkedBy ?? '—',
+              second: tr.secondChecker ?? '—',
+            },
+          )}
         </Alert>
       )}
       <ObservationList obs={tr.observations} />
@@ -562,9 +598,24 @@ function StartDialog({
           {t('Patient: {name}', { name: `${patient.firstName} ${patient.lastName}` })}
         </p>
         <div className="form-grid">
-          <TextField label={t('National ID (wristband)')} name="nationalId" required autoComplete="off" />
-          <TextField label={t('Date of birth (wristband)')} name="dateOfBirth" type="date" required />
-          <TextField label={t('Unit number (bag label)')} name="unitNumber" required autoComplete="off" />
+          <TextField
+            label={t('National ID (wristband)')}
+            name="nationalId"
+            required
+            autoComplete="off"
+          />
+          <TextField
+            label={t('Date of birth (wristband)')}
+            name="dateOfBirth"
+            type="date"
+            required
+          />
+          <TextField
+            label={t('Unit number (bag label)')}
+            name="unitNumber"
+            required
+            autoComplete="off"
+          />
           <SelectField
             label={t('Second checker')}
             name="secondCheckerId"
@@ -615,7 +666,10 @@ function ObserveDialog({ tr, onClose }: { tr: Transfusion; onClose: () => void }
           label={t('When')}
           name="phase"
           defaultValue={has15 ? 'HOURLY' : 'T15'}
-          options={(['T15', 'HOURLY', 'OTHER'] as const).map((p) => ({ value: p, label: phaseLabel(p) }))}
+          options={(['T15', 'HOURLY', 'OTHER'] as const).map((p) => ({
+            value: p,
+            label: phaseLabel(p),
+          }))}
         />
         <VitalsFields />
         <TextField label={t('Note')} name="note" maxLength={300} />
@@ -714,7 +768,14 @@ function ReactionDialog({ tr, onClose }: { tr: Transfusion; onClose: () => void 
             options={SEVERITIES.map((s) => ({ value: s, label: severityLabel(s) }))}
           />
         </div>
-        <TextAreaField label={t('What happened')} name="details" required minLength={5} maxLength={1500} rows={3} />
+        <TextAreaField
+          label={t('What happened')}
+          name="details"
+          required
+          minLength={5}
+          maxLength={1500}
+          rows={3}
+        />
         <TextField label={t('Actions taken')} name="actionsTaken" maxLength={400} />
         <VitalsFields />
         <ErrorAlert error={report.error} />

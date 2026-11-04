@@ -35,7 +35,8 @@ import {
   type Severity,
 } from './knowledge.js';
 
-export type AlertKind = 'INTERACTION' | 'ALLERGY' | 'DUPLICATE' | 'DOSE' | 'RENAL' | 'PREGNANCY' | 'AGE';
+export type AlertKind =
+  'INTERACTION' | 'ALLERGY' | 'DUPLICATE' | 'DOSE' | 'RENAL' | 'PREGNANCY' | 'AGE';
 
 export interface EngineAlert {
   /** Stable code used to override an alert, e.g. "INTERACTION:ibuprofen+warfarin". */
@@ -505,8 +506,7 @@ export function evaluate(
     const groups = Object.entries(ALLERGY_GROUPS)
       .filter(
         ([, g]) =>
-          g.words.some((w) => containsPhrase(text, w)) ||
-          subst.some((s) => g.members.includes(s)),
+          g.words.some((w) => containsPhrase(text, w)) || subst.some((s) => g.members.includes(s)),
       )
       .map(([k]) => k);
     const direct =

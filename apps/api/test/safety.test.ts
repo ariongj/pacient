@@ -34,11 +34,21 @@ async function patient(opts: { dob?: string; sex?: 'FEMALE' | 'MALE' } = {}) {
 
 const base = (id: string) => `/api/v1/patients/${id}`;
 
-async function prescribe(patientId: string, medication: string, extra: Record<string, unknown> = {}) {
+async function prescribe(
+  patientId: string,
+  medication: string,
+  extra: Record<string, unknown> = {},
+) {
   return api()
     .post(`${base(patientId)}/prescriptions`)
     .set(bearer(w.tokens.doctor))
-    .send({ medication, dosage: '1 tablet', frequency: 'once daily', startDate: '2026-11-04', ...extra });
+    .send({
+      medication,
+      dosage: '1 tablet',
+      frequency: 'once daily',
+      startDate: '2026-11-04',
+      ...extra,
+    });
 }
 
 async function check(patientId: string, medication: string, token = w.tokens.doctor) {
@@ -56,7 +66,11 @@ describe('interactions and duplicates', () => {
     expect((await prescribe(p1, 'Warfarin 5 mg')).status).toBe(201);
     const a1 = alertsOf(await check(p1, 'Ibuprofen 400 mg'));
     const hit1 = a1.find((a) => a.kind === 'INTERACTION');
-    expect(hit1).toMatchObject({ code: 'INTERACTION:ibuprofen+warfarin', severity: 'MAJOR', blocking: true });
+    expect(hit1).toMatchObject({
+      code: 'INTERACTION:ibuprofen+warfarin',
+      severity: 'MAJOR',
+      blocking: true,
+    });
 
     const p2 = await patient();
     expect((await prescribe(p2, 'Brufen 400 mg')).status).toBe(201); // brand name → ibuprofen
@@ -155,7 +169,10 @@ describe('prescribing with overrides', () => {
     expect(tooShort.status).toBe(400);
 
     const ok = await prescribe(p, 'Ibuprofen 400 mg', {
-      overrides: codes.map((code) => ({ code, reason: 'Two days only, with omeprazole; INR check Friday.' })),
+      overrides: codes.map((code) => ({
+        code,
+        reason: 'Two days only, with omeprazole; INR check Friday.',
+      })),
     });
     expect(ok.status).toBe(201);
     const [stored] = await db
@@ -175,10 +192,17 @@ describe('prescribing with overrides', () => {
     const audits = await db
       .select()
       .from(auditLogs)
-      .where(and(eq(auditLogs.action, 'medication.alert_overridden'), eq(auditLogs.resourceId, ok.body.id)));
+      .where(
+        and(
+          eq(auditLogs.action, 'medication.alert_overridden'),
+          eq(auditLogs.resourceId, ok.body.id),
+        ),
+      );
     expect(audits).toHaveLength(1);
 
-    const list = await api().get(`/api/v1/safety/patients/${p}/alerts`).set(bearer(w.tokens.doctor));
+    const list = await api()
+      .get(`/api/v1/safety/patients/${p}/alerts`)
+      .set(bearer(w.tokens.doctor));
     expect(list.body.byPrescription[ok.body.id][0].overrideReason).toContain('INR check');
   });
 
@@ -186,15 +210,22 @@ describe('prescribing with overrides', () => {
     const p = await patient();
     await prescribe(p, 'Simvastatin 40 mg');
     const first = await prescribe(p, 'Clarithromycin 500 mg');
-    const codes = (first.body.error.details.alerts as Alert[]).filter((a) => a.blocking).map((a) => a.code);
+    const codes = (first.body.error.details.alerts as Alert[])
+      .filter((a) => a.blocking)
+      .map((a) => a.code);
     const rx = await prescribe(p, 'Clarithromycin 500 mg', {
-      overrides: codes.map((code) => ({ code, reason: 'Simvastatin paused for the 7-day course.' })),
+      overrides: codes.map((code) => ({
+        code,
+        reason: 'Simvastatin paused for the 7-day course.',
+      })),
     });
     expect(rx.status).toBe(201);
 
     const queue = await api().get('/api/v1/pharmacy/queue').set(bearer(w.tokens.pharmacist));
     const item = queue.body.items.find((i: { id: string }) => i.id === rx.body.id);
-    expect(item.alerts.some((a: Alert) => a.kind === 'INTERACTION' && a.severity === 'CONTRAINDICATED')).toBe(true);
+    expect(
+      item.alerts.some((a: Alert) => a.kind === 'INTERACTION' && a.severity === 'CONTRAINDICATED'),
+    ).toBe(true);
     const ctx = await api()
       .get(`/api/v1/pharmacy/prescriptions/${rx.body.id}`)
       .set(bearer(w.tokens.pharmacist));
@@ -220,7 +251,10 @@ describe('prescribing with overrides', () => {
       .set(bearer(w.tokens.colleague))
       .send({ locale: 'sq' })
       .expect(200);
-    await api().post(`${base(p)}/care-team`).set(bearer(w.tokens.colleague)).send({});
+    await api()
+      .post(`${base(p)}/care-team`)
+      .set(bearer(w.tokens.colleague))
+      .send({});
     const sq = alertsOf(await check(p, 'Ibuprofen 400 mg', w.tokens.colleague));
     expect(sq[0]!.message).not.toBe(en);
     expect(sq[0]!.message).toMatch(/Ndërveprim/);
@@ -233,7 +267,11 @@ describe('interaction checker and database', () => {
       .post('/api/v1/safety/check-list')
       .set(bearer(w.tokens.pharmacist))
       .send({
-        medications: [{ medication: 'Warfarin' }, { medication: 'Ibuprofen' }, { medication: 'Diclofenac' }],
+        medications: [
+          { medication: 'Warfarin' },
+          { medication: 'Ibuprofen' },
+          { medication: 'Diclofenac' },
+        ],
       });
     expect(res.status).toBe(200);
     const codes = res.body.pairwise.map((a: Alert) => a.code);
@@ -247,15 +285,26 @@ describe('interaction checker and database', () => {
   });
 
   it('only the Ministry edits the interaction database', async () => {
-    const pair = { ingredientA: 'tramadol', ingredientB: 'ondansetron', severity: 'MODERATE', effect: 'Ondansetron may reduce the analgesic effect of tramadol.', management: 'Monitor pain control.' };
+    const pair = {
+      ingredientA: 'tramadol',
+      ingredientB: 'ondansetron',
+      severity: 'MODERATE',
+      effect: 'Ondansetron may reduce the analgesic effect of tramadol.',
+      management: 'Monitor pain control.',
+    };
     expect(
-      (await api().post('/api/v1/safety/interactions').set(bearer(w.tokens.doctor)).send(pair)).status,
+      (await api().post('/api/v1/safety/interactions').set(bearer(w.tokens.doctor)).send(pair))
+        .status,
     ).toBe(403);
-    const created = await api().post('/api/v1/safety/interactions').set(bearer(w.tokens.ministry)).send(pair);
+    const created = await api()
+      .post('/api/v1/safety/interactions')
+      .set(bearer(w.tokens.ministry))
+      .send(pair);
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ ingredientA: 'ondansetron', ingredientB: 'tramadol' });
     expect(
-      (await api().post('/api/v1/safety/interactions').set(bearer(w.tokens.ministry)).send(pair)).status,
+      (await api().post('/api/v1/safety/interactions').set(bearer(w.tokens.ministry)).send(pair))
+        .status,
     ).toBe(409);
 
     // The new pair is used immediately.
@@ -272,7 +321,9 @@ describe('interaction checker and database', () => {
     const after = alertsOf(await check(p, 'Ondansetron 4 mg'));
     expect(after.some((a) => a.code === 'INTERACTION:ondansetron+tramadol')).toBe(false);
 
-    const list = await api().get('/api/v1/safety/interactions?q=warfarin').set(bearer(w.tokens.doctor));
+    const list = await api()
+      .get('/api/v1/safety/interactions?q=warfarin')
+      .set(bearer(w.tokens.doctor));
     expect(list.body.items.length).toBeGreaterThan(5);
     expect(list.body.canEdit).toBe(false);
     const audits = await db

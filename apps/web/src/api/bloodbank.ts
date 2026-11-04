@@ -7,27 +7,11 @@ export type Abo = 'O' | 'A' | 'B' | 'AB';
 export type RhD = 'POS' | 'NEG';
 export type Urgency = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type RequestStatus =
-  | 'REQUESTED'
-  | 'SAMPLE_RECEIVED'
-  | 'CROSSMATCHED'
-  | 'ISSUED'
-  | 'COMPLETED'
-  | 'CANCELLED';
+  'REQUESTED' | 'SAMPLE_RECEIVED' | 'CROSSMATCHED' | 'ISSUED' | 'COMPLETED' | 'CANCELLED';
 export type TransfusionStatus =
-  | 'ISSUED'
-  | 'AWAITING_CHECK'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'STOPPED'
-  | 'RETURNED';
+  'ISSUED' | 'AWAITING_CHECK' | 'IN_PROGRESS' | 'COMPLETED' | 'STOPPED' | 'RETURNED';
 export type ReactionType =
-  | 'FEBRILE'
-  | 'ALLERGIC'
-  | 'HAEMOLYTIC'
-  | 'TACO'
-  | 'TRALI'
-  | 'ANAPHYLAXIS'
-  | 'OTHER';
+  'FEBRILE' | 'ALLERGIC' | 'HAEMOLYTIC' | 'TACO' | 'TRALI' | 'ANAPHYLAXIS' | 'OTHER';
 export type ReactionSeverity = 'MILD' | 'MODERATE' | 'SEVERE' | 'LIFE_THREATENING';
 
 export interface Vitals {
@@ -262,7 +246,11 @@ export function urgencyLabel(u: Urgency): string {
   return u === 'EMERGENCY' ? t('Emergency') : u === 'URGENT' ? t('Urgent') : t('Routine');
 }
 export const urgencyTone = (u: Urgency) =>
-  u === 'EMERGENCY' ? ('danger' as const) : u === 'URGENT' ? ('warning' as const) : ('neutral' as const);
+  u === 'EMERGENCY'
+    ? ('danger' as const)
+    : u === 'URGENT'
+      ? ('warning' as const)
+      : ('neutral' as const);
 
 export function requestStatusLabel(s: RequestStatus): string {
   switch (s) {
@@ -349,7 +337,8 @@ export function phaseLabel(p: Observation['phase']): string {
 
 export function vitalsSummary(v: Vitals): string {
   const parts: string[] = [];
-  if (v.systolic && v.diastolic) parts.push(t('BP {sys}/{dia}', { sys: v.systolic, dia: v.diastolic }));
+  if (v.systolic && v.diastolic)
+    parts.push(t('BP {sys}/{dia}', { sys: v.systolic, dia: v.diastolic }));
   if (v.heartRate) parts.push(t('Pulse {n}', { n: v.heartRate }));
   if (v.temperature) parts.push(`${v.temperature} °C`);
   if (v.respiratoryRate) parts.push(t('RR {n}', { n: v.respiratoryRate }));
@@ -360,7 +349,14 @@ export function vitalsSummary(v: Vitals): string {
 /** Number inputs of a vitals form → Vitals object (blank fields omitted). */
 export function readVitals(form: FormData, prefix = ''): Vitals {
   const out: Vitals = {};
-  for (const k of ['systolic', 'diastolic', 'heartRate', 'respiratoryRate', 'temperature', 'spo2'] as const) {
+  for (const k of [
+    'systolic',
+    'diastolic',
+    'heartRate',
+    'respiratoryRate',
+    'temperature',
+    'spo2',
+  ] as const) {
     const raw = form.get(prefix + k);
     if (typeof raw === 'string' && raw.trim() !== '') out[k] = Number(raw.replace(',', '.'));
   }
@@ -388,9 +384,9 @@ export function useColleagues() {
   return useQuery({
     queryKey: [...BB_KEY, 'colleagues'],
     queryFn: () =>
-      api<{ items: { id: string; fullName: string; role: string }[] }>('/blood-bank/colleagues').then(
-        (r) => r.items,
-      ),
+      api<{ items: { id: string; fullName: string; role: string }[] }>(
+        '/blood-bank/colleagues',
+      ).then((r) => r.items),
     staleTime: 5 * 60_000,
   });
 }

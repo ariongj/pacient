@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError } from '../../../api/client';
 import { useSafetyCheck, useStoredAlerts, type SafetyAlert } from '../../../api/safety';
 import { SafetyAlertList, StoredAlertSummary } from '../../tools/SafetyAlerts';
@@ -110,11 +111,14 @@ export function MedicationsTab({
     <Card
       title={t('Medications')}
       actions={
-        isDoctor ? (
-          <Button size="sm" onClick={() => setOpen(true)}>
-            {t('Prescribe')}
-          </Button>
-        ) : undefined
+        <span className="row">
+          <Link to={`/tools/interactions?patient=${patientId}`}>{t('Interaction checker')}</Link>
+          {isDoctor && (
+            <Button size="sm" onClick={() => setOpen(true)}>
+              {t('Prescribe')}
+            </Button>
+          )}
+        </span>
       }
     >
       <p className="muted">

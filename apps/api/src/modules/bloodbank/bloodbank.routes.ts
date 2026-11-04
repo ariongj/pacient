@@ -695,18 +695,18 @@ bloodBankRouter.post('/requests/:id/crossmatch', async (req, res) => {
     for (const u of units) {
       if (u.facilityId !== r.facilityId) throw notFound('Unit not found');
       if (u.status !== 'AVAILABLE') {
-        throw conflict(`Unit ${u.unitNumber} is not available`);
+        throw conflict('A selected unit is not available');
       }
       if (unitIsExpired(u, now)) {
-        throw new HttpError(409, 'UNIT_EXPIRED', `Unit ${u.unitNumber} has expired`);
+        throw new HttpError(409, 'UNIT_EXPIRED', 'A selected unit has expired');
       }
-      if (u.product !== r.product) throw badRequest(`Unit ${u.unitNumber} is a different product`);
+      if (u.product !== r.product) throw badRequest('A selected unit is a different product');
       const c = checkCompatibility(r.product, recipient, groupOf(u), {
         preferRhNegative,
         emergencyReason,
       });
       if (!c.ok) {
-        throw new HttpError(409, 'INCOMPATIBLE', `${c.reason} (${u.unitNumber})`, {
+        throw new HttpError(409, 'INCOMPATIBLE', c.reason ?? 'Incompatible unit', {
           reason: c.reason,
           unitNumber: u.unitNumber,
         });
@@ -770,19 +770,15 @@ async function createTransfusion(
     const [u] = await tx.select().from(bloodUnits).where(eq(bloodUnits.id, unitId)).for('update');
     if (!u || u.facilityId !== r.facilityId) throw notFound('Unit not found');
     if (unitIsExpired(u)) {
-      throw new HttpError(
-        409,
-        'UNIT_EXPIRED',
-        `Unit ${u.unitNumber} has expired and cannot be issued`,
-      );
+      throw new HttpError(409, 'UNIT_EXPIRED', 'This unit has expired and cannot be issued');
     }
     if (emergency) {
-      if (u.status !== 'AVAILABLE') throw conflict(`Unit ${u.unitNumber} is not available`);
+      if (u.status !== 'AVAILABLE') throw conflict('A selected unit is not available');
       if (u.product !== 'RED_CELLS' || u.abo !== 'O' || u.rhD !== 'NEG') {
         throw badRequest('Uncrossmatched emergency blood must be group O RhD-negative red cells');
       }
     } else if (u.status !== 'RESERVED' || u.reservedForRequestId !== r.id) {
-      throw conflict(`Unit ${u.unitNumber} is not crossmatched for this request`);
+      throw conflict('This unit is not crossmatched for this request');
     }
     const [t] = await tx
       .insert(transfusions)

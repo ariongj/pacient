@@ -4,13 +4,7 @@ import { t } from '../i18n';
 
 export type AlertSeverity = 'CONTRAINDICATED' | 'MAJOR' | 'MODERATE' | 'MINOR';
 export type AlertKind =
-  | 'INTERACTION'
-  | 'ALLERGY'
-  | 'DUPLICATE'
-  | 'DOSE'
-  | 'RENAL'
-  | 'PREGNANCY'
-  | 'AGE';
+  'INTERACTION' | 'ALLERGY' | 'DUPLICATE' | 'DOSE' | 'RENAL' | 'PREGNANCY' | 'AGE';
 
 /** A safety alert as the API returns it, already translated for the reader. */
 export interface SafetyAlert {

@@ -1,4 +1,239 @@
 /**
- * Serbian (Latin, sr-Latn) translations, keyed by the English source text. Keep {placeholders}.
+ * Serbian (Latin, sr-Latn) translations for the blood bank and transfusion screens, keyed by the English source
+ * text. Keep {placeholders}.
  */
-export const bloodbank: Record<string, string> = {};
+export const bloodbank: Record<string, string> = {
+  'Transfusion requests, crossmatch and issue, blood stock and transfusion reactions.':
+    'Zahtevi za transfuziju, interreakcija i izdavanje, zalihe krvi i reakcije na transfuziju.',
+  'You are not on the blood bank staff': 'Niste u osoblju banke krvi',
+  'Request blood products from the patient’s chart (tab "Transfusions"). The current stock is shown below.':
+    'Krvne produkte zatražite iz kartona pacijenta (kartica "Transfuzije"). Trenutne zalihe su prikazane ispod.',
+  'Blood bank sections': 'Odeljci banke krvi',
+  Requests: 'Zahtevi',
+  'Receive units': 'Prijem jedinica',
+  Reactions: 'Reakcije',
+  'Open requests': 'Otvoreni zahtevi',
+  '{n} × {product}': '{n} × {product}',
+  'Results disagree': 'Rezultati se ne slažu',
+  'Not confirmed': 'Nije potvrđeno',
+  Antibodies: 'Antitela',
+  'Hb {n} g/L': 'Hb {n} g/L',
+  'Requested {time} by {name}': 'Zatraženo {time}, {name}',
+  Reserved: 'Rezervisano',
+  'Sample received': 'Uzorak primljen',
+  Crossmatch: 'Interreakcija',
+  'Issue unit': 'Izdaj jedinicu',
+  'Emergency O RhD− (uncrossmatched)': 'Hitno O RhD− (bez interreakcije)',
+  'Crossmatched – please note': 'Interreakcija urađena – obratite pažnju',
+  Recipient: 'Primalac',
+  'Not confirmed – only universal units are offered':
+    'Nije potvrđeno – nude se samo univerzalne jedinice',
+  'Select up to {n} compatible units (earliest expiry first).':
+    'Izaberite do {n} kompatibilnih jedinica (prvo one kojima ranije ističe rok).',
+  'No compatible units in stock': 'Nema kompatibilnih jedinica na zalihama',
+  'Compatible units': 'Kompatibilne jedinice',
+  'Expires soon': 'Uskoro ističe',
+  'Emergency reason (only for RhD-positive units to an RhD-negative patient)':
+    'Razlog hitnosti (samo za RhD-pozitivne jedinice RhD-negativnom pacijentu)',
+  'Reserve {n} units': 'Rezerviši jedinica: {n}',
+  Issue: 'Izdaj',
+  'Emergency issue without crossmatch': 'Hitno izdavanje bez interreakcije',
+  'Only for life-threatening bleeding': 'Samo za krvarenje opasno po život',
+  'Group O RhD-negative red cells may be issued before the crossmatch. Take a sample for blood group first; the decision is recorded.':
+    'Eritrociti krvne grupe O RhD-negativne mogu se izdati pre interreakcije. Prvo uzmite uzorak za krvnu grupu; odluka se beleži.',
+  'No O RhD-negative red cells in stock': 'Nema eritrocita O RhD-negativnih na zalihama',
+  'For example: massive haemorrhage, no time for crossmatch':
+    'Na primer: masivno krvarenje, nema vremena za interreakciju',
+  'Issue emergency unit': 'Izdaj hitnu jedinicu',
+  'Units in stock': 'Jedinica na zalihama',
+  'Expiring within 3 days': 'Ističu u roku od 3 dana',
+  'Expired – to discard': 'Istekle – za uništavanje',
+  'Stock by product and blood group': 'Zalihe po produktu i krvnoj grupi',
+  Product: 'Produkt',
+  '(+{n} reserved)': '(+{n} rezervisano)',
+  Group: 'Grupa',
+  Expires: 'Ističe',
+  '{n} ml': '{n} ml',
+  'Expired – do not issue': 'Isteklo – ne izdavati',
+  Discard: 'Uništi',
+  'Discard unit {unit}': 'Uništi jedinicu {unit}',
+  'Scan or type each bag. Product, group and dates stay filled in for the next bag.':
+    'Skenirajte ili upišite svaku kesu. Produkt, grupa i datumi ostaju popunjeni za sledeću kesu.',
+  'Unit number': 'Broj jedinice',
+  'Blood group': 'Krvna grupa',
+  'Volume (ml)': 'Zapremina (ml)',
+  'Added to stock': 'Dodato na zalihe',
+  'Transfusion reactions (haemovigilance)': 'Reakcije na transfuziju (hemovigilanca)',
+  'No reactions reported': 'Nema prijavljenih reakcija',
+  'Request blood products': 'Zatraži krvne produkte',
+  'No transfusion requests': 'Nema zahteva za transfuziju',
+  Urgency: 'Hitnost',
+  'Crossmatched units': 'Interreakcijom proverene jedinice',
+  'Results disagree – repeat on a new sample': 'Rezultati se ne slažu – ponovite na novom uzorku',
+  'Confirmed – 2 concordant tests': 'Potvrđeno – 2 podudarna testa',
+  'Not confirmed – one test only; group O red cells until a second sample':
+    'Nije potvrđeno – samo jedan test; eritrociti grupe O do drugog uzorka',
+  'Antibody screen positive: {antibodies}': 'Skrining antitela pozitivan: {antibodies}',
+  'Antibody screen negative': 'Skrining antitela negativan',
+  'No blood group on record. The blood bank tests the sample sent with the first request.':
+    'Krvna grupa nije zabeležena. Banka krvi testira uzorak poslat uz prvi zahtev.',
+  'All results ({n})': 'Svi rezultati ({n})',
+  'Reserved units go back to the blood bank stock.':
+    'Rezervisane jedinice se vraćaju na zalihe banke krvi.',
+  'Request sent – please note': 'Zahtev je poslat – obratite pažnju',
+  'Latest haemoglobin (g/L)': 'Poslednji hemoglobin (g/L)',
+  'Restrictive threshold: usually transfuse below 70–80 g/L':
+    'Restriktivni prag: transfuzija obično ispod 70–80 g/L',
+  'Haemoglobin above 80 g/L': 'Hemoglobin iznad 80 g/L',
+  'State why a transfusion is needed despite the haemoglobin value.':
+    'Navedite zašto je transfuzija potrebna uprkos vrednosti hemoglobina.',
+  'Reason for transfusing above the threshold': 'Razlog za transfuziju iznad praga',
+  'No transfusions': 'Nema transfuzija',
+  'Past transfusions': 'Prethodne transfuzije',
+  'Checked by': 'Proverili',
+  'Reaction: {type} ({severity})': 'Reakcija: {type} ({severity})',
+  '{n} ml given': 'Dato {n} ml',
+  Observations: 'Opservacije',
+  'Systolic BP': 'Sistolni pritisak',
+  'Diastolic BP': 'Dijastolni pritisak',
+  'Transfusion of unit {unit}': 'Transfuzija jedinice {unit}',
+  'Issued {time} by {name}': 'Izdato {time}, {name}',
+  '{first} completed the first check. {second} must confirm with their own sign-in within 10 minutes.':
+    '{first} je obavio/la prvu proveru. {second} mora potvrditi svojom prijavom u roku od 10 minuta.',
+  'Start bedside check': 'Započni proveru uz krevet',
+  'Repeat bedside check': 'Ponovi proveru uz krevet',
+  'Confirm second check': 'Potvrdi drugu proveru',
+  'Record observation': 'Zabeleži opservaciju',
+  'Complete transfusion': 'Završi transfuziju',
+  'Suspected reaction – stop': 'Sumnja na reakciju – zaustavi',
+  'Bedside check': 'Provera uz krevet',
+  'Check at the bedside, against the patient’s wristband':
+    'Proverite uz krevet, prema narukvici pacijenta',
+  'Type or scan the national ID and date of birth from the wristband and the unit number from the bag – do not copy them from this screen.':
+    'Upišite ili skenirajte lični broj i datum rođenja sa narukvice i broj jedinice sa kese – ne prepisujte ih sa ovog ekrana.',
+  'Patient: {name}': 'Pacijent: {name}',
+  'National ID (wristband)': 'Lični broj (narukvica)',
+  'Date of birth (wristband)': 'Datum rođenja (narukvica)',
+  'Unit number (bag label)': 'Broj jedinice (nalepnica kese)',
+  'Second checker': 'Drugi proveravač',
+  'They confirm on their own device within 10 minutes.':
+    'Potvrđuje na svom uređaju u roku od 10 minuta.',
+  'Baseline observations': 'Početne opservacije',
+  'Confirm first check': 'Potvrdi prvu proveru',
+  'Volume given (ml)': 'Data zapremina (ml)',
+  'End observations': 'Završne opservacije',
+  'Suspected transfusion reaction': 'Sumnja na reakciju na transfuziju',
+  'Stop the transfusion now': 'Odmah zaustavite transfuziju',
+  'Keep the line open with saline, check the patient and the unit label, and call the doctor. Saving this stops the transfusion and alerts the doctor and the blood bank.':
+    'Održavajte liniju otvorenom fiziološkim rastvorom, proverite pacijenta i nalepnicu jedinice i pozovite lekara. Čuvanjem se transfuzija zaustavlja i obaveštavaju lekar i banka krvi.',
+  'Type of reaction': 'Vrsta reakcije',
+  'What happened': 'Šta se dogodilo',
+  'Actions taken': 'Preduzete mere',
+  'Stop transfusion and report': 'Zaustavi transfuziju i prijavi',
+  'Red cells': 'Eritrociti',
+  'Fresh frozen plasma': 'Sveže zamrznuta plazma',
+  Platelets: 'Trombociti',
+  Cryoprecipitate: 'Krioprecipitat',
+  'Whole blood': 'Puna krv',
+  'Waiting for sample': 'Čeka se uzorak',
+  Crossmatched: 'Interreakcija urađena',
+  Issued: 'Izdato',
+  'Issued – bedside check pending': 'Izdato – čeka se provera uz krevet',
+  'Waiting for second checker': 'Čeka se drugi proveravač',
+  'Transfusion running': 'Transfuzija u toku',
+  Stopped: 'Zaustavljeno',
+  'Returned to blood bank': 'Vraćeno banci krvi',
+  'Febrile non-haemolytic': 'Febrilna nehemolitička',
+  Allergic: 'Alergijska',
+  Haemolytic: 'Hemolitička',
+  'Circulatory overload (TACO)': 'Cirkulatorno preopterećenje (TACO)',
+  'Acute lung injury (TRALI)': 'Akutno oštećenje pluća (TRALI)',
+  Anaphylaxis: 'Anafilaksa',
+  'Life-threatening': 'Opasno po život',
+  'Before start': 'Pre početka',
+  'After 15 minutes': 'Posle 15 minuta',
+  Hourly: 'Na svaki sat',
+  'Other observation': 'Druga opservacija',
+  'End of transfusion': 'Kraj transfuzije',
+  'BP {sys}/{dia}': 'TA {sys}/{dia}',
+  'Pulse {n}': 'Puls {n}',
+  'RR {n}': 'FD {n}',
+  'Only blood bank staff can do this': 'Ovo može samo osoblje banke krvi',
+  'Name the antibodies found when the screen is positive':
+    'Navedite pronađena antitela kada je skrining pozitivan',
+  'Expiry must be after collection': 'Rok trajanja mora biti posle uzimanja',
+  'This unit has already expired': 'Ovoj jedinici je već istekao rok',
+  'A unit with this number is already registered': 'Jedinica sa ovim brojem je već registrovana',
+  'Only units in stock can be discarded': 'Mogu se uništiti samo jedinice na zalihama',
+  'The hospital stay does not belong to this patient':
+    'Boravak u bolnici ne pripada ovom pacijentu',
+  'The operation does not belong to this patient': 'Operacija ne pripada ovom pacijentu',
+  'Request not found': 'Zahtev nije pronađen',
+  'The sample was already received': 'Uzorak je već primljen',
+  'This request can no longer be crossmatched': 'Za ovaj zahtev više nije moguća interreakcija',
+  'Receive the patient sample before crossmatching': 'Primite uzorak pacijenta pre interreakcije',
+  'More units than requested': 'Više jedinica nego što je zatraženo',
+  'Uncrossmatched emergency blood must be group O RhD-negative red cells':
+    'Hitna krv bez interreakcije moraju biti eritrociti grupe O RhD-negativne',
+  'Crossmatch the request before issuing': 'Uradite interreakciju pre izdavanja',
+  'Uncrossmatched blood can only be issued for emergency requests':
+    'Krv bez interreakcije može se izdati samo za hitne zahteve',
+  'Emergency issue applies to red cells only': 'Hitno izdavanje važi samo za eritrocite',
+  'The request is closed': 'Zahtev je zatvoren',
+  'Only the requesting doctor or the blood bank can cancel':
+    'Otkazati može samo lekar koji je zatražio ili banka krvi',
+  'A transfusion is in progress – stop it first': 'Transfuzija je u toku – prvo je zaustavite',
+  'Transfusion not found': 'Transfuzija nije pronađena',
+  'This transfusion has already started or ended': 'Ova transfuzija je već počela ili završena',
+  'The second check must be done by a different person': 'Drugu proveru mora obaviti druga osoba',
+  'The second checker must be a doctor or nurse of this facility':
+    'Drugi proveravač mora biti lekar ili medicinska sestra ove ustanove',
+  'No bedside check is waiting': 'Nema provere uz krevet koja čeka',
+  'Only the named second checker can confirm': 'Potvrditi može samo imenovani drugi proveravač',
+  'The two checkers must be different people': 'Dva proveravača moraju biti različite osobe',
+  'The transfusion is not running': 'Transfuzija nije u toku',
+  'Reactions are recorded during a transfusion or within 24 hours after it':
+    'Reakcije se beleže tokom transfuzije ili u roku od 24 sata posle nje',
+  'Blood group results disagree – repeat the blood group on a new sample':
+    'Rezultati krvne grupe se ne slažu – ponovite krvnu grupu na novom uzorku',
+  'Patient identity does not match the blood unit – STOP and contact the blood bank':
+    'Identitet pacijenta se ne poklapa sa jedinicom krvi – ZAUSTAVITE i kontaktirajte banku krvi',
+  'The unit number does not match the issued unit – STOP and contact the blood bank':
+    'Broj jedinice se ne poklapa sa izdatom jedinicom – ZAUSTAVITE i kontaktirajte banku krvi',
+  'This unit has expired – do not transfuse': 'Ovoj jedinici je istekao rok – ne transfundovati',
+  'The bedside check is older than 10 minutes – repeat it at the bedside':
+    'Provera uz krevet je starija od 10 minuta – ponovite je uz krevet',
+  'This result differs from the previous blood group – take a new sample and repeat the test before issuing group-specific blood':
+    'Ovaj rezultat se razlikuje od prethodne krvne grupe – uzmite novi uzorak i ponovite test pre izdavanja krvi po grupi',
+  'Haemoglobin is above 80 g/L – a restrictive threshold usually applies. State the reason for transfusing (e.g. active bleeding, symptomatic anaemia, cardiac disease).':
+    'Hemoglobin je iznad 80 g/L – obično važi restriktivni prag. Navedite razlog transfuzije (npr. aktivno krvarenje, simptomatska anemija, srčana bolest).',
+  'No recent haemoglobin value was given': 'Nije navedena skorašnja vrednost hemoglobina',
+  'Whole blood needs a confirmed blood group': 'Za punu krv je potrebna potvrđena krvna grupa',
+  'Whole blood must be ABO-identical': 'Puna krv mora biti ABO-identična',
+  'RhD-positive red cells for an RhD-negative or unknown recipient need a documented emergency reason':
+    'RhD-pozitivni eritrociti za RhD-negativnog ili nepoznatog primaoca zahtevaju dokumentovan razlog hitnosti',
+  'RhD-positive red cells given in an emergency – arrange anti-D follow-up':
+    'RhD-pozitivni eritrociti dati u hitnom slučaju – organizujte praćenje anti-D',
+  'Platelets are not ABO-identical – acceptable, but monitor the increment':
+    'Trombociti nisu ABO-identični – prihvatljivo, ali pratite porast',
+  'New urgent transfusion request': 'Novi hitni zahtev za transfuziju',
+  'New transfusion request': 'Novi zahtev za transfuziju',
+  'ABO-incompatible red cells': 'ABO-nekompatibilni eritrociti',
+  'Blood group not confirmed (two concordant tests needed) – only group O red cells may be issued':
+    'Krvna grupa nije potvrđena (potrebna su dva podudarna testa) – mogu se izdati samo eritrociti grupe O',
+  'ABO-incompatible plasma': 'ABO-nekompatibilna plazma',
+  'Blood group not confirmed – only group AB plasma may be issued':
+    'Krvna grupa nije potvrđena – može se izdati samo plazma grupe AB',
+  'RhD-positive platelets for an RhD-negative woman of childbearing age – give anti-D':
+    'RhD-pozitivni trombociti za RhD-negativnu ženu u reproduktivnom dobu – dajte anti-D',
+  'RhD-positive platelets for an RhD-negative recipient':
+    'RhD-pozitivni trombociti za RhD-negativnog primaoca',
+  'A selected unit is not available': 'Izabrana jedinica nije dostupna',
+  'A selected unit has expired': 'Izabranoj jedinici je istekao rok',
+  'A selected unit is a different product': 'Izabrana jedinica je drugi produkt',
+  'Incompatible unit': 'Nekompatibilna jedinica',
+  'This unit is not crossmatched for this request':
+    'Ova jedinica nije proverena interreakcijom za ovaj zahtev',
+  'This unit has expired and cannot be issued': 'Ovoj jedinici je istekao rok i ne može se izdati',
+  'Unit not found': 'Jedinica nije pronađena',
+};

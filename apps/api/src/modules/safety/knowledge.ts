@@ -350,7 +350,8 @@ export const CLASS_PAIRS: {
     a: 'ACE_INHIBITOR',
     b: 'ARB',
     severity: 'MAJOR',
-    effect: 'Dual blockade of the renin–angiotensin system: hyperkalaemia, low blood pressure and kidney injury.',
+    effect:
+      'Dual blockade of the renin–angiotensin system: hyperkalaemia, low blood pressure and kidney injury.',
     management: 'Avoid the combination; use one agent.',
   },
 ];
@@ -393,7 +394,12 @@ export const ALLERGY_GROUPS: Record<string, { words: string[]; members: string[]
 };
 
 /** Partial cross-reactivity: allergy group → other group (moderate caution). */
-export const CROSS_REACTIVE: { allergy: string; drugs: string; severity: Severity; note: string }[] = [
+export const CROSS_REACTIVE: {
+  allergy: string;
+  drugs: string;
+  severity: Severity;
+  note: string;
+}[] = [
   {
     allergy: 'penicillin',
     drugs: 'cephalosporin',
@@ -455,7 +461,8 @@ export const RENAL_RULES: {
       {
         below: 30,
         severity: 'MODERATE',
-        advice: 'Reduce the enoxaparin dose below eGFR 30 (e.g. 1 mg/kg once daily); consider anti-Xa monitoring.',
+        advice:
+          'Reduce the enoxaparin dose below eGFR 30 (e.g. 1 mg/kg once daily); consider anti-Xa monitoring.',
       },
     ],
   },
@@ -499,19 +506,28 @@ export const AGE_RULES: {
     ingredients: ['codeine', 'tramadol'],
     maxAgeExclusive: 12,
     severity: 'CONTRAINDICATED',
-    advice: 'Codeine and tramadol are contraindicated under 12 years (life-threatening breathing problems).',
+    advice:
+      'Codeine and tramadol are contraindicated under 12 years (life-threatening breathing problems).',
   },
   {
     ingredients: CLASSES.BENZODIAZEPINE!.members.concat(['zolpidem']),
     minAge: 65,
     severity: 'MODERATE',
-    advice: 'In older adults benzodiazepines and Z-drugs increase falls, confusion and fractures; avoid or use the lowest dose briefly.',
+    advice:
+      'In older adults benzodiazepines and Z-drugs increase falls, confusion and fractures; avoid or use the lowest dose briefly.',
   },
   {
-    ingredients: ['diphenhydramine', 'chlorphenamine', 'promethazine', 'hydroxyzine', 'amitriptyline'],
+    ingredients: [
+      'diphenhydramine',
+      'chlorphenamine',
+      'promethazine',
+      'hydroxyzine',
+      'amitriptyline',
+    ],
     minAge: 65,
     severity: 'MODERATE',
-    advice: 'Strongly anticholinergic medicines cause confusion and falls in older adults; prefer alternatives.',
+    advice:
+      'Strongly anticholinergic medicines cause confusion and falls in older adults; prefer alternatives.',
   },
 ];
 
@@ -525,7 +541,8 @@ export const PREGNANCY_RULES: { ingredients: string[]; severity: Severity; advic
   {
     ingredients: [...CLASSES.ACE_INHIBITOR!.members, ...CLASSES.ARB!.members],
     severity: 'CONTRAINDICATED',
-    advice: 'ACE inhibitors and ARBs are fetotoxic; switch to a pregnancy-compatible antihypertensive (e.g. labetalol, nifedipine, methyldopa).',
+    advice:
+      'ACE inhibitors and ARBs are fetotoxic; switch to a pregnancy-compatible antihypertensive (e.g. labetalol, nifedipine, methyldopa).',
   },
   {
     ingredients: CLASSES.STATIN!.members,
@@ -540,7 +557,8 @@ export const PREGNANCY_RULES: { ingredients: string[]; severity: Severity; advic
   {
     ingredients: ['valproic acid'],
     severity: 'CONTRAINDICATED',
-    advice: 'Valproate causes major malformations and developmental disorders; specialist review required.',
+    advice:
+      'Valproate causes major malformations and developmental disorders; specialist review required.',
   },
   {
     ingredients: CLASSES.NSAID!.members,
@@ -590,8 +608,10 @@ const CONTRAST_MGMT =
 const ALLOPURINOL = 'Higher levels of the other drug: risk of serious toxicity.';
 const PHENYTOIN = 'Altered levels of either drug: loss of effect or toxicity.';
 const PHENYTOIN_MGMT = 'Monitor drug levels and clinical response; adjust doses.';
-const FLUOROQUINOLONE = 'Corticosteroids increase the risk of tendon rupture with fluoroquinolones.';
-const FLUOROQUINOLONE_MGMT = 'Avoid if possible, especially in older adults; warn about tendon pain.';
+const FLUOROQUINOLONE =
+  'Corticosteroids increase the risk of tendon rupture with fluoroquinolones.';
+const FLUOROQUINOLONE_MGMT =
+  'Avoid if possible, especially in older adults; warn about tendon pain.';
 
 export const SEED_INTERACTIONS: [string, string, Severity, string, string][] = [
   ['warfarin', 'ibuprofen', 'MAJOR', BLEEDING, BLEEDING_MGMT],
@@ -606,7 +626,13 @@ export const SEED_INTERACTIONS: [string, string, Severity, string, string][] = [
   ['warfarin', 'sulfamethoxazole', 'MAJOR', INR_UP, INR_MGMT],
   ['warfarin', 'ciprofloxacin', 'MODERATE', INR_UP, INR_MGMT],
   ['warfarin', 'clarithromycin', 'MODERATE', INR_UP, INR_MGMT],
-  ['warfarin', 'paracetamol', 'MINOR', INR_UP, 'Regular high doses may raise the INR; check the INR if used for several days.'],
+  [
+    'warfarin',
+    'paracetamol',
+    'MINOR',
+    INR_UP,
+    'Regular high doses may raise the INR; check the INR if used for several days.',
+  ],
   ['acenocoumarol', 'ibuprofen', 'MAJOR', BLEEDING, BLEEDING_MGMT],
   ['rivaroxaban', 'ibuprofen', 'MAJOR', BLEEDING, BLEEDING_MGMT],
   ['apixaban', 'acetylsalicylic acid', 'MAJOR', BLEEDING, BLEEDING_MGMT],
@@ -629,19 +655,61 @@ export const SEED_INTERACTIONS: [string, string, Severity, string, string][] = [
   ['simvastatin', 'clarithromycin', 'CONTRAINDICATED', MYOPATHY, MYOPATHY_MGMT],
   ['atorvastatin', 'clarithromycin', 'MAJOR', MYOPATHY, MYOPATHY_MGMT],
   ['simvastatin', 'erythromycin', 'CONTRAINDICATED', MYOPATHY, MYOPATHY_MGMT],
-  ['simvastatin', 'amiodarone', 'MAJOR', MYOPATHY, 'Do not exceed simvastatin 20 mg daily with amiodarone.'],
-  ['simvastatin', 'verapamil', 'MAJOR', MYOPATHY, 'Do not exceed simvastatin 20 mg daily with verapamil.'],
+  [
+    'simvastatin',
+    'amiodarone',
+    'MAJOR',
+    MYOPATHY,
+    'Do not exceed simvastatin 20 mg daily with amiodarone.',
+  ],
+  [
+    'simvastatin',
+    'verapamil',
+    'MAJOR',
+    MYOPATHY,
+    'Do not exceed simvastatin 20 mg daily with verapamil.',
+  ],
   ['atorvastatin', 'fluconazole', 'MODERATE', MYOPATHY, MYOPATHY_MGMT],
   ['sertraline', 'tramadol', 'MAJOR', SEROTONIN, SEROTONIN_MGMT],
   ['fluoxetine', 'tramadol', 'MAJOR', SEROTONIN, SEROTONIN_MGMT],
   ['escitalopram', 'tramadol', 'MAJOR', SEROTONIN, SEROTONIN_MGMT],
   ['sertraline', 'linezolid', 'CONTRAINDICATED', SEROTONIN, SEROTONIN_MGMT],
   ['citalopram', 'linezolid', 'CONTRAINDICATED', SEROTONIN, SEROTONIN_MGMT],
-  ['methotrexate', 'trimethoprim', 'CONTRAINDICATED', METHOTREXATE, 'Avoid; use another antibiotic.'],
-  ['methotrexate', 'sulfamethoxazole', 'CONTRAINDICATED', METHOTREXATE, 'Avoid; use another antibiotic.'],
-  ['methotrexate', 'ibuprofen', 'MAJOR', METHOTREXATE, 'Avoid with high-dose methotrexate; monitor blood counts and kidney function with low doses.'],
-  ['sildenafil', 'glyceryl trinitrate', 'CONTRAINDICATED', HYPOTENSION, 'Never combine; nitrates are contraindicated within 24 hours of sildenafil.'],
-  ['sildenafil', 'isosorbide mononitrate', 'CONTRAINDICATED', HYPOTENSION, 'Never combine; nitrates are contraindicated with sildenafil.'],
+  [
+    'methotrexate',
+    'trimethoprim',
+    'CONTRAINDICATED',
+    METHOTREXATE,
+    'Avoid; use another antibiotic.',
+  ],
+  [
+    'methotrexate',
+    'sulfamethoxazole',
+    'CONTRAINDICATED',
+    METHOTREXATE,
+    'Avoid; use another antibiotic.',
+  ],
+  [
+    'methotrexate',
+    'ibuprofen',
+    'MAJOR',
+    METHOTREXATE,
+    'Avoid with high-dose methotrexate; monitor blood counts and kidney function with low doses.',
+  ],
+  [
+    'sildenafil',
+    'glyceryl trinitrate',
+    'CONTRAINDICATED',
+    HYPOTENSION,
+    'Never combine; nitrates are contraindicated within 24 hours of sildenafil.',
+  ],
+  [
+    'sildenafil',
+    'isosorbide mononitrate',
+    'CONTRAINDICATED',
+    HYPOTENSION,
+    'Never combine; nitrates are contraindicated with sildenafil.',
+  ],
   ['lithium', 'ibuprofen', 'MAJOR', LITHIUM, LITHIUM_MGMT],
   ['lithium', 'diclofenac', 'MAJOR', LITHIUM, LITHIUM_MGMT],
   ['lithium', 'hydrochlorothiazide', 'MAJOR', LITHIUM, LITHIUM_MGMT],
@@ -650,7 +718,13 @@ export const SEED_INTERACTIONS: [string, string, Severity, string, string][] = [
   ['digoxin', 'amiodarone', 'MAJOR', DIGOXIN, DIGOXIN_MGMT],
   ['digoxin', 'verapamil', 'MAJOR', DIGOXIN, DIGOXIN_MGMT],
   ['digoxin', 'clarithromycin', 'MAJOR', DIGOXIN, DIGOXIN_MGMT],
-  ['digoxin', 'furosemide', 'MODERATE', 'Low potassium from the diuretic increases digoxin toxicity.', 'Monitor potassium and digoxin levels.'],
+  [
+    'digoxin',
+    'furosemide',
+    'MODERATE',
+    'Low potassium from the diuretic increases digoxin toxicity.',
+    'Monitor potassium and digoxin levels.',
+  ],
   ['bisoprolol', 'verapamil', 'MAJOR', BRADY, BRADY_MGMT],
   ['metoprolol', 'verapamil', 'MAJOR', BRADY, BRADY_MGMT],
   ['bisoprolol', 'diltiazem', 'MODERATE', BRADY, BRADY_MGMT],
@@ -669,14 +743,32 @@ export const SEED_INTERACTIONS: [string, string, Severity, string, string][] = [
   ['morphine', 'diazepam', 'MAJOR', SEDATION, SEDATION_MGMT],
   ['codeine', 'alprazolam', 'MAJOR', SEDATION, SEDATION_MGMT],
   ['oxycodone', 'lorazepam', 'MAJOR', SEDATION, SEDATION_MGMT],
-  ['allopurinol', 'azathioprine', 'CONTRAINDICATED', ALLOPURINOL, 'Avoid, or reduce azathioprine to a quarter of the dose with close blood-count monitoring.'],
-  ['colchicine', 'clarithromycin', 'CONTRAINDICATED', ALLOPURINOL, 'Avoid; colchicine toxicity can be fatal.'],
+  [
+    'allopurinol',
+    'azathioprine',
+    'CONTRAINDICATED',
+    ALLOPURINOL,
+    'Avoid, or reduce azathioprine to a quarter of the dose with close blood-count monitoring.',
+  ],
+  [
+    'colchicine',
+    'clarithromycin',
+    'CONTRAINDICATED',
+    ALLOPURINOL,
+    'Avoid; colchicine toxicity can be fatal.',
+  ],
   ['carbamazepine', 'clarithromycin', 'MAJOR', PHENYTOIN, PHENYTOIN_MGMT],
   ['phenytoin', 'fluconazole', 'MAJOR', PHENYTOIN, PHENYTOIN_MGMT],
   ['valproic acid', 'carbamazepine', 'MODERATE', PHENYTOIN, PHENYTOIN_MGMT],
   ['ciprofloxacin', 'prednisolone', 'MODERATE', FLUOROQUINOLONE, FLUOROQUINOLONE_MGMT],
   ['levofloxacin', 'prednisolone', 'MODERATE', FLUOROQUINOLONE, FLUOROQUINOLONE_MGMT],
-  ['levothyroxine', 'ferrous sulfate', 'MINOR', 'Iron reduces the absorption of levothyroxine.', 'Take them at least 4 hours apart.'],
+  [
+    'levothyroxine',
+    'ferrous sulfate',
+    'MINOR',
+    'Iron reduces the absorption of levothyroxine.',
+    'Take them at least 4 hours apart.',
+  ],
 ];
 
 /** Source label for seeded pairs. */

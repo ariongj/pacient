@@ -3,12 +3,22 @@ import { useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import type {
-  PharmacyContext,
+  PharmacyContext as BaseContext,
   PharmacyItem,
-  PharmacyQueue as Queue,
+  PharmacyQueue as BaseQueue,
   PharmacyStatus,
-  SafetyAlert,
 } from '../../api/types';
+import { kindLabel, severityTone, type SafetyAlert, type StoredAlert } from '../../api/safety';
+import { SafetyAlertList, SeverityBadge } from '../tools/SafetyAlerts';
+
+/** The safety engine's alerts (severity CONTRAINDICATED … MINOR, translated messages). */
+type PharmacyContext = Omit<BaseContext, 'alerts'> & {
+  alerts: SafetyAlert[];
+  prescribingAlerts: StoredAlert[];
+};
+type Queue = Omit<BaseQueue, 'items'> & {
+  items: (BaseQueue['items'][number] & { alerts?: SafetyAlert[] })[];
+};
 import { AnnouncementsCard } from '../../components/Announcements';
 import {
   Alert,
@@ -21,6 +31,7 @@ import {
   Loading,
   PageHeader,
   QueryView,
+  SelectField,
   Stat,
   StatusBadge,
   TabPanel,
@@ -53,13 +64,9 @@ function AlertBadges({ alerts }: { alerts?: SafetyAlert[] }) {
   if (!alerts?.length) return null;
   return (
     <span className="row">
-      {alerts.map((a, i) => (
-        <Badge key={i} tone={a.severity === 'HIGH' ? 'danger' : 'warning'}>
-          {a.kind === 'ALLERGY'
-            ? t('Allergy')
-            : a.kind === 'CROSS_REACTIVITY'
-              ? t('Cross-reactivity')
-              : t('Duplicate therapy')}
+      {alerts.map((a) => (
+        <Badge key={a.code} tone={severityTone(a.severity)}>
+          {kindLabel(a.kind)}
         </Badge>
       ))}
     </span>
@@ -88,6 +95,7 @@ function ActionDialog({
 }) {
   const queryClient = useQueryClient();
   const [reviewed, setReviewed] = useState(false);
+  const [alertCode, setAlertCode] = useState('');
   const mutation = useMutation({
     mutationFn: (body: object) =>
       api(`/pharmacy/prescriptions/${item.id}/${action}`, { method: 'POST', body }),
@@ -104,7 +112,7 @@ function ActionDialog({
     if (action === 'verify') {
       mutation.mutate({ alertsReviewed: reviewed, note: note || null });
     } else if (action === 'return') {
-      mutation.mutate({ note });
+      mutation.mutate(alertCode ? { note, alertCode } : { note });
     }
   }
 
@@ -114,7 +122,8 @@ function ActionDialog({
       : action === 'return'
         ? t('Return to prescriber')
         : t('Dispense medication');
-  const hasAlerts = alerts.length > 0;
+  const reviewable = alerts.filter((a) => a.severity !== 'MINOR');
+  const hasAlerts = reviewable.length > 0;
 
   if (action === 'dispense') {
     return (
@@ -134,8 +143,10 @@ function ActionDialog({
           <>
             <Alert tone="danger" title={t('Safety alerts must be reviewed')}>
               <ul className="alert-list">
-                {alerts.map((a, i) => (
-                  <li key={i}>{a.message}</li>
+                {reviewable.map((a) => (
+                  <li key={a.code}>
+                    <SeverityBadge alert={a} /> {a.message}
+                  </li>
                 ))}
               </ul>
             </Alert>
@@ -149,6 +160,18 @@ function ActionDialog({
               {t('I have reviewed the alerts and it is safe to proceed')}
             </label>
           </>
+        )}
+        {action === 'return' && alerts.length > 0 && (
+          <SelectField
+            label={t('Safety alert this return refers to (optional)')}
+            value={alertCode}
+            onChange={(e) => setAlertCode(e.target.value)}
+            placeholder={t('No specific alert')}
+            options={alerts.map((a) => ({
+              value: a.code,
+              label: `${kindLabel(a.kind)}: ${a.message}`.slice(0, 120),
+            }))}
+          />
         )}
         <TextAreaField
           label={
@@ -289,17 +312,29 @@ function Detail({ id }: { id: string }) {
           )}
         </p>
         {c.alerts.length ? (
-          <ul className="alert-list">
-            {c.alerts.map((a, i) => (
-              <li key={i}>
-                <Alert tone={a.severity === 'HIGH' ? 'danger' : 'warning'} title={humanize(a.kind)}>
-                  {a.message}
-                </Alert>
-              </li>
-            ))}
-          </ul>
+          <SafetyAlertList alerts={c.alerts} />
         ) : (
           <Alert tone="success" title={t('No alerts found by the automated checks')} />
+        )}
+        {c.prescribingAlerts?.length > 0 && (
+          <>
+            <h3>{t('Alerts when the prescription was written')}</h3>
+            <ul className="list">
+              {c.prescribingAlerts.map((a) => (
+                <li key={a.id}>
+                  <SeverityBadge alert={a} /> {a.message}
+                  {a.overrideReason ? (
+                    <div className="muted">
+                      {t('Prescriber’s reason ({name}): {reason}', {
+                        name: a.overriddenBy ?? '—',
+                        reason: a.overrideReason,
+                      })}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
 

@@ -199,7 +199,10 @@ describe('pharmacy workflow', () => {
     const rx = await api()
       .post(`${base()}/prescriptions`)
       .set(bearer(w.tokens.doctor))
-      .send({ ...order, overrides: [{ code, reason: 'Tolerated amoxicillin in 2024 – allergy doubtful.' }] });
+      .send({
+        ...order,
+        overrides: [{ code, reason: 'Tolerated amoxicillin in 2024 – allergy doubtful.' }],
+      });
     expect(rx.status).toBe(201);
     expect(rx.body.pharmacyStatus).toBe('PENDING');
     rxId = rx.body.id;

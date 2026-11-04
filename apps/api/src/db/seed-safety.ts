@@ -38,7 +38,14 @@ export async function seedSafety({ facilityId }: { facilityId: string }) {
     const [a, b] = orderPair(x, y);
     if (seen.has(`${a}+${b}`)) continue;
     seen.add(`${a}+${b}`);
-    rows.push({ ingredientA: a, ingredientB: b, severity, effect, management, source: SEED_SOURCE });
+    rows.push({
+      ingredientA: a,
+      ingredientB: b,
+      severity,
+      effect,
+      management,
+      source: SEED_SOURCE,
+    });
   }
   await db.insert(drugInteractions).values(rows).onConflictDoNothing();
   invalidateInteractionCache();
@@ -62,7 +69,9 @@ export async function seedSafety({ facilityId }: { facilityId: string }) {
     .select({ id: patients.id })
     .from(patients)
     .innerJoin(users, eq(users.id, patients.userId))
-    .where(and(eq(users.email, 'patient@pacient.local'), eq(patients.primaryFacilityId, facilityId)));
+    .where(
+      and(eq(users.email, 'patient@pacient.local'), eq(patients.primaryFacilityId, facilityId)),
+    );
   if (!demo) return;
   const active = await db
     .select({

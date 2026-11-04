@@ -96,12 +96,20 @@ safetyRouter.post('/check-list', requireRole(...STAFF), async (req, res) => {
       kidney: null,
       pregnant: false,
       medications: resolved
-        .map((r, j) => ({ id: String(j), medication: r.medication, ingredients: r.ingredients, atc: r.atc }))
+        .map((r, j) => ({
+          id: String(j),
+          medication: r.medication,
+          ingredients: r.ingredients,
+          atc: r.atc,
+        }))
         .filter((_, j) => j > i),
     };
     for (const a of evaluate(pseudo, resolved[i]!, index.pairs)) {
       pairwise.push({
-        medications: [resolved[i]!.medication, resolved[Number(a.details?.prescriptionId)]?.medication],
+        medications: [
+          resolved[i]!.medication,
+          resolved[Number(a.details?.prescriptionId)]?.medication,
+        ],
         ...toPublicAlert(a, locale),
       });
     }

@@ -1,108 +1,179 @@
 /** Albanian translations of medication safety alerts (English source text → translation). */
 export const sqSafety: Record<string, string> = {
-  "Increased risk of bleeding.": "Rritet rreziku i gjakderdhjes.",
-  "Avoid if possible; if needed, use the lowest dose for the shortest time, consider gastroprotection and monitor for bleeding (INR for warfarin).": "Shmangeni nëse është e mundur; nëse nevojitet, përdorni dozën më të ulët për kohën më të shkurtër, merrni parasysh mbrojtjen e stomakut dhe monitoroni për gjakderdhje (INR për varfarinën).",
-  "Raises the anticoagulant effect of warfarin (higher INR, bleeding).": "Rrit efektin antikoagulues të varfarinës (INR më i lartë, gjakderdhje).",
-  "Avoid or reduce the warfarin dose and check the INR within 3–5 days.": "Shmangeni ose ulni dozën e varfarinës dhe kontrolloni INR-në brenda 3–5 ditëve.",
-  "Regular high doses may raise the INR; check the INR if used for several days.": "Dozat e larta të rregullta mund ta rrisin INR-në; kontrolloni INR-në nëse përdoret disa ditë.",
-  "Reduced activation of clopidogrel (less antiplatelet effect).": "Aktivizim i zvogëluar i klopidogrelit (efekt më i dobët antitrombocitar).",
-  "Prefer pantoprazole if a proton pump inhibitor is needed.": "Preferoni pantoprazolin nëse nevojitet frenues i pompës protonike.",
-  "Risk of high potassium (hyperkalaemia), especially with kidney impairment.": "Rrezik i kaliumit të lartë (hiperkaliemi), sidomos me dëmtim të veshkave.",
-  "Avoid or monitor potassium and kidney function closely.": "Shmangeni ose monitoroni nga afër kaliumin dhe funksionin e veshkave.",
-  "Combined risk of kidney injury (\"triple whammy\" with diuretics).": "Rrezik i kombinuar i dëmtimit të veshkave (\"goditja e trefishtë\" me diuretikë).",
-  "Avoid NSAIDs where possible; monitor kidney function and fluids.": "Shmangni AINS-të kur është e mundur; monitoroni funksionin e veshkave dhe lëngjet.",
-  "Higher statin levels: risk of muscle damage (myopathy, rhabdomyolysis).": "Nivele më të larta të statinës: rrezik i dëmtimit të muskujve (miopati, rabdomiolizë).",
-  "Pause the statin during the course or use a non-interacting antibiotic (e.g. azithromycin).": "Ndërprisni statinën gjatë kurës ose përdorni një antibiotik pa ndërveprim (p.sh. azitromicinë).",
-  "Do not exceed simvastatin 20 mg daily with amiodarone.": "Mos e tejkaloni simvastatinën 20 mg në ditë së bashku me amiodaronin.",
-  "Do not exceed simvastatin 20 mg daily with verapamil.": "Mos e tejkaloni simvastatinën 20 mg në ditë së bashku me verapamilin.",
-  "Risk of serotonin syndrome (agitation, tremor, fever) and seizures.": "Rrezik i sindromës serotoninergjike (agjitacion, dridhje, temperaturë) dhe i konvulsioneve.",
-  "Avoid the combination or monitor closely; use the lowest doses.": "Shmangni kombinimin ose monitoroni nga afër; përdorni dozat më të ulëta.",
-  "Increased methotrexate toxicity (bone-marrow suppression).": "Toksicitet i rritur i metotreksatit (shtypje e palcës së kockave).",
-  "Avoid; use another antibiotic.": "Shmangeni; përdorni një antibiotik tjetër.",
-  "Avoid with high-dose methotrexate; monitor blood counts and kidney function with low doses.": "Shmangeni me doza të larta të metotreksatit; me doza të ulëta monitoroni gjakun dhe funksionin e veshkave.",
-  "Severe drop in blood pressure.": "Rënie e rëndë e tensionit të gjakut.",
-  "Never combine; nitrates are contraindicated within 24 hours of sildenafil.": "Mos i kombinoni kurrë; nitratet janë kundërindikuar brenda 24 orëve pas sildenafilit.",
-  "Never combine; nitrates are contraindicated with sildenafil.": "Mos i kombinoni kurrë; nitratet janë kundërindikuar me sildenafilin.",
-  "Lithium levels rise: risk of lithium toxicity.": "Rriten nivelet e litiumit: rrezik i toksicitetit të litiumit.",
-  "Avoid or reduce the lithium dose and monitor lithium levels.": "Shmangeni ose ulni dozën e litiumit dhe monitoroni nivelet e tij.",
-  "Digoxin levels rise: risk of digoxin toxicity and bradycardia.": "Rriten nivelet e digoksinës: rrezik i toksicitetit të digoksinës dhe bradikardisë.",
-  "Reduce the digoxin dose (often by half) and monitor levels and heart rate.": "Ulni dozën e digoksinës (shpesh përgjysmë) dhe monitoroni nivelet dhe pulsin.",
-  "Low potassium from the diuretic increases digoxin toxicity.": "Kaliumi i ulët nga diuretiku rrit toksicitetin e digoksinës.",
-  "Monitor potassium and digoxin levels.": "Monitoroni kaliumin dhe nivelet e digoksinës.",
-  "Additive slowing of the heart (bradycardia, heart block) and low blood pressure.": "Ngadalësim i shtuar i zemrës (bradikardi, bllok zemre) dhe tension i ulët.",
-  "Avoid the combination; if used, monitor heart rate and ECG.": "Shmangni kombinimin; nëse përdoret, monitoroni pulsin dhe EKG-në.",
-  "Additive QT prolongation: risk of dangerous arrhythmias (torsades de pointes).": "Zgjatje e shtuar e QT: rrezik i aritmive të rrezikshme (torsades de pointes).",
-  "Avoid the combination; if unavoidable, check ECG and electrolytes.": "Shmangni kombinimin; nëse është e pashmangshme, kontrolloni EKG-në dhe elektrolitet.",
-  "Iodinated contrast can cause kidney injury, which may lead to metformin accumulation (lactic acidosis).": "Kontrasti me jod mund të dëmtojë veshkat, gjë që mund të çojë në grumbullim të metforminës (acidozë laktike).",
-  "Withhold metformin from the time of contrast for 48 hours in patients with eGFR below 30 or acute kidney injury; restart when kidney function is stable.": "Ndërprisni metforminën nga koha e kontrastit për 48 orë te pacientët me eGFR nën 30 ose dëmtim akut të veshkave; rifillojeni kur funksioni i veshkave të jetë i qëndrueshëm.",
-  "Increased risk of low blood sugar (hypoglycaemia).": "Rrezik i rritur i sheqerit të ulët në gjak (hipoglikemi).",
-  "Monitor blood glucose; warn the patient about hypoglycaemia symptoms.": "Monitoroni glukozën në gjak; paralajmëroni pacientin për shenjat e hipoglikemisë.",
-  "Additive sedation and breathing depression.": "Sedim i shtuar dhe shtypje e frymëmarrjes.",
-  "Avoid the combination or use the lowest doses with monitoring.": "Shmangni kombinimin ose përdorni dozat më të ulëta me monitorim.",
-  "Higher levels of the other drug: risk of serious toxicity.": "Nivele më të larta të barit tjetër: rrezik i toksicitetit të rëndë.",
-  "Avoid, or reduce azathioprine to a quarter of the dose with close blood-count monitoring.": "Shmangeni, ose ulni azatioprinën në një të katërtën e dozës me monitorim të ngushtë të gjakut.",
-  "Avoid; colchicine toxicity can be fatal.": "Shmangeni; toksiciteti i kolkicinës mund të jetë fatal.",
-  "Altered levels of either drug: loss of effect or toxicity.": "Nivele të ndryshuara të secilit bar: humbje e efektit ose toksicitet.",
-  "Monitor drug levels and clinical response; adjust doses.": "Monitoroni nivelet e barnave dhe përgjigjen klinike; përshtatni dozat.",
-  "Corticosteroids increase the risk of tendon rupture with fluoroquinolones.": "Kortikosteroidet rrisin rrezikun e këputjes së tendinave me fluorokinolonet.",
-  "Avoid if possible, especially in older adults; warn about tendon pain.": "Shmangeni nëse është e mundur, sidomos te të moshuarit; paralajmëroni për dhimbje të tendinave.",
-  "Iron reduces the absorption of levothyroxine.": "Hekuri zvogëlon thithjen e levotiroksinës.",
-  "Take them at least 4 hours apart.": "Merrini me të paktën 4 orë ndërmjet tyre.",
-  "Dual blockade of the renin–angiotensin system: hyperkalaemia, low blood pressure and kidney injury.": "Bllokim i dyfishtë i sistemit renin–angiotensinë: hiperkaliemi, tension i ulët dhe dëmtim i veshkave.",
-  "Avoid the combination; use one agent.": "Shmangni kombinimin; përdorni vetëm një bar.",
-  "NSAIDs": "barnave anti-inflamatore josteroidale (AINS)",
-  "ACE inhibitors": "frenuesve të ACE-së",
-  "angiotensin receptor blockers": "bllokuesve të receptorëve të angiotensinës",
-  "statins": "statinave",
-  "proton pump inhibitors": "frenuesve të pompës protonike",
-  "beta blockers": "beta-bllokuesve",
-  "benzodiazepines": "benzodiazepinave",
-  "SSRIs": "SSRI-ve (frenuesve selektivë të rimarrjes së serotoninës)",
-  "anticoagulants": "antikoagulantëve",
-  "sulfonylureas": "sulfonilureve",
-  "opioids": "opioideve",
-  "loop diuretics": "diuretikëve të lakut",
-  "Cephalosporins carry a small risk of cross-reactivity with penicillin allergy.": "Cefalosporinat kanë një rrezik të vogël të reaksionit të kryqëzuar te alergjia ndaj penicilinës.",
-  "Patients with aspirin hypersensitivity often react to other NSAIDs.": "Pacientët me mbindjeshmëri ndaj aspirinës shpesh reagojnë edhe ndaj AINS-ve të tjera.",
-  "Metformin is contraindicated below eGFR 30 (risk of lactic acidosis).": "Metformina është kundërindikuar nën eGFR 30 (rrezik i acidozës laktike).",
-  "Do not start metformin; if already taking it, reduce the dose (max 1 g/day).": "Mos e filloni metforminën; nëse e merr tashmë, ulni dozën (maks. 1 g/ditë).",
-  "Avoid NSAIDs in severe kidney impairment.": "Shmangni AINS-të në dëmtim të rëndë të veshkave.",
-  "Use NSAIDs with caution: shortest course, monitor kidney function.": "Përdorni AINS-të me kujdes: kurë sa më e shkurtër, monitoroni funksionin e veshkave.",
-  "Avoid nitrofurantoin below eGFR 45: ineffective and more toxic.": "Shmangni nitrofurantoinën nën eGFR 45: e paefektshme dhe më toksike.",
-  "Reduce the enoxaparin dose below eGFR 30 (e.g. 1 mg/kg once daily); consider anti-Xa monitoring.": "Ulni dozën e enoksaparinës nën eGFR 30 (p.sh. 1 mg/kg një herë në ditë); merrni parasysh monitorimin e anti-Xa.",
-  "Avoid potassium-sparing diuretics below eGFR 30 (hyperkalaemia).": "Shmangni diuretikët që kursejnë kaliumin nën eGFR 30 (hiperkaliemi).",
-  "Risk of prolonged hypoglycaemia; use the lowest dose or an alternative.": "Rrezik i hipoglikemisë së zgjatur; përdorni dozën më të ulët ose një alternativë.",
-  "Aspirin should not be given to children under 16 (risk of Reye’s syndrome).": "Aspirina nuk duhet t’u jepet fëmijëve nën 16 vjeç (rrezik i sindromës Reye).",
-  "Codeine and tramadol are contraindicated under 12 years (life-threatening breathing problems).": "Kodeina dhe tramadoli janë kundërindikuar nën 12 vjeç (probleme të frymëmarrjes që rrezikojnë jetën).",
-  "In older adults benzodiazepines and Z-drugs increase falls, confusion and fractures; avoid or use the lowest dose briefly.": "Te të moshuarit benzodiazepinat dhe barnat Z rrisin rëniet, konfuzionin dhe frakturat; shmangini ose përdorni dozën më të ulët për pak kohë.",
-  "Strongly anticholinergic medicines cause confusion and falls in older adults; prefer alternatives.": "Barnat me efekt të fortë antikolinergjik shkaktojnë konfuzion dhe rënie te të moshuarit; preferoni alternativa.",
-  "Vitamin K antagonists are teratogenic; use low-molecular-weight heparin in pregnancy.": "Antagonistët e vitaminës K janë teratogjenë; në shtatzëni përdorni heparinë me peshë të ulët molekulare.",
-  "ACE inhibitors and ARBs are fetotoxic; switch to a pregnancy-compatible antihypertensive (e.g. labetalol, nifedipine, methyldopa).": "Frenuesit e ACE-së dhe ARB-të janë toksikë për fetusin; kaloni në një antihipertensiv të përshtatshëm për shtatzëni (p.sh. labetalol, nifedipinë, metildopë).",
-  "Statins should be stopped during pregnancy.": "Statinat duhet të ndërpriten gjatë shtatzënisë.",
-  "Highly teratogenic – must not be used in pregnancy.": "Shumë teratogjen – nuk duhet të përdoret në shtatzëni.",
-  "Valproate causes major malformations and developmental disorders; specialist review required.": "Valproati shkakton keqformime të rënda dhe çrregullime të zhvillimit; nevojitet vlerësim nga specialisti.",
-  "Avoid NSAIDs from 20 weeks of pregnancy (fetal kidney and ductus problems).": "Shmangni AINS-të nga java e 20-të e shtatzënisë (probleme të veshkave dhe të duktusit te fetusi).",
-  "Duplicate therapy: the patient already takes {other} ({ingredient}).": "Terapi e dyfishtë: pacienti tashmë merr {other} ({ingredient}).",
-  "Check whether both are intended; stop one or adjust the total dose.": "Kontrolloni nëse të dyja janë të qëllimshme; ndërprisni njërën ose përshtatni dozën totale.",
-  "Interaction with {other}: {effect}": "Ndërveprim me {other}: {effect}",
-  "Duplicate therapy: {other} is also one of the {group}.": "Terapi e dyfishtë: edhe {other} është ndër grupin e {group}.",
-  "Combining two medicines of the same group rarely helps and adds side effects; review whether both are needed.": "Kombinimi i dy barnave të të njëjtit grup rrallë ndihmon dhe shton efektet anësore; rishikoni nëse nevojiten të dyja.",
-  "Duplicate therapy: {other} is in the same therapeutic group (ATC {atc}).": "Terapi e dyfishtë: {other} është në të njëjtin grup terapeutik (ATC {atc}).",
-  "Check whether both are intended.": "Kontrolloni nëse të dyja janë të qëllimshme.",
-  "Recorded allergy to {substance} ({severity}, {status}).": "Alergji e regjistruar ndaj {substance} ({severity}, {status}).",
-  "Do not give unless the allergy has been ruled out; choose an alternative.": "Mos e jepni nëse alergjia nuk është përjashtuar; zgjidhni një alternativë.",
-  "Allergy to {substance}: {note}": "Alergji ndaj {substance}: {note}",
-  "Use only if the benefit outweighs the risk, and monitor for an allergic reaction.": "Përdoreni vetëm nëse dobia e tejkalon rrezikun dhe monitoroni për reaksion alergjik.",
-  "Kidney function: eGFR {egfr} ml/min/1.73 m² ({date}). {advice}": "Funksioni i veshkave: eGFR {egfr} ml/min/1,73 m² ({date}). {advice}",
-  "Adjust or choose an alternative according to kidney function.": "Përshtatni dozën ose zgjidhni një alternativë sipas funksionit të veshkave.",
-  "Age {age}: {advice}": "Mosha {age}: {advice}",
-  "Choose an age-appropriate alternative.": "Zgjidhni një alternativë të përshtatshme për moshën.",
-  "Pregnancy: {advice}": "Shtatzëni: {advice}",
-  "Choose a pregnancy-compatible alternative; discuss with obstetrics if unsure.": "Zgjidhni një alternativë të përshtatshme për shtatzëni; konsultohuni me gjinekologjinë nëse nuk jeni të sigurt.",
-  "mild": "e lehtë",
-  "moderate": "e moderuar",
-  "severe": "e rëndë",
-  "life-threatening": "kërcënuese për jetën",
-  "confirmed": "e konfirmuar",
-  "unconfirmed": "e pakonfirmuar",
+  'Increased risk of bleeding.': 'Rritet rreziku i gjakderdhjes.',
+  'Avoid if possible; if needed, use the lowest dose for the shortest time, consider gastroprotection and monitor for bleeding (INR for warfarin).':
+    'Shmangeni nëse është e mundur; nëse nevojitet, përdorni dozën më të ulët për kohën më të shkurtër, merrni parasysh mbrojtjen e stomakut dhe monitoroni për gjakderdhje (INR për varfarinën).',
+  'Raises the anticoagulant effect of warfarin (higher INR, bleeding).':
+    'Rrit efektin antikoagulues të varfarinës (INR më i lartë, gjakderdhje).',
+  'Avoid or reduce the warfarin dose and check the INR within 3–5 days.':
+    'Shmangeni ose ulni dozën e varfarinës dhe kontrolloni INR-në brenda 3–5 ditëve.',
+  'Regular high doses may raise the INR; check the INR if used for several days.':
+    'Dozat e larta të rregullta mund ta rrisin INR-në; kontrolloni INR-në nëse përdoret disa ditë.',
+  'Reduced activation of clopidogrel (less antiplatelet effect).':
+    'Aktivizim i zvogëluar i klopidogrelit (efekt më i dobët antitrombocitar).',
+  'Prefer pantoprazole if a proton pump inhibitor is needed.':
+    'Preferoni pantoprazolin nëse nevojitet frenues i pompës protonike.',
+  'Risk of high potassium (hyperkalaemia), especially with kidney impairment.':
+    'Rrezik i kaliumit të lartë (hiperkaliemi), sidomos me dëmtim të veshkave.',
+  'Avoid or monitor potassium and kidney function closely.':
+    'Shmangeni ose monitoroni nga afër kaliumin dhe funksionin e veshkave.',
+  'Combined risk of kidney injury ("triple whammy" with diuretics).':
+    'Rrezik i kombinuar i dëmtimit të veshkave ("goditja e trefishtë" me diuretikë).',
+  'Avoid NSAIDs where possible; monitor kidney function and fluids.':
+    'Shmangni AINS-të kur është e mundur; monitoroni funksionin e veshkave dhe lëngjet.',
+  'Higher statin levels: risk of muscle damage (myopathy, rhabdomyolysis).':
+    'Nivele më të larta të statinës: rrezik i dëmtimit të muskujve (miopati, rabdomiolizë).',
+  'Pause the statin during the course or use a non-interacting antibiotic (e.g. azithromycin).':
+    'Ndërprisni statinën gjatë kurës ose përdorni një antibiotik pa ndërveprim (p.sh. azitromicinë).',
+  'Do not exceed simvastatin 20 mg daily with amiodarone.':
+    'Mos e tejkaloni simvastatinën 20 mg në ditë së bashku me amiodaronin.',
+  'Do not exceed simvastatin 20 mg daily with verapamil.':
+    'Mos e tejkaloni simvastatinën 20 mg në ditë së bashku me verapamilin.',
+  'Risk of serotonin syndrome (agitation, tremor, fever) and seizures.':
+    'Rrezik i sindromës serotoninergjike (agjitacion, dridhje, temperaturë) dhe i konvulsioneve.',
+  'Avoid the combination or monitor closely; use the lowest doses.':
+    'Shmangni kombinimin ose monitoroni nga afër; përdorni dozat më të ulëta.',
+  'Increased methotrexate toxicity (bone-marrow suppression).':
+    'Toksicitet i rritur i metotreksatit (shtypje e palcës së kockave).',
+  'Avoid; use another antibiotic.': 'Shmangeni; përdorni një antibiotik tjetër.',
+  'Avoid with high-dose methotrexate; monitor blood counts and kidney function with low doses.':
+    'Shmangeni me doza të larta të metotreksatit; me doza të ulëta monitoroni gjakun dhe funksionin e veshkave.',
+  'Severe drop in blood pressure.': 'Rënie e rëndë e tensionit të gjakut.',
+  'Never combine; nitrates are contraindicated within 24 hours of sildenafil.':
+    'Mos i kombinoni kurrë; nitratet janë kundërindikuar brenda 24 orëve pas sildenafilit.',
+  'Never combine; nitrates are contraindicated with sildenafil.':
+    'Mos i kombinoni kurrë; nitratet janë kundërindikuar me sildenafilin.',
+  'Lithium levels rise: risk of lithium toxicity.':
+    'Rriten nivelet e litiumit: rrezik i toksicitetit të litiumit.',
+  'Avoid or reduce the lithium dose and monitor lithium levels.':
+    'Shmangeni ose ulni dozën e litiumit dhe monitoroni nivelet e tij.',
+  'Digoxin levels rise: risk of digoxin toxicity and bradycardia.':
+    'Rriten nivelet e digoksinës: rrezik i toksicitetit të digoksinës dhe bradikardisë.',
+  'Reduce the digoxin dose (often by half) and monitor levels and heart rate.':
+    'Ulni dozën e digoksinës (shpesh përgjysmë) dhe monitoroni nivelet dhe pulsin.',
+  'Low potassium from the diuretic increases digoxin toxicity.':
+    'Kaliumi i ulët nga diuretiku rrit toksicitetin e digoksinës.',
+  'Monitor potassium and digoxin levels.': 'Monitoroni kaliumin dhe nivelet e digoksinës.',
+  'Additive slowing of the heart (bradycardia, heart block) and low blood pressure.':
+    'Ngadalësim i shtuar i zemrës (bradikardi, bllok zemre) dhe tension i ulët.',
+  'Avoid the combination; if used, monitor heart rate and ECG.':
+    'Shmangni kombinimin; nëse përdoret, monitoroni pulsin dhe EKG-në.',
+  'Additive QT prolongation: risk of dangerous arrhythmias (torsades de pointes).':
+    'Zgjatje e shtuar e QT: rrezik i aritmive të rrezikshme (torsades de pointes).',
+  'Avoid the combination; if unavoidable, check ECG and electrolytes.':
+    'Shmangni kombinimin; nëse është e pashmangshme, kontrolloni EKG-në dhe elektrolitet.',
+  'Iodinated contrast can cause kidney injury, which may lead to metformin accumulation (lactic acidosis).':
+    'Kontrasti me jod mund të dëmtojë veshkat, gjë që mund të çojë në grumbullim të metforminës (acidozë laktike).',
+  'Withhold metformin from the time of contrast for 48 hours in patients with eGFR below 30 or acute kidney injury; restart when kidney function is stable.':
+    'Ndërprisni metforminën nga koha e kontrastit për 48 orë te pacientët me eGFR nën 30 ose dëmtim akut të veshkave; rifillojeni kur funksioni i veshkave të jetë i qëndrueshëm.',
+  'Increased risk of low blood sugar (hypoglycaemia).':
+    'Rrezik i rritur i sheqerit të ulët në gjak (hipoglikemi).',
+  'Monitor blood glucose; warn the patient about hypoglycaemia symptoms.':
+    'Monitoroni glukozën në gjak; paralajmëroni pacientin për shenjat e hipoglikemisë.',
+  'Additive sedation and breathing depression.': 'Sedim i shtuar dhe shtypje e frymëmarrjes.',
+  'Avoid the combination or use the lowest doses with monitoring.':
+    'Shmangni kombinimin ose përdorni dozat më të ulëta me monitorim.',
+  'Higher levels of the other drug: risk of serious toxicity.':
+    'Nivele më të larta të barit tjetër: rrezik i toksicitetit të rëndë.',
+  'Avoid, or reduce azathioprine to a quarter of the dose with close blood-count monitoring.':
+    'Shmangeni, ose ulni azatioprinën në një të katërtën e dozës me monitorim të ngushtë të gjakut.',
+  'Avoid; colchicine toxicity can be fatal.':
+    'Shmangeni; toksiciteti i kolkicinës mund të jetë fatal.',
+  'Altered levels of either drug: loss of effect or toxicity.':
+    'Nivele të ndryshuara të secilit bar: humbje e efektit ose toksicitet.',
+  'Monitor drug levels and clinical response; adjust doses.':
+    'Monitoroni nivelet e barnave dhe përgjigjen klinike; përshtatni dozat.',
+  'Corticosteroids increase the risk of tendon rupture with fluoroquinolones.':
+    'Kortikosteroidet rrisin rrezikun e këputjes së tendinave me fluorokinolonet.',
+  'Avoid if possible, especially in older adults; warn about tendon pain.':
+    'Shmangeni nëse është e mundur, sidomos te të moshuarit; paralajmëroni për dhimbje të tendinave.',
+  'Iron reduces the absorption of levothyroxine.': 'Hekuri zvogëlon thithjen e levotiroksinës.',
+  'Take them at least 4 hours apart.': 'Merrini me të paktën 4 orë ndërmjet tyre.',
+  'Dual blockade of the renin–angiotensin system: hyperkalaemia, low blood pressure and kidney injury.':
+    'Bllokim i dyfishtë i sistemit renin–angiotensinë: hiperkaliemi, tension i ulët dhe dëmtim i veshkave.',
+  'Avoid the combination; use one agent.': 'Shmangni kombinimin; përdorni vetëm një bar.',
+  NSAIDs: 'barnave anti-inflamatore josteroidale (AINS)',
+  'ACE inhibitors': 'frenuesve të ACE-së',
+  'angiotensin receptor blockers': 'bllokuesve të receptorëve të angiotensinës',
+  statins: 'statinave',
+  'proton pump inhibitors': 'frenuesve të pompës protonike',
+  'beta blockers': 'beta-bllokuesve',
+  benzodiazepines: 'benzodiazepinave',
+  SSRIs: 'SSRI-ve (frenuesve selektivë të rimarrjes së serotoninës)',
+  anticoagulants: 'antikoagulantëve',
+  sulfonylureas: 'sulfonilureve',
+  opioids: 'opioideve',
+  'loop diuretics': 'diuretikëve të lakut',
+  'Cephalosporins carry a small risk of cross-reactivity with penicillin allergy.':
+    'Cefalosporinat kanë një rrezik të vogël të reaksionit të kryqëzuar te alergjia ndaj penicilinës.',
+  'Patients with aspirin hypersensitivity often react to other NSAIDs.':
+    'Pacientët me mbindjeshmëri ndaj aspirinës shpesh reagojnë edhe ndaj AINS-ve të tjera.',
+  'Metformin is contraindicated below eGFR 30 (risk of lactic acidosis).':
+    'Metformina është kundërindikuar nën eGFR 30 (rrezik i acidozës laktike).',
+  'Do not start metformin; if already taking it, reduce the dose (max 1 g/day).':
+    'Mos e filloni metforminën; nëse e merr tashmë, ulni dozën (maks. 1 g/ditë).',
+  'Avoid NSAIDs in severe kidney impairment.': 'Shmangni AINS-të në dëmtim të rëndë të veshkave.',
+  'Use NSAIDs with caution: shortest course, monitor kidney function.':
+    'Përdorni AINS-të me kujdes: kurë sa më e shkurtër, monitoroni funksionin e veshkave.',
+  'Avoid nitrofurantoin below eGFR 45: ineffective and more toxic.':
+    'Shmangni nitrofurantoinën nën eGFR 45: e paefektshme dhe më toksike.',
+  'Reduce the enoxaparin dose below eGFR 30 (e.g. 1 mg/kg once daily); consider anti-Xa monitoring.':
+    'Ulni dozën e enoksaparinës nën eGFR 30 (p.sh. 1 mg/kg një herë në ditë); merrni parasysh monitorimin e anti-Xa.',
+  'Avoid potassium-sparing diuretics below eGFR 30 (hyperkalaemia).':
+    'Shmangni diuretikët që kursejnë kaliumin nën eGFR 30 (hiperkaliemi).',
+  'Risk of prolonged hypoglycaemia; use the lowest dose or an alternative.':
+    'Rrezik i hipoglikemisë së zgjatur; përdorni dozën më të ulët ose një alternativë.',
+  'Aspirin should not be given to children under 16 (risk of Reye’s syndrome).':
+    'Aspirina nuk duhet t’u jepet fëmijëve nën 16 vjeç (rrezik i sindromës Reye).',
+  'Codeine and tramadol are contraindicated under 12 years (life-threatening breathing problems).':
+    'Kodeina dhe tramadoli janë kundërindikuar nën 12 vjeç (probleme të frymëmarrjes që rrezikojnë jetën).',
+  'In older adults benzodiazepines and Z-drugs increase falls, confusion and fractures; avoid or use the lowest dose briefly.':
+    'Te të moshuarit benzodiazepinat dhe barnat Z rrisin rëniet, konfuzionin dhe frakturat; shmangini ose përdorni dozën më të ulët për pak kohë.',
+  'Strongly anticholinergic medicines cause confusion and falls in older adults; prefer alternatives.':
+    'Barnat me efekt të fortë antikolinergjik shkaktojnë konfuzion dhe rënie te të moshuarit; preferoni alternativa.',
+  'Vitamin K antagonists are teratogenic; use low-molecular-weight heparin in pregnancy.':
+    'Antagonistët e vitaminës K janë teratogjenë; në shtatzëni përdorni heparinë me peshë të ulët molekulare.',
+  'ACE inhibitors and ARBs are fetotoxic; switch to a pregnancy-compatible antihypertensive (e.g. labetalol, nifedipine, methyldopa).':
+    'Frenuesit e ACE-së dhe ARB-të janë toksikë për fetusin; kaloni në një antihipertensiv të përshtatshëm për shtatzëni (p.sh. labetalol, nifedipinë, metildopë).',
+  'Statins should be stopped during pregnancy.': 'Statinat duhet të ndërpriten gjatë shtatzënisë.',
+  'Highly teratogenic – must not be used in pregnancy.':
+    'Shumë teratogjen – nuk duhet të përdoret në shtatzëni.',
+  'Valproate causes major malformations and developmental disorders; specialist review required.':
+    'Valproati shkakton keqformime të rënda dhe çrregullime të zhvillimit; nevojitet vlerësim nga specialisti.',
+  'Avoid NSAIDs from 20 weeks of pregnancy (fetal kidney and ductus problems).':
+    'Shmangni AINS-të nga java e 20-të e shtatzënisë (probleme të veshkave dhe të duktusit te fetusi).',
+  'Duplicate therapy: the patient already takes {other} ({ingredient}).':
+    'Terapi e dyfishtë: pacienti tashmë merr {other} ({ingredient}).',
+  'Check whether both are intended; stop one or adjust the total dose.':
+    'Kontrolloni nëse të dyja janë të qëllimshme; ndërprisni njërën ose përshtatni dozën totale.',
+  'Interaction with {other}: {effect}': 'Ndërveprim me {other}: {effect}',
+  'Duplicate therapy: {other} is also one of the {group}.':
+    'Terapi e dyfishtë: edhe {other} është ndër grupin e {group}.',
+  'Combining two medicines of the same group rarely helps and adds side effects; review whether both are needed.':
+    'Kombinimi i dy barnave të të njëjtit grup rrallë ndihmon dhe shton efektet anësore; rishikoni nëse nevojiten të dyja.',
+  'Duplicate therapy: {other} is in the same therapeutic group (ATC {atc}).':
+    'Terapi e dyfishtë: {other} është në të njëjtin grup terapeutik (ATC {atc}).',
+  'Check whether both are intended.': 'Kontrolloni nëse të dyja janë të qëllimshme.',
+  'Recorded allergy to {substance} ({severity}, {status}).':
+    'Alergji e regjistruar ndaj {substance} ({severity}, {status}).',
+  'Do not give unless the allergy has been ruled out; choose an alternative.':
+    'Mos e jepni nëse alergjia nuk është përjashtuar; zgjidhni një alternativë.',
+  'Allergy to {substance}: {note}': 'Alergji ndaj {substance}: {note}',
+  'Use only if the benefit outweighs the risk, and monitor for an allergic reaction.':
+    'Përdoreni vetëm nëse dobia e tejkalon rrezikun dhe monitoroni për reaksion alergjik.',
+  'Kidney function: eGFR {egfr} ml/min/1.73 m² ({date}). {advice}':
+    'Funksioni i veshkave: eGFR {egfr} ml/min/1,73 m² ({date}). {advice}',
+  'Adjust or choose an alternative according to kidney function.':
+    'Përshtatni dozën ose zgjidhni një alternativë sipas funksionit të veshkave.',
+  'Age {age}: {advice}': 'Mosha {age}: {advice}',
+  'Choose an age-appropriate alternative.': 'Zgjidhni një alternativë të përshtatshme për moshën.',
+  'Pregnancy: {advice}': 'Shtatzëni: {advice}',
+  'Choose a pregnancy-compatible alternative; discuss with obstetrics if unsure.':
+    'Zgjidhni një alternativë të përshtatshme për shtatzëni; konsultohuni me gjinekologjinë nëse nuk jeni të sigurt.',
+  mild: 'e lehtë',
+  moderate: 'e moderuar',
+  severe: 'e rëndë',
+  'life-threatening': 'kërcënuese për jetën',
+  confirmed: 'e konfirmuar',
+  unconfirmed: 'e pakonfirmuar',
 };

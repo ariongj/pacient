@@ -35,9 +35,7 @@ export async function assertSafetyAccess(ctx: AuthContext, patientId: string, me
       .select({ id: prescriptions.id })
       .from(prescriptions)
       .innerJoin(prescriber, eq(prescriber.id, prescriptions.doctorId))
-      .where(
-        and(eq(prescriptions.patientId, patientId), eq(prescriber.facilityId, ctx.facilityId)),
-      )
+      .where(and(eq(prescriptions.patientId, patientId), eq(prescriber.facilityId, ctx.facilityId)))
       .limit(1);
     if (row) return;
   }
@@ -145,7 +143,8 @@ export async function storedAlertsFor(
   const conditions = [];
   if (where.patientId) conditions.push(eq(prescriptionAlerts.patientId, where.patientId));
   if (where.prescriptionIds) {
-    if (!where.prescriptionIds.length) return new Map<string, ReturnType<typeof storedToPublic>[]>();
+    if (!where.prescriptionIds.length)
+      return new Map<string, ReturnType<typeof storedToPublic>[]>();
     conditions.push(inArray(prescriptionAlerts.prescriptionId, where.prescriptionIds));
   }
   const rows = await db

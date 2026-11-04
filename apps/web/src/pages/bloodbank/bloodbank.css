@@ -1,0 +1,72 @@
+/* Blood bank and transfusion screens */
+.bb-group-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.bb-group {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.bb-group-sm {
+  font-weight: 700;
+}
+.bb-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.bb-request,
+.bb-active {
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+}
+.bb-request p {
+  margin: 0.25rem 0;
+}
+.bb-emergency {
+  border-left-color: var(--danger);
+}
+.bb-urgent {
+  border-left-color: var(--warning, #b45309);
+}
+.bb-routine {
+  border-left-color: var(--border);
+}
+.bb-active {
+  border-left-color: var(--primary);
+}
+.bb-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.bb-chip {
+  display: inline-block;
+  margin: 0 0.35rem 0.25rem 0;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+.bb-obs li {
+  font-size: 0.9rem;
+}
+.bb-low {
+  font-weight: 700;
+  color: var(--warning, #b45309);
+}
+.bb-empty {
+  color: var(--danger);
+  font-weight: 700;
+}
+.bb-vitals {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}

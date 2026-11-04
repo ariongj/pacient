@@ -209,6 +209,9 @@ export const facilities = pgTable(
     municipality: varchar('municipality', { length: 100 }).notNull(),
     address: varchar('address', { length: 300 }),
     phone: varchar('phone', { length: 40 }),
+    /** Set while the facility works on paper (planned or unplanned downtime). */
+    downtimeSince: timestamp('downtime_since', { withTimezone: true }),
+    downtimeNote: varchar('downtime_note', { length: 300 }),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
@@ -514,6 +517,13 @@ export const prescriptions = pgTable(
       onDelete: 'set null',
     }),
     dosage: varchar('dosage', { length: 100 }).notNull(),
+    /** Structured dose (for dose-range checks and barcode administration). */
+    doseAmount: numeric('dose_amount', { precision: 10, scale: 3 }),
+    doseUnit: varchar('dose_unit', { length: 20 }),
+    /** e.g. QD, BID, TID, QID, Q4H, Q6H, Q8H, Q12H, QHS, PRN, STAT, WEEKLY. */
+    frequencyCode: varchar('frequency_code', { length: 12 }),
+    durationDays: integer('duration_days'),
+    asNeeded: boolean('as_needed').notNull().default(false),
     frequency: varchar('frequency', { length: 100 }).notNull(),
     route: varchar('route', { length: 50 }).notNull().default('oral'),
     instructions: text('instructions'),
@@ -872,6 +882,10 @@ export const medicationAdministrations = pgTable(
     doseGiven: varchar('dose_given', { length: 100 }),
     reason: varchar('reason', { length: 500 }),
     notes: text('notes'),
+    /** Barcode checks at the bedside (wristband and medicine pack). */
+    patientScanned: boolean('patient_scanned').notNull().default(false),
+    medicationScanned: boolean('medication_scanned').notNull().default(false),
+    scanOverrideReason: varchar('scan_override_reason', { length: 300 }),
     administeredAt: timestamp('administered_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1841,6 +1855,8 @@ export const medicationCatalog = pgTable(
     unit: varchar('unit', { length: 30 }).notNull(),
     /** Active ingredients (INN, lower case) for interaction and allergy checks. */
     ingredients: text('ingredients').array(),
+    /** GTIN/EAN barcode on the pack, for barcode-checked administration. */
+    barcode: varchar('barcode', { length: 32 }),
     isEssential: boolean('is_essential').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -2478,6 +2494,8 @@ export const earlyWarningScores = pgTable(
       .notNull()
       .references(() => vitalSigns.id, { onDelete: 'cascade' }),
     admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    /** NEWS2 (adults) or PEWS (children). */
+    scale: varchar('scale', { length: 8 }).notNull().default('NEWS2'),
     score: integer('score').notNull(),
     risk: varchar('risk', { length: 12 }).notNull(),
     /** Points per parameter and whether any single parameter scored 3. */
@@ -2559,6 +2577,110 @@ export const videoSessions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('video_sessions_appointment_uq').on(t.appointmentId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Dose rules, downtime, data protection
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Dose limits per ingredient, route and age group (mg, or mg/kg when perKg). */
+export const doseRules = pgTable(
+  'dose_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ingredient: varchar('ingredient', { length: 100 }).notNull(),
+    route: varchar('route', { length: 20 }).notNull().default('ORAL'),
+    /** ADULT, CHILD (≥1 month <18 y), NEONATE (<1 month), ELDERLY (≥65 y). */
+    ageGroup: varchar('age_group', { length: 10 }).notNull(),
+    unit: varchar('unit', { length: 10 }).notNull().default('mg'),
+    perKg: boolean('per_kg').notNull().default(false),
+    maxSingleDose: numeric('max_single_dose', { precision: 10, scale: 3 }),
+    maxDailyDose: numeric('max_daily_dose', { precision: 10, scale: 3 }),
+    /** Absolute cap even when dosed per kg (e.g. paracetamol 4 g/day). */
+    absoluteMaxDaily: numeric('absolute_max_daily', { precision: 10, scale: 3 }),
+    note: varchar('note', { length: 300 }),
+    isActive: boolean('is_active').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('dose_rules_uq').on(t.ingredient, t.route, t.ageGroup)],
+);
+
+/** Encrypted downtime packs generated for each facility (paper fallback). */
+export const downtimeExports = pgTable(
+  'downtime_exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    fileName: varchar('file_name', { length: 200 }).notNull(),
+    sha256: varchar('sha256', { length: 64 }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    patientCount: integer('patient_count').notNull(),
+    generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('downtime_exports_facility_idx').on(t.facilityId, t.generatedAt)],
+);
+
+/** How long each category of data is kept, and what happens afterwards. */
+export const retentionPolicies = pgTable(
+  'retention_policies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    category: varchar('category', { length: 40 }).notNull(),
+    retainDays: integer('retain_days').notNull(),
+    action: varchar('action', { length: 10 }).notNull(),
+    legalBasis: varchar('legal_basis', { length: 300 }).notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    lastRunCount: integer('last_run_count'),
+    updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('retention_policies_category_uq').on(t.category)],
+);
+
+/** Requests from patients exercising their data protection rights. */
+export const dataSubjectRequests = pgTable(
+  'data_subject_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    kind: varchar('kind', { length: 15 }).notNull(),
+    status: varchar('status', { length: 12 }).notNull().default('RECEIVED'),
+    details: varchar('details', { length: 2000 }),
+    receivedVia: varchar('received_via', { length: 10 }).notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    outcome: varchar('outcome', { length: 2000 }),
+    handledById: uuid('handled_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [index('data_subject_requests_status_idx').on(t.status, t.dueAt)],
+);
+
+/** Legal hold: the patient's data is exempt from retention purges (litigation, investigation). */
+export const legalHolds = pgTable(
+  'legal_holds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedById: uuid('released_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [index('legal_holds_patient_idx').on(t.patientId)],
 );
 
 /* ------------------------------------------------------------------------------------------------

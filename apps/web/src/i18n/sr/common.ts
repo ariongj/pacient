@@ -820,4 +820,7 @@ export const common: Record<string, string> = {
   'Joined a video visit': 'Pridružio/la se video pregledu',
   'Video visit ended': 'Video pregled je završen',
   'Drug interaction database': 'Baza interakcija lekova',
+  'Downtime kit': 'Paket za prekid rada',
+  'Data protection': 'Zaštita podataka',
+  'System health': 'Stanje sistema',
 };

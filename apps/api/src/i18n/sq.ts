@@ -1,3 +1,9 @@
+import { sqPews } from './sq-pews.js';
+import { sqBcma } from './sq-bcma.js';
+import { sqDosing } from './sq-dosing.js';
+import { sqMonitoring } from './sq-monitoring.js';
+import { sqPrivacy } from './sq-privacy.js';
+import { sqDowntime } from './sq-downtime.js';
 import { sqTelemedicine } from './sq-telemedicine.js';
 import { sqSurveillance } from './sq-surveillance.js';
 import { sqNews } from './sq-news.js';
@@ -38,4 +44,10 @@ export const sq: Record<string, string> = {
   ...sqNews,
   ...sqSurveillance,
   ...sqTelemedicine,
+  ...sqDowntime,
+  ...sqPrivacy,
+  ...sqMonitoring,
+  ...sqDosing,
+  ...sqBcma,
+  ...sqPews,
 };

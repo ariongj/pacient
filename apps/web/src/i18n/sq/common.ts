@@ -835,4 +835,7 @@ export const common: Record<string, string> = {
   'Joined a video visit': 'U bashkua në vizitë me video',
   'Video visit ended': 'Vizita me video përfundoi',
   'Drug interaction database': 'Baza e ndërveprimeve të barnave',
+  'Downtime kit': 'Paketa për ndërprerje',
+  'Data protection': 'Mbrojtja e të dhënave',
+  'System health': 'Gjendja e sistemit',
 };

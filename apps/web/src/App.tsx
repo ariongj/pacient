@@ -1,3 +1,7 @@
+import { DowntimePage } from './pages/downtime/DowntimePage';
+import { WristbandPage } from './pages/shared/WristbandPage';
+import { PrivacyAdminPage } from './pages/privacy/PrivacyAdminPage';
+import { SystemHealth } from './pages/ministry/SystemHealth';
 import { InteractionChecker } from './pages/tools/InteractionChecker';
 import { BloodBankPage } from './pages/bloodbank/BloodBankPage';
 import { NutritionPage } from './pages/nutrition/NutritionPage';
@@ -235,6 +239,16 @@ export function App() {
           path="/video/:appointmentId"
           element={guard(['DOCTOR', 'PATIENT'], <VideoVisit />)}
         />
+        <Route
+          path="/downtime"
+          element={guard(['DIRECTOR', 'DOCTOR', 'NURSE', 'RECEPTION'], <DowntimePage />)}
+        />
+        <Route
+          path="/wristband/:patientId"
+          element={guard(['NURSE', 'RECEPTION', 'DOCTOR'], <WristbandPage />)}
+        />
+        <Route path="/privacy" element={guard(['DIRECTOR', 'MINISTRY'], <PrivacyAdminPage />)} />
+        <Route path="/ministry/system" element={guard(['MINISTRY'], <SystemHealth />)} />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"

@@ -147,4 +147,6 @@ export const merge: Record<string, string> = {
   Payments: 'Uplate',
   'Early warning scores': 'Skorovi ranog upozorenja',
   'Notifiable disease reports': 'Prijave zaraznih bolesti',
+  'Data protection requests': 'Zahtevi za zaštitu podataka',
+  'Legal holds': 'Zakonska zadržavanja',
 };

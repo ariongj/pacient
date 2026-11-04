@@ -160,4 +160,6 @@ export const merge: Record<string, string> = {
   Payments: 'Pagesat',
   'Early warning scores': 'Pikët e paralajmërimit të hershëm',
   'Notifiable disease reports': 'Raportet e sëmundjeve ngjitëse',
+  'Data protection requests': 'Kërkesat për mbrojtjen e të dhënave',
+  'Legal holds': 'Ruajtjet ligjore',
 };

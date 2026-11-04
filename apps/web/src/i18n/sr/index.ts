@@ -1,3 +1,9 @@
+import { monitoring } from './monitoring';
+import { privacy } from './privacy';
+import { downtime } from './downtime';
+import { pews } from './pews';
+import { bcma } from './bcma';
+import { dosing } from './dosing';
 import { telemedicine } from './telemedicine';
 import { surveillance } from './surveillance';
 import { news } from './news';
@@ -48,4 +54,10 @@ export const sr: Record<string, string> = {
   ...news,
   ...surveillance,
   ...telemedicine,
+  ...dosing,
+  ...bcma,
+  ...pews,
+  ...downtime,
+  ...privacy,
+  ...monitoring,
 };

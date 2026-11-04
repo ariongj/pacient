@@ -160,6 +160,18 @@ export const AuditAction = {
   CASE_REPORT_REVIEWED: 'surveillance.case_reviewed',
   VIDEO_VISIT_JOINED: 'video.joined',
   VIDEO_VISIT_ENDED: 'video.ended',
+  DOSE_RULES_CHANGED: 'medication.dose_rules_changed',
+  BARCODE_OVERRIDE: 'medication.barcode_override',
+  WRISTBAND_PRINTED: 'patient.wristband_printed',
+  DOWNTIME_STARTED: 'downtime.started',
+  DOWNTIME_ENDED: 'downtime.ended',
+  DOWNTIME_PACK_GENERATED: 'downtime.pack_generated',
+  DOWNTIME_PACK_DOWNLOADED: 'downtime.pack_downloaded',
+  AUDIT_EXPORTED: 'audit.exported',
+  RETENTION_POLICY_CHANGED: 'privacy.retention_changed',
+  RETENTION_RUN: 'privacy.retention_run',
+  DATA_SUBJECT_REQUEST: 'privacy.request',
+  LEGAL_HOLD_CHANGED: 'privacy.legal_hold',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

@@ -1,3 +1,9 @@
+import { srPews } from './sr-pews.js';
+import { srBcma } from './sr-bcma.js';
+import { srDosing } from './sr-dosing.js';
+import { srMonitoring } from './sr-monitoring.js';
+import { srPrivacy } from './sr-privacy.js';
+import { srDowntime } from './sr-downtime.js';
 import { srTelemedicine } from './sr-telemedicine.js';
 import { srSurveillance } from './sr-surveillance.js';
 import { srNews } from './sr-news.js';
@@ -38,4 +44,10 @@ export const sr: Record<string, string> = {
   ...srNews,
   ...srSurveillance,
   ...srTelemedicine,
+  ...srDowntime,
+  ...srPrivacy,
+  ...srMonitoring,
+  ...srDosing,
+  ...srBcma,
+  ...srPews,
 };

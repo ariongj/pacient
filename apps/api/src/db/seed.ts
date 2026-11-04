@@ -48,6 +48,9 @@ import { seedPartners } from './seed-partners.js';
 import { seedStock } from './seed-stock.js';
 import { seedScheduling } from './seed-scheduling.js';
 import { seedVaccination } from './seed-vaccination.js';
+import { seedDosing } from './seed-dosing.js';
+import { seedDowntime } from './seed-downtime.js';
+import { seedPrivacy } from './seed-privacy.js';
 import { seedSafety } from './seed-safety.js';
 import { seedBloodBank } from './seed-bloodbank.js';
 import { seedNutrition } from './seed-nutrition.js';
@@ -1215,6 +1218,9 @@ async function main() {
   await seedBilling({ facilityId: ucc!.id });
   await seedNews({ facilityId: ucc!.id });
   await seedSurveillance({ facilityId: ucc!.id });
+  await seedDosing({ facilityId: ucc!.id });
+  await seedDowntime({ facilityId: ucc!.id });
+  await seedPrivacy({ facilityId: ucc!.id });
   await seedTelemedicine({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`

@@ -23,6 +23,7 @@ export const PATIENT_TABLES = [
   'charges',
   'consent_records',
   'correction_requests',
+  'data_subject_requests',
   'diagnoses',
   'diet_orders',
   'early_warning_scores',
@@ -38,6 +39,7 @@ export const PATIENT_TABLES = [
   'integration_messages',
   'lab_orders',
   'lab_results',
+  'legal_holds',
   'medication_administrations',
   'message_threads',
   'nutrition_screenings',
@@ -71,6 +73,8 @@ export const EXCLUDED_REFERENCES = [
 
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
+  data_subject_requests: 'Data protection requests',
+  legal_holds: 'Legal holds',
   prescription_alerts: 'Medication safety alerts',
   blood_group_tests: 'Blood group results',
   transfusion_requests: 'Transfusion requests',

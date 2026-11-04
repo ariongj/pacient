@@ -40,6 +40,17 @@ services:
     # networks: [database, outbound]
     stop_grace_period: 2m
 
+  # Example only (downtime packs, docs/DOWNTIME.md): the api container is read-only, so the
+  # hourly encrypted packs need a writable volume. Add to the `api` service of your deployment:
+  # api:
+  #   environment:
+  #     DOWNTIME_DIR: /var/lib/pacient/downtime
+  #     DOWNTIME_AGE_RECIPIENT: ${DOWNTIME_AGE_RECIPIENT:-}
+  #     DOWNTIME_SYNC_KEYS: ${DOWNTIME_SYNC_KEYS:-}
+  #   volumes:
+  #     - pacienti-downtime:/var/lib/pacient/downtime
+  # (and `pacienti-downtime: {}` under volumes)
+
   # Example only – schedule backups from the host instead (cron/systemd timer), see README:
   #   15 1 * * 0   deploy/pitr/pitr.sh backup full
   #   15 1 * * 1-6 deploy/pitr/pitr.sh backup diff

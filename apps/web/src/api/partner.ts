@@ -1,6 +1,12 @@
 import { t } from '../i18n';
 
-export type PartnerScope = 'fhir.patient.read' | 'stats.read' | 'directory.read' | 'births.notify';
+export type PartnerScope =
+  | 'fhir.patient.read'
+  | 'stats.read'
+  | 'directory.read'
+  | 'births.notify'
+  | 'claims.read'
+  | 'surveillance.read';
 
 export interface PartnerClient {
   id: string;
@@ -28,6 +34,8 @@ export const PARTNER_SCOPES: PartnerScope[] = [
   'stats.read',
   'directory.read',
   'births.notify',
+  'claims.read',
+  'surveillance.read',
 ];
 
 /** Plain-language description of what a scope allows (translated at call time). */
@@ -55,6 +63,20 @@ export function scopeInfo(scope: PartnerScope): { title: string; description: st
         title: t('Births for civil registration'),
         description: t(
           'List newborns waiting for a national number and report the number once it is issued.',
+        ),
+      };
+    case 'claims.read':
+      return {
+        title: t('Insurance claims'),
+        description: t(
+          'Read submitted claims of facilities (services, amounts, insurance numbers) and record payment decisions.',
+        ),
+      };
+    case 'surveillance.read':
+      return {
+        title: t('Notifiable disease reports'),
+        description: t(
+          'Receive case reports of notifiable infectious diseases for public health follow-up.',
         ),
       };
   }

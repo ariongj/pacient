@@ -1,3 +1,10 @@
+import { srTelemedicine } from './sr-telemedicine.js';
+import { srSurveillance } from './sr-surveillance.js';
+import { srNews } from './sr-news.js';
+import { srBilling } from './sr-billing.js';
+import { srNutrition } from './sr-nutrition.js';
+import { srBloodbank } from './sr-bloodbank.js';
+import { srSafety } from './sr-safety.js';
 import { srSecurity } from './sr-security.js';
 import { srVaccination } from './sr-vaccination.js';
 import { srScheduling } from './sr-scheduling.js';
@@ -24,4 +31,11 @@ export const sr: Record<string, string> = {
   ...srScheduling,
   ...srVaccination,
   ...srSecurity,
+  ...srSafety,
+  ...srBloodbank,
+  ...srNutrition,
+  ...srBilling,
+  ...srNews,
+  ...srSurveillance,
+  ...srTelemedicine,
 };

@@ -24,7 +24,13 @@ export interface LiveEvent {
     /** Emergency department board changed at the facility. */
     | 'ed.board'
     /** Radiology worklist changed at the facility. */
-    | 'imaging.worklist';
+    | 'imaging.worklist'
+    /** Blood bank queue/stock changed at the facility. */
+    | 'bloodbank.board'
+    /** A new early warning score needs attention. */
+    | 'news.alert'
+    /** WebRTC signalling for a video visit (ref = session id; payload fetched via the API). */
+    | 'video.signal';
   /** Optional resource id, e.g. the channel that received a message. */
   ref?: string;
 }

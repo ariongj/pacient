@@ -1,3 +1,11 @@
+import { InteractionChecker } from './pages/tools/InteractionChecker';
+import { BloodBankPage } from './pages/bloodbank/BloodBankPage';
+import { NutritionPage } from './pages/nutrition/NutritionPage';
+import { BillingPage } from './pages/billing/BillingPage';
+import { PortalBilling } from './pages/patient/PortalBilling';
+import { EarlyWarningBoard } from './pages/hospital/EarlyWarningBoard';
+import { SurveillancePage } from './pages/surveillance/SurveillancePage';
+import { VideoVisit } from './pages/video/VideoVisit';
 import { AvailabilityPage } from './pages/doctor/AvailabilityPage';
 import { VaccinationDuePage } from './pages/vaccination/VaccinationDuePage';
 import { PortalVaccinations } from './pages/patient/PortalVaccinations';
@@ -204,6 +212,26 @@ export function App() {
           element={guard(['DIRECTOR'], <VaccinationCoverage />)}
         />
         <Route path="/account/security" element={<SecurityPage />} />
+        <Route
+          path="/tools/interactions"
+          element={guard(['DOCTOR', 'PHARMACIST', 'NURSE'], <InteractionChecker />)}
+        />
+        <Route path="/blood-bank" element={guard(['DOCTOR', 'NURSE'], <BloodBankPage />)} />
+        <Route path="/nutrition" element={guard(['NURSE', 'DOCTOR'], <NutritionPage />)} />
+        <Route path="/billing" element={guard(['RECEPTION', 'DIRECTOR'], <BillingPage />)} />
+        <Route path="/portal/billing" element={guard(['PATIENT'], <PortalBilling />)} />
+        <Route
+          path="/wards/early-warning"
+          element={guard(['DOCTOR', 'NURSE'], <EarlyWarningBoard />)}
+        />
+        <Route
+          path="/surveillance"
+          element={guard(['MINISTRY', 'DIRECTOR', 'DOCTOR'], <SurveillancePage />)}
+        />
+        <Route
+          path="/video/:appointmentId"
+          element={guard(['DOCTOR', 'PATIENT'], <VideoVisit />)}
+        />
         <Route path="/director/duplicates" element={guard(['DIRECTOR'], <DirectorDuplicates />)} />
         <Route
           path="/doctor/cover"

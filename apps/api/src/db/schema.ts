@@ -575,6 +575,10 @@ export const vitalSigns = pgTable(
     temperatureC: numeric('temperature_c', { precision: 4, scale: 1 }),
     respiratoryRate: integer('respiratory_rate'),
     oxygenSaturation: integer('oxygen_saturation'),
+    /** ACVPU: A alert, C new confusion, V voice, P pain, U unresponsive (for NEWS2). */
+    consciousness: varchar('consciousness', { length: 1 }),
+    onSupplementalOxygen: boolean('on_supplemental_oxygen'),
+    painScore: integer('pain_score'),
     weightKg: numeric('weight_kg', { precision: 5, scale: 1 }),
     heightCm: numeric('height_cm', { precision: 5, scale: 1 }),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
@@ -647,6 +651,8 @@ export const appointments = pgTable(
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     /** STAFF (booked by the facility) or PORTAL (patient booked a published slot). */
     bookedVia: varchar('booked_via', { length: 10 }).notNull().default('STAFF'),
+    /** IN_PERSON or VIDEO (telemedicine). */
+    mode: varchar('mode', { length: 10 }).notNull().default('IN_PERSON'),
     reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
     ...timestamps,
   },
@@ -1363,6 +1369,8 @@ export const careUnitTypeEnum = pgEnum('care_unit_type', [
   'EMERGENCY',
   'RADIOLOGY',
   'OPERATING_THEATRE',
+  'BLOOD_BANK',
+  'NUTRITION',
 ]);
 export const bedStatusEnum = pgEnum('bed_status', [
   'AVAILABLE',
@@ -1695,6 +1703,8 @@ export const PARTNER_SCOPES = [
   'stats.read',
   'directory.read',
   'births.notify',
+  'claims.read',
+  'surveillance.read',
 ] as const;
 export type PartnerScope = (typeof PARTNER_SCOPES)[number];
 
@@ -1829,6 +1839,8 @@ export const medicationCatalog = pgTable(
     strength: varchar('strength', { length: 60 }),
     /** Dispensing unit, e.g. tablet, capsule, ml, vial, ampoule. */
     unit: varchar('unit', { length: 30 }).notNull(),
+    /** Active ingredients (INN, lower case) for interaction and allergy checks. */
+    ingredients: text('ingredients').array(),
     isEssential: boolean('is_essential').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -2046,6 +2058,507 @@ export const knownDevices = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('known_devices_uq').on(t.userId, t.deviceHash)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Medication safety, blood bank, nutrition, billing, early warning, surveillance, telemedicine
+ * ---------------------------------------------------------------------------------------------- */
+
+export const interactionSeverityEnum = pgEnum('interaction_severity', [
+  'CONTRAINDICATED',
+  'MAJOR',
+  'MODERATE',
+  'MINOR',
+]);
+
+/** Curated drug–drug interactions between active ingredients (INN, lower case, a < b). */
+export const drugInteractions = pgTable(
+  'drug_interactions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ingredientA: varchar('ingredient_a', { length: 100 }).notNull(),
+    ingredientB: varchar('ingredient_b', { length: 100 }).notNull(),
+    severity: interactionSeverityEnum('severity').notNull(),
+    effect: varchar('effect', { length: 500 }).notNull(),
+    management: varchar('management', { length: 500 }).notNull(),
+    source: varchar('source', { length: 200 }),
+    isActive: boolean('is_active').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('drug_interactions_pair_uq').on(t.ingredientA, t.ingredientB)],
+);
+
+/** Safety alerts raised for a prescription (interaction, allergy, dose, duplicate) and overrides. */
+export const prescriptionAlerts = pgTable(
+  'prescription_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    prescriptionId: uuid('prescription_id')
+      .notNull()
+      .references(() => prescriptions.id, { onDelete: 'cascade' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    severity: interactionSeverityEnum('severity').notNull(),
+    message: varchar('message', { length: 1000 }).notNull(),
+    /** Machine-readable details, e.g. the interacting prescription. */
+    details: jsonb('details').$type<Record<string, unknown>>(),
+    overrideReason: varchar('override_reason', { length: 500 }),
+    overriddenById: uuid('overridden_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('prescription_alerts_rx_idx').on(t.prescriptionId)],
+);
+
+export const bloodProductEnum = pgEnum('blood_product', [
+  'RED_CELLS',
+  'PLASMA',
+  'PLATELETS',
+  'CRYOPRECIPITATE',
+  'WHOLE_BLOOD',
+]);
+export const bloodUnitStatusEnum = pgEnum('blood_unit_status', [
+  'AVAILABLE',
+  'RESERVED',
+  'ISSUED',
+  'TRANSFUSED',
+  'RETURNED',
+  'DISCARDED',
+]);
+export const transfusionRequestStatusEnum = pgEnum('transfusion_request_status', [
+  'REQUESTED',
+  'SAMPLE_RECEIVED',
+  'CROSSMATCHED',
+  'ISSUED',
+  'COMPLETED',
+  'CANCELLED',
+]);
+
+/** Blood group results of a patient (history; the latest confirmed result counts). */
+export const bloodGroupTests = pgTable(
+  'blood_group_tests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    abo: varchar('abo', { length: 2 }).notNull(),
+    rhD: varchar('rh_d', { length: 3 }).notNull(),
+    antibodyScreen: varchar('antibody_screen', { length: 20 }).notNull().default('NEGATIVE'),
+    antibodies: varchar('antibodies', { length: 200 }),
+    testedById: uuid('tested_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    testedAt: timestamp('tested_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('blood_group_tests_patient_idx').on(t.patientId, t.testedAt)],
+);
+
+export const bloodUnits = pgTable(
+  'blood_units',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitNumber: varchar('unit_number', { length: 30 }).notNull(),
+    product: bloodProductEnum('product').notNull(),
+    abo: varchar('abo', { length: 2 }).notNull(),
+    rhD: varchar('rh_d', { length: 3 }).notNull(),
+    volumeMl: integer('volume_ml').notNull(),
+    collectedAt: timestamp('collected_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    status: bloodUnitStatusEnum('status').notNull().default('AVAILABLE'),
+    reservedForRequestId: uuid('reserved_for_request_id'),
+    discardReason: varchar('discard_reason', { length: 300 }),
+    receivedById: uuid('received_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('blood_units_number_uq').on(t.unitNumber),
+    index('blood_units_stock_idx').on(t.facilityId, t.product, t.status, t.expiresAt),
+  ],
+);
+
+export const transfusionRequests = pgTable(
+  'transfusion_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    surgicalCaseId: uuid('surgical_case_id').references(() => surgicalCases.id, {
+      onDelete: 'set null',
+    }),
+    product: bloodProductEnum('product').notNull(),
+    units: integer('units').notNull(),
+    urgency: varchar('urgency', { length: 20 }).notNull(),
+    indication: varchar('indication', { length: 1000 }).notNull(),
+    haemoglobinGl: integer('haemoglobin_g_l'),
+    status: transfusionRequestStatusEnum('status').notNull().default('REQUESTED'),
+    requestedById: uuid('requested_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    sampleReceivedAt: timestamp('sample_received_at', { withTimezone: true }),
+    crossmatchedById: uuid('crossmatched_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    crossmatchedAt: timestamp('crossmatched_at', { withTimezone: true }),
+    cancelReason: varchar('cancel_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('transfusion_requests_patient_idx').on(t.patientId, t.createdAt),
+    index('transfusion_requests_queue_idx').on(t.facilityId, t.status),
+  ],
+);
+
+/** One unit given to a patient: bedside two-person check, observations, reactions. */
+export const transfusions = pgTable(
+  'transfusions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => transfusionRequests.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => bloodUnits.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    issuedById: uuid('issued_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+    checkedById: uuid('checked_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    secondCheckerId: uuid('second_checker_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    observations: jsonb('observations').$type<Record<string, unknown>[]>().notNull().default([]),
+    reaction: boolean('reaction').notNull().default(false),
+    reactionType: varchar('reaction_type', { length: 60 }),
+    reactionSeverity: varchar('reaction_severity', { length: 20 }),
+    reactionDetails: varchar('reaction_details', { length: 2000 }),
+    status: varchar('status', { length: 20 }).notNull().default('ISSUED'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('transfusions_unit_uq').on(t.unitId),
+    index('transfusions_patient_idx').on(t.patientId),
+  ],
+);
+
+export const dietTypeEnum = pgEnum('diet_type', [
+  'NORMAL',
+  'NIL_BY_MOUTH',
+  'CLEAR_FLUIDS',
+  'FULL_FLUIDS',
+  'SOFT',
+  'PUREED',
+  'DIABETIC',
+  'LOW_SALT',
+  'RENAL',
+  'LOW_FAT',
+  'HIGH_PROTEIN',
+  'GLUTEN_FREE',
+  'VEGETARIAN',
+  'ENTERAL_TUBE',
+]);
+
+/** Diet order for an inpatient; the kitchen list is generated from the active orders. */
+export const dietOrders = pgTable(
+  'diet_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id')
+      .notNull()
+      .references(() => admissions.id, { onDelete: 'cascade' }),
+    dietType: dietTypeEnum('diet_type').notNull(),
+    /** Food allergies/intolerances and preferences, e.g. ["gluten", "no pork"]. */
+    restrictions: text('restrictions').array(),
+    fluidLimitMl: integer('fluid_limit_ml'),
+    notes: varchar('notes', { length: 500 }),
+    reason: varchar('reason', { length: 300 }),
+    surgicalCaseId: uuid('surgical_case_id').references(() => surgicalCases.id, {
+      onDelete: 'set null',
+    }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('diet_orders_admission_idx').on(t.admissionId, t.startsAt)],
+);
+
+export const nutritionScreenings = pgTable(
+  'nutrition_screenings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    tool: varchar('tool', { length: 20 }).notNull(),
+    score: integer('score').notNull(),
+    risk: varchar('risk', { length: 10 }).notNull(),
+    answers: jsonb('answers').$type<Record<string, unknown>>().notNull(),
+    screenedById: uuid('screened_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    screenedAt: timestamp('screened_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('nutrition_screenings_patient_idx').on(t.patientId, t.screenedAt)],
+);
+
+export const chargeStatusEnum = pgEnum('charge_status', [
+  'OPEN',
+  'CLAIMED',
+  'PAID',
+  'REJECTED',
+  'VOID',
+]);
+export const claimStatusEnum = pgEnum('claim_status', [
+  'DRAFT',
+  'SUBMITTED',
+  'ACCEPTED',
+  'PARTIALLY_PAID',
+  'PAID',
+  'REJECTED',
+]);
+
+/** Health insurance of a patient (Health Insurance Fund or other), incl. co-payment exemptions. */
+export const insuranceCoverages = pgTable(
+  'insurance_coverages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    insurer: varchar('insurer', { length: 60 }).notNull(),
+    policyNumber: varchar('policy_number', { length: 60 }),
+    status: varchar('status', { length: 20 }).notNull().default('ACTIVE'),
+    /** Co-payment exemption category (e.g. CHILD, PENSIONER, CHRONIC, SOCIAL_ASSISTANCE). */
+    exemption: varchar('exemption', { length: 40 }),
+    validFrom: date('valid_from', { mode: 'string' }).notNull(),
+    validUntil: date('valid_until', { mode: 'string' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('insurance_coverages_patient_idx').on(t.patientId)],
+);
+
+/** Price list of billable services (national tariff). Amounts in euro cents. */
+export const billableServices = pgTable(
+  'billable_services',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 30 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    category: varchar('category', { length: 40 }).notNull(),
+    priceCents: integer('price_cents').notNull(),
+    /** Patient co-payment in cents unless exempt. */
+    copayCents: integer('copay_cents').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+  },
+  (t) => [uniqueIndex('billable_services_code_uq').on(t.code)],
+);
+
+export const claims = pgTable(
+  'claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    insurer: varchar('insurer', { length: 60 }).notNull(),
+    reference: varchar('reference', { length: 40 }).notNull(),
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    status: claimStatusEnum('status').notNull().default('DRAFT'),
+    totalCents: integer('total_cents').notNull().default(0),
+    paidCents: integer('paid_cents').notNull().default(0),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    responseNote: varchar('response_note', { length: 1000 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('claims_reference_uq').on(t.reference)],
+);
+
+/** A billable item produced by care (visit, test, imaging, bed day, operation, dispense). */
+export const charges = pgTable(
+  'charges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => billableServices.id, { onDelete: 'restrict' }),
+    sourceType: varchar('source_type', { length: 30 }).notNull(),
+    sourceId: uuid('source_id'),
+    quantity: integer('quantity').notNull().default(1),
+    totalCents: integer('total_cents').notNull(),
+    copayCents: integer('copay_cents').notNull().default(0),
+    insurerCents: integer('insurer_cents').notNull(),
+    status: chargeStatusEnum('status').notNull().default('OPEN'),
+    claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'set null' }),
+    serviceDate: date('service_date', { mode: 'string' }).notNull(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    voidReason: varchar('void_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('charges_patient_idx').on(t.patientId, t.serviceDate),
+    index('charges_facility_status_idx').on(t.facilityId, t.status, t.serviceDate),
+    uniqueIndex('charges_source_uq')
+      .on(t.sourceType, t.sourceId, t.serviceId)
+      .where(sql`${t.sourceId} IS NOT NULL AND ${t.status} <> 'VOID'`),
+  ],
+);
+
+/** Co-payment received from a patient (receipt). */
+export const payments = pgTable(
+  'payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    receiptNumber: varchar('receipt_number', { length: 30 }).notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    method: varchar('method', { length: 10 }).notNull(),
+    chargeIds: uuid('charge_ids').array().notNull(),
+    receivedById: uuid('received_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('payments_receipt_uq').on(t.receiptNumber)],
+);
+
+/** NEWS2 early warning score computed from a set of vital signs. */
+export const earlyWarningScores = pgTable(
+  'early_warning_scores',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    vitalSignId: uuid('vital_sign_id')
+      .notNull()
+      .references(() => vitalSigns.id, { onDelete: 'cascade' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    score: integer('score').notNull(),
+    risk: varchar('risk', { length: 12 }).notNull(),
+    /** Points per parameter and whether any single parameter scored 3. */
+    components: jsonb('components').$type<Record<string, unknown>>().notNull(),
+    complete: boolean('complete').notNull(),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+    acknowledgedById: uuid('acknowledged_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('early_warning_scores_vitals_uq').on(t.vitalSignId),
+    index('early_warning_scores_patient_idx').on(t.patientId, t.computedAt),
+  ],
+);
+
+/** Notifiable infectious diseases and the ICD-10 codes that trigger a case report. */
+export const notifiableDiseases = pgTable(
+  'notifiable_diseases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 30 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    icd10Prefixes: text('icd10_prefixes').array().notNull(),
+    /** IMMEDIATE (within 24 h) or WEEKLY. */
+    urgency: varchar('urgency', { length: 10 }).notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+  },
+  (t) => [uniqueIndex('notifiable_diseases_code_uq').on(t.code)],
+);
+
+export const caseReports = pgTable(
+  'case_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    diseaseId: uuid('disease_id')
+      .notNull()
+      .references(() => notifiableDiseases.id, { onDelete: 'restrict' }),
+    diagnosisId: uuid('diagnosis_id').references(() => diagnoses.id, { onDelete: 'set null' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    classification: varchar('classification', { length: 12 }).notNull().default('SUSPECTED'),
+    status: varchar('status', { length: 12 }).notNull().default('DRAFT'),
+    onsetDate: date('onset_date', { mode: 'string' }),
+    details: jsonb('details').$type<Record<string, unknown>>().notNull().default({}),
+    reportedById: uuid('reported_by_id').references(() => users.id, { onDelete: 'set null' }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNote: varchar('review_note', { length: 1000 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('case_reports_disease_idx').on(t.diseaseId, t.createdAt),
+    index('case_reports_facility_idx').on(t.facilityId, t.status),
+    uniqueIndex('case_reports_diagnosis_uq').on(t.diagnosisId),
+  ],
+);
+
+/** A video consultation room for a VIDEO appointment. */
+export const videoSessions = pgTable(
+  'video_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    status: varchar('status', { length: 10 }).notNull().default('WAITING'),
+    doctorJoinedAt: timestamp('doctor_joined_at', { withTimezone: true }),
+    patientJoinedAt: timestamp('patient_joined_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('video_sessions_appointment_uq').on(t.appointmentId)],
 );
 
 /* ------------------------------------------------------------------------------------------------

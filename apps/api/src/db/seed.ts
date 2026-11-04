@@ -48,6 +48,13 @@ import { seedPartners } from './seed-partners.js';
 import { seedStock } from './seed-stock.js';
 import { seedScheduling } from './seed-scheduling.js';
 import { seedVaccination } from './seed-vaccination.js';
+import { seedSafety } from './seed-safety.js';
+import { seedBloodBank } from './seed-bloodbank.js';
+import { seedNutrition } from './seed-nutrition.js';
+import { seedBilling } from './seed-billing.js';
+import { seedNews } from './seed-news.js';
+import { seedSurveillance } from './seed-surveillance.js';
+import { seedTelemedicine } from './seed-telemedicine.js';
 import { seedTheatre } from './seed-theatre.js';
 import { seedCover } from './seed-cover.js';
 import { seedMerge } from './seed-merge.js';
@@ -1202,6 +1209,13 @@ async function main() {
   await seedStock({ facilityId: ucc!.id });
   await seedScheduling({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedVaccination({ facilityId: ucc!.id });
+  await seedSafety({ facilityId: ucc!.id });
+  await seedBloodBank({ facilityId: ucc!.id });
+  await seedNutrition({ facilityId: ucc!.id });
+  await seedBilling({ facilityId: ucc!.id });
+  await seedNews({ facilityId: ucc!.id });
+  await seedSurveillance({ facilityId: ucc!.id });
+  await seedTelemedicine({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

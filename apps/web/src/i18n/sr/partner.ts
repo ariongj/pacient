@@ -174,4 +174,10 @@ export const partner: Record<string, string> = {
   'Report the national ID issued for a newborn': 'Prijavi lični broj izdat za novorođenče',
   'Partner system not found': 'Partnerski sistem nije pronađen',
   'Enter IP addresses such as 192.0.2.10': 'Unesite IP adrese kao što je 192.0.2.10',
+  'Insurance claims': 'Zahtevi za refundaciju',
+  'Read submitted claims of facilities (services, amounts, insurance numbers) and record payment decisions.':
+    'Čita podnete zahteve ustanova (usluge, iznosi, brojevi osiguranja) i beleži odluke o plaćanju.',
+  'Notifiable disease reports': 'Prijave zaraznih bolesti',
+  'Receive case reports of notifiable infectious diseases for public health follow-up.':
+    'Prima prijave slučajeva zaraznih bolesti koje se obavezno prijavljuju, radi praćenja javnog zdravlja.',
 };

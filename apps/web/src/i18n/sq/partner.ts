@@ -178,4 +178,10 @@ export const partner: Record<string, string> = {
     'Raporto numrin personal të lëshuar për një të porsalindur',
   'Partner system not found': 'Sistemi partner nuk u gjet',
   'Enter IP addresses such as 192.0.2.10': 'Shkruani adresa IP si 192.0.2.10',
+  'Insurance claims': 'Kërkesat për rimbursim',
+  'Read submitted claims of facilities (services, amounts, insurance numbers) and record payment decisions.':
+    'Lexon kërkesat e dorëzuara të institucioneve (shërbimet, shumat, numrat e sigurimit) dhe regjistron vendimet për pagesë.',
+  'Notifiable disease reports': 'Raportet e sëmundjeve ngjitëse të detyrueshme',
+  'Receive case reports of notifiable infectious diseases for public health follow-up.':
+    'Merr raportet e rasteve të sëmundjeve ngjitëse që duhen lajmëruar, për ndjekje nga shëndetësia publike.',
 };

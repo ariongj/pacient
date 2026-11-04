@@ -1,3 +1,10 @@
+import { telemedicine } from './telemedicine';
+import { surveillance } from './surveillance';
+import { news } from './news';
+import { billing } from './billing';
+import { nutrition } from './nutrition';
+import { bloodbank } from './bloodbank';
+import { safety } from './safety';
 import { security } from './security';
 import { vaccination } from './vaccination';
 import { scheduling } from './scheduling';
@@ -34,4 +41,11 @@ export const sr: Record<string, string> = {
   ...scheduling,
   ...vaccination,
   ...security,
+  ...safety,
+  ...bloodbank,
+  ...nutrition,
+  ...billing,
+  ...news,
+  ...surveillance,
+  ...telemedicine,
 };

@@ -1,3 +1,10 @@
+import { sqTelemedicine } from './sq-telemedicine.js';
+import { sqSurveillance } from './sq-surveillance.js';
+import { sqNews } from './sq-news.js';
+import { sqBilling } from './sq-billing.js';
+import { sqNutrition } from './sq-nutrition.js';
+import { sqBloodbank } from './sq-bloodbank.js';
+import { sqSafety } from './sq-safety.js';
 import { sqSecurity } from './sq-security.js';
 import { sqVaccination } from './sq-vaccination.js';
 import { sqScheduling } from './sq-scheduling.js';
@@ -24,4 +31,11 @@ export const sq: Record<string, string> = {
   ...sqScheduling,
   ...sqVaccination,
   ...sqSecurity,
+  ...sqSafety,
+  ...sqBloodbank,
+  ...sqNutrition,
+  ...sqBilling,
+  ...sqNews,
+  ...sqSurveillance,
+  ...sqTelemedicine,
 };

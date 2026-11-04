@@ -611,7 +611,14 @@ const OPERATIONS: Operation[] = [
         organisation: str({ minLength: 3, maxLength: 200 }),
         scopes: {
           type: 'array',
-          items: enumOf('fhir.patient.read', 'stats.read', 'directory.read', 'births.notify'),
+          items: enumOf(
+            'fhir.patient.read',
+            'stats.read',
+            'directory.read',
+            'births.notify',
+            'claims.read',
+            'surveillance.read',
+          ),
           minItems: 1,
         },
         allowedIps: { type: 'array', items: str(), maxItems: 20 },

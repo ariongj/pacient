@@ -25,6 +25,8 @@ import {
 } from '../fhir/fhir.service.js';
 import { confirmIdentity } from '../identity/identity.service.js';
 import { nationalStats } from '../stats/stats.service.js';
+import { billingPartnerRouter } from '../billing/partner.js';
+import { surveillancePartnerRouter } from '../surveillance/partner.js';
 import { openApiDocument } from '../../openapi/spec.js';
 import {
   auditPartner,
@@ -496,5 +498,8 @@ partnerApi.post(
     res.json({ birthId, patientId: row.newborn.id, nationalId: input.nationalId });
   },
 );
+
+partnerApi.use('/claims', billingPartnerRouter);
+partnerApi.use('/surveillance', surveillancePartnerRouter);
 
 partnerRouter.use(partnerApi);

@@ -44,6 +44,18 @@ export function useLiveEvents(enabled: boolean): LiveStatus {
           queryClient.invalidateQueries({ queryKey: ['ed'] });
           queryClient.invalidateQueries({ queryKey: ['hospital'] });
         });
+        source.addEventListener('bloodbank.board', () => {
+          queryClient.invalidateQueries({ queryKey: ['bloodbank'] });
+        });
+        source.addEventListener('news.alert', () => {
+          queryClient.invalidateQueries({ queryKey: ['news'] });
+          queryClient.invalidateQueries({ queryKey: ['hospital'] });
+        });
+        // Video visits listen for this DOM event (the payload is fetched through the API).
+        source.addEventListener('video.signal', (e) => {
+          const ref = (JSON.parse((e as MessageEvent).data) as { ref?: string }).ref;
+          window.dispatchEvent(new CustomEvent('pacient:video-signal', { detail: { ref } }));
+        });
         source.addEventListener('imaging.worklist', () => {
           queryClient.invalidateQueries({ queryKey: ['imaging'] });
         });

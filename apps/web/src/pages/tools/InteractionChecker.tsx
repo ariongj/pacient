@@ -30,6 +30,7 @@ import {
 } from '../../components/ui';
 import { t } from '../../i18n';
 import { CatalogPicker } from '../pharmacy/CatalogPicker';
+import { DoseRulesTab } from './DoseRulesTab';
 import { SafetyAlertList, SeverityBadge } from './SafetyAlerts';
 
 interface Entry {
@@ -43,12 +44,12 @@ interface ListResult {
   patient?: { medication: string; alerts: SafetyAlert[] }[];
 }
 
-type TabId = 'checker' | 'database';
+type TabId = 'checker' | 'database' | 'doses';
 
 /**
  * Interaction checker: pick 2–10 medicines and see interactions and duplicate therapy between
  * them – optionally also against a patient's record (?patient=<id>). The Ministry maintains the
- * interaction database on the second tab.
+ * interaction database on the second tab and the dose rules on the third.
  */
 export function InteractionChecker() {
   const [params] = useSearchParams();
@@ -69,10 +70,17 @@ export function InteractionChecker() {
         tabs={[
           { id: 'checker', label: t('Check medicines') },
           { id: 'database', label: t('Interaction database') },
+          { id: 'doses', label: t('Dose rules') },
         ]}
       />
       <TabPanel id={tab}>
-        {tab === 'checker' ? <Checker patientId={patientId} /> : <Database />}
+        {tab === 'checker' ? (
+          <Checker patientId={patientId} />
+        ) : tab === 'database' ? (
+          <Database />
+        ) : (
+          <DoseRulesTab />
+        )}
       </TabPanel>
     </>
   );

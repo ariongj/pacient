@@ -1,7 +1,22 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../../../api/client';
 import { useSafetyCheck, useStoredAlerts, type SafetyAlert } from '../../../api/safety';
+import {
+  DOSE_UNITS,
+  doseText,
+  FREQUENCY_CODES,
+  frequencyLabel,
+  ROUTES,
+  routeLabel,
+  unitLabel,
+  type DoseSummary,
+  type DosingPatient,
+  type DoseUnit,
+  type FrequencyCode,
+  type StructuredDose,
+  type StructuredPrescriptionFields,
+} from '../../../api/dosing';
 import { SafetyAlertList, StoredAlertSummary } from '../../tools/SafetyAlerts';
 import { itemName, type CatalogItem } from '../../../api/stock';
 import { CatalogPicker } from '../../pharmacy/CatalogPicker';
@@ -16,6 +31,7 @@ import {
   ErrorAlert,
   formValues,
   QueryView,
+  SelectField,
   StatusBadge,
   Table,
   TextAreaField,
@@ -24,7 +40,7 @@ import {
 import { formatDate } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
-import { t } from '../../../i18n';
+import { getLocale, t } from '../../../i18n';
 
 /** The value after it has stopped changing for `ms` (avoids a safety check per keystroke). */
 function useDebounced<T>(value: T, ms = 400): T {
@@ -52,6 +68,8 @@ export function MedicationsTab({
   const [medication, setMedication] = useState('');
   /** Reasons to proceed despite blocking safety alerts, by alert code. */
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  /** Structured dose builder (free text remains available for unusual regimens). */
+  const [builder, setBuilder] = useState<DoseBuilderState>(EMPTY_BUILDER);
   const create = useChartMutation(
     patientId,
     (body: Record<string, unknown>) => ({ path: '/prescriptions', method: 'POST', body }),
@@ -60,6 +78,7 @@ export function MedicationsTab({
       setCatalogItem(null);
       setMedication('');
       setReasons({});
+      setBuilder(EMPTY_BUILDER);
     },
   );
   const update = useChartMutation(patientId, ({ id, status }: { id: string; status: string }) => ({
@@ -69,11 +88,18 @@ export function MedicationsTab({
   }));
   const { isDoctor, isNurse } = useChartRole();
   const debouncedMedication = useDebounced(medication);
+  const dose = toStructuredDose(builder);
+  const debouncedDoseKey = useDebounced(dose ? JSON.stringify(dose) : '');
+  const debouncedDose = useMemo(
+    () => (debouncedDoseKey ? (JSON.parse(debouncedDoseKey) as StructuredDose) : null),
+    [debouncedDoseKey],
+  );
   const check = useSafetyCheck(
     patientId,
     debouncedMedication,
     catalogItem?.id ?? null,
     open && isDoctor,
+    debouncedDose,
   );
   const stored = useStoredAlerts(patientId, isDoctor || isNurse);
   // If the server found blocking alerts the live check had not shown yet, use its list.
@@ -103,6 +129,7 @@ export function MedicationsTab({
       .map((a) => ({ code: a.code, reason: reasons[a.code]!.trim() }));
     create.mutate({
       ...compact({ ...formValues(e.currentTarget), catalogItemId: catalogItem?.id ?? undefined }),
+      ...(builder.freeText ? {} : (dose ?? {})),
       ...(overrides.length ? { overrides } : {}),
     });
   }
@@ -159,6 +186,11 @@ export function MedicationsTab({
                     </td>
                     <td>
                       {p.dosage} · {p.frequency}
+                      {(p as Prescription & StructuredPrescriptionFields).frequencyCode && (
+                        <div className="muted">
+                          {(p as Prescription & StructuredPrescriptionFields).frequencyCode}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {formatDate(p.startDate)} – {p.endDate ? formatDate(p.endDate) : 'ongoing'}
@@ -308,21 +340,6 @@ export function MedicationsTab({
               onChange={(e) => setMedication(e.target.value)}
             />
             <TextField
-              label={t('Dosage')}
-              name="dosage"
-              required
-              maxLength={100}
-              hint={t('e.g. 5 mg')}
-            />
-            <TextField
-              label={t('Frequency')}
-              name="frequency"
-              required
-              maxLength={100}
-              hint={t('e.g. once daily')}
-            />
-            <TextField label={t('Route')} name="route" defaultValue="oral" maxLength={50} />
-            <TextField
               label={t('Start date')}
               name="startDate"
               type="date"
@@ -331,6 +348,13 @@ export function MedicationsTab({
             />
             <TextField label={t('End date')} name="endDate" type="date" />
           </div>
+          <DoseBuilder
+            state={builder}
+            onChange={setBuilder}
+            patient={check.data?.patient ?? null}
+            summary={builder.freeText ? null : (check.data?.dose ?? null)}
+            patientId={patientId}
+          />
           <EncounterSelect encounters={encounters} />
           <TextAreaField
             label={t('Instructions for the patient')}
@@ -376,5 +400,247 @@ export function MedicationsTab({
         </form>
       </Dialog>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ structured dose builder -- */
+
+interface DoseBuilderState {
+  freeText: boolean;
+  amount: string;
+  unit: DoseUnit;
+  route: string;
+  frequencyCode: FrequencyCode;
+  asNeeded: boolean;
+  maxDoses: string;
+  durationDays: string;
+}
+
+const EMPTY_BUILDER: DoseBuilderState = {
+  freeText: false,
+  amount: '',
+  unit: 'mg',
+  route: 'oral',
+  frequencyCode: 'TID',
+  asNeeded: false,
+  maxDoses: '',
+  durationDays: '',
+};
+
+const toNumber = (v: string) => {
+  const n = Number(v.replace(',', '.'));
+  return v.trim() && Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/** The structured dose to send, or null while it is incomplete (or free text is used). */
+function toStructuredDose(b: DoseBuilderState): StructuredDose | null {
+  if (b.freeText) return null;
+  const amount = toNumber(b.amount);
+  if (!amount) return null;
+  const prn = b.frequencyCode === 'PRN';
+  const maxDoses = toNumber(b.maxDoses);
+  if (prn && !maxDoses) return null;
+  const duration = toNumber(b.durationDays);
+  return {
+    doseAmount: amount,
+    doseUnit: b.unit,
+    frequencyCode: b.frequencyCode,
+    route: b.route,
+    ...(prn || b.asNeeded ? { asNeeded: true } : {}),
+    ...((prn || b.asNeeded) && maxDoses ? { maxDosesPer24h: Math.round(maxDoses) } : {}),
+    ...(duration ? { durationDays: Math.round(duration) } : {}),
+  };
+}
+
+const NOT_COMPUTED: Record<NonNullable<DoseSummary['notComputed']>, string> = {
+  NEEDS_WEIGHT: 'A weight is needed to work out this dose.',
+  NEEDS_STRENGTH:
+    'The strength is unknown: choose the medicine from the catalogue or give the dose in mg.',
+  UNIT_MISMATCH: 'The unit does not match the medicine’s form (e.g. ml for tablets).',
+};
+
+/**
+ * Dose amount + unit, route, frequency, as needed and duration, with a live preview of the text the
+ * prescription will carry and the patient facts dose checks use (age group, latest weight).
+ */
+function DoseBuilder({
+  state,
+  onChange,
+  patient,
+  summary,
+  patientId,
+}: {
+  state: DoseBuilderState;
+  onChange: (s: DoseBuilderState) => void;
+  patient: DosingPatient | null;
+  summary: DoseSummary | null;
+  patientId: string;
+}) {
+  const set = (patch: Partial<DoseBuilderState>) => onChange({ ...state, ...patch });
+  const dose = toStructuredDose(state);
+  const paediatric = patient?.ageGroup === 'CHILD' || patient?.ageGroup === 'NEONATE';
+  const preview = dose ? doseText(dose, patient?.weightKg ?? null) : null;
+  const prn = state.frequencyCode === 'PRN';
+
+  return (
+    <fieldset className="stack">
+      <legend>{t('Dose')}</legend>
+      {(paediatric || state.unit === 'mg/kg') &&
+        (patient?.weightKg ? (
+          <p className="muted">
+            {t('Weight for dosing: {weight} kg (recorded {date}).', {
+              weight: patient.weightKg,
+              date: patient.weightRecordedAt ? formatDate(patient.weightRecordedAt) : '–',
+            })}{' '}
+            <Link to={`/doctor/patients/${patientId}?tab=vitals`}>{t('Record weight')}</Link>
+          </p>
+        ) : (
+          <Alert tone="warning" title={t('No weight recorded')}>
+            {t('Weight-based dosing needs a current weight.')}{' '}
+            <Link to={`/doctor/patients/${patientId}?tab=vitals`}>{t('Record weight')}</Link>
+          </Alert>
+        ))}
+      {state.freeText ? (
+        <div className="form-grid">
+          <TextField
+            label={t('Dosage')}
+            name="dosage"
+            required
+            maxLength={100}
+            hint={t('e.g. 5 mg')}
+          />
+          <TextField
+            label={t('Frequency')}
+            name="frequency"
+            required
+            maxLength={100}
+            hint={t('e.g. once daily')}
+          />
+          <TextField label={t('Route')} name="route" defaultValue="oral" maxLength={50} />
+        </div>
+      ) : (
+        <div className="form-grid">
+          <TextField
+            label={t('Dose amount')}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            required
+            value={state.amount}
+            onChange={(e) => set({ amount: e.target.value })}
+          />
+          <SelectField
+            label={t('Unit')}
+            value={state.unit}
+            onChange={(e) => set({ unit: e.target.value as DoseUnit })}
+            options={DOSE_UNITS.map((u) => ({ value: u, label: unitLabel(u) }))}
+          />
+          <SelectField
+            label={t('Route')}
+            name="route"
+            value={state.route}
+            onChange={(e) => set({ route: e.target.value })}
+            options={ROUTES.map((r) => ({ value: r, label: routeLabel(r) }))}
+          />
+          <SelectField
+            label={t('Frequency')}
+            value={state.frequencyCode}
+            onChange={(e) => set({ frequencyCode: e.target.value as FrequencyCode })}
+            options={FREQUENCY_CODES.map((c) => ({ value: c, label: frequencyLabel(c) }))}
+          />
+          {(prn || state.asNeeded) && (
+            <TextField
+              label={t('Maximum doses in 24 hours')}
+              type="number"
+              min="1"
+              max="24"
+              step="1"
+              required={prn}
+              value={state.maxDoses}
+              onChange={(e) => set({ maxDoses: e.target.value })}
+            />
+          )}
+          <TextField
+            label={t('Duration (days)')}
+            type="number"
+            min="1"
+            max="3650"
+            step="1"
+            value={state.durationDays}
+            onChange={(e) => set({ durationDays: e.target.value })}
+            hint={t('Sets the end date when none is given.')}
+          />
+        </div>
+      )}
+      <div className="row">
+        {!state.freeText && !prn && (
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={state.asNeeded}
+              onChange={(e) => set({ asNeeded: e.target.checked })}
+            />
+            {t('As needed (PRN)')}
+          </label>
+        )}
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={state.freeText}
+            onChange={(e) => set({ freeText: e.target.checked })}
+          />
+          {t('Enter the dose as free text')}
+        </label>
+      </div>
+      {state.freeText ? (
+        <p className="muted">{t('Free-text doses are not checked against dose limits.')}</p>
+      ) : (
+        preview && (
+          <p aria-live="polite">
+            <strong>{t('Prescription text')}:</strong> {preview.dosage} · {preview.frequency}
+          </p>
+        )
+      )}
+      {summary && <DoseSummaryView summary={summary} />}
+    </fieldset>
+  );
+}
+
+/** Server quantities ("2.5 mg") with the reader's decimal separator. */
+const localQuantity = (q: string | null) =>
+  q === null ? '–' : getLocale() === 'en' ? q : q.replace(/(\d)\.(\d)/g, '$1,$2');
+
+function DoseSummaryView({ summary }: { summary: DoseSummary }) {
+  if (summary.notComputed) return <p className="muted">{t(NOT_COMPUTED[summary.notComputed])}</p>;
+  if (!summary.ingredients.length) return null;
+  return (
+    <Table caption={t('Dose check')}>
+      <thead>
+        <tr>
+          <th>{t('Ingredient')}</th>
+          <th>{t('Per dose')}</th>
+          <th>{t('Per day')}</th>
+          <th>{t('Limit')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {summary.ingredients.map((i) => (
+          <tr key={i.ingredient}>
+            <td>{i.ingredient}</td>
+            <td>{localQuantity(i.singleDose)}</td>
+            <td>{localQuantity(i.dailyDose)}</td>
+            <td>
+              {i.checked
+                ? t('max {single} per dose, {daily} per day', {
+                    single: localQuantity(i.maxSingle),
+                    daily: localQuantity(i.maxDaily),
+                  })
+                : t('No dose rule')}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </Table>
   );
 }

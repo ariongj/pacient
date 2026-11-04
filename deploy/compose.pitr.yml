@@ -1,0 +1,52 @@
+# OPTIONAL override: continuous WAL archiving + base backups with pgBackRest, enabling
+# point-in-time recovery (PITR) of the database. Not used unless you pass it explicitly:
+#
+#   docker compose -f deploy/compose.vps.yml -f deploy/compose.pitr.yml up -d --build db
+#   deploy/pitr/pitr.sh init          # once: create the stanza and the first full backup
+#
+# It only replaces the `db` image (stock postgres:16-alpine + pgBackRest, same data volume) and
+# turns on archiving. See deploy/README.md ("Downtime and point-in-time recovery") and
+# deploy/pitr/pitr.sh. The nightly pg_dump (deploy/backup.sh) stays in place as an independent,
+# logical second line of defence.
+services:
+  db:
+    image: ${PACIENTI_DB_IMAGE:-pacienti-db-pitr:local}
+    build: { context: pitr, dockerfile: Dockerfile.postgres }
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=pacient archive-push %p
+      - -c
+      - archive_timeout=60
+      - -c
+      - max_wal_senders=3
+      - -c
+      - wal_compression=on
+    environment:
+      # Encryption passphrase of the backup repository (keep a copy off the server!).
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?Set the pgBackRest repository passphrase}
+      # Off-site repository (uncomment together with repo2-* in deploy/pitr/pgbackrest.conf):
+      # PGBACKREST_REPO2_CIPHER_PASS: ${PGBACKREST_REPO2_CIPHER_PASS:?}
+      # PGBACKREST_REPO2_S3_KEY: ${PGBACKREST_REPO2_S3_KEY:?}
+      # PGBACKREST_REPO2_S3_KEY_SECRET: ${PGBACKREST_REPO2_S3_KEY_SECRET:?}
+    volumes:
+      - pacienti-pgbackrest:/var/lib/pgbackrest
+      - pacienti-pgbackrest-spool:/var/spool/pgbackrest
+    # An off-site S3 repository needs outbound access from the database container, e.g.:
+    # networks: [database, outbound]
+    stop_grace_period: 2m
+
+  # Example only – schedule backups from the host instead (cron/systemd timer), see README:
+  #   15 1 * * 0   deploy/pitr/pitr.sh backup full
+  #   15 1 * * 1-6 deploy/pitr/pitr.sh backup diff
+  #   */30 * * * * deploy/pitr/pitr.sh check
+
+volumes:
+  # Keep the repository on a different disk than the database volume if you can (driver_opts),
+  # and never remove it with `docker compose down -v`.
+  pacienti-pgbackrest: {}
+  pacienti-pgbackrest-spool: {}

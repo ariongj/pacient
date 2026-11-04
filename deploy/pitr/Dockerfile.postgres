@@ -1,0 +1,10 @@
+# PostgreSQL 16 with pgBackRest, for continuous WAL archiving and point-in-time recovery.
+# Same major version and base as the stock `db` image, so the existing data volume is reused as is.
+FROM postgres:16-alpine
+RUN apk add --no-cache pgbackrest \
+ && mkdir -p /var/lib/pgbackrest /var/spool/pgbackrest /var/log/pgbackrest /etc/pgbackrest \
+ && chown -R postgres:postgres /var/lib/pgbackrest /var/spool/pgbackrest /var/log/pgbackrest \
+ && chmod 0750 /var/lib/pgbackrest /var/spool/pgbackrest /var/log/pgbackrest
+COPY --chown=postgres:postgres pgbackrest.conf /etc/pgbackrest/pgbackrest.conf
+COPY --chown=postgres:postgres postgresql-pitr.conf /etc/postgresql/pitr.conf
+RUN chmod 0640 /etc/pgbackrest/pgbackrest.conf /etc/postgresql/pitr.conf

@@ -821,7 +821,7 @@ clinicalRouter.post('/vitals', async (req, res) => {
   const news = await scoreVitalSign(row.id).catch(() => null);
   res.status(201).json({
     ...row,
-    news: news && { id: news.id, score: news.score, risk: news.risk, complete: news.complete },
+    news: news && { id: news.id, scale: news.scale, score: news.score, risk: news.risk, complete: news.complete },
   });
 });
 

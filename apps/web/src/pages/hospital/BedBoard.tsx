@@ -321,6 +321,7 @@ export function BedBoard() {
                 })}
               </p>
               <Tabs
+                withPanels={false}
                 label={t('Wards')}
                 active={tab}
                 onChange={setTab}

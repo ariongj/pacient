@@ -227,6 +227,7 @@ export function EarlyWarningBoard() {
               <Card>
                 {units.length > 1 && (
                   <Tabs
+                    withPanels={false}
                     label={t('Wards')}
                     active={tab}
                     onChange={setTab}

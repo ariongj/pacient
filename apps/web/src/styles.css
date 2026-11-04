@@ -417,7 +417,7 @@ main:focus {
 }
 .badge-neutral {
   background: var(--surface-2);
-  color: var(--text-muted);
+  color: var(--text);
   border-color: var(--border);
 }
 .badge-info {

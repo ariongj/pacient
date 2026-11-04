@@ -453,11 +453,14 @@ export function Tabs<T extends string>({
   active,
   onChange,
   label,
+  withPanels = true,
 }: {
   tabs: { id: T; label: string; count?: number }[];
   active: T;
   onChange: (id: T) => void;
   label: string;
+  /** False when the tabs filter content that is not wrapped in a <TabPanel>. */
+  withPanels?: boolean;
 }) {
   return (
     <div className="tabs" role="tablist" aria-label={label}>
@@ -468,7 +471,7 @@ export function Tabs<T extends string>({
           role="tab"
           id={`tab-${tab.id}`}
           aria-selected={active === tab.id}
-          aria-controls={`panel-${tab.id}`}
+          aria-controls={withPanels ? `panel-${tab.id}` : undefined}
           tabIndex={active === tab.id ? 0 : -1}
           className={`tab ${active === tab.id ? 'tab-active' : ''}`}
           onClick={() => onChange(tab.id)}
@@ -500,7 +503,7 @@ export function TabPanel({ id, children }: { id: string; children: ReactNode }) 
 
 export function Table({ caption, children }: { caption: string; children: ReactNode }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap" tabIndex={0} role="region" aria-label={caption}>
       <table>
         <caption className="sr-only">{caption}</caption>
         {children}

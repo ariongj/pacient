@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getLocale, t } from '../i18n';
 import { api } from './client';
 
+const NBSP = String.fromCharCode(160);
+
 /** Euro amount from cents: "12,50 €" (Albanian, Serbian) or "€12.50" (English). */
 export function formatMoney(cents: number | null | undefined): string {
   const value = Number(cents ?? 0) / 100;
@@ -10,8 +12,8 @@ export function formatMoney(cents: number | null | undefined): string {
   if (getLocale() === 'en') {
     return `${negative ? '-' : ''}€${(int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
   }
-  const group = getLocale() === 'sr' ? '.' : ' ';
-  return `${negative ? '-' : ''}${(int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, group)},${dec} €`;
+  const group = getLocale() === 'sr' ? '.' : NBSP;
+  return `${negative ? '-' : ''}${(int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, group)},${dec}${NBSP}€`;
 }
 
 export const INSURERS = ['FSSH', 'PRIVATE', 'NONE'] as const;

@@ -64,6 +64,14 @@ proxy (DICOMweb, with synthetic demo images in development); online appointment 
 doctors' published consulting hours with reminders the day before; the national child
 vaccination calendar with due/overdue lists, reminders to parents and coverage by birth cohort.
 
+**Clinical safety and the rest of the hospital:** medication safety checks at prescribing and
+in the pharmacy (interactions, allergy cross-reactions, kidney function, age, pregnancy, duplicate
+therapy – overrides need a reason); NEWS2 early warning with escalation; blood bank and
+transfusions (compatibility, bedside two-person check, reactions); hospital nutrition (diet
+orders, malnutrition screening, kitchen lists, fasting before operations); notifiable disease
+reporting to public health with an outbreak dashboard; video consultations; billing with
+co-payments and monthly claims to the Health Insurance Fund.
+
 **Account security:** passkeys (phishing-resistant sign-in), signed-in devices with remote
 sign-out, personal sign-in history and alerts on sign-in from a new device. The portal can be
 installed as an app on phones (no health data is stored on the device).
@@ -182,6 +190,14 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   and watch the batch quantity go down.
 - **Patient**: book an appointment online (_Terminet_ → free slots), the vaccination booklet of
   her son Ardit (_Vaksinimet_, switch record), _Siguria dhe kyçja_ – add a passkey.
+- **Safety and hospital** (doctor, nurse): prescribe ibuprofen for a patient on warfarin and see
+  the block; _Paralajmërimi i hershëm (NEWS2)_ – the high-score patient; _Banka e gjakut_ and the
+  _Transfuzionet_ tab; _Ushqyerja_ – today's kitchen list; _Sëmundjet ngjitëse_ – complete the
+  measles case report.
+- **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
+  after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
+- **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and
+  submit the monthly claim; the patient sees bills under _Faturat dhe pagesat_.
 - **Languages**: SQ / SR / EN at the top.
 - **Ministry**: partner systems (API keys) and the API documentation page; national reports for
   occupancy, emergency waiting times, births and imaging.

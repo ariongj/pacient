@@ -121,7 +121,8 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
 3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
 4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
-5. Medicines interaction database; blood bank; nutrition; billing with the Health Insurance Fund.
+5. Licensed drug knowledge base (replace the demo set); certified PACS viewer; HIS↔Fund contract
+   validation; clinical safety case and hazard log; penetration test and accessibility audit.
 6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
    needed) and add RIS/PACS (B07).
 7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
@@ -143,6 +144,13 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | National child vaccination calendar, reminders, coverage                                  | ✅ (calendar to verify with IKShPK) |
 | Passkeys, session management, new-device alerts                                           | ✅                                  |
 | Serbian interface                                                                         | ✅                                  |
+| Medication safety: interactions, allergies, kidney, age, pregnancy, overrides             | ✅ (demo knowledge base)            |
+| NEWS2 early warning with escalation                                                       | ✅                                  |
+| Blood bank and transfusion safety, haemovigilance                                         | ✅                                  |
+| Hospital nutrition: diet orders, screening, kitchen lists                                 | ✅                                  |
+| Billing, co-payments, Health Insurance Fund claims                                        | ✅ (demo tariff)                    |
+| Notifiable disease surveillance and outbreak alerts                                       | ✅ (list to verify with IKShPK)     |
+| Video consultations (WebRTC)                                                              | ✅                                  |
 
 ## Open decisions (§10) — needed from the project sponsor
 

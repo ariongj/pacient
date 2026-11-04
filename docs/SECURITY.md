@@ -160,6 +160,22 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   cross-facility sharing, returns content limited to the purpose, and every call (also refused
   ones) is audited and shown in the patient's access log under the organisation's name. External
   systems never get database credentials.
+- Medication safety: contraindicated/major alerts block prescribing until a reason is given;
+  every override is stored with the prescription and audited, and shown to the pharmacist. The
+  interaction database is a curated demo set, labelled as such, maintained by the Ministry.
+- Transfusion: blood bank staff record groups and issue units; bedside identity and unit checks
+  need a second, different clinician who confirms with their own session within 10 minutes;
+  reactions stop the transfusion and alert the doctor and blood bank.
+- Kitchen staff see diet lists (name, bed, diet, food allergies) only, never clinical records.
+- Billing data: patients see only service names and amounts; the Health Insurance Fund reads
+  claim lines (national ID, insurance number, service, amount) through a scoped partner key,
+  audited per patient. Receipts are append-only.
+- Surveillance: case reports are created from notifiable diagnoses (legal public-health basis);
+  the Ministry sees identifiable cases, directors only their facility without names, aggregates
+  suppress counts below 5; partner reads are audited per patient.
+- Video visits: only the appointment's doctor and patient (or guardian) can join, within a time
+  window; media is peer-to-peer and encrypted (DTLS-SRTP), the server relays only signalling, and
+  calls are not recorded.
 - Patient merges are director-only, limited to records registered at the director's facility,
   require a reason, show demographics and counts only (no clinical content), are audited for both
   records and can be undone exactly. Both records having portal accounts blocks the merge.

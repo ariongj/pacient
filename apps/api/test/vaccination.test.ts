@@ -26,8 +26,7 @@ const items = new Map<string, string>(); // code → schedule id
 
 beforeAll(async () => {
   w = await createWorld();
-  const existing = await db.select().from(vaccineSchedule);
-  if (!existing.length) await db.insert(vaccineSchedule).values(DEFAULT_SCHEDULE);
+  await db.insert(vaccineSchedule).values(DEFAULT_SCHEDULE).onConflictDoNothing();
   for (const s of await db.select().from(vaccineSchedule)) items.set(s.code, s.id);
 });
 

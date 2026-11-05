@@ -871,4 +871,5 @@ export const common: Record<string, string> = {
   'To|recipient': 'Za',
   'Name|thing': 'Naziv',
   'Available|bed': 'Slobodan',
+  'Too few to show': 'Premalo za prikaz',
 };

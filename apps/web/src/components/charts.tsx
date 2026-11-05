@@ -88,7 +88,7 @@ export function RankedBars({
             <span>
               {r.sublabel && <code>{r.sublabel}</code>} {r.label}
             </span>
-            <strong>{r.suppressed ? 'fewer than threshold' : formatNumber(r.value ?? 0)}</strong>
+            <strong>{r.suppressed ? t('Too few to show') : formatNumber(r.value ?? 0)}</strong>
           </div>
           <div className="ranked-track" aria-hidden="true">
             <div

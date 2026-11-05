@@ -287,6 +287,8 @@ describe('FHIR export of the hospital modules', () => {
         doseNumber: 1,
         recommendedAgeDays: 365,
         overdueAgeDays: 455,
+        // Inactive, so the national calendar used by other test files is unchanged.
+        isActive: false,
       })
       .returning();
     await db.insert(immunizations).values({

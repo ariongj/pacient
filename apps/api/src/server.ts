@@ -18,6 +18,7 @@ import { startNewsWorker, stopNewsWorker } from './modules/news/news.service.js'
 import { startRetentionWorker, stopRetentionWorker } from './modules/privacy/retention.js';
 import { startDowntimeWorker, stopDowntimeWorker } from './modules/downtime/downtime.service.js';
 import { startWaitingWorker, stopWaitingWorker } from './modules/waiting/waiting.service.js';
+import { startRegistersWorker, stopRegistersWorker } from './modules/registers/registers.service.js';
 import {
   startChargeCaptureWorker,
   stopChargeCaptureWorker,
@@ -38,6 +39,7 @@ startNewsWorker();
 startRetentionWorker();
 startDowntimeWorker();
 startWaitingWorker();
+startRegistersWorker();
 startChargeCaptureWorker();
 startSurveillanceWorker();
 const server = app.listen(env.PORT, () => {
@@ -58,6 +60,7 @@ function shutdown(signal: string) {
   stopRetentionWorker();
   stopDowntimeWorker();
   stopWaitingWorker();
+  stopRegistersWorker();
   stopChargeCaptureWorker();
   stopSurveillanceWorker();
   server.close(() => {

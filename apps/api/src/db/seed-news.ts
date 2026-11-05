@@ -8,6 +8,7 @@
 import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 import { db } from './client.js';
 import {
+  careAssignments,
   admissions,
   bedMovements,
   beds,
@@ -195,6 +196,10 @@ async function seedPaediatric(facilityId: string, nurseId: string) {
       })
       .returning({ id: admissions.id });
     await db.update(beds).set({ status: 'OCCUPIED' }).where(eq(beds.id, bedId));
+    // As in a real admission, the attending doctor joins the care team.
+    await db
+      .insert(careAssignments)
+      .values({ patientId: p!.id, doctorId: doctor.id, assignedById: doctor.id });
     await db.insert(bedMovements).values({
       admissionId: a!.id,
       toUnitId: unit.id,

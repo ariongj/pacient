@@ -264,7 +264,9 @@ export function DoctorHome() {
                           )}
                         </span>
                       </div>
-                      {r.pharmacistNote && <div>Pharmacist: {r.pharmacistNote}</div>}
+                      {r.pharmacistNote && (
+                        <div>{t('Pharmacist: {note}', { note: r.pharmacistNote })}</div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -411,7 +413,9 @@ export function DoctorHome() {
                           </Link>
                           <span className="muted">{formatDate(c.createdAt)}</span>
                         </div>
-                        <div className="muted">Section: {humanize(c.section)}</div>
+                        <div className="muted">
+                          {t('Section: {section}', { section: humanize(c.section) })}
+                        </div>
                         <div>{c.description}</div>
                       </li>
                     ))}

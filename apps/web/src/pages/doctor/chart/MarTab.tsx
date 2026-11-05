@@ -462,8 +462,14 @@ export function MarTab({ patientId }: { patientId: string }) {
         </QueryView>
         {awaiting.length > 0 && (
           <Alert tone="warning" title={t('Awaiting pharmacy')}>
-            {awaiting.map((p) => `${p.medication} (${p.pharmacyStatus.toLowerCase()})`).join(', ')}{' '}
-            cannot be administered until verified.
+            {t('{medicines} cannot be given until the pharmacy has verified them.', {
+              medicines: awaiting
+                .map(
+                  (p) =>
+                    `${p.medication} (${t(p.pharmacyStatus === 'RETURNED' ? 'Returned' : 'Awaiting verification')})`,
+                )
+                .join(', '),
+            })}
           </Alert>
         )}
       </Card>
@@ -491,7 +497,7 @@ export function MarTab({ patientId }: { patientId: string }) {
                       <td>{formatDateTime(a.administeredAt)}</td>
                       <td>
                         {a.medication}
-                        <div className="muted">Prescribed: {a.dosage}</div>
+                        <div className="muted">{t('Prescribed: {dose}', { dose: a.dosage })}</div>
                       </td>
                       <td>
                         <StatusBadge value={a.status} />

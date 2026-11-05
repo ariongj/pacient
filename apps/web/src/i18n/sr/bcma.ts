@@ -92,4 +92,7 @@ export const bcma: Record<string, string> = {
   'Handheld scanners type the code and press Enter for you.':
     'Ručni skeneri sami upisuju kod i pritiskaju Enter.',
   'Camera preview': 'Prikaz kamere',
+  '{medicines} cannot be given until the pharmacy has verified them.':
+    '{medicines} ne mogu se dati dok ih apoteka ne proveri.',
+  'Prescribed: {dose}': 'Propisano: {dose}',
 };

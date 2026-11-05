@@ -68,7 +68,9 @@ function ActivationLink({ result }: { result: InviteResult }) {
           </div>
         </>
       ) : (
-        <p className="muted">The activation link has been sent to {result.user.email}.</p>
+        <p className="muted">
+          {t('The activation link has been sent to {email}.', { email: result.user.email })}
+        </p>
       )}
     </div>
   );

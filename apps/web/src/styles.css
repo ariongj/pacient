@@ -1297,3 +1297,25 @@ th.num {
     gap: 0.35rem;
   }
 }
+
+/* Bedside scanning steps (the step labels carry their own numbers). */
+.bcma-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.bcma-steps li {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+.bcma-steps li[aria-current='step'] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-weight: 600;
+}

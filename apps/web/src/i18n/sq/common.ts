@@ -838,4 +838,5 @@ export const common: Record<string, string> = {
   'Downtime kit': 'Paketa për ndërprerje',
   'Data protection': 'Mbrojtja e të dhënave',
   'System health': 'Gjendja e sistemit',
+  'The activation link has been sent to {email}.': 'Lidhja e aktivizimit u dërgua te {email}.',
 };

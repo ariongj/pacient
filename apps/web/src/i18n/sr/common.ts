@@ -823,4 +823,5 @@ export const common: Record<string, string> = {
   'Downtime kit': 'Paket za prekid rada',
   'Data protection': 'Zaštita podataka',
   'System health': 'Stanje sistema',
+  'The activation link has been sent to {email}.': 'Link za aktivaciju je poslat na {email}.',
 };

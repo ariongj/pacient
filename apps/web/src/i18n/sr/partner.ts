@@ -603,6 +603,4 @@ export const partner: Record<string, string> = {
   'own facility, no names': 'sopstvena ustanova, bez imena',
   "The appointment's doctor": 'Lekar termina',
   'patient or guardian': 'pacijent ili staratelj',
-  'care team (staff documents)': 'tim za negu (dokumenti osoblja)',
-  'the patient or guardian (documents they provided)': 'pacijent ili staratelj (dokumenti koje su sami dostavili)',
 };

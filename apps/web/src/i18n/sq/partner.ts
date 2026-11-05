@@ -615,6 +615,4 @@ export const partner: Record<string, string> = {
   'own facility, no names': 'institucioni i vet, pa emra',
   "The appointment's doctor": 'Mjeku i terminit',
   'patient or guardian': 'pacienti ose kujdestari',
-  'care team (staff documents)': 'ekipi i kujdesit (dokumentet e stafit)',
-  'the patient or guardian (documents they provided)': 'pacienti ose kujdestari (dokumentet që i kanë dhënë vetë)',
 };

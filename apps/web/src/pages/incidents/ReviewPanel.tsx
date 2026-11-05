@@ -60,7 +60,7 @@ function OwnReportView({ report }: { report: OwnReport }) {
       </div>
       <DefinitionList
         items={[
-          [t('Reference'), report.reference],
+          [t('Reference|incident number'), report.reference],
           [t('Kind of incident'), categoryLabel(report.category)],
           [t('When it happened'), formatDateTime(report.occurredAt)],
           [t('Reported'), formatDateTime(report.reportedAt)],
@@ -134,7 +134,7 @@ function Review({ incident, meta }: { incident: IncidentDetail; meta: IncidentMe
       </div>
       <DefinitionList
         items={[
-          [t('Reference'), incident.reference],
+          [t('Reference|incident number'), incident.reference],
           [t('Kind of incident'), categoryLabel(incident.category)],
           [t('When it happened'), formatDateTime(incident.occurredAt)],
           [t('Reported'), formatDateTime(incident.reportedAt)],

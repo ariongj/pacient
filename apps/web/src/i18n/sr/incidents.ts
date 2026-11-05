@@ -231,4 +231,6 @@ export const incidents: Record<string, string> = {
   'incident reviewers (DIRECTOR and named safety leads); the owner (completion only)':
     'recenzenti incidenata (DIREKTOR i imenovani odgovorni za bezbednost); nosilac mere (samo završavanje)',
   'the reporter': 'podnosilac prijave',
+  'Reference|incident number': 'Broj prijave',
+  'Medication|incident category': 'Lekovi',
 };

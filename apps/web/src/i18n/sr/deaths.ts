@@ -195,4 +195,6 @@ export const deaths: Record<string, string> = {
   'Use an ICD-10 code, e.g. I21.9': 'Koristite šifru MKB-10, npr. I21.9',
   'The start must be before the end': 'Početak mora biti pre kraja',
   'Choose a period of at most five years': 'Izaberite period od najviše pet godina',
+  'Other significant condition': 'Drugo značajno stanje',
+  'Deaths by age': 'Smrtni ishodi po uzrastu',
 };

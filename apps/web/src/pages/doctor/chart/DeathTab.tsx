@@ -197,7 +197,7 @@ function DeathForm({
               </p>
             )}
             <TextField
-              label={t(LINE_LABEL[line])}
+              label={line === 'II' ? t('Other significant condition') : t(LINE_LABEL[line])}
               value={causes[line].text}
               required={line === 'a'}
               maxLength={300}

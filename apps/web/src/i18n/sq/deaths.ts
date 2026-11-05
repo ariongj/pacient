@@ -198,4 +198,6 @@ export const deaths: Record<string, string> = {
   'Use an ICD-10 code, e.g. I21.9': 'Përdorni një kod ICD-10, p.sh. I21.9',
   'The start must be before the end': 'Fillimi duhet të jetë para mbarimit',
   'Choose a period of at most five years': 'Zgjidhni një periudhë deri në pesë vjet',
+  'Other significant condition': 'Gjendje tjetër e rëndësishme',
+  'Deaths by age': 'Vdekjet sipas moshës',
 };

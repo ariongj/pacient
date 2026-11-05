@@ -234,4 +234,6 @@ export const incidents: Record<string, string> = {
   'incident reviewers (DIRECTOR and named safety leads); the owner (completion only)':
     'shqyrtuesit e incidenteve (DREJTORI dhe përgjegjësit e caktuar të sigurisë); përgjegjësi i veprimit (vetëm kryerja)',
   'the reporter': 'raportuesi',
+  'Reference|incident number': 'Numri i referencës',
+  'Medication|incident category': 'Barnat',
 };

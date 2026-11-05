@@ -254,7 +254,7 @@ export function PatientChart() {
         )}
         {s && (
           <div className="row no-print" style={{ marginLeft: 'auto' }}>
-            {isDoctor && (
+            {isDoctor && !p.deceasedAt && (
               <>
                 <Button variant="secondary" size="sm" onClick={() => setBooking(true)}>
                   {t('Book appointment')}

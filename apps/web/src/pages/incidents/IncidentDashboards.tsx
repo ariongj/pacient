@@ -108,7 +108,9 @@ export function FacilityDashboardView({ onOpen }: { onOpen: (id: string) => void
               />
               <Stat
                 label={t('Median days to close')}
-                value={d.timeToClose.medianDays ?? '—'}
+                value={
+                  d.timeToClose.medianDays == null ? '—' : formatNumber(d.timeToClose.medianDays)
+                }
                 hint={tn(d.timeToClose.closed, '{count} closed review', '{count} closed reviews')}
               />
               <Stat

@@ -204,7 +204,7 @@ interface Page<T> {
 export const categoryLabel = (c: string) =>
   t(
     {
-      MEDICATION: 'Medication',
+      MEDICATION: 'Medication|incident category',
       FALL: 'Fall',
       PRESSURE_INJURY: 'Pressure injury',
       IDENTIFICATION: 'Patient identification',

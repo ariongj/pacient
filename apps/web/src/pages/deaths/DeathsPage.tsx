@@ -10,7 +10,7 @@ import {
   type MortalityStats,
 } from '../../api/deaths';
 import { useUser } from '../../auth/AuthContext';
-import { BarChart, RankedBars, StackedBars } from '../../components/charts';
+import { BarChart, RankedBars } from '../../components/charts';
 import {
   Alert,
   Badge,
@@ -87,16 +87,9 @@ function Statistics({ stats }: { stats: MortalityStats }) {
         )}
       </Card>
       <Card title={t('Deaths by age and sex')}>
-        <StackedBars
-          title={t('Deaths by age and sex')}
-          series={[
-            { key: 'male', label: t('Men') },
-            { key: 'female', label: t('Women') },
-          ]}
-          rows={stats.byAgeBand.map((b) => ({
-            label: b.band,
-            values: { male: b.male ?? 0, female: b.female ?? 0 },
-          }))}
+        <BarChart
+          title={t('Deaths by age')}
+          data={stats.byAgeBand.map((b) => ({ label: b.band, value: b.total ?? 0 }))}
         />
         <Table caption={t('Deaths by age and sex')}>
           <thead>

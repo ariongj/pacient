@@ -143,7 +143,7 @@ function MyReports({ onOpen }: { onOpen: (id: string) => void }) {
               <Table caption={t('My reports')}>
                 <thead>
                   <tr>
-                    <th>{t('Reference')}</th>
+                    <th>{t('Reference|incident number')}</th>
                     <th>{t('When it happened')}</th>
                     <th>{t('Kind of incident')}</th>
                     <th>{t('Harm')}</th>
@@ -293,7 +293,7 @@ function Queue({ meta, onOpen }: { meta: IncidentMeta; onOpen: (id: string) => v
               <Table caption={t('Review queue')}>
                 <thead>
                   <tr>
-                    <th>{t('Reference')}</th>
+                    <th>{t('Reference|incident number')}</th>
                     <th>{t('Reported')}</th>
                     <th>{t('Kind of incident')}</th>
                     <th>{t('Harm')}</th>

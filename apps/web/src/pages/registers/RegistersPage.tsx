@@ -191,15 +191,14 @@ function RegisterCard({ r }: { r: RegisterIndicators }) {
     <Card
       title={registerLabel(r.register)}
       actions={
-        r.suppressed ? (
-          <Badge>{t('Too few patients to show')}</Badge>
-        ) : (
+        !r.suppressed && (
           <Badge tone="info">
             {t('{count} patients', { count: formatNumber(r.enrolled ?? 0) })}
           </Badge>
         )
       }
     >
+      {r.suppressed && <p className="muted">{t('Too few patients to show')}</p>}
       {r.prevalencePer1000 !== null && (
         <p className="muted">
           {t('{value} per 1 000 registered patients', {

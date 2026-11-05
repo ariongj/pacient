@@ -603,4 +603,40 @@ export const partner: Record<string, string> = {
   'own facility, no names': 'sopstvena ustanova, bez imena',
   "The appointment's doctor": 'Lekar termina',
   'patient or guardian': 'pacijent ili staratelj',
+  'Deaths for civil registration': 'Smrtni slučajevi za matičnu evidenciju',
+  'Read signed death certificates (identity, date and place of death – never the causes) and acknowledge their registration.':
+    'Čita potpisane potvrde o smrti (identitet, datum i mesto smrti – nikada uzroci) i potvrđuje njihov upis.',
+  /* API documentation: deaths and waiting lists */
+  'Death certificates of my facility (no causes)': 'Potvrde o smrti moje ustanove (bez uzroka)',
+  'Mortality statistics (small cells suppressed)': 'Statistika smrtnosti (mali brojevi sakriveni)',
+  'The patient’s death certificate': 'Potvrda o smrti pacijenta',
+  'Start a draft death certificate': 'Započni nacrt potvrde o smrti',
+  'Edit a draft death certificate': 'Izmeni nacrt potvrde o smrti',
+  'Discard a draft death certificate': 'Odbaci nacrt potvrde o smrti',
+  'Amend a signed death certificate': 'Izmeni potpisanu potvrdu o smrti',
+  'Signed death certificates for the civil registry (no causes)':
+    'Potpisane potvrde o smrti za matičnu službu (bez uzroka)',
+  'Confirm that the civil registry registered a death': 'Potvrdi da je matična služba upisala smrt',
+  'Specialties, priorities and removal reasons': 'Specijalnosti, prioriteti i razlozi uklanjanja',
+  'Waiting list of my facility': 'Lista čekanja moje ustanove',
+  'Add a patient to a waiting list': 'Dodaj pacijenta na listu čekanja',
+  'Facility waiting-time dashboard': 'Pregled vremena čekanja ustanove',
+  'National waiting times (aggregate)': 'Nacionalno vreme čekanja (zbirno)',
+  'My waiting lists (portal)': 'Moje liste čekanja (portal)',
+  'A patient’s waiting-list entries': 'Unosi pacijenta na listama čekanja',
+  'care team (with clinical reason); RECEPTION, DIRECTOR of the facility':
+    'tim za negu (sa kliničkim razlogom); PRIJEM, DIREKTOR ustanove',
+  'Waiting list entry with its history': 'Unos na listi čekanja sa istorijom',
+  'Schedule (or reschedule)': 'Zakaži (ili promeni termin)',
+  'Cancel the scheduled date': 'Otkaži zakazani datum',
+  'Postpone at the patient’s request': 'Odloži na zahtev pacijenta',
+  'Resume a postponed entry': 'Nastavi odloženi unos',
+  'Change the clinical priority': 'Promeni klinički prioritet',
+  'DOCTOR (any reason), RECEPTION (non-clinical reasons)':
+    'LEKAR (bilo koji razlog), PRIJEM (neklinički razlozi)',
+  'Death registration': 'Evidencija smrtnih slučajeva',
+  'Medical certificates of cause of death, mortality statistics.':
+    'Lekarske potvrde o uzroku smrti, statistika smrtnosti.',
+  'Elective waiting lists, maximum waiting times, transparency.':
+    'Liste čekanja za planirane intervencije, najduže vreme čekanja, transparentnost.',
 };

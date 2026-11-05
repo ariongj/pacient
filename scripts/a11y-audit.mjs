@@ -36,6 +36,8 @@ const PAGES = {
     '/portal/access-log',
     '/portal/account',
     '/account/security',
+    '/portal/certificates',
+    '/portal/waiting-lists',
   ],
   'doctor@pacient.local': [
     '/doctor',
@@ -51,6 +53,11 @@ const PAGES = {
     '/surveillance',
     '/messages',
     '/channels',
+    '/certificates',
+    '/registers',
+    '/waiting-lists',
+    '/deaths',
+    '/incidents',
   ],
   'nurse@pacient.local': [
     '/nurse',
@@ -71,6 +78,10 @@ const PAGES = {
     '/director/integrations',
     '/downtime',
     '/privacy',
+    '/waiting-lists',
+    '/registers',
+    '/deaths',
+    '/incidents',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -82,6 +93,10 @@ const PAGES = {
     '/developers',
     '/privacy',
     '/ministry/system',
+    '/deaths',
+    '/registers',
+    '/waiting-lists',
+    '/incidents',
   ],
 };
 

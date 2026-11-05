@@ -6,7 +6,8 @@ export type PartnerScope =
   | 'directory.read'
   | 'births.notify'
   | 'claims.read'
-  | 'surveillance.read';
+  | 'surveillance.read'
+  | 'deaths.read';
 
 export interface PartnerClient {
   id: string;
@@ -36,6 +37,7 @@ export const PARTNER_SCOPES: PartnerScope[] = [
   'births.notify',
   'claims.read',
   'surveillance.read',
+  'deaths.read',
 ];
 
 /** Plain-language description of what a scope allows (translated at call time). */
@@ -79,6 +81,15 @@ export function scopeInfo(scope: PartnerScope): { title: string; description: st
           'Receive case reports of notifiable infectious diseases for public health follow-up.',
         ),
       };
+    case 'deaths.read':
+      return {
+        title: t('Deaths for civil registration'),
+        description: t(
+          'Read signed death certificates (identity, date and place of death – never the causes) and acknowledge their registration.',
+        ),
+      };
+    default:
+      return { title: scope, description: '' };
   }
 }
 

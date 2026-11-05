@@ -74,6 +74,13 @@ orders, malnutrition screening, kitchen lists, fasting before operations); notif
 reporting to public health with an outbreak dashboard; video consultations; billing with
 co-payments and monthly claims to the Health Insurance Fund.
 
+**National registers and certificates:** death registration with the WHO medical certificate of
+cause of death (civil registry notified over the partner API, mortality statistics); sick-leave and
+fitness certificates that employers and schools verify by QR code without seeing the diagnosis;
+elective waiting lists with maximum waiting times and published waits; chronic disease registers
+(diabetes, hypertension, asthma, COPD, kidney disease, heart failure) with recalls and quality
+indicators; patient safety incident and near-miss reporting with review and learning.
+
 **Running a national service:** a downtime kit (hourly encrypted offline ward lists with
 allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
 recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
@@ -210,6 +217,19 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   staff), download the offline pack, end downtime and work through the back-entry checklist.
 - **Data protection and system health** (ministry): _Mbrojtja e të dhënave_ – retention, legal
   holds, requests from patients; _Gjendja e sistemit_ – workers, queues and backups.
+- **Certificates** (doctor, patient): on a chart's _Vërtetimet_ tab issue a sick-leave certificate
+  and print it; the patient finds it under _Vërtetimet mjekësore_; anyone can check the demo
+  certificate at `/verify/demo-certificate-code-not-for-production` (no sign-in).
+- **Waiting lists** (doctor, reception, director): _Listat e pritjes_ – breached and postponed
+  entries, schedule a patient; directors see median waits; the published times need no sign-in.
+- **Disease registers** (doctor, nurse, director, ministry): _Regjistrat e sëmundjeve_ – the recall
+  list, the chart tab _Sëmundjet kronike_, and
+  quality indicators for directors and the Ministry.
+- **Deaths** (doctor, director, ministry): _Certifikatat e vdekjes_ – a draft and signed
+  certificates, the WHO form with its warnings, mortality statistics.
+- **Safety incidents** (all staff): _Raporto një incident_ – report anonymously or by name;
+  `director@` and `pharmacist@` (named medication-safety lead) see the review queue; the Ministry
+  sees national counts and incidents involving the system.
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and

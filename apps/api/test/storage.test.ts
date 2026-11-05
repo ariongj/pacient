@@ -332,8 +332,9 @@ describe('migrating database documents to object storage', () => {
     // Re-run: only the failed one is left to move.
     const second = await migrateDocumentsToS3({ store, log: () => undefined });
     expect(second.failed).toHaveLength(0);
-    expect((await rowOf(ids[1]!)).storageBackend).toBe('S3');
-    expect(second.remaining).toBe(0);
+    // Documents other test files left on the database (some without content) may remain; ours
+    // have all moved.
+    for (const id of ids) expect((await rowOf(id)).storageBackend).toBe('S3');
 
     // Dry run changes nothing.
     const dry = await migrateDocumentsToS3({ store, dryRun: true, log: () => undefined });

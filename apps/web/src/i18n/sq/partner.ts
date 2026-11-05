@@ -615,4 +615,43 @@ export const partner: Record<string, string> = {
   'own facility, no names': 'institucioni i vet, pa emra',
   "The appointment's doctor": 'Mjeku i terminit',
   'patient or guardian': 'pacienti ose kujdestari',
+  'Deaths for civil registration': 'Vdekjet për regjistrimin civil',
+  'Read signed death certificates (identity, date and place of death – never the causes) and acknowledge their registration.':
+    'Lexon certifikatat e nënshkruara të vdekjes (identiteti, data dhe vendi i vdekjes – kurrë shkaqet) dhe konfirmon regjistrimin e tyre.',
+  /* API documentation: deaths and waiting lists */
+  'Death certificates of my facility (no causes)':
+    'Certifikatat e vdekjes të institucionit tim (pa shkaqe)',
+  'Mortality statistics (small cells suppressed)':
+    'Statistikat e vdekshmërisë (numrat e vegjël të fshehur)',
+  'The patient’s death certificate': 'Certifikata e vdekjes e pacientit',
+  'Start a draft death certificate': 'Fillo një projekt-certifikatë vdekjeje',
+  'Edit a draft death certificate': 'Ndrysho projekt-certifikatën e vdekjes',
+  'Discard a draft death certificate': 'Hidh poshtë projekt-certifikatën e vdekjes',
+  'Amend a signed death certificate': 'Ndrysho një certifikatë vdekjeje të nënshkruar',
+  'Signed death certificates for the civil registry (no causes)':
+    'Certifikatat e nënshkruara të vdekjes për gjendjen civile (pa shkaqe)',
+  'Confirm that the civil registry registered a death':
+    'Konfirmo që gjendja civile e regjistroi vdekjen',
+  'Specialties, priorities and removal reasons': 'Specialitetet, prioritetet dhe arsyet e heqjes',
+  'Waiting list of my facility': 'Lista e pritjes e institucionit tim',
+  'Add a patient to a waiting list': 'Shto një pacient në listën e pritjes',
+  'Facility waiting-time dashboard': 'Pasqyra e kohëve të pritjes së institucionit',
+  'National waiting times (aggregate)': 'Kohët kombëtare të pritjes (të përmbledhura)',
+  'My waiting lists (portal)': 'Listat e mia të pritjes (portali)',
+  'A patient’s waiting-list entries': 'Regjistrimet e një pacienti në listat e pritjes',
+  'care team (with clinical reason); RECEPTION, DIRECTOR of the facility':
+    'ekipi i kujdesit (me arsyen klinike); RECEPSIONI, DREJTORI i institucionit',
+  'Waiting list entry with its history': 'Regjistrimi në listën e pritjes me historikun',
+  'Schedule (or reschedule)': 'Cakto datën (ose ndryshoje)',
+  'Cancel the scheduled date': 'Anulo datën e caktuar',
+  'Postpone at the patient’s request': 'Shty me kërkesë të pacientit',
+  'Resume a postponed entry': 'Rifillo një regjistrim të shtyrë',
+  'Change the clinical priority': 'Ndrysho prioritetin klinik',
+  'DOCTOR (any reason), RECEPTION (non-clinical reasons)':
+    'MJEKU (çdo arsye), RECEPSIONI (arsye joklinike)',
+  'Death registration': 'Regjistrimi i vdekjeve',
+  'Medical certificates of cause of death, mortality statistics.':
+    'Certifikatat mjekësore të shkakut të vdekjes, statistikat e vdekshmërisë.',
+  'Elective waiting lists, maximum waiting times, transparency.':
+    'Listat e pritjes për ndërhyrje të planifikuara, kohët maksimale të pritjes, transparenca.',
 };

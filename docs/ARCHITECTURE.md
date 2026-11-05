@@ -350,3 +350,30 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
   only the days and can switch a category off). Clinical records and the audit trail are never
   purged, and rows of a patient under a legal hold are always skipped. Legal holds and
   data-subject requests with deadlines are managed on the same page. See [PRIVACY.md](PRIVACY.md).
+
+## National registers, certificates and safety learning
+
+- **Deaths** (`modules/deaths`, `/deaths`): the WHO international form of the medical certificate
+  of cause of death (Part I a–d, Part II, ICD-10 underlying cause) in `death_records`; signing
+  (refused while the patient is admitted) numbers the certificate per year, sets
+  `patients.deceased_at` and, in the same transaction, cancels future appointments, removes
+  waiting-list entries, ends register membership and disables the portal account. Signed rows are
+  immutable (trigger); corrections are `death_record_amendments`. The civil registry reads signed
+  deaths without causes at `/partner/deaths` (scope `deaths.read`) and acknowledges them.
+- **Medical certificates** (`modules/certificates`, `/certificates`, public `/verify/certificates/:code`):
+  issued once (trigger), revoked with a reason; a 144-bit verification code in the QR link;
+  verification shows validity, kind, dates and issuer only and is audited for the patient.
+- **Waiting lists** (`modules/waiting`, `/waiting-lists`): entries with priority-based maximum
+  waits, a pausing clock for patient-requested postponement, an append-only `waiting_list_events`
+  history, dashboards, a national view, unauthenticated published waits with small-cell
+  suppression, and a worker that warns at 80% of the maximum.
+- **Disease registers** (`modules/registers`, `/registers`): register definitions (codes, review
+  items, intervals, targets) in code; `enrolFromDiagnosis()` runs after a diagnosis is recorded and a
+  daily worker backfills and sends generic recalls; indicators are computed in SQL and checked
+  against the per-patient rules in tests.
+- **Incidents** (`modules/incidents`, `/incidents`): reports (anonymous ones store no reporter and
+  their audit entry no actor), reviewers per facility (`incident_reviewers`), actions, national
+  aggregates and the system-incident list for the clinical safety officer.
+- **Documents at scale** (`modules/storage`): database or S3-compatible object storage (SigV4,
+  ciphertext only, keys without identifiers), integrity checked on read, a migration script, and
+  document versions (`previous_version_id`, one successor per version).

@@ -23,7 +23,7 @@ export async function seedPartners(_: { facilityId: string }) {
     {
       name: 'Agjencia e Regjistrimit Civil (demo)',
       organisation: 'Agjencia e Regjistrimit Civil – Ministria e Punëve të Brendshme',
-      scopes: ['births.notify'],
+      scopes: ['births.notify', 'deaths.read'],
       key: DEMO_CIVIL_REGISTRY_API_KEY,
     },
     {

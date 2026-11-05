@@ -123,7 +123,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
    clinical pharmacist and the CSO.
 2. **Rehearse** the downtime procedure and a point-in-time restore; agree recovery objectives.
 3. SMTP relay with SPF/DKIM/DMARC; OIDC with the national identity provider (§7).
-4. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
+4. KMS-managed keys for the document store (object storage and versions are in place).
 5. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
 6. Certified PACS viewer; HIS↔Fund contract validation; the approved paediatric (PEWS) chart.
 7. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
@@ -157,6 +157,12 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Video consultations (WebRTC)                                                              | ✅                                  |
 | Structured dosing and dose-range checks by age and weight                                 | ✅ (demo dose limits)               |
 | Barcode medication administration, printed wristbands                                     | ✅                                  |
+| Death registration (WHO MCCD), civil-registry notification, mortality statistics          | ✅                                  |
+| Medical certificates (sick leave, fitness) with public QR verification                    | ✅                                  |
+| Elective waiting lists, maximum waits, published waiting times                            | ✅ (waits to validate)              |
+| Chronic disease registers, recalls, quality indicators                                    | ✅ (targets to confirm)             |
+| Patient safety incident and near-miss reporting                                           | ✅                                  |
+| Object storage for documents, document versions                                           | ✅                                  |
 
 ## Open decisions (§10) — needed from the project sponsor
 

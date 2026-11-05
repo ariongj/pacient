@@ -305,7 +305,10 @@ function HandleRequestDialog({
       <div className="stack">
         <DefinitionList
           items={[
-            [t('Patient'), `${localizedPatientName(request.patientName)} (${request.nationalId ?? ''})`],
+            [
+              t('Patient'),
+              `${localizedPatientName(request.patientName)} (${request.nationalId ?? ''})`,
+            ],
             [
               t('Received'),
               `${formatDateTime(request.receivedAt)} · ${VIA_LABELS[request.receivedVia]}`,

@@ -464,6 +464,25 @@ incidentsRouter.put('/reviewers', requireRole('DIRECTOR'), async (req, res) => {
   res.json({ userIds: unique });
 });
 
+/** Staff of the reviewer's facility (action owners) and who can review (reviewer assignment). */
+incidentsRouter.get('/staff', async (req, res) => {
+  const ctx = requireAuth(req);
+  if (!ctx.facilityId) throw forbidden('Only the facility’s incident reviewers can see this');
+  await assertReviewer(ctx, ctx.facilityId);
+  const staff = await db
+    .select({ id: users.id, fullName: users.fullName, role: users.role })
+    .from(users)
+    .where(
+      and(
+        eq(users.facilityId, ctx.facilityId),
+        eq(users.isActive, true),
+        inArray(users.role, ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR']),
+      ),
+    )
+    .orderBy(users.fullName);
+  res.json({ staff, reviewerIds: await reviewerIdsFor(ctx.facilityId) });
+});
+
 /* -------------------------------------------------------------------------------- dashboards -- */
 
 async function grouped(where: SQL, key: SQL) {

@@ -102,13 +102,17 @@ describe('issuing certificates', () => {
     const [entry] = await db
       .select()
       .from(auditLogs)
-      .where(and(eq(auditLogs.action, 'certificate.issued'), eq(auditLogs.resourceId, res.body.id)));
+      .where(
+        and(eq(auditLogs.action, 'certificate.issued'), eq(auditLogs.resourceId, res.body.id)),
+      );
     expect(entry).toMatchObject({ patientId: w.patient.id, actorUserId: w.users.doctor.id });
     const notes = await db
       .select()
       .from(notifications)
       .where(eq(notifications.userId, w.users.patientUser.id));
-    expect(notes.some((n) => n.type === 'certificate' && n.link === '/portal/certificates')).toBe(true);
+    expect(notes.some((n) => n.type === 'certificate' && n.link === '/portal/certificates')).toBe(
+      true,
+    );
     expect(notes.every((n) => !n.title.includes('J06'))).toBe(true);
   });
 
@@ -274,7 +278,9 @@ describe('issuing certificates', () => {
     ]);
 
     // The list reports the chain length and which certificate extends which.
-    const list = await api().get(`/api/v1/certificates/patients/${w.otherPatient.id}`).set(doctor());
+    const list = await api()
+      .get(`/api/v1/certificates/patients/${w.otherPatient.id}`)
+      .set(doctor());
     const firstItem = list.body.items.find((c: { id: string }) => c.id === first.body.id);
     expect(firstItem).toMatchObject({ days: 30, extendedById: second.body.id });
 
@@ -312,10 +318,7 @@ describe('issued certificates are immutable', () => {
   it('revokes by the issuer or the director, with a reason, once', async () => {
     const res = await issue({ kind: 'GENERAL', startDate: today, purpose: 'Për punëdhënësin' });
     const revoke = (token: string, reason = 'Lëshuar gabimisht') =>
-      api()
-        .post(`/api/v1/certificates/${res.body.id}/revoke`)
-        .set(bearer(token))
-        .send({ reason });
+      api().post(`/api/v1/certificates/${res.body.id}/revoke`).set(bearer(token)).send({ reason });
     expect((await revoke(w.tokens.colleague)).status).toBe(403);
     expect((await revoke(w.tokens.otherDirector)).status).toBe(403);
     expect((await revoke(w.tokens.doctor, 'x')).status).toBe(400);
@@ -481,6 +484,18 @@ describe('statistics and lookup', () => {
       (await api().get('/api/v1/certificates/stats').set(bearer(w.tokens.ministry))).status,
     ).toBe(200);
     expect((await api().get('/api/v1/certificates/stats').set(doctor())).status).toBe(403);
+  });
+
+  it('lists the certificates a doctor issued, without diagnoses', async () => {
+    const mine = await api().get('/api/v1/certificates/mine').set(doctor());
+    expect(mine.status).toBe(200);
+    expect(mine.body.items.length).toBeGreaterThan(5);
+    expect(mine.body.items[0].icd10Code).toBeUndefined();
+    const colleague = await api().get('/api/v1/certificates/mine').set(bearer(w.tokens.colleague));
+    expect(colleague.body.items).toEqual([]);
+    expect((await api().get('/api/v1/certificates/mine').set(bearer(w.tokens.nurse))).status).toBe(
+      403,
+    );
   });
 
   it('lets a director find a certificate of their facility by number', async () => {

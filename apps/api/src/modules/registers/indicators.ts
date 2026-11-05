@@ -60,7 +60,7 @@ function labMatch(s: Extract<CareProcessDef['source'], { kind: 'LAB' }>): SQL {
 }
 
 /** First number of a result value, as in numericValue() ("7,9" → 7.9). */
-const num = sql`substring(replace(l.value, ',', '.') from '[0-9]+(\\.[0-9]+)?')::numeric`;
+const num = sql`substring(replace(l.value, ',', '.') from '[0-9]+(?:\\.[0-9]+)?')::numeric`;
 
 function targetMet(def: CareProcessDef, target: TargetCode): SQL {
   if (target === 'BP') {

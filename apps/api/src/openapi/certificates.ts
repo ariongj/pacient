@@ -35,6 +35,7 @@ export const CERTIFICATES_OPERATIONS: ModuleOperation[] = [
       q('facilityId', uuid, 'Ministry only: limit to one facility'),
     ],
   }),
+  op('get', '/certificates/mine', C, 'Certificates I issued recently', { access: 'DOCTOR' }),
   textPath(
     op('get', '/certificates/by-serial/{serial}', C, 'Find a certificate by its number', {
       access: 'DIRECTOR (own facility)',

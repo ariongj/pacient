@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
 import { encounters, medicalCertificates, patients, users } from '../../db/schema.js';
@@ -71,6 +71,37 @@ certificatesRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (req
   const facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId : (q.facilityId ?? null);
   if (ctx.role === 'DIRECTOR' && !facilityId) throw forbidden();
   res.json(await certificateStats({ facilityId, from, to }));
+});
+
+/* -------------------------------------------------------------- issued by me ------------ */
+
+/** The signed-in doctor's most recently issued certificates (no diagnosis in the list). */
+certificatesRouter.get('/mine', requireRole('DOCTOR'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const rows = await db
+    .select({
+      id: medicalCertificates.id,
+      kind: medicalCertificates.kind,
+      serialNumber: medicalCertificates.serialNumber,
+      startDate: medicalCertificates.startDate,
+      endDate: medicalCertificates.endDate,
+      status: medicalCertificates.status,
+      issuedAt: medicalCertificates.issuedAt,
+      patientId: patients.id,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+    })
+    .from(medicalCertificates)
+    .innerJoin(patients, eq(patients.id, medicalCertificates.patientId))
+    .where(eq(medicalCertificates.issuedById, ctx.userId))
+    .orderBy(desc(medicalCertificates.issuedAt))
+    .limit(50);
+  res.json({
+    items: rows.map(({ firstName, lastName, ...r }) => ({
+      ...r,
+      patientName: `${firstName} ${lastName}`,
+    })),
+  });
 });
 
 /* --------------------------------------------------------- director lookup by number ------ */

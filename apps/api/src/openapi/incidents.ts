@@ -72,6 +72,9 @@ export const INCIDENTS_OPERATIONS: ModuleOperation[] = [
     access: 'DIRECTOR',
     body: obj({ userIds: arr(uuid, { maxItems: 50 }) }, ['userIds']),
   }),
+  op('get', '/incidents/staff', I, 'Facility staff and reviewers (for assigning)', {
+    access: REVIEWERS,
+  }),
   op('get', '/incidents/dashboard', I, 'Facility incident dashboard', {
     access: REVIEWERS,
     params: [months],

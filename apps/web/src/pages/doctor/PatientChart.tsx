@@ -67,6 +67,8 @@ interface PatientDemographics {
   primaryFacilityId: string;
   hasPortalAccount: boolean;
   inMyCare: boolean;
+  /** Set when a death certificate has been signed. */
+  deceasedAt?: string | null;
 }
 
 const TAB_IDS = [
@@ -213,6 +215,11 @@ export function PatientChart() {
                 type: p.bloodType === 'UNKNOWN' ? t('unknown') : p.bloodType,
               })}
             </span>
+            {p.deceasedAt && (
+              <Badge tone="danger">
+                {t('Deceased {date}', { date: formatDate(p.deceasedAt) })}
+              </Badge>
+            )}
             {p.hasPortalAccount && <Badge tone="success">{t('Portal user')}</Badge>}
           </div>
         </div>
@@ -344,7 +351,10 @@ export function PatientChart() {
                 count: s.counts.openCorrectionRequests,
               },
               { id: 'care-team', label: t('Care team') },
-              { id: 'death', label: t('Death certificate') },
+              // Doctors may certify; everyone else sees the tab once a death is recorded.
+              ...(user.role === 'DOCTOR' || p.deceasedAt
+                ? [{ id: 'death' as const, label: t('Death certificate') }]
+                : []),
             ]}
           />
           <TabPanel id={tab}>

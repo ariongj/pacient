@@ -340,7 +340,7 @@ describe('patient view and review items', () => {
       .select()
       .from(auditLogs)
       .where(
-        and(eq(auditLogs.patientId, w.patient.id), eq(auditLogs.action, 'patient.record_viewed')),
+        and(eq(auditLogs.patientId, w.patient.id), eq(auditLogs.action, 'patient.record.viewed')),
       );
     expect(viewed.some((v) => (v.metadata as { section?: string })?.section === 'registers')).toBe(
       true,
@@ -472,7 +472,8 @@ describe('recall list', () => {
     expect(entry.registers[0].items.every((i: { state: string }) => i.state === 'OVERDUE')).toBe(
       true,
     );
-    expect(entry.registers[0].targetsNotMet).toEqual([]); // the BP is older than 12 months? no: 300 days
+    // The last BP (300 days ago) is within 12 months and above target.
+    expect(entry.registers[0].targetsNotMet).toEqual(['BP']);
     expect(mine.body.counts.overdueItems).toBeGreaterThanOrEqual(3);
 
     const colleague = await api().get('/api/v1/registers/recalls').set(bearer(w.tokens.colleague));
@@ -662,7 +663,7 @@ describe('recall notifications', () => {
       await db.select().from(notifications).where(eq(notifications.userId, patientUser.id)),
     ).toHaveLength(1);
 
-    // A newly overdue item later is recalled on its own.
+    // An item already recalled stays quiet even after more data arrives …
     await db.insert(careProcessRecords).values({
       patientId: p.id,
       register: 'ASTHMA',
@@ -675,5 +676,19 @@ describe('recall notifications', () => {
     expect(
       await db.select().from(notifications).where(eq(notifications.userId, patientUser.id)),
     ).toHaveLength(1);
+    // … but items that become overdue later (here: a new register) are recalled on their own.
+    await enrolPatient(p.id, ['COPD'], { source: 'MANUAL' });
+    await db
+      .update(registerEnrolments)
+      .set({ enrolledAt: daysAgo(200) })
+      .where(and(eq(registerEnrolments.patientId, p.id), eq(registerEnrolments.register, 'COPD')));
+    await runRegisterRecallsOnce();
+    const after = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, patientUser.id));
+    expect(after).toHaveLength(2);
+    const newest = after.find((n) => n.link?.includes('COPD.'))!;
+    expect(newest.link).not.toContain('ASTHMA.');
   });
 });

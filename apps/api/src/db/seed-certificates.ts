@@ -31,7 +31,8 @@ export async function seedCertificates({
     .where(eq(users.email, 'patient@pacient.local'));
   if (!demo) return;
   const today = kosovoDate(new Date());
-  const at = (day: string, hour = 9) => new Date(`${day}T${String(hour - 1).padStart(2, '0')}:15:00Z`);
+  const at = (day: string, hour = 9) =>
+    new Date(`${day}T${String(hour - 1).padStart(2, '0')}:15:00Z`);
 
   const issue = async (
     values: Omit<

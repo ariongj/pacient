@@ -49,11 +49,10 @@ export interface CertificateListItem {
   chainDays: number | null;
 }
 
-export interface CertificateDetail
-  extends Omit<
-    CertificateListItem,
-    'issuedByName' | 'facilityName' | 'extendedById' | 'chainDays'
-  > {
+export interface CertificateDetail extends Omit<
+  CertificateListItem,
+  'issuedByName' | 'facilityName' | 'extendedById' | 'chainDays'
+> {
   verificationUrl: string;
   patient: {
     id: string;
@@ -151,7 +150,7 @@ export const outcomeLabel = (o: FitnessOutcome) => t(OUTCOME_LABELS[o]);
 
 export const stateLabel = (s: VerificationState) =>
   s === 'VALID'
-    ? t('Valid')
+    ? t('Valid|certificate')
     : s === 'EXPIRED'
       ? t('Genuine – the period has ended')
       : t('Revoked – not valid');
@@ -224,8 +223,7 @@ export interface CertificateLookup {
 export function useCertificateLookup(serial: string) {
   return useQuery({
     queryKey: ['certificate-lookup', serial],
-    queryFn: () =>
-      api<CertificateLookup>(`/certificates/by-serial/${encodeURIComponent(serial)}`),
+    queryFn: () => api<CertificateLookup>(`/certificates/by-serial/${encodeURIComponent(serial)}`),
     enabled: serial.length > 4,
     retry: false,
   });
@@ -234,8 +232,7 @@ export function useCertificateLookup(serial: string) {
 export function useVerifyCertificate(code: string) {
   return useQuery({
     queryKey: ['certificate-verify', code],
-    queryFn: () =>
-      api<CertificateVerification>(`/verify/certificates/${encodeURIComponent(code)}`),
+    queryFn: () => api<CertificateVerification>(`/verify/certificates/${encodeURIComponent(code)}`),
     enabled: Boolean(code),
     retry: false,
   });
@@ -256,3 +253,23 @@ export const todayKosovo = () =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+
+export interface MyCertificate {
+  id: string;
+  kind: CertificateKind;
+  serialNumber: string;
+  startDate: string;
+  endDate: string | null;
+  status: 'ISSUED' | 'REVOKED';
+  issuedAt: string;
+  patientId: string;
+  patientName: string;
+}
+
+export function useMyCertificates(enabled = true) {
+  return useQuery({
+    queryKey: ['certificates-mine'],
+    queryFn: () => api<{ items: MyCertificate[] }>('/certificates/mine').then((r) => r.items),
+    enabled,
+  });
+}

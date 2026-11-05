@@ -46,6 +46,7 @@ import {
   formValues,
 } from '../../components/ui';
 import { formatDate, formatDateTime, formatNumber } from '../../format';
+import { localizedPatientName } from '../../api/identity';
 
 type Tab = 'requests' | 'retention' | 'holds' | 'documents';
 const KINDS = Object.keys(KIND_LABELS) as RequestKind[];
@@ -181,7 +182,7 @@ function RequestsTab() {
                     {d.items.map((r) => (
                       <tr key={r.id}>
                         <td>
-                          <strong>{r.patientName}</strong>
+                          <strong>{localizedPatientName(r.patientName)}</strong>
                           <span className="muted" style={{ display: 'block' }}>
                             {r.nationalId}
                             {r.facilityName ? ` · ${r.facilityName}` : ''}
@@ -304,7 +305,7 @@ function HandleRequestDialog({
       <div className="stack">
         <DefinitionList
           items={[
-            [t('Patient'), `${request.patientName ?? ''} (${request.nationalId ?? ''})`],
+            [t('Patient'), `${localizedPatientName(request.patientName)} (${request.nationalId ?? ''})`],
             [
               t('Received'),
               `${formatDateTime(request.receivedAt)} · ${VIA_LABELS[request.receivedVia]}`,
@@ -620,7 +621,7 @@ function HoldsTab() {
                   {d.items.map((h) => (
                     <tr key={h.id}>
                       <td>
-                        <strong>{h.patientName}</strong>
+                        <strong>{localizedPatientName(h.patientName)}</strong>
                         <span className="muted" style={{ display: 'block' }}>
                           {h.nationalId}
                         </span>
@@ -700,7 +701,7 @@ function ReleaseHoldDialog({ hold, onClose }: { hold: LegalHold; onClose: () => 
       <form className="stack" onSubmit={submit}>
         <p>
           {t('Release the hold on {name}? Normal retention applies again afterwards.', {
-            name: hold.patientName,
+            name: localizedPatientName(hold.patientName),
           })}
         </p>
         <TextAreaField

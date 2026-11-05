@@ -66,11 +66,18 @@ vaccination calendar with due/overdue lists, reminders to parents and coverage b
 
 **Clinical safety and the rest of the hospital:** medication safety checks at prescribing and
 in the pharmacy (interactions, allergy cross-reactions, kidney function, age, pregnancy, duplicate
-therapy – overrides need a reason); NEWS2 early warning with escalation; blood bank and
+therapy – overrides need a reason); structured dosing with dose-range checks by age and weight;
+barcode medication administration with printed patient wristbands (wrong patient or wrong medicine
+can never be overridden); NEWS2 and paediatric PEWS early warning with escalation; blood bank and
 transfusions (compatibility, bedside two-person check, reactions); hospital nutrition (diet
 orders, malnutrition screening, kitchen lists, fasting before operations); notifiable disease
 reporting to public health with an outbreak dashboard; video consultations; billing with
 co-payments and monthly claims to the Health Insurance Fund.
+
+**Running a national service:** a downtime kit (hourly encrypted offline ward lists with
+allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
+recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
+(retention schedule, legal holds, data-subject requests, signed audit exports).
 
 **Account security:** passkeys (phishing-resistant sign-in), signed-in devices with remote
 sign-out, personal sign-in history and alerts on sign-in from a new device. The portal can be
@@ -194,6 +201,14 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   the block; _Paralajmërimi i hershëm (NEWS2)_ – the high-score patient; _Banka e gjakut_ and the
   _Transfuzionet_ tab; _Ushqyerja_ – today's kitchen list; _Sëmundjet ngjitëse_ – complete the
   measles case report.
+- **Dosing and bedside scanning** (doctor, nurse): prescribe with the dose builder and see the
+  dose-limit check (try a child without a recorded weight); _Printo byzylykun_ in the chart
+  header; _Skano dhe jep_ on the medicines tab – type the wristband code and a pack barcode
+  (`2900000000018` …) or use a handheld scanner; the children on _Pediatria_ are scored with PEWS.
+- **Downtime** (director): _Paketa për ndërprerje_ – start downtime mode (red banner for all
+  staff), download the offline pack, end downtime and work through the back-entry checklist.
+- **Data protection and system health** (ministry): _Mbrojtja e të dhënave_ – retention, legal
+  holds, requests from patients; _Gjendja e sistemit_ – workers, queues and backups.
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and
@@ -246,25 +261,33 @@ account with a one-off script or seed in a non-production environment).
 
 ## Scripts
 
-| Command                            | Purpose                                             |
-| ---------------------------------- | --------------------------------------------------- |
-| `npm run dev`                      | API (port 4000) and web (port 5173) with hot reload |
-| `npm test`                         | Integration test suite (uses `pacient_test`)        |
-| `npm run lint`                     | ESLint                                              |
-| `npm run typecheck`                | TypeScript, all workspaces                          |
-| `npm run build`                    | Production builds                                   |
-| `npm run db:migrate`               | Apply migrations                                    |
-| `npm run db:seed`                  | Load synthetic demo data (refuses in production)    |
-| `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`      |
-| `npm run lab:simulate -w apps/api` | Development laboratory system (see above)           |
-| `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                  |
-| `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it     |
+| Command                            | Purpose                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `npm run dev`                      | API (port 4000) and web (port 5173) with hot reload  |
+| `npm test`                         | Integration test suite (uses `pacient_test`)         |
+| `npm run lint`                     | ESLint                                               |
+| `npm run typecheck`                | TypeScript, all workspaces                           |
+| `npm run build`                    | Production builds                                    |
+| `npm run db:migrate`               | Apply migrations                                     |
+| `npm run db:seed`                  | Load synthetic demo data (refuses in production)     |
+| `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`       |
+| `npm run lab:simulate -w apps/api` | Development laboratory system (see above)            |
+| `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                   |
+| `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it      |
+| `deploy/pitr/pitr.sh`              | Point-in-time recovery (pgBackRest)                  |
+| `node scripts/downtime-sync.mjs`   | Copy the latest downtime pack to a ward PC           |
+| `npm run a11y`                     | Accessibility audit (axe, WCAG 2.2 AA) of every page |
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — modules, data model, request flow, API overview
 - [Security & privacy](docs/SECURITY.md) — access model, authentication, audit, threat mitigations
 - [Blueprint alignment](docs/BLUEPRINT-ALIGNMENT.md) — requirement-by-requirement status and roadmap
+- [Clinical safety case](docs/CLINICAL-SAFETY.md) — hazard log, controls and go-live conditions
+- [Privacy](docs/PRIVACY.md) — data protection, retention and data-subject rights
+- [Downtime](docs/DOWNTIME.md) — what to do when the system is unavailable, and recovery
+- [Partner API](docs/API.md) — keys, scopes, purpose of use, OpenAPI and FHIR
+- [Deployment](deploy/README.md) — production setup, backups, PITR and monitoring
 
 ## Status
 

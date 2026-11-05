@@ -95,6 +95,13 @@ export function displayName(p: {
   return `${p.firstName} ${p.lastName}`;
 }
 
+/** A server-composed "First Last" name: unidentified records ("Unknown #4821") are translated. */
+export function localizedPatientName(name: string | null | undefined): string {
+  if (!name) return '';
+  const unknown = /^Unknown (#\S+)$/.exec(name);
+  return unknown ? t('Unknown patient {code}', { code: unknown[1]! }) : name;
+}
+
 export const DELIVERY_TYPES: DeliveryType[] = [
   'SPONTANEOUS_VAGINAL',
   'ASSISTED_VAGINAL',

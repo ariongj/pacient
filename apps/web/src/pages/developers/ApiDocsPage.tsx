@@ -23,6 +23,35 @@ const AUTH_LABEL = (security: OpenApiOperation['security']) => {
   );
 };
 
+/**
+ * Who may call an endpoint ("DOCTOR, NURSE (care team), the patient"), translated part by part:
+ * role codes and their qualifiers separately, partner scopes (fhir.patient.read) unchanged.
+ */
+export function accessLabel(access: string): string {
+  const whole = t(access);
+  if (whole !== access) return whole;
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of access) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else current += ch;
+  }
+  parts.push(current.trim());
+  return parts
+    .map((part) => {
+      if (/^[a-z]+(\.[a-z]+)+$/.test(part)) return part;
+      const role = /^([A-Z]+) \((.+)\)$/.exec(part);
+      if (role) return `${t(role[1]!)} (${t(role[2]!)})`;
+      return t(part);
+    })
+    .join(', ');
+}
+
 /** Short JSON Schema rendering: { field: type, … } with required fields marked. */
 function schemaSummary(schema: Record<string, unknown> | undefined): string {
   if (!schema) return '';
@@ -166,7 +195,7 @@ function Reference({ doc, filter }: { doc: OpenApiDocument; filter: string }) {
                   <span>{t(op.summary)}</span>
                   <span className="muted" style={{ marginLeft: 'auto', fontSize: '0.85rem' }}>
                     {AUTH_LABEL(op.security)}
-                    {op['x-access'] ? ` · ${op['x-access']}` : ''}
+                    {op['x-access'] ? ` · ${accessLabel(op['x-access'])}` : ''}
                   </span>
                 </summary>
                 <div className="stack" style={{ gap: '0.5rem', marginTop: '0.6rem' }}>

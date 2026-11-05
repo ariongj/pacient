@@ -85,7 +85,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Modular monolith with explicit domain modules                                 |               ✅               |
 | Relational transactional store; transactions around record changes + audit    |               ✅               |
 | MFA (TOTP + recovery codes), mandatory for staff                              |               ✅               |
-| Managed identity provider / OIDC, passkeys                                    |               ⏳               |
+| Passkeys (WebAuthn); managed identity provider / OIDC                         |      ✅ passkeys; OIDC ⏳      |
 | Transactional event delivery (NOTIFY inside the transaction) for live updates |               ✅               |
 | Durable outbox for email and SMS; integration message log                     |               ✅               |
 | FHIR R4 export (Patient/$everything, ICD-10, LOINC/UCUM)                      | ✅ (validate partner profiles) |
@@ -93,40 +93,44 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Security, privacy and reporting (§7)
 
-| Requirement                                                       |       Status        |
-| ----------------------------------------------------------------- | :-----------------: |
-| Director views scoped to own facility, aggregate by default       |         ✅          |
-| Ministry aggregate-only, small-cell suppression                   |         ✅          |
-| Identifiable drill-down for the Ministry disabled                 | ✅ (does not exist) |
-| Protected audit logs; minimal clinical content in diagnostic logs |         ✅          |
-| Transport security headers, no-store caching                      |         ✅          |
-| Staff MFA; protected recovery (single-use codes, reset links)     |         ✅          |
-| Purpose-specific reports with suppression and export controls     |  ✅ (audited CSV)   |
-| Encryption at rest, KMS, environment separation                   |   ⏳ (deployment)   |
+| Requirement                                                                 |       Status        |
+| --------------------------------------------------------------------------- | :-----------------: |
+| Director views scoped to own facility, aggregate by default                 |         ✅          |
+| Ministry aggregate-only, small-cell suppression                             |         ✅          |
+| Identifiable drill-down for the Ministry disabled                           | ✅ (does not exist) |
+| Protected audit logs; minimal clinical content in diagnostic logs           |         ✅          |
+| Transport security headers, no-store caching                                |         ✅          |
+| Staff MFA; protected recovery (single-use codes, reset links)               |         ✅          |
+| Purpose-specific reports with suppression and export controls               |  ✅ (audited CSV)   |
+| Encryption at rest, KMS, environment separation                             |   ⏳ (deployment)   |
+| Retention schedule, legal holds, data-subject requests, signed audit export |  ✅ (`PRIVACY.md`)  |
 
 ## Reliability and governance (§8)
 
-| Requirement                                          |                                         Status                                          |
-| ---------------------------------------------------- | :-------------------------------------------------------------------------------------: |
-| Health/readiness probes, graceful shutdown           |                                           ✅                                            |
-| Migrations tested against a fresh database in CI     |                                           ✅                                            |
-| Encrypted backups with scripted restore verification |                                           ✅                                            |
-| PITR (WAL archiving), downtime procedures            |                                     ⏳ (operations)                                     |
-| Hazard log, clinical safety case, release sign-off   |                                     ⏳ (governance)                                     |
-| WCAG 2.2 AA                                          | 🟡 designed for (labels, focus, non-colour status, keyboard tabs); formal evaluation ⏳ |
+| Requirement                                          |                                                Status                                                 |
+| ---------------------------------------------------- | :---------------------------------------------------------------------------------------------------: |
+| Health/readiness probes, graceful shutdown           |                                                  ✅                                                   |
+| Metrics, alert rules and dashboards                  |                                       ✅ (`deploy/monitoring/`)                                       |
+| Migrations tested against a fresh database in CI     |                                                  ✅                                                   |
+| Encrypted backups with scripted restore verification |                                                  ✅                                                   |
+| PITR (WAL archiving), downtime procedures            |                         ✅ scripted (pgBackRest, downtime kit); rehearsal ⏳                          |
+| Hazard log, clinical safety case, release sign-off   |                          ✅ written (`CLINICAL-SAFETY.md`); CSO sign-off ⏳                           |
+| WCAG 2.2 AA                                          | 🟡 automated axe audit clean on every page (`npm run a11y`); formal evaluation with screen readers ⏳ |
 
 ## Suggested next backlog (in order)
 
-1. **Validated drug-interaction database** for pharmacy decision support; barcode administration.
-2. SMTP relay with SPF/DKIM/DMARC; passkeys or OIDC (§7).
-3. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
-4. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
-5. Licensed drug knowledge base (replace the demo set); certified PACS viewer; HIS↔Fund contract
-   validation; clinical safety case and hazard log; penetration test and accessibility audit.
-6. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
-   needed) and add RIS/PACS (B07).
-7. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
-8. PITR and downtime rehearsal; accessibility evaluation; independent security review (B09–B10).
+1. **Licensed drug knowledge base** replacing the demo interaction set and dose limits; review by a
+   clinical pharmacist and the CSO.
+2. **Rehearse** the downtime procedure and a point-in-time restore; agree recovery objectives.
+3. SMTP relay with SPF/DKIM/DMARC; OIDC with the national identity provider (§7).
+4. **Object storage** (S3-compatible, KMS) for documents at scale; document versioning.
+5. Jurisdiction-specific rules for adolescent confidentiality and consent age (B06).
+6. Certified PACS viewer; HIS↔Fund contract validation; the approved paediatric (PEWS) chart.
+7. **Validate the LIS interface with the real laboratory** (their HL7 v2 profile, MLLP bridge if
+   needed) and RIS/PACS with the modalities (B07).
+8. **FHIR profile validation** with a real partner (IPS) and inbound FHIR interfaces.
+9. Independent penetration test; formal accessibility evaluation; clinical review of the Albanian
+   and Serbian texts (B09–B10).
 
 ## Hospital modules (added)
 
@@ -145,12 +149,14 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Passkeys, session management, new-device alerts                                           | ✅                                  |
 | Serbian interface                                                                         | ✅                                  |
 | Medication safety: interactions, allergies, kidney, age, pregnancy, overrides             | ✅ (demo knowledge base)            |
-| NEWS2 early warning with escalation                                                       | ✅                                  |
+| NEWS2 and paediatric PEWS early warning with escalation                                   | ✅ (PEWS thresholds illustrative)   |
 | Blood bank and transfusion safety, haemovigilance                                         | ✅                                  |
 | Hospital nutrition: diet orders, screening, kitchen lists                                 | ✅                                  |
 | Billing, co-payments, Health Insurance Fund claims                                        | ✅ (demo tariff)                    |
 | Notifiable disease surveillance and outbreak alerts                                       | ✅ (list to verify with IKShPK)     |
 | Video consultations (WebRTC)                                                              | ✅                                  |
+| Structured dosing and dose-range checks by age and weight                                 | ✅ (demo dose limits)               |
+| Barcode medication administration, printed wristbands                                     | ✅                                  |
 
 ## Open decisions (§10) — needed from the project sponsor
 

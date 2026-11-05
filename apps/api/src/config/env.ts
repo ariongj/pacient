@@ -60,6 +60,36 @@ const EnvSchema = z.object({
   CLAMAV_HOST: z.string().optional(),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
   /**
+   * Where new documents are stored: 'db' (encrypted in PostgreSQL, default) or 's3' (encrypted
+   * objects in S3-compatible storage such as MinIO, Ceph or AWS S3). Documents are encrypted by
+   * the API before upload, so the object store only ever holds ciphertext. Existing documents are
+   * read from wherever they were stored, so both can coexist.
+   */
+  STORAGE_BACKEND: z.enum(['db', 's3']).default('db'),
+  /** e.g. https://s3.eu-central-1.amazonaws.com or http://minio:9000 (development only). */
+  STORAGE_S3_ENDPOINT: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  STORAGE_S3_REGION: z.string().min(1).default('us-east-1'),
+  STORAGE_S3_BUCKET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'STORAGE_S3_BUCKET must be a valid bucket name')
+      .optional(),
+  ),
+  STORAGE_S3_ACCESS_KEY_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  STORAGE_S3_SECRET_ACCESS_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().optional(),
+  ),
+  /** Path-style URLs (endpoint/bucket/key) – needed for MinIO; AWS uses virtual-hosted style. */
+  STORAGE_S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('false'),
+  /** Optional server-side encryption on top of the application's own encryption. */
+  STORAGE_S3_SSE: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['AES256', 'aws:kms']).optional(),
+  ),
+  STORAGE_S3_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  /**
    * Image archive for radiology: 'dicomweb' (a PACS such as Orthanc via DICOMweb), 'demo'
    * (built-in synthetic images, development only) or 'off'. Default: demo outside production.
    */
@@ -214,6 +244,30 @@ function loadEnv(): Env {
   if (pacsMode === 'demo' && data.NODE_ENV === 'production') {
     throw new Error(
       'Invalid environment configuration:\n  - PACS_MODE=demo (synthetic images) is not allowed in production',
+    );
+  }
+  if (data.STORAGE_BACKEND === 's3') {
+    const missing = (
+      [
+        'STORAGE_S3_ENDPOINT',
+        'STORAGE_S3_BUCKET',
+        'STORAGE_S3_ACCESS_KEY_ID',
+        'STORAGE_S3_SECRET_ACCESS_KEY',
+      ] as const
+    ).filter((k) => !data[k]);
+    if (missing.length) {
+      throw new Error(
+        `Invalid environment configuration:\n  - ${missing.join(', ')} required when STORAGE_BACKEND=s3`,
+      );
+    }
+  }
+  if (
+    data.NODE_ENV === 'production' &&
+    data.STORAGE_S3_ENDPOINT &&
+    new URL(data.STORAGE_S3_ENDPOINT).protocol !== 'https:'
+  ) {
+    throw new Error(
+      'Invalid environment configuration:\n  - STORAGE_S3_ENDPOINT must use https in production',
     );
   }
   if (data.NODE_ENV === 'production' && !data.MFA_ENCRYPTION_KEY) {

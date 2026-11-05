@@ -1,10 +1,11 @@
-import express, { Router, type RequestHandler } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import express, { Router, type Request, type RequestHandler } from 'express';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '../../db/client.js';
-import { documentCategoryEnum, documentContents, patientDocuments } from '../../db/schema.js';
+import { db, type Executor } from '../../db/client.js';
+import { documentCategoryEnum, patientDocuments } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, HttpError } from '../../lib/errors.js';
-import { parse, requestMeta, requireAuth } from '../../lib/http.js';
+import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { sealBuffer } from '../../lib/secret-box.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -21,14 +22,23 @@ import {
   ALLOWED_TYPES,
   getDocument,
   listDocuments,
+  listVersions,
   matchesSignature,
   MAX_DOCUMENT_BYTES,
+  publicDocument,
   readContent,
   safeFileName,
   sha256,
   type AllowedType,
 } from './documents.service.js';
 import { getScanner } from './scanner.js';
+import {
+  configuredBackend,
+  documentKey,
+  StorageUnavailableError,
+  writeSealedContent,
+  type StorageBackend,
+} from '../storage/storage.js';
 
 /**
  * Documents in a patient's record: scanned letters, reports, photos and signed consent forms.
@@ -74,10 +84,11 @@ const authoriseUpload: RequestHandler = async (req, _res, next) => {
 
 const rawBody = express.raw({ type: [...ALLOWED_TYPES], limit: MAX_DOCUMENT_BYTES });
 
-documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
-  const ctx = requireAuth(req);
-  const { patientId } = parse(PatientParam, req.params);
-  const q = parse(UploadQuery, req.query);
+/**
+ * Checks an uploaded body (declared type, file signature, optional malware scan). Rejections are
+ * audited against the patient.
+ */
+async function checkUpload(req: Request, ctx: AuthContext, patientId: string) {
   const meta = requestMeta(req);
   const declared = (req.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
   if (!ALLOWED_TYPES.includes(declared as AllowedType) || !Buffer.isBuffer(req.body)) {
@@ -133,12 +144,58 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
     }
     scanStatus = 'CLEAN';
   }
+  return { type, content, fileName, scanStatus };
+}
+
+/** Encrypts and stores new content; storage outages become 503 (nothing is recorded). */
+/** Backend and object key for a new document (decided before the row is written). */
+function plannedStorage(id: string, createdAt: Date) {
+  const storageBackend = configuredBackend();
+  return {
+    storageBackend,
+    storageKey: storageBackend === 'S3' ? documentKey(id, createdAt) : null,
+  };
+}
+
+async function storeContent(
+  tx: Executor,
+  doc: { id: string; createdAt: Date },
+  content: Buffer,
+  backend: StorageBackend,
+) {
+  try {
+    return await writeSealedContent(tx, doc, sealBuffer(content), backend);
+  } catch (err) {
+    if (err instanceof StorageUnavailableError) {
+      logger.error({ err, documentId: doc.id }, 'Document storage unavailable');
+      throw new HttpError(
+        503,
+        'STORAGE_UNAVAILABLE',
+        'Uploads are temporarily unavailable. Please try again shortly.',
+      );
+    }
+    throw err;
+  }
+}
+
+documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
+  const ctx = requireAuth(req);
+  const { patientId } = parse(PatientParam, req.params);
+  const q = parse(UploadQuery, req.query);
+  const meta = requestMeta(req);
+  const { type, content, fileName, scanStatus } = await checkUpload(req, ctx, patientId);
 
   const fromPatient = ctx.role === 'PATIENT';
   if (!fromPatient && !q.category) throw badRequest('Choose a document category');
   if (!fromPatient && q.encounterId)
     await assertEncounterBelongsToPatient(q.encounterId, patientId);
+  const id = randomUUID();
+  const createdAt = new Date();
+  const placement = plannedStorage(id, createdAt);
   const values = {
+    id,
+    createdAt,
+    ...placement,
     patientId,
     encounterId: fromPatient ? null : (q.encounterId ?? null),
     category: fromPatient ? ('PATIENT_PROVIDED' as const) : q.category!,
@@ -157,7 +214,7 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
 
   const doc = await db.transaction(async (tx) => {
     const [row] = await tx.insert(patientDocuments).values(values).returning();
-    await tx.insert(documentContents).values({ documentId: row!.id, content: sealBuffer(content) });
+    const stored = await storeContent(tx, { id, createdAt }, content, placement.storageBackend);
     await audit(
       {
         action: AuditAction.DOCUMENT_UPLOADED,
@@ -172,6 +229,7 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
           scanStatus,
           basis: req.documentAccess,
           sharedWithPatient: row!.visibleToPatient,
+          storage: stored.storageBackend,
         },
       },
       tx,
@@ -200,7 +258,147 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
     }
     return row!;
   });
-  res.status(201).json(doc);
+  res.status(201).json(publicDocument(doc));
+});
+
+const VersionQuery = z.object({ title: z.string().trim().min(2).max(200).optional() });
+
+/**
+ * A new version of a document (e.g. a corrected or signed letter). It keeps the category,
+ * visit and sharing of the version it replaces; that version stays readable in the history.
+ * Staff version care-team documents, patients version the documents they provided. Only the
+ * latest version can be replaced – the unique index on previous_version_id guarantees a single
+ * line of versions even when two people upload at the same moment.
+ */
+documentsRouter.post('/:documentId/versions', authoriseUpload, rawBody, async (req, res) => {
+  const ctx = requireAuth(req);
+  const { patientId, documentId } = parse(DocumentParams, req.params);
+  const q = parse(VersionQuery, req.query);
+  const meta = requestMeta(req);
+  const basis = req.documentAccess!;
+  const previous = await getDocument(patientId, documentId, viewFor(basis));
+  const fromPatient = ctx.role === 'PATIENT';
+  if (fromPatient ? previous.source !== 'PATIENT' : previous.source !== 'STAFF') {
+    throw forbidden(
+      fromPatient
+        ? 'You can only replace documents you added yourself'
+        : 'Documents provided by the patient can only be replaced by the patient',
+    );
+  }
+  if (previous.supersededAt) throw conflict('A newer version of this document already exists');
+  if (previous.status !== 'CURRENT') throw conflict('This document was entered in error');
+  const { type, content, fileName, scanStatus } = await checkUpload(req, ctx, patientId);
+
+  const id = randomUUID();
+  const createdAt = new Date();
+  const placement = plannedStorage(id, createdAt);
+  let doc;
+  try {
+    doc = await db.transaction(async (tx) => {
+      // Lock the version being replaced so concurrent uploads cannot both succeed.
+      const [locked] = await tx
+        .update(patientDocuments)
+        .set({ supersededAt: createdAt })
+        .where(
+          and(
+            eq(patientDocuments.id, previous.id),
+            isNull(patientDocuments.supersededAt),
+            eq(patientDocuments.status, 'CURRENT'),
+          ),
+        )
+        .returning({ id: patientDocuments.id });
+      if (!locked) throw conflict('A newer version of this document already exists');
+      const [row] = await tx
+        .insert(patientDocuments)
+        .values({
+          id,
+          createdAt,
+          ...placement,
+          patientId,
+          encounterId: previous.encounterId,
+          category: previous.category,
+          title: q.title ?? previous.title,
+          fileName,
+          mimeType: type,
+          sizeBytes: content.length,
+          sha256: sha256(content),
+          scanStatus,
+          source: previous.source,
+          visibleToPatient: previous.visibleToPatient,
+          confidentialFromGuardians: previous.confidentialFromGuardians,
+          facilityId: ctx.facilityId ?? null,
+          uploadedById: ctx.userId,
+          version: previous.version + 1,
+          previousVersionId: previous.id,
+        })
+        .returning();
+      const stored = await storeContent(tx, { id, createdAt }, content, placement.storageBackend);
+      await audit(
+        {
+          action: AuditAction.DOCUMENT_VERSION_ADDED,
+          actor: ctx,
+          resourceType: 'document',
+          resourceId: id,
+          patientId,
+          meta,
+          metadata: {
+            previousVersionId: previous.id,
+            version: row!.version,
+            category: row!.category,
+            sizeBytes: row!.sizeBytes,
+            scanStatus,
+            basis,
+            storage: stored.storageBackend,
+          },
+        },
+        tx,
+      );
+      if (fromPatient) {
+        await notifyCareTeam(
+          patientId,
+          {
+            type: 'document',
+            title: 'A patient added a document to their record',
+            link: `/doctor/patients/${patientId}?tab=documents`,
+          },
+          tx,
+        );
+      } else if (row!.visibleToPatient) {
+        await notifyPatient(
+          patientId,
+          {
+            type: 'document',
+            title: 'A new document is available in your record',
+            link: '/portal/documents',
+          },
+          tx,
+          { guardians: row!.confidentialFromGuardians ? 'none' : 'full' },
+        );
+      }
+      return row!;
+    });
+  } catch (err) {
+    // Unique index on previous_version_id: someone else replaced it first.
+    if (
+      (err as { code?: string; cause?: { code?: string } }).code === '23505' ||
+      (err as { cause?: { code?: string } }).cause?.code === '23505'
+    ) {
+      throw conflict('A newer version of this document already exists');
+    }
+    throw err;
+  }
+  res.status(201).json(publicDocument(doc));
+});
+
+/** All versions of a document, newest first (each as visible to the caller). */
+documentsRouter.get('/:documentId/versions', async (req, res) => {
+  const ctx = requireAuth(req);
+  const { patientId, documentId } = parse(DocumentParams, req.params);
+  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const view = viewFor(basis);
+  await getDocument(patientId, documentId, view);
+  const items = await listVersions(patientId, documentId, view);
+  res.json({ items: items.map(publicDocument) });
 });
 
 documentsRouter.get('/', async (req, res) => {
@@ -208,7 +406,7 @@ documentsRouter.get('/', async (req, res) => {
   const { patientId } = parse(PatientParam, req.params);
   const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
   const items = await listDocuments(patientId, viewFor(basis));
-  res.json({ items: items.map(({ sha256: _h, ...d }) => d) });
+  res.json({ items: items.map(publicDocument) });
 });
 
 documentsRouter.get('/:documentId/content', async (req, res) => {
@@ -217,7 +415,7 @@ documentsRouter.get('/:documentId/content', async (req, res) => {
   const meta = requestMeta(req);
   const basis = await resolveClinicalReadAccess(ctx, patientId, meta);
   const doc = await getDocument(patientId, documentId, viewFor(basis));
-  const content = await readContent(doc.id, doc.sha256);
+  const content = await readContent(doc);
   await audit({
     action: AuditAction.DOCUMENT_VIEWED,
     actor: ctx,
@@ -264,6 +462,7 @@ documentsRouter.patch('/:documentId', async (req, res) => {
     hideConfidential: false,
   });
   if (doc.status !== 'CURRENT') throw conflict('This document was entered in error');
+  if (doc.supersededAt) throw conflict('Change the sharing of the latest version instead');
   if (doc.source === 'PATIENT' && input.visibleToPatient === false) {
     throw badRequest('Documents the patient provided always stay visible to them');
   }
@@ -300,7 +499,7 @@ documentsRouter.patch('/:documentId', async (req, res) => {
     }
     return row!;
   });
-  res.json(updated);
+  res.json(publicDocument(updated));
 });
 
 documentsRouter.post('/:documentId/entered-in-error', async (req, res) => {
@@ -344,5 +543,5 @@ documentsRouter.post('/:documentId/entered-in-error', async (req, res) => {
     return rows;
   });
   if (!row) throw conflict('Already marked as entered in error');
-  res.json(row);
+  res.json(publicDocument(row));
 });

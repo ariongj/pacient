@@ -28,8 +28,9 @@ export async function runAppointmentRemindersOnce(now = new Date()): Promise<num
       mode: string;
     }>(sql`
       UPDATE appointments a SET reminder_sent_at = ${now.toISOString()}
-      FROM users d
-      WHERE d.id = a.doctor_id AND a.status = 'CONFIRMED' AND a.reminder_sent_at IS NULL
+      FROM users d, patients p
+      WHERE d.id = a.doctor_id AND p.id = a.patient_id AND p.deceased_at IS NULL
+        AND a.status = 'CONFIRMED' AND a.reminder_sent_at IS NULL
         AND a.scheduled_at >= ${from.toISOString()} AND a.scheduled_at < ${to.toISOString()}
       RETURNING a.id, a.patient_id, a.scheduled_at, a.mode, d.full_name AS doctor_name`);
     for (const row of claimed.rows) {

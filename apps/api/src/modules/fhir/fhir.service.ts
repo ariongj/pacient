@@ -54,6 +54,8 @@ function patientWithIdentity(
       { url: 'urn:pacient:temporary-identity', valueCode: p.temporaryIdentity.toLowerCase() },
     ];
   }
+  // A signed death certificate sets deceasedAt (see modules/deaths).
+  if (p.deceasedAt) base.deceasedDateTime = p.deceasedAt.toISOString();
   if (typeof multipleBirth === 'number') base.multipleBirthInteger = multipleBirth;
   else if (multipleBirth === false) base.multipleBirthBoolean = false;
   if (minimal) {

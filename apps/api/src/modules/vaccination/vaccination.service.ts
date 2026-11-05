@@ -186,7 +186,8 @@ export async function runVaccinationRemindersOnce(now = new Date()): Promise<num
       SELECT p.id, p.first_name, p.user_id, p.date_of_birth,
              (${today}::date - p.date_of_birth) AS age_days
       FROM patients p
-      WHERE p.merged_into_id IS NULL AND p.date_of_birth > (${today}::date - interval '18 years')
+      WHERE p.merged_into_id IS NULL AND p.deceased_at IS NULL
+        AND p.date_of_birth > (${today}::date - interval '18 years')
     )
     SELECT k.id AS patient_id, vs.id AS schedule_item_id, vs.code, vs.vaccine, k.first_name,
            k.user_id, k.age_days,

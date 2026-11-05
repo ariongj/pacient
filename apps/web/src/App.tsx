@@ -107,6 +107,7 @@ export function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/setup-two-step" element={<MfaSetupPage />} />
+      <Route path="/verify" element={<VerifyCertificatePage />} />
       <Route path="/verify/:code" element={<VerifyCertificatePage />} />
       <Route path="/" element={<HomeRedirect />} />
 

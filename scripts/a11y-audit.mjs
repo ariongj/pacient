@@ -52,7 +52,14 @@ const PAGES = {
     '/messages',
     '/channels',
   ],
-  'nurse@pacient.local': ['/nurse', '/nutrition', '/vaccinations/due', '/births', '/identities'],
+  'nurse@pacient.local': [
+    '/nurse',
+    '/downtime',
+    '/nutrition',
+    '/vaccinations/due',
+    '/births',
+    '/identities',
+  ],
   'pharmacist@pacient.local': ['/pharmacy', '/pharmacy/stock'],
   'reception@pacient.local': ['/reception', '/reception/patients', '/billing'],
   'director@pacient.local': [
@@ -62,6 +69,8 @@ const PAGES = {
     '/director/units',
     '/director/duplicates',
     '/director/integrations',
+    '/downtime',
+    '/privacy',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -71,6 +80,8 @@ const PAGES = {
     '/ministry/stock',
     '/ministry/vaccination',
     '/developers',
+    '/privacy',
+    '/ministry/system',
   ],
 };
 

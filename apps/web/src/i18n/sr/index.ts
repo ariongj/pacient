@@ -33,6 +33,7 @@ import { certificates } from './certificates';
 import { waiting } from './waiting';
 import { registers } from './registers';
 import { incidents } from './incidents';
+import { storage } from './storage';
 
 export const sr: Record<string, string> = {
   ...common,
@@ -70,4 +71,5 @@ export const sr: Record<string, string> = {
   ...waiting,
   ...registers,
   ...incidents,
+  ...storage,
 };

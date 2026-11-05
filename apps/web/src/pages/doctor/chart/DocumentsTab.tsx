@@ -27,6 +27,11 @@ import { formatDateTime, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
+import {
+  DocumentHistoryDialog,
+  NewVersionDialog,
+  VersionBadge,
+} from '../../shared/DocumentVersions';
 
 const STAFF_CATEGORIES = (Object.keys(CATEGORY_LABELS) as DocumentCategory[]).filter(
   (c) => c !== 'PATIENT_PROVIDED',
@@ -45,6 +50,8 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
   const [fileError, setFileError] = useState<string | null>(null);
   const [inError, setInError] = useState<PatientDocument | null>(null);
   const [openError, setOpenError] = useState<unknown>(null);
+  const [history, setHistory] = useState<PatientDocument | null>(null);
+  const [replacing, setReplacing] = useState<PatientDocument | null>(null);
 
   const upload = useMutation({
     mutationFn: (v: { file: File; meta: Parameters<typeof uploadDocument>[2] }) =>
@@ -143,6 +150,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                           <Badge tone={d.source === 'PATIENT' ? 'warning' : 'neutral'}>
                             {CATEGORY_LABELS[d.category]}
                           </Badge>
+                          <VersionBadge doc={d} />
                           {!current && <Badge tone="danger">{t('Entered in error')}</Badge>}
                         </div>
                         <div className="muted">
@@ -188,6 +196,16 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                           >
                             {t('Open|action')}
                           </Button>
+                          {d.version > 1 && (
+                            <Button size="sm" variant="secondary" onClick={() => setHistory(d)}>
+                              {t('Version history')}
+                            </Button>
+                          )}
+                          {canUpload && current && d.source === 'STAFF' && (
+                            <Button size="sm" variant="secondary" onClick={() => setReplacing(d)}>
+                              {t('Upload new version')}
+                            </Button>
+                          )}
                           {isDoctor && current && d.source === 'STAFF' && (
                             <Button
                               size="sm"
@@ -324,8 +342,10 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
           }}
         >
           <p className="muted">
-            “{inError?.title}” stays in the record for audit but is hidden from the patient and
-            flagged for the care team. This cannot be undone.
+            {t(
+              '“{title}” stays in the record for audit but is hidden from the patient and flagged for the care team. This cannot be undone.',
+              { title: inError?.title ?? '' },
+            )}
           </p>
           <TextAreaField
             label={t('Reason')}
@@ -347,6 +367,13 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
           </div>
         </form>
       </Dialog>
+
+      <DocumentHistoryDialog doc={history} onClose={() => setHistory(null)} />
+      <NewVersionDialog
+        doc={replacing}
+        onClose={() => setReplacing(null)}
+        onDone={() => void qc.invalidateQueries({ queryKey: ['patient', patientId] })}
+      />
     </Card>
   );
 }

@@ -40,6 +40,38 @@ services:
   #     - '127.0.0.1:4242:4242'
   #   volumes:
   #     - dev-orthanc:/var/lib/orthanc/db
+  # Optional S3-compatible object storage for documents. Uncomment, then set in apps/api/.env:
+  #   STORAGE_BACKEND=s3
+  #   STORAGE_S3_ENDPOINT=http://localhost:9000
+  #   STORAGE_S3_BUCKET=pacient-documents
+  #   STORAGE_S3_ACCESS_KEY_ID=pacient
+  #   STORAGE_S3_SECRET_ACCESS_KEY=pacient-dev-secret
+  #   STORAGE_S3_FORCE_PATH_STYLE=true
+  # The minio-init service creates the private bucket with versioning. Console: http://localhost:9001
+  # Move existing documents with: npm run documents:migrate-to-s3 -w apps/api
+  # minio:
+  #   image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+  #   command: ['server', '/data', '--console-address', ':9001']
+  #   environment:
+  #     MINIO_ROOT_USER: pacient
+  #     MINIO_ROOT_PASSWORD: pacient-dev-secret
+  #   ports:
+  #     - '127.0.0.1:9000:9000'
+  #     - '127.0.0.1:9001:9001'
+  #   volumes:
+  #     - dev-minio:/data
+  # minio-init:
+  #   image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+  #   depends_on: [minio]
+  #   entrypoint:
+  #     - sh
+  #     - -c
+  #     - >-
+  #       until mc alias set local http://minio:9000 pacient pacient-dev-secret; do sleep 1; done;
+  #       mc mb --ignore-existing local/pacient-documents &&
+  #       mc version enable local/pacient-documents &&
+  #       mc anonymous set none local/pacient-documents
 volumes:
   dev-db:
   # dev-orthanc:
+  # dev-minio:

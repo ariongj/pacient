@@ -464,6 +464,7 @@ export function documentReferenceResource(
     createdAt: string | Date;
     uploadedById: string;
     uploadedByRole: string;
+    previousVersionId?: string | null;
   },
   patientId: string,
   contentUrl: string,
@@ -484,6 +485,10 @@ export function documentReferenceResource(
     ],
     description: d.title,
     context: d.encounterId ? { encounter: [ref('Encounter', d.encounterId)] } : undefined,
+    // A new version replaces the previous one (superseded versions are not exported).
+    relatesTo: d.previousVersionId
+      ? [{ code: 'replaces', target: ref('DocumentReference', d.previousVersionId) }]
+      : undefined,
     content: [
       {
         attachment: {

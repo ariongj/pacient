@@ -1,5 +1,5 @@
 import { t } from '../i18n';
-import { apiRaw, apiUpload } from './client';
+import { api, apiRaw, apiUpload } from './client';
 
 export type DocumentCategory =
   | 'REFERRAL_LETTER'
@@ -27,6 +27,11 @@ export interface PatientDocument {
   status: 'CURRENT' | 'ENTERED_IN_ERROR';
   errorReason: string | null;
   markedInErrorAt: string | null;
+  /** 1 for the first upload; the latest version's number is also the number of versions. */
+  version: number;
+  previousVersionId: string | null;
+  /** Set when a newer version replaced this one. */
+  supersededAt: string | null;
   createdAt: string;
   uploadedById: string;
   uploadedBy: string;
@@ -123,4 +128,21 @@ export async function openDocument(doc: PatientDocument) {
     tab?.close();
     throw err;
   }
+}
+
+/** Uploads a new version of a document (same category, visit and sharing; title may change). */
+export function uploadDocumentVersion(doc: PatientDocument, file: File, title?: string) {
+  return apiUpload<PatientDocument>(
+    `/patients/${doc.patientId}/documents/${doc.id}/versions`,
+    file,
+    file.name,
+    { title },
+  );
+}
+
+/** All versions of a document, newest first. */
+export function fetchDocumentVersions(doc: Pick<PatientDocument, 'id' | 'patientId'>) {
+  return api<{ items: PatientDocument[] }>(
+    `/patients/${doc.patientId}/documents/${doc.id}/versions`,
+  ).then((r) => r.items);
 }

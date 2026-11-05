@@ -266,7 +266,7 @@ describe('documents in object storage', () => {
     const original = objects.get(row.storageKey!)!;
 
     const tampered = Buffer.from(original);
-    tampered[tampered.length - 1] ^= 0x01;
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0x01;
     objects.set(row.storageKey!, tampered);
     const bad = await download(row.id);
     expect(bad.status).toBe(500);

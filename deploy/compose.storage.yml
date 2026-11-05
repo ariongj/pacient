@@ -1,0 +1,48 @@
+# OPTIONAL override: store patient documents in S3-compatible object storage instead of
+# PostgreSQL. Not used unless you pass it explicitly:
+#
+#   docker compose -f deploy/compose.vps.yml -f deploy/compose.storage.yml up -d
+#
+# Two ways to use it:
+#   1. A managed/national S3 service (recommended): set STORAGE_S3_ENDPOINT (https), BUCKET and the
+#      access keys in the environment and remove the `minio` service below.
+#   2. Self-hosted MinIO on this host (below). Production requires TLS, so put a certificate for
+#      the name `minio` in deploy/minio-certs/ (public.crt, private.key) and make it trusted by the
+#      API container (NODE_EXTRA_CA_CERTS), or terminate TLS in front of MinIO.
+#
+# Documents are encrypted by the API before upload; the bucket only ever holds ciphertext under
+# keys without patient identifiers (documents/<yyyy>/<mm>/<id>). See deploy/README.md
+# ("Object storage") for the bucket policy, and move existing documents with
+#   docker compose -f deploy/compose.vps.yml -f deploy/compose.storage.yml run --rm api \
+#     node dist/db/migrate-documents-to-s3.js
+services:
+  api:
+    environment:
+      STORAGE_BACKEND: s3
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-https://minio:9000}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-pacient-documents}
+      STORAGE_S3_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:?Set the object storage access key}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${STORAGE_S3_SECRET_ACCESS_KEY:?Set the object storage secret}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      STORAGE_S3_SSE: ${STORAGE_S3_SSE:-}
+    networks: [database, outbound, storage]
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ['server', '/data', '--certs-dir', '/certs']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set the MinIO administrator user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set the MinIO administrator password}
+    volumes:
+      - pacienti-objects:/data
+      - ./minio-certs:/certs:ro
+    networks: [storage]
+    mem_limit: 1g
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+networks:
+  storage:
+    internal: true
+volumes:
+  pacienti-objects: {}

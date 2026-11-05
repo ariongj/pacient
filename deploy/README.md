@@ -137,6 +137,61 @@ entered at the scanner), then radiology staff press _Link images → Find by acc
 paste the Study Instance UID). Keep the archive on a private network reachable only by the API.
 The viewer is for review; diagnosis belongs on a certified diagnostic workstation.
 
+## Object storage for documents
+
+By default document contents are stored encrypted in PostgreSQL. At national scale (scanned
+letters, photos, signed forms) set `STORAGE_BACKEND=s3` to keep them in S3-compatible object
+storage instead – a national/managed S3 service, Ceph RGW or MinIO. The API encrypts every file
+(AES-256-GCM, key derived from `MFA_ENCRYPTION_KEY`) **before** upload, so the object store only
+ever holds ciphertext, and object keys carry no patient identifiers
+(`documents/<yyyy>/<mm>/<document id>`). Every read is checked against the hash taken at upload, so
+a swapped, truncated or altered object is never served. Documents already in the database keep
+working; both backends coexist.
+
+| Variable                       | Meaning                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| `STORAGE_BACKEND`              | `db` (default) or `s3` – where **new** documents go                       |
+| `STORAGE_S3_ENDPOINT`          | e.g. `https://s3.eu-central-1.amazonaws.com`; must be https in production |
+| `STORAGE_S3_REGION`            | Signing region (default `us-east-1`; MinIO accepts any)                   |
+| `STORAGE_S3_BUCKET`            | Bucket name                                                               |
+| `STORAGE_S3_ACCESS_KEY_ID`     | Access key of a dedicated user for this bucket only                       |
+| `STORAGE_S3_SECRET_ACCESS_KEY` | Its secret                                                                |
+| `STORAGE_S3_FORCE_PATH_STYLE`  | `true` for MinIO/Ceph (`endpoint/bucket/key`), `false` for AWS            |
+| `STORAGE_S3_SSE`               | Optional server-side encryption on top: `AES256` or `aws:kms`             |
+| `STORAGE_S3_TIMEOUT_MS`        | Request timeout (default 15000)                                           |
+
+Requests are signed with AWS Signature Version 4 including the payload hash (never
+`UNSIGNED-PAYLOAD`). The API only needs `s3:PutObject`, `s3:GetObject` and `s3:HeadObject` (no
+delete, no list) on `arn:aws:s3:::<bucket>/documents/*`.
+
+**Bucket policy** (documents are part of the legal record and are never deleted):
+
+- Private: block all public access; no anonymous or cross-account access; TLS only
+  (`aws:SecureTransport`).
+- **Versioning on**, so an overwrite or deletion by mistake can be undone; optionally
+  **Object Lock** (compliance mode) for the retention period of medical records.
+- **No lifecycle rule that expires or deletes objects**; transitions to a colder storage class
+  are fine.
+- Encryption at rest on the storage side as well (SSE-S3/SSE-KMS, or encrypted disks for MinIO),
+  and replication or backups to a second site – the nightly `pg_dump` does **not** include
+  object-stored documents.
+
+Self-hosted MinIO: `deploy/compose.storage.yml` adds a MinIO service on an internal network
+(TLS certificates in `deploy/minio-certs/`); for development uncomment the MinIO block in
+`docker-compose.dev.yml`. Create the bucket with versioning (`mc mb`, `mc version enable`).
+
+**Moving existing documents** (safe to stop and re-run; database copies are kept by default):
+
+```bash
+npm run documents:migrate-to-s3 -w apps/api -- --dry-run
+npm run documents:migrate-to-s3 -w apps/api
+npm run documents:migrate-to-s3 -w apps/api -- --delete-db-copies
+```
+
+Each document is uploaded, read back and verified (same ciphertext, decrypts to the recorded hash)
+before its row is switched to S3; `--delete-db-copies` removes database copies only after the same
+verification. In containers run `node dist/db/migrate-documents-to-s3.js` in the API image.
+
 ## SMS and laboratory connections
 
 SMS alerts use Twilio when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `SMS_FROM` are set;

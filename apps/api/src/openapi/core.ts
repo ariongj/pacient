@@ -469,6 +469,19 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
       body: obj({ reason: text(5, 300) }, ['reason']),
     },
   ),
+  op('post', `${pp}/documents/{documentId}/versions`, CR, 'Upload a new version of a document', {
+    access: 'care team (staff documents), the patient or guardian (documents they provided)',
+    description:
+      'Raw body (PDF, JPEG or PNG with that Content-Type) and an X-File-Name header, as for an upload. Only the latest version that is not entered in error can be replaced; the new version keeps the category, visit and sharing.',
+    params: [q('title', text(2, 200))],
+    responses: {
+      '201': 'The new version',
+      '409': 'A newer version exists or the document was entered in error',
+    },
+  }),
+  op('get', `${pp}/documents/{documentId}/versions`, CR, 'All versions of a document', {
+    access: 'care team, patient, guardian (if shared)',
+  }),
   op('post', `${pp}/consents`, CR, 'Record a consent decision', {
     access: 'the patient or guardian (PORTAL); DOCTOR, NURSE, RECEPTION in person',
     body: obj(

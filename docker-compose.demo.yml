@@ -48,6 +48,8 @@ services:
       # DICOMweb) set PACS_MODE: dicomweb and PACS_DICOMWEB_URL: http://orthanc:8042/dicom-web
       # (and PACS_AUTH_HEADER if it needs credentials) – see deploy/README.md.
       PACS_MODE: demo
+      # Documents are stored encrypted in PostgreSQL. For S3-compatible object storage set
+      # STORAGE_BACKEND: s3 and the STORAGE_S3_* settings – see deploy/README.md ("Object storage").
     depends_on:
       db: { condition: service_healthy }
     healthcheck:

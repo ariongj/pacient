@@ -26,6 +26,7 @@ import {
 } from '../../components/ui';
 import { formatDate } from '../../format';
 import { usePatientId } from './shared';
+import { DocumentHistoryDialog, NewVersionDialog, VersionBadge } from '../shared/DocumentVersions';
 
 /** Documents the care team shared, and documents the patient (or guardian) added themselves. */
 export function PortalDocuments() {
@@ -36,6 +37,8 @@ export function PortalDocuments() {
   const [adding, setAdding] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [openError, setOpenError] = useState<unknown>(null);
+  const [history, setHistory] = useState<PatientDocument | null>(null);
+  const [replacing, setReplacing] = useState<PatientDocument | null>(null);
   const q = useQuery({
     queryKey: ['patient', id, 'documents'],
     queryFn: () => api<{ items: PatientDocument[] }>(`/patients/${id}/documents`),
@@ -128,6 +131,7 @@ export function PortalDocuments() {
                           <Badge tone={doc.source === 'PATIENT' ? 'warning' : 'neutral'}>
                             {CATEGORY_LABELS[doc.category]}
                           </Badge>
+                          <VersionBadge doc={doc} />
                         </div>
                         <div className="muted">
                           {doc.mimeType === 'application/pdf' ? 'PDF' : t('Image')} ·{' '}
@@ -148,6 +152,16 @@ export function PortalDocuments() {
                           >
                             {t('Open|action')}
                           </Button>
+                          {doc.version > 1 && (
+                            <Button size="sm" variant="ghost" onClick={() => setHistory(doc)}>
+                              {t('Version history')}
+                            </Button>
+                          )}
+                          {doc.source === 'PATIENT' && (
+                            <Button size="sm" variant="ghost" onClick={() => setReplacing(doc)}>
+                              {t('Upload new version')}
+                            </Button>
+                          )}
                           {doc.source === 'PATIENT' && doc.uploadedById === user.id && (
                             <Button
                               size="sm"
@@ -177,6 +191,13 @@ export function PortalDocuments() {
           }
         </QueryView>
       </Card>
+
+      <DocumentHistoryDialog doc={history} onClose={() => setHistory(null)} />
+      <NewVersionDialog
+        doc={replacing}
+        onClose={() => setReplacing(null)}
+        onDone={() => void refresh()}
+      />
 
       <Dialog open={adding} onClose={() => setAdding(false)} title={t('Add a document')}>
         <form onSubmit={onSubmit}>

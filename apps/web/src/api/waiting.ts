@@ -44,6 +44,8 @@ export interface WaitingEntry {
   waitingDays: number;
   maxDays: number;
   breached: boolean;
+  /** The scheduled date is later than the target date (maximum waiting time). */
+  scheduledAfterTarget: boolean;
 }
 
 export interface WaitingEvent {
@@ -150,7 +152,7 @@ export const SPECIALTY_LABELS: Record<string, string> = {
 export const specialtyLabel = (code: string) => t(SPECIALTY_LABELS[code] ?? code);
 
 export const priorityLabel = (p: WaitingPriority) =>
-  ({ URGENT: t('Urgent'), PRIORITY: t('Priority'), ROUTINE: t('Routine') })[p];
+  ({ URGENT: t('Urgent'), PRIORITY: t('Priority|level'), ROUTINE: t('Routine') })[p];
 
 export const priorityHint = (p: WaitingPriority, maxDays: number) =>
   t('{priority} – within {days} days', { priority: priorityLabel(p), days: maxDays });

@@ -48,7 +48,7 @@ export const deaths: Record<string, string> = {
   'Gestation (completed weeks)': 'Gestacija (navršene nedelje)',
   'Hours survived': 'Sati preživljavanja',
   'In hospital or emergency department': 'U bolnici ili urgentnom centru',
-  'In-hospital deaths per 100 discharges': 'Smrtni ishodi u bolnici na 100 otpusta',
+  'In-hospital mortality (per 100 discharges)': 'Bolnička smrtnost (na 100 otpusta)',
   'Interval from onset to death': 'Interval od početka do smrti',
   Line: 'Red',
   'Manner of death': 'Vrsta smrti',

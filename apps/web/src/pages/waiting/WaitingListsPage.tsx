@@ -16,6 +16,7 @@ import {
 import { useUser } from '../../auth/AuthContext';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -238,10 +239,13 @@ function ListTab() {
                         {e.scheduledFor && (
                           <div className="muted">{formatDateTime(e.scheduledFor)}</div>
                         )}
+                        {e.scheduledAfterTarget && (
+                          <Badge tone="warning">{t('After the target date')}</Badge>
+                        )}
                       </td>
                       <td>
                         <Button size="sm" variant="secondary" onClick={() => setOpen(e.id)}>
-                          {t('Open')}
+                          {t('Open|action')}
                         </Button>
                       </td>
                     </tr>
@@ -357,7 +361,7 @@ function DashboardTab() {
                       </td>
                       <td>
                         <Button size="sm" variant="secondary" onClick={() => setOpenId(e.id)}>
-                          {t('Open')}
+                          {t('Open|action')}
                         </Button>
                       </td>
                     </tr>

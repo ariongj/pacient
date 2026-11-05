@@ -104,10 +104,7 @@ async function presentRecord(row: DeathRow, ctx: AuthContext) {
     .select({ id: users.id, name: users.fullName })
     .from(users)
     .where(
-      inArray(users.id, [
-        row.certifiedById,
-        ...amendments.map((a) => a.amendedById),
-      ] as string[]),
+      inArray(users.id, [row.certifiedById, ...amendments.map((a) => a.amendedById)] as string[]),
     );
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? null;
   const [facility] = await db
@@ -227,7 +224,10 @@ deathsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (req, res)
   const facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId! : q.facilityId;
   const deaths = await deathsForStats({ from, to, facilityId });
   const [discharges] = await db
-    .select({ n: count() })
+    .select({
+      n: count(),
+      deceased: sql<number>`count(*) FILTER (WHERE ${admissions.disposition} = 'DECEASED')::int`,
+    })
     .from(admissions)
     .where(
       and(
@@ -243,6 +243,7 @@ deathsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (req, res)
       from,
       to,
       discharges: discharges?.n ?? 0,
+      deceasedDischarges: Number(discharges?.deceased ?? 0),
       threshold: SMALL_CELL_THRESHOLD,
     }),
   });
@@ -344,7 +345,9 @@ deathsRouter.delete('/:id', requireRole('DOCTOR'), async (req, res) => {
   }
   if (row.status !== 'DRAFT') throw conflict('A signed death certificate cannot be deleted');
   await db.transaction(async (tx) => {
-    await tx.delete(deathRecords).where(and(eq(deathRecords.id, id), eq(deathRecords.status, 'DRAFT')));
+    await tx
+      .delete(deathRecords)
+      .where(and(eq(deathRecords.id, id), eq(deathRecords.status, 'DRAFT')));
     await audit(
       {
         action: AuditAction.DEATH_CERTIFICATE_DRAFTED,

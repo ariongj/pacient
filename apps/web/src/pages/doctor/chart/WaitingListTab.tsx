@@ -85,7 +85,7 @@ export function WaitingListTab({ patientId }: { patientId: string }) {
                           user.role === 'RECEPTION' ||
                           user.role === 'DIRECTOR') && (
                           <Button size="sm" variant="secondary" onClick={() => setOpenId(e.id)}>
-                            {t('Open')}
+                            {t('Open|action')}
                           </Button>
                         )}
                     </td>

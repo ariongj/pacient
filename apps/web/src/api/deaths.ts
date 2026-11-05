@@ -182,7 +182,12 @@ export interface MortalityStats {
   byChapter: { chapter: string; range: string; label: string; count: number | null }[];
   byAgeBand: { band: string; male: number | null; female: number | null; total: number | null }[];
   byManner: { manner: MannerOfDeath; count: number | null }[];
-  inHospital: { deaths: number | null; discharges: number; ratePer100: number | null };
+  inHospital: {
+    deaths: number | null;
+    discharges: number;
+    deceasedDischarges: number | null;
+    ratePer100: number | null;
+  };
 }
 
 const key = (patientId: string) => ['patient', patientId, 'death'] as const;

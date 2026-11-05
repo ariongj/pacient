@@ -66,7 +66,13 @@ const PerinatalInput = z
     gestationWeeks: z.number().int().min(16).max(45).nullable().optional(),
     multiplePregnancy: z.boolean().nullable().optional(),
     stillbirth: z.boolean().nullable().optional(),
-    hoursSurvived: z.number().int().min(0).max(24 * 365).nullable().optional(),
+    hoursSurvived: z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 365)
+      .nullable()
+      .optional(),
     maternalConditions: z.string().trim().max(500).nullable().optional(),
   })
   .strict();
@@ -260,7 +266,9 @@ export function checkDeath(
   // Underlying cause: normally the condition on the lowest completed Part I line.
   const lowest = [...partOne]
     .filter((c) => c.line !== 'II')
-    .sort((x, y) => PART_ONE_LINES.indexOf(y.line as 'a') - PART_ONE_LINES.indexOf(x.line as 'a'))[0];
+    .sort(
+      (x, y) => PART_ONE_LINES.indexOf(y.line as 'a') - PART_ONE_LINES.indexOf(x.line as 'a'),
+    )[0];
   const underlying = v.underlyingCauseIcd10;
   const external = /^[V-Y]/.test(underlying);
   if (lowest?.icd10 && code3(lowest.icd10) !== code3(underlying) && !external) {
@@ -453,7 +461,7 @@ export async function deathsForStats(opts: {
 
 export function buildMortalityStats(
   deaths: DeathForStats[],
-  opts: { from: Date; to: Date; discharges: number; threshold: number },
+  opts: { from: Date; to: Date; discharges: number; deceasedDischarges: number; threshold: number },
 ) {
   const suppress = (n: number) => (n > 0 && n < opts.threshold ? null : n);
   const months: string[] = [];
@@ -501,6 +509,7 @@ export function buildMortalityStats(
     (x) => x.placeOfDeath === 'HOSPITAL' || x.placeOfDeath === 'EMERGENCY_DEPARTMENT',
   ).length;
   const inHospitalShown = suppress(inHospital);
+  const deceasedShown = suppress(opts.deceasedDischarges);
   return {
     from: opts.from.toISOString(),
     to: opts.to.toISOString(),
@@ -511,12 +520,15 @@ export function buildMortalityStats(
     byAgeBand,
     byManner,
     inHospital: {
+      /** Certificates with place of death hospital or emergency department. */
       deaths: inHospitalShown,
       discharges: opts.discharges,
-      /** In-hospital deaths per 100 discharges (null when suppressed or no discharges). */
+      /** Hospital stays that ended with the outcome "deceased". */
+      deceasedDischarges: deceasedShown,
+      /** In-hospital mortality: deceased discharges per 100 discharges (null when suppressed). */
       ratePer100:
-        inHospitalShown !== null && opts.discharges > 0
-          ? Math.round((inHospital / opts.discharges) * 1000) / 10
+        deceasedShown !== null && opts.discharges > 0
+          ? Math.round((opts.deceasedDischarges / opts.discharges) * 1000) / 10
           : null,
     },
   };

@@ -15,7 +15,11 @@ import {
   waitingListEntries,
   waitingListEvents,
 } from '../src/db/schema.js';
-import { checkDeath, chapterOf, buildMortalityStats } from '../src/modules/deaths/deaths.service.js';
+import {
+  checkDeath,
+  chapterOf,
+  buildMortalityStats,
+} from '../src/modules/deaths/deaths.service.js';
 import { api, bearer, createPatient, createUser, createWorld, login, PASSWORD } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -38,8 +42,13 @@ const body = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-async function elderlyPatient(opts: { sex?: 'MALE' | 'FEMALE'; dob?: string; userId?: string } = {}) {
-  const p = await createPatient(w.facility.id, { doctorId: w.users.doctor.id, userId: opts.userId });
+async function elderlyPatient(
+  opts: { sex?: 'MALE' | 'FEMALE'; dob?: string; userId?: string } = {},
+) {
+  const p = await createPatient(w.facility.id, {
+    doctorId: w.users.doctor.id,
+    userId: opts.userId,
+  });
   await db
     .update(patients)
     .set({ dateOfBirth: opts.dob ?? '1940-03-01', sex: opts.sex ?? 'MALE' })
@@ -163,13 +172,19 @@ describe('certification rules', () => {
         from: new Date(Date.now() - 30 * 86_400_000),
         to: new Date(Date.now() + 86_400_000),
         discharges: 100,
+        deceasedDischarges: 6,
         threshold: 5,
       },
     );
     expect(stats.total).toBe(8);
     expect(stats.byChapter.find((c) => c.chapter === 'IX')?.count).toBe(6);
     expect(stats.byChapter.find((c) => c.chapter === 'II')?.count).toBeNull();
-    expect(stats.inHospital).toEqual({ deaths: 8, discharges: 100, ratePer100: 8 });
+    expect(stats.inHospital).toEqual({
+      deaths: 8,
+      discharges: 100,
+      deceasedDischarges: 6,
+      ratePer100: 6,
+    });
   });
 });
 
@@ -210,7 +225,9 @@ describe('drafting', () => {
     // The nurse is not in the care team.
     expect(view.status).toBe(403);
 
-    expect((await api().delete(`/api/v1/deaths/${created.body.id}`).set(doctor())).status).toBe(204);
+    expect((await api().delete(`/api/v1/deaths/${created.body.id}`).set(doctor())).status).toBe(
+      204,
+    );
     const after = await api().get(`/api/v1/deaths/patients/${p.id}`).set(doctor());
     expect(after.body).toMatchObject({ record: null, canCertify: true });
   });
@@ -227,7 +244,12 @@ describe('drafting', () => {
       .set(bearer(w.tokens.colleague))
       .send(body());
     expect(colleague.status).toBe(403);
-    for (const token of [w.tokens.nurse, w.tokens.director, w.tokens.reception, w.tokens.ministry]) {
+    for (const token of [
+      w.tokens.nurse,
+      w.tokens.director,
+      w.tokens.reception,
+      w.tokens.ministry,
+    ]) {
       expect(
         (await api().post(`/api/v1/deaths/patients/${p.id}`).set(bearer(token)).send(body()))
           .status,
@@ -371,7 +393,10 @@ describe('signing', () => {
     // Sequence: the next certificate gets the next number.
     const other = await elderlyPatient();
     const second = await draft(other.id);
-    const signed2 = await api().post(`/api/v1/deaths/${second.body.id}/sign`).set(doctor()).send({});
+    const signed2 = await api()
+      .post(`/api/v1/deaths/${second.body.id}/sign`)
+      .set(doctor())
+      .send({});
     expect(signed2.status).toBe(200);
     const n1 = Number(res.body.certificateNumber.slice(-6));
     const n2 = Number(signed2.body.certificateNumber.slice(-6));
@@ -441,9 +466,7 @@ describe('signing', () => {
   });
 
   it('exports the death in FHIR and lists it for the director without causes', async () => {
-    const fhir = await api()
-      .get(`/api/v1/fhir/Patient/${patientId}/$everything`)
-      .set(doctor());
+    const fhir = await api().get(`/api/v1/fhir/Patient/${patientId}/$everything`).set(doctor());
     expect(fhir.status).toBe(200);
     const bundle = JSON.parse(fhir.text) as { entry: { resource: Record<string, unknown> }[] };
     const patient = bundle.entry.find((e) => e.resource.resourceType === 'Patient')!.resource;
@@ -469,7 +492,9 @@ describe('signing', () => {
     const feed = await api().get('/api/v1/partner/deaths').set(key);
     expect(feed.status).toBe(200);
     const [p] = await db.select().from(patients).where(eq(patients.id, patientId));
-    const item = feed.body.items.find((i: { nationalId: string }) => i.nationalId === p!.nationalId);
+    const item = feed.body.items.find(
+      (i: { nationalId: string }) => i.nationalId === p!.nationalId,
+    );
     expect(item).toMatchObject({ placeOfDeath: 'HOSPITAL', facilityCode: w.facility.code });
     expect(item.certificateNumber).toMatch(/^VD-/);
     expect(item.amendedAt).toBeTruthy();

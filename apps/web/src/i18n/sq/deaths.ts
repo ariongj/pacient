@@ -48,7 +48,7 @@ export const deaths: Record<string, string> = {
   'Gestation (completed weeks)': 'Shtatzënia (javë të plota)',
   'Hours survived': 'Orë të mbijetuara',
   'In hospital or emergency department': 'Në spital ose në emergjencë',
-  'In-hospital deaths per 100 discharges': 'Vdekje në spital për 100 lirime',
+  'In-hospital mortality (per 100 discharges)': 'Vdekshmëria spitalore (për 100 lirime)',
   'Interval from onset to death': 'Intervali nga fillimi deri te vdekja',
   Line: 'Rreshti',
   'Manner of death': 'Mënyra e vdekjes',

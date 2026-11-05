@@ -241,6 +241,21 @@ describe('lifecycle', () => {
     expect(detail.body.patient.nationalId).toBe(w.patient.nationalId);
   });
 
+  it('flags a scheduled date later than the target date', async () => {
+    const created = (await add({ priority: 'URGENT' })).body;
+    const late = await api()
+      .post(`/api/v1/waiting-lists/${created.id}/schedule`)
+      .set(reception())
+      .send({ scheduledFor: new Date(Date.now() + 60 * DAY).toISOString() });
+    expect(late.body.scheduledAfterTarget).toBe(true);
+    const soon = await api()
+      .post(`/api/v1/waiting-lists/${created.id}/schedule`)
+      .set(reception())
+      .send({ scheduledFor: new Date(Date.now() + 5 * DAY).toISOString() });
+    expect(soon.body.scheduledAfterTarget).toBe(false);
+    expect(await events(created.id)).toEqual(['ADDED', 'SCHEDULED', 'RESCHEDULED']);
+  });
+
   it('only doctors change the priority (target date recomputed from the date added)', async () => {
     const created = (await add({ priority: 'ROUTINE' })).body;
     await age(created.id, 50);

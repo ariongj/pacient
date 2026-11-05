@@ -43,7 +43,7 @@ function Statistics({ stats }: { stats: MortalityStats }) {
           value={below(stats.inHospital.deaths)}
         />
         <Stat
-          label={t('In-hospital deaths per 100 discharges')}
+          label={t('In-hospital mortality (per 100 discharges)')}
           value={
             stats.inHospital.ratePer100 === null ? '—' : formatNumber(stats.inHospital.ratePer100)
           }

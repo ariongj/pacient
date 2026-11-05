@@ -129,7 +129,11 @@ function DeathForm({
     const form = new FormData(e.currentTarget);
     const num = (v: string) => (v.trim() ? Number(v) : null);
     onSubmit({
-      diedAt: new Date(diedAt).toISOString(),
+      // The input has minute precision: keep the stored instant when the minute is unchanged.
+      diedAt:
+        initial?.diedAt && toLocalInput(initial.diedAt) === diedAt
+          ? initial.diedAt
+          : new Date(diedAt).toISOString(),
       placeOfDeath: form.get('placeOfDeath') as DeathFields['placeOfDeath'],
       placeDetail: String(form.get('placeDetail') ?? '').trim() || null,
       causes: fieldsCauses,

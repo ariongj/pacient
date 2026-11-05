@@ -131,4 +131,9 @@ export const waiting: Record<string, string> = {
   'Only a doctor can remove a patient from the list for clinical reasons':
     'Vetëm mjeku mund ta heqë pacientin nga lista për arsye klinike',
   'Describe the reason for removal': 'Përshkruani arsyen e heqjes',
+  'Schedule|action': 'Cakto datën',
+  'Priority|level': 'Me përparësi',
+  'After the target date': 'Pas datës së synuar',
+  'Target date {date}. The patient is told the date and the facility, never the procedure.':
+    'Data e synuar {date}. Pacienti njoftohet për datën dhe institucionin, asnjëherë për procedurën.',
 };

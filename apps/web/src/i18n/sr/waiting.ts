@@ -129,4 +129,9 @@ export const waiting: Record<string, string> = {
   'Only a doctor can remove a patient from the list for clinical reasons':
     'Samo lekar može ukloniti pacijenta sa liste iz kliničkih razloga',
   'Describe the reason for removal': 'Opišite razlog uklanjanja',
+  'Schedule|action': 'Zakaži',
+  'Priority|level': 'Prioritetno',
+  'After the target date': 'Posle ciljnog datuma',
+  'Target date {date}. The patient is told the date and the facility, never the procedure.':
+    'Ciljni datum {date}. Pacijent dobija obaveštenje o datumu i ustanovi, nikada o proceduri.',
 };

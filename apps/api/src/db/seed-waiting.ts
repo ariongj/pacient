@@ -45,40 +45,40 @@ const ORTHO: Spec[] = [
     specialty: 'ORTHOPAEDICS',
     kind: 'PROCEDURE',
     procedureCode: 'NGB',
-    procedureName: 'Total knee replacement',
+    procedureName: 'Artroplastikë totale e gjurit',
   },
   {
     specialty: 'ORTHOPAEDICS',
     kind: 'PROCEDURE',
     procedureCode: 'NFB',
-    procedureName: 'Total hip replacement',
+    procedureName: 'Artroplastikë totale e kofshës',
   },
 ];
 const EYE: Spec = {
   specialty: 'OPHTHALMOLOGY',
   kind: 'PROCEDURE',
   procedureCode: 'CJE',
-  procedureName: 'Cataract surgery with lens implant',
+  procedureName: 'Operacion i kataraktës me implant lente',
 };
 const SURG: Spec[] = [
   {
     specialty: 'GENERAL_SURGERY',
     kind: 'PROCEDURE',
     procedureCode: 'JKA',
-    procedureName: 'Laparoscopic cholecystectomy',
+    procedureName: 'Kolecistektomi laparoskopike',
   },
   {
     specialty: 'GENERAL_SURGERY',
     kind: 'PROCEDURE',
     procedureCode: 'JAB',
-    procedureName: 'Inguinal hernia repair',
+    procedureName: 'Riparim i hernies inguinale',
   },
 ];
 const CARDIO: Spec = {
   specialty: 'CARDIOLOGY',
   kind: 'OUTPATIENT',
   procedureCode: null,
-  procedureName: 'First cardiology consultation',
+  procedureName: 'Konsultë e parë kardiologjike',
 };
 
 /** [person index, spec, priority, days ago added, status, extra] */
@@ -168,7 +168,7 @@ export async function seedWaiting(opts: { facilityId: string; demoDoctorId: stri
         facilityId,
         ...spec,
         priority,
-        clinicalReason: 'Synthetic demo entry',
+        clinicalReason: 'Regjistrim sintetik demonstrues',
         addedById: demoDoctorId,
         addedAt,
         createdAt: addedAt,
@@ -193,7 +193,7 @@ export async function seedWaiting(opts: { facilityId: string; demoDoctorId: stri
       history.push({
         event: 'SUSPENDED',
         at: new Date(addedAt.getTime() + 20 * DAY),
-        reason: 'Patient asked to postpone (family reasons)',
+        reason: 'Pacienti kërkoi shtyrje (arsye familjare)',
       });
       history.push({
         event: 'RESUMED',
@@ -204,7 +204,7 @@ export async function seedWaiting(opts: { facilityId: string; demoDoctorId: stri
       history.push({
         event: 'SUSPENDED',
         at: e.suspendedSince!,
-        reason: 'Patient abroad for work',
+        reason: 'Pacienti është jashtë vendit për punë',
       });
     }
     if (status === 'SCHEDULED') history.push({ event: 'SCHEDULED', at: new Date(now - 2 * DAY) });

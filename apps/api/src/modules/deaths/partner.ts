@@ -160,5 +160,9 @@ deathsPartnerRouter.post('/:certificateNumber/acknowledge', async (req, res) => 
     result: 'acknowledged',
     extra: { certificateNumber },
   });
-  res.json({ certificateNumber, civilRegistryAcknowledgedAt: now, civilRegistryReference: reference });
+  res.json({
+    certificateNumber,
+    civilRegistryAcknowledgedAt: now,
+    civilRegistryReference: reference,
+  });
 });

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   eventLabel,
   kindLabel,
@@ -97,7 +97,17 @@ export function WaitingEntryDialog({ id, onClose }: { id: string | null; onClose
                   ? ([[t('Days postponed'), String(e.suspendedDays)]] as [string, string][])
                   : []),
                 ...(e.scheduledFor
-                  ? ([[t('Scheduled for'), formatDateTime(e.scheduledFor)]] as [string, string][])
+                  ? ([
+                      [
+                        t('Scheduled for'),
+                        <span key="sf" className="row" style={{ gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {formatDateTime(e.scheduledFor)}
+                          {e.scheduledAfterTarget && (
+                            <Badge tone="warning">{t('After the target date')}</Badge>
+                          )}
+                        </span>,
+                      ],
+                    ] as [string, ReactNode][])
                   : []),
                 ...(e.clinicalReason
                   ? ([[t('Clinical reason'), e.clinicalReason]] as [string, string][])
@@ -162,7 +172,7 @@ function EntryActions({ entry }: { entry: WaitingEntry }) {
       <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
         {entry.status !== 'SUSPENDED' && (
           <Button size="sm" onClick={() => setOpen('schedule')}>
-            {entry.status === 'SCHEDULED' ? t('Reschedule') : t('Schedule')}
+            {entry.status === 'SCHEDULED' ? t('Reschedule') : t('Schedule|action')}
           </Button>
         )}
         {entry.status === 'SCHEDULED' && (
@@ -208,7 +218,10 @@ function EntryActions({ entry }: { entry: WaitingEntry }) {
               name="scheduledFor"
               type="datetime-local"
               required
-              hint={t('The patient is told the date and the facility, never the procedure.')}
+              hint={t(
+                'Target date {date}. The patient is told the date and the facility, never the procedure.',
+                { date: formatDate(entry.targetDate) },
+              )}
             />
           )}
           {open === 'priority' && (

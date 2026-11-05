@@ -30,6 +30,7 @@ import {
   BREACHED_SQL,
   CLINICAL_REMOVAL_REASONS,
   isBreached,
+  kosovoDate,
   MAX_DAYS,
   MAX_WAIT_DAYS,
   openSuspensionDays,
@@ -102,6 +103,10 @@ function present(
     waitingDays: waitingDays(e, now),
     maxDays: MAX_WAIT_DAYS[e.priority as Priority] ?? MAX_WAIT_DAYS.ROUTINE,
     breached: ['WAITING', 'SCHEDULED', 'SUSPENDED'].includes(e.status) && isBreached(e, now),
+    scheduledAfterTarget:
+      e.status === 'SCHEDULED' &&
+      e.scheduledFor !== null &&
+      kosovoDate(e.scheduledFor) > e.targetDate,
   };
 }
 

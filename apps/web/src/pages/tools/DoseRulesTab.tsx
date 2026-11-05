@@ -59,7 +59,10 @@ export function DoseRulesTab() {
         ) : undefined
       }
     >
-      <Alert tone="warning" title={list.data?.disclaimer ?? t('Demo dose limits – verify against a licensed reference')}>
+      <Alert
+        tone="warning"
+        title={list.data?.disclaimer ?? t('Demo dose limits – verify against a licensed reference')}
+      >
         {t(
           'Maximum single and daily doses used to check structured prescriptions. Per-kg limits use the latest weight from vital signs; older adults and children fall back to the adult limits where they have no rule of their own.',
         )}
@@ -129,7 +132,9 @@ export function DoseRulesTab() {
                       <td>{ruleLimit(r.maxSingleDose, r)}</td>
                       <td>{ruleLimit(r.maxDailyDose, r)}</td>
                       <td>
-                        {r.absoluteMaxDaily ? ruleLimit(r.absoluteMaxDaily, { ...r, perKg: false }) : '–'}
+                        {r.absoluteMaxDaily
+                          ? ruleLimit(r.absoluteMaxDaily, { ...r, perKg: false })
+                          : '–'}
                       </td>
                       <td>{r.noteTranslated ?? ''}</td>
                       {data.canEdit && (
@@ -149,7 +154,10 @@ export function DoseRulesTab() {
         }
       </QueryView>
       {editing && (
-        <DoseRuleDialog rule={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />
+        <DoseRuleDialog
+          rule={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+        />
       )}
     </Card>
   );

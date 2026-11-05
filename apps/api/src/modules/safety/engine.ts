@@ -673,7 +673,11 @@ export async function checkMedicationDetailed(
   patientId: string,
   medication: string,
   catalogItemId?: string | null,
-  opts: { excludePrescriptionIds?: string[]; executor?: Executor; dose?: StructuredDose | null } = {},
+  opts: {
+    excludePrescriptionIds?: string[];
+    executor?: Executor;
+    dose?: StructuredDose | null;
+  } = {},
 ): Promise<{
   alerts: EngineAlert[];
   candidate: Candidate;
@@ -705,7 +709,11 @@ export async function checkMedication(
   patientId: string,
   medication: string,
   catalogItemId?: string | null,
-  opts: { excludePrescriptionIds?: string[]; executor?: Executor; dose?: StructuredDose | null } = {},
+  opts: {
+    excludePrescriptionIds?: string[];
+    executor?: Executor;
+    dose?: StructuredDose | null;
+  } = {},
 ): Promise<EngineAlert[]> {
   return (await checkMedicationDetailed(patientId, medication, catalogItemId, opts)).alerts;
 }

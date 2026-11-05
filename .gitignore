@@ -9,3 +9,4 @@ coverage/
 *.tsbuildinfo
 __pycache__/
 .private/
+apps/api/downtime-packs/

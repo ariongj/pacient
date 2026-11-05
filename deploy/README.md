@@ -144,3 +144,94 @@ otherwise the API starts and keeps texts in its outbox (visible to the Ministry 
 Laboratory systems connect over HTTPS to `/api/v1/integrations/lab` with an API key that the
 facility director creates under **Lab connections**; no inbound connection into the laboratory
 network is needed.
+
+## Downtime and point-in-time recovery
+
+Two layers keep care going and data recoverable when the system is unavailable (hazard H42 in
+`docs/CLINICAL-SAFETY.md`; procedures for staff in `docs/DOWNTIME.md`).
+
+**Downtime packs.** Every hour the API writes, per facility, a self-contained printable HTML
+document (ward lists with beds, identifiers, allergies, medicines due in the next 12 hours, last
+observations and early-warning score, diet/nil by mouth, blood group; ED board; today's theatre
+list and outpatient appointments). Packs are encrypted at rest and the last 48 are kept.
+
+| Variable                 | Meaning                                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `DOWNTIME_DIR`           | Pack directory (default `./downtime-packs`). The vps api container is read-only: mount a volume |
+| `DOWNTIME_AGE_RECIPIENT` | Optional `age1…` public key(s), comma-separated: also writes `.html.age` for offline ward PCs   |
+| `DOWNTIME_SYNC_KEYS`     | `<facility code>:<sha256>` pairs for the ward PCs' sync keys (only hashes on the server)        |
+| `DOWNTIME_WORKER`        | `false` disables the hourly generation in this process (e.g. on a second replica)               |
+
+The `.html.enc` copy is sealed with AES-256-GCM under a key derived from `MFA_ENCRYPTION_KEY` and
+can only be opened through the API (staff download, audited). The `.html.age` copy can only be
+opened with the private key on the ward PC; the server never has it. The api image needs the `age`
+binary for that copy (without it, only the AES copy is written and an error is logged).
+
+Ward downtime PC, set up once per ward (a locked-down, disk-encrypted facility computer):
+
+```bash
+age-keygen -o /etc/pacient/downtime-identity.txt     # on the ward PC; note the public key
+node scripts/downtime-sync.mjs new-key KOS-UCCK      # prints the PC's key and the server entry
+```
+
+Put the public key in `DOWNTIME_AGE_RECIPIENT` and the printed `KOS-UCCK:<sha256>` entry in
+`DOWNTIME_SYNC_KEYS` on the server; store the `dts_…` key in a file readable only by the sync
+account on the PC. Then schedule the sync hourly (cron or Task Scheduler) and monitor freshness:
+
+```bash
+PACIENT_URL=https://api.pacient.example DOWNTIME_SYNC_KEY_FILE=/etc/pacient/sync.key \
+  DOWNTIME_OUT_DIR=/var/lib/pacient-downtime node scripts/downtime-sync.mjs sync
+DOWNTIME_OUT_DIR=/var/lib/pacient-downtime node scripts/downtime-sync.mjs check --max-age-minutes 90
+```
+
+During an outage: `node scripts/downtime-sync.mjs open --identity /etc/pacient/downtime-identity.txt`
+decrypts the newest pack, checks it against the server's SHA-256 and prints the file to open and
+print. A sync key can fetch nothing but its own facility's latest encrypted pack; revoke one by
+removing its entry. `DOWNTIME_AGE_RECIPIENT` takes several comma-separated public keys, so
+each ward PC can keep its own identity; remove a PC's key when it is decommissioned (packs written
+from then on are no longer readable with it).
+
+**Point-in-time recovery (PITR).** The nightly `pg_dump` (`deploy/backup.sh`) can only go back to
+the last dump. For recovery to any moment – for example just before a faulty import or an
+accidental bulk change – enable continuous WAL archiving with
+[pgBackRest](https://pgbackrest.org) through the optional override `deploy/compose.pitr.yml`:
+
+- `deploy/pitr/Dockerfile.postgres`: the stock `postgres:16-alpine` plus pgBackRest (same data
+  volume, no migration).
+- `deploy/pitr/pgbackrest.conf`: encrypted repository (`aes-256-cbc`, passphrase in
+  `PGBACKREST_REPO1_CIPHER_PASS`), two full backups retained, zstd compression, asynchronous
+  archiving with a bounded queue; an off-site S3 repository is prepared as `repo2` (commented).
+- `archive_timeout=60`: recovery point objective about **1 minute**. Recovery time objective with
+  a local repository: roughly 15–60 minutes depending on database size and WAL since the last
+  backup – measure it in the rehearsal.
+
+```bash
+export PGBACKREST_REPO1_CIPHER_PASS=…   # from the password manager; keep a copy off the server
+docker compose -f deploy/compose.vps.yml -f deploy/compose.pitr.yml up -d --build db
+deploy/pitr/pitr.sh init                 # stanza, archive check, first full backup
+```
+
+Schedule on the host (UTC):
+
+```
+15 1 * * 0    deploy/pitr/pitr.sh backup full
+15 1 * * 1-6  deploy/pitr/pitr.sh backup diff
+*/30 * * * *  deploy/pitr/pitr.sh check      # alerts if WAL archiving stalls
+```
+
+Restoring:
+
+```bash
+deploy/pitr/pitr.sh info                                    # recovery window
+deploy/pitr/pitr.sh verify-restore "2026-11-04 14:30:00+01" # restores a COPY and checks it
+PITR_CONFIRM=RESTORE-LIVE deploy/pitr/pitr.sh restore-to-time "2026-11-04 14:30:00+01"
+```
+
+`verify-restore` never touches the live database: it restores into a scratch volume, starts it
+read-only paused at the target, checks migrations, row counts and that no audit entry is newer than
+the target, then removes it. Run it monthly as the restore rehearsal. `restore-to-time` first
+archives the present state and takes an incremental backup (so you can go forward again), stops
+api and db, does a delta restore, promotes a new timeline, takes a full backup and starts the api.
+Everything after the target time is gone from the live database: declare downtime first
+(Downtime kit → _Start downtime procedures_) and back-enter the paper records of that period
+afterwards. Never remove the `pacienti-pgbackrest` volume.

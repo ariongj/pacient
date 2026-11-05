@@ -280,9 +280,7 @@ function DowntimeBanner({ role, hasFacility }: { role: Role; hasFacility: boolea
   if (!status.data?.active) return null;
   return (
     <div className="alert alert-danger" role="alert">
-      <strong>
-        {t('Downtime procedures in effect – record on paper; back-enter afterwards')}
-      </strong>
+      <strong>{t('Downtime procedures in effect – record on paper; back-enter afterwards')}</strong>
       {status.data.note && <div>{status.data.note}</div>}
       {role !== 'PHARMACIST' && (
         <div>

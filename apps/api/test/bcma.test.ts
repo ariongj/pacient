@@ -411,15 +411,12 @@ describe('bedside verification', () => {
       expect(drug.status).toBe(409);
       expect(drug.body.error.details.problems[0].code).toBe('WRONG_DRUG');
       // A refused dose is refused too when the wrong wristband is scanned.
-      const refused = await api()
-        .post(`${base()}/medication-administrations`)
-        .set(nurse())
-        .send({
-          prescriptionId: textRx,
-          status: 'REFUSED',
-          reason: 'Patient refused',
-          scanToken: otherBand,
-        });
+      const refused = await api().post(`${base()}/medication-administrations`).set(nurse()).send({
+        prescriptionId: textRx,
+        status: 'REFUSED',
+        reason: 'Patient refused',
+        scanToken: otherBand,
+      });
       expect(refused.status).toBe(409);
       const denied = await db
         .select()
@@ -501,14 +498,11 @@ describe('bedside verification', () => {
     });
 
     it('withheld doses need no scan', async () => {
-      const res = await api()
-        .post(`${base()}/medication-administrations`)
-        .set(nurse())
-        .send({
-          prescriptionId: paraRx,
-          status: 'WITHHELD',
-          reason: 'Nil by mouth before surgery',
-        });
+      const res = await api().post(`${base()}/medication-administrations`).set(nurse()).send({
+        prescriptionId: paraRx,
+        status: 'WITHHELD',
+        reason: 'Nil by mouth before surgery',
+      });
       expect(res.status).toBe(201);
       expect(res.body.scanOverrideReason).toBeNull();
     });
@@ -524,5 +518,46 @@ describe('bedside verification', () => {
         (await api().get(`${base()}/bcma/compliance`).set(bearer(w.tokens.patient))).status,
       ).toBe(403);
     });
+  });
+});
+
+// Runs last: its doses would otherwise count in the ward compliance figures above.
+describe('as-needed limits', () => {
+  it('warns when an as-needed limit for 24 hours is reached', async () => {
+    const [rx] = await db
+      .insert(prescriptions)
+      .values({
+        patientId: w.patient.id,
+        doctorId: w.users.doctor.id,
+        medication: 'Paracetamol 500 mg',
+        catalogItemId: items.paracetamol,
+        dosage: '500 mg',
+        frequency: 'as needed',
+        frequencyCode: 'PRN',
+        asNeeded: true,
+        maxDosesPer24h: 2,
+        startDate: '2026-11-01',
+        pharmacyStatus: 'VERIFIED',
+      })
+      .returning();
+    const body = {
+      prescriptionId: rx!.id,
+      patientToken: band,
+      medicationBarcode: codes.paracetamol,
+    };
+    for (const hoursAgo of [20, 10]) {
+      await db.insert(medicationAdministrations).values({
+        prescriptionId: rx!.id,
+        patientId: w.patient.id,
+        status: 'GIVEN',
+        administeredById: w.users.nurse.id,
+        administeredAt: new Date(Date.now() - hoursAgo * 3_600_000),
+      });
+    }
+    const res = await api().post(`${base()}/bcma/verify`).set(nurse()).send(body);
+    expect(res.status).toBe(200);
+    const problem = res.body.problems.find((p: { code: string }) => p.code === 'MAX_DOSES_REACHED');
+    expect(problem).toMatchObject({ overridable: true, severity: 'WARNING' });
+    expect(problem.message).toContain('2');
   });
 });

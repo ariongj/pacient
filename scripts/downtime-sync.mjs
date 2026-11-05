@@ -28,7 +28,16 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 const [, , command = 'sync', ...args] = process.argv;
@@ -66,9 +75,12 @@ async function sync() {
   }
   const key = (
     process.env.DOWNTIME_SYNC_KEY ??
-    (process.env.DOWNTIME_SYNC_KEY_FILE ? readFileSync(process.env.DOWNTIME_SYNC_KEY_FILE, 'utf8') : '')
+    (process.env.DOWNTIME_SYNC_KEY_FILE
+      ? readFileSync(process.env.DOWNTIME_SYNC_KEY_FILE, 'utf8')
+      : '')
   ).trim();
-  if (!key.startsWith('dts_')) fail('DOWNTIME_SYNC_KEY / DOWNTIME_SYNC_KEY_FILE is missing or invalid');
+  if (!key.startsWith('dts_'))
+    fail('DOWNTIME_SYNC_KEY / DOWNTIME_SYNC_KEY_FILE is missing or invalid');
   const dir = outDir();
 
   const res = await fetch(`${base}/api/v1/downtime/sync/latest`, {
@@ -97,7 +109,11 @@ async function sync() {
   renameSync(tmp, path.join(dir, name));
   writeFileSync(
     path.join(dir, 'status.json'),
-    JSON.stringify({ latest: name, generatedAt, sha256, syncedAt: new Date().toISOString() }, null, 2),
+    JSON.stringify(
+      { latest: name, generatedAt, sha256, syncedAt: new Date().toISOString() },
+      null,
+      2,
+    ),
     { mode: 0o600 },
   );
   const keep = Math.max(1, Number(process.env.DOWNTIME_KEEP ?? 24));
@@ -116,7 +132,8 @@ function open() {
   const r = spawnSync('age', ['-d', '-i', identity, '-o', target, path.join(dir, latest)], {
     stdio: ['inherit', 'inherit', 'inherit'],
   });
-  if (r.error) fail(`could not run age (${r.error.message}) – install it from https://age-encryption.org`);
+  if (r.error)
+    fail(`could not run age (${r.error.message}) – install it from https://age-encryption.org`);
   if (r.status !== 0) fail('decryption failed');
   chmodSync(target, 0o600);
   if (status?.latest === latest && status.sha256) {

@@ -98,7 +98,8 @@ const EnvSchema = z.object({
   APP_VERSION: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(80).optional()),
   /**
    * Downtime packs (paper fallback): directory for the encrypted hourly packs, and an optional age
-   * public key – packs are then also written as .age files that only the holder of the private key
+   * public key (or several, comma-separated, e.g. one per ward PC) – packs are then also written as .age
+   * files that only the holders of the private keys
    * can open (e.g. on an offline ward PC). Without it they are sealed with a key derived from
    * MFA_ENCRYPTION_KEY and can only be opened through the API.
    */
@@ -107,7 +108,10 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z
       .string()
-      .regex(/^age1[0-9a-z]{58}$/, 'DOWNTIME_AGE_RECIPIENT must be an age public key (age1…)')
+      .regex(
+        /^age1[0-9a-z]{58}(,age1[0-9a-z]{58})*$/,
+        'DOWNTIME_AGE_RECIPIENT must be age public keys (age1…), separated by commas',
+      )
       .optional(),
   ),
   DOWNTIME_WORKER: z.enum(['true', 'false']).default('true'),

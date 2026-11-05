@@ -96,6 +96,25 @@ describe('clinical documentation', () => {
     const empty = await api().post(`${base()}/vitals`).set(bearer(w.tokens.doctor)).send({});
     expect(empty.status).toBe(400);
 
+    // Back-entry from paper downtime charts: the real observation time, never in the future.
+    const takenAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    const backEntered = await api()
+      .post(`${base()}/vitals`)
+      .set(bearer(w.tokens.doctor))
+      .send({ heartRate: 80, recordedAt: takenAt });
+    expect(backEntered.status).toBe(201);
+    expect(new Date(backEntered.body.recordedAt).toISOString()).toBe(takenAt);
+    const future = await api()
+      .post(`${base()}/vitals`)
+      .set(bearer(w.tokens.doctor))
+      .send({ heartRate: 80, recordedAt: new Date(Date.now() + 3_600_000).toISOString() });
+    expect(future.status).toBe(400);
+    const onlyTime = await api()
+      .post(`${base()}/vitals`)
+      .set(bearer(w.tokens.doctor))
+      .send({ recordedAt: takenAt });
+    expect(onlyTime.status).toBe(400);
+
     const badDates = await api().post(`${base()}/prescriptions`).set(bearer(w.tokens.doctor)).send({
       medication: 'X',
       dosage: '1',

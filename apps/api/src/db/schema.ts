@@ -7,6 +7,7 @@ import {
   index,
   inet,
   integer,
+  smallint,
   jsonb,
   numeric,
   pgEnum,
@@ -524,6 +525,8 @@ export const prescriptions = pgTable(
     frequencyCode: varchar('frequency_code', { length: 12 }),
     durationDays: integer('duration_days'),
     asNeeded: boolean('as_needed').notNull().default(false),
+    /** As-needed (PRN) limit; the bedside barcode check enforces it. */
+    maxDosesPer24h: smallint('max_doses_per_24h'),
     frequency: varchar('frequency', { length: 100 }).notNull(),
     route: varchar('route', { length: 50 }).notNull().default('oral'),
     instructions: text('instructions'),

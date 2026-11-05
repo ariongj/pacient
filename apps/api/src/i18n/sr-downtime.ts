@@ -8,7 +8,8 @@ export const srDowntime: Record<string, string> = {
 
   // Pack
   'Downtime pack – {facility}': 'Paket za prekid rada sistema – {facility}',
-  'Generated {time} · {count} inpatients': 'Napravljeno {time} · {count} hospitalizovanih pacijenata',
+  'Generated {time} · {count} inpatients':
+    'Napravljeno {time} · {count} hospitalizovanih pacijenata',
   'Confidential patient information. Use only during a system outage, keep it secure and shred it afterwards. Information is as of the time above – check with the patient and the paper record before acting.':
     'Poverljivi podaci o pacijentima. Koristite samo tokom prekida rada sistema, čuvajte bezbedno i posle uništite. Podaci važe za navedeno vreme – proverite sa pacijentom i papirnom evidencijom pre nego što postupite.',
   'Record everything you do on paper (medicine chart, observation chart). When the system is back, enter it with the real time it happened and the note "back-entered after downtime".':

@@ -222,7 +222,9 @@ function PacksPanel({ isDirector }: { isDirector: boolean }) {
             />
             <Button
               loading={generate.isPending}
-              onClick={() => generate.mutate((locale || undefined) as 'sq' | 'sr' | 'en' | undefined)}
+              onClick={() =>
+                generate.mutate((locale || undefined) as 'sq' | 'sr' | 'en' | undefined)
+              }
             >
               {t('Generate now')}
             </Button>
@@ -362,9 +364,11 @@ function BackEntryPanel({ role }: { role: string }) {
                           {p.administrationsBackEntered > 0 && (
                             <span className="muted">
                               {' '}
-                              ({t('{count} back-entered', {
+                              (
+                              {t('{count} back-entered', {
                                 count: p.administrationsBackEntered,
-                              })})
+                              })}
+                              )
                             </span>
                           )}
                         </td>
@@ -405,7 +409,9 @@ function ProcedurePanel() {
             'Record every medicine given, every observation and every new patient on paper, with the time.',
           )}
         </li>
-        <li>{t('Check allergies and identity with the patient – the pack may be up to an hour old.')}</li>
+        <li>
+          {t('Check allergies and identity with the patient – the pack may be up to an hour old.')}
+        </li>
       </ul>
       <h3>{t('After downtime')}</h3>
       <ul>

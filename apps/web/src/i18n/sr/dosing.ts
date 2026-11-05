@@ -1,4 +1,108 @@
 /**
- * Serbian (Latin, sr-Latn) translations, keyed by the English source text. Keep {placeholders}.
+ * Serbian, Latin (sr) translations for structured dosing and dose rules, keyed by the English source
+ * text. Keep {placeholders}.
  */
-export const dosing: Record<string, string> = {};
+export const dosing: Record<string, string> = {
+  Adult: 'Odrasli',
+  'Neonate (under 28 days)': 'Novorođenče (do 28 dana)',
+  'Older adult (65+)': 'Starija osoba (65+)',
+  Oral: 'Oralno',
+  'Intravenous (IV)': 'Intravenski (IV)',
+  'Intramuscular (IM)': 'Intramuskularno (IM)',
+  'Subcutaneous (SC)': 'Supkutano (SC)',
+  Inhaled: 'Inhalaciono',
+  Topical: 'Lokalno (na kožu)',
+  Rectal: 'Rektalno',
+  Sublingual: 'Sublingvalno',
+  Nasal: 'Nazalno',
+  'Eye (ophthalmic)': 'U oko (oftalmološki)',
+  'Ear (otic)': 'U uvo (ušni)',
+  'tablet(s)': 'tableta',
+  'capsule(s)': 'kapsula',
+  'puff(s)': 'udah (inhalator)',
+  'drop(s)': 'kapi',
+  units: 'jedinice',
+  IU: 'IJ',
+  'as needed': 'po potrebi',
+  'once a day': 'jednom dnevno',
+  'twice a day': 'dva puta dnevno',
+  'three times a day': 'tri puta dnevno',
+  'four times a day': 'četiri puta dnevno',
+  'every 4 hours': 'svakih 4 sata',
+  'every 6 hours': 'svakih 6 sati',
+  'every 8 hours': 'svakih 8 sati',
+  'every 12 hours': 'svakih 12 sati',
+  'at bedtime': 'pred spavanje',
+  'as needed, up to {n} times in 24 hours': 'po potrebi, najviše {n} puta u 24 sata',
+  'once, immediately': 'jednokratno, odmah',
+  'once a week': 'jednom nedeljno',
+  '{frequency}, as needed': '{frequency}, po potrebi',
+  '{frequency}, at most {n} doses in 24 hours': '{frequency}, najviše {n} doza u 24 sata',
+  '{frequency}, for 1 day': '{frequency}, 1 dan',
+  '{frequency}, for {n} days': '{frequency}, {n} dana',
+  '{n} tablet': '{n} tableta',
+  '{n} tablets': '{n} tbl.',
+  '{n} capsule': '{n} kapsula',
+  '{n} capsules': '{n} kaps.',
+  '{n} puff': '{n} udah',
+  '{n} puffs': '{n} udaha',
+  '{n} drop': '{n} kap',
+  '{n} drops': '{n} kapi',
+  '{n} unit': '{n} jedinica',
+  '{n} units': '{n} jed.',
+  'Weight for dosing: {weight} kg (recorded {date}).':
+    'Telesna masa za doziranje: {weight} kg (zabeleženo {date}).',
+  'Record weight': 'Unesi telesnu masu',
+  'No weight recorded': 'Telesna masa nije zabeležena',
+  'Weight-based dosing needs a current weight.':
+    'Doziranje prema telesnoj masi zahteva aktuelnu masu.',
+  'Dose amount': 'Količina doze',
+  'Maximum doses in 24 hours': 'Najveći broj doza u 24 sata',
+  'Duration (days)': 'Trajanje (dana)',
+  'Sets the end date when none is given.': 'Određuje datum završetka ako nije unet.',
+  'As needed (PRN)': 'Po potrebi (PRN)',
+  'Enter the dose as free text': 'Unesi dozu kao slobodan tekst',
+  'Free-text doses are not checked against dose limits.':
+    'Doze unete kao slobodan tekst ne proveravaju se prema granicama doza.',
+  'Prescription text': 'Tekst recepta',
+  'Dose check': 'Provera doze',
+  Ingredient: 'Sastojak',
+  'Per dose': 'Po dozi',
+  'Per day': 'Dnevno',
+  Limit: 'Granica',
+  'max {single} per dose, {daily} per day': 'maks. {single} po dozi, {daily} dnevno',
+  'No dose rule': 'Nema pravila doziranja',
+  'A weight is needed to work out this dose.':
+    'Za izračunavanje ove doze potrebna je telesna masa.',
+  'The strength is unknown: choose the medicine from the catalogue or give the dose in mg.':
+    'Jačina nije poznata: izaberite lek iz kataloga ili unesite dozu u mg.',
+  'The unit does not match the medicine’s form (e.g. ml for tablets).':
+    'Jedinica ne odgovara obliku leka (npr. ml za tablete).',
+  'Dose rules': 'Pravila doziranja',
+  'Add dose rule': 'Dodaj pravilo doziranja',
+  'Edit dose rule': 'Izmeni pravilo doziranja',
+  'Demo dose limits – verify against a licensed reference':
+    'Demo granice doza – proverite u licenciranom izvoru',
+  'Maximum single and daily doses used to check structured prescriptions. Per-kg limits use the latest weight from vital signs; older adults and children fall back to the adult limits where they have no rule of their own.':
+    'Najveće pojedinačne i dnevne doze kojima se proveravaju strukturisani recepti. Granice po kg koriste poslednju telesnu masu iz vitalnih znakova; za starije osobe i decu primenjuju se granice za odrasle kada nemaju sopstveno pravilo.',
+  'Age group': 'Uzrasna grupa',
+  'No dose rules found': 'Nije pronađeno nijedno pravilo doziranja',
+  'Max per dose': 'Maks. po dozi',
+  'Max per day': 'Maks. dnevno',
+  'Absolute max per day': 'Apsolutni maks. dnevno',
+  'Ingredient (INN)': 'Sastojak (INN)',
+  'Cap even when dosed per kg (e.g. paracetamol 4000 mg).':
+    'Gornja granica i kada se dozira po kg (npr. paracetamol 4000 mg).',
+  'Limits are per kg of body weight': 'Granice su po kg telesne mase',
+  'Note (English source text)': 'Napomena (izvorni tekst na engleskom)',
+  'Shown to the prescriber as what to do when the limit is exceeded.':
+    'Prikazuje se lekaru kao uputstvo kada je granica prekoračena.',
+  'Give the maximum number of doses in 24 hours for an as-needed prescription':
+    'Navedite najveći broj doza u 24 sata za lek po potrebi',
+  'Give the dose amount, unit and frequency (or a dosage and frequency text)':
+    'Navedite količinu doze, jedinicu i učestalost (ili tekst doze i učestalosti)',
+  'A dose rule for this ingredient, route and age group exists':
+    'Pravilo doziranja za ovaj sastojak, put primene i uzrasnu grupu već postoji',
+  'A dose rule needs at least one limit': 'Pravilo doziranja mora imati bar jednu granicu',
+  'Give at least one limit': 'Navedite bar jednu granicu',
+};

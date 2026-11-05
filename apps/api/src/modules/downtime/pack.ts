@@ -370,7 +370,10 @@ export async function collectPackData(
     .from(edVisits)
     .innerJoin(patients, eq(patients.id, edVisits.patientId))
     .where(
-      and(eq(edVisits.facilityId, facilityId), inArray(edVisits.status, ['WAITING', 'IN_TREATMENT'])),
+      and(
+        eq(edVisits.facilityId, facilityId),
+        inArray(edVisits.status, ['WAITING', 'IN_TREATMENT']),
+      ),
     )
     .orderBy(sql`${edVisits.triageLevel} NULLS FIRST`, asc(edVisits.arrivedAt));
 
@@ -427,7 +430,11 @@ export async function collectPackData(
     )
     .orderBy(asc(appointments.scheduledAt));
 
-  const displayName = (r: { firstName: string; lastName: string; temporaryIdentity: string | null }) =>
+  const displayName = (r: {
+    firstName: string;
+    lastName: string;
+    temporaryIdentity: string | null;
+  }) =>
     r.temporaryIdentity === 'UNIDENTIFIED'
       ? tr(locale, 'Unknown patient {code}', { code: r.lastName })
       : `${r.firstName} ${r.lastName}`;
@@ -545,7 +552,10 @@ export function renderPackHtml(data: PackData): string {
         .map((p) => {
           const allergyCell = p.allergies.length
             ? `<span class="allergy">${p.allergies
-                .map((a) => `${esc(a.substance)} (${esc(T(SEVERITY_LABEL[a.severity] ?? a.severity))})`)
+                .map(
+                  (a) =>
+                    `${esc(a.substance)} (${esc(T(SEVERITY_LABEL[a.severity] ?? a.severity))})`,
+                )
                 .join(', ')}</span>`
             : `<span class="none">${esc(T('No known allergies recorded'))}</span>`;
           const vit = p.vitals
@@ -639,7 +649,9 @@ ${rows}
             `<tr><td>${esc(time(c.start))}</td><td>${esc(c.theatre ?? '—')}</td><td>${esc(
               c.name,
             )}</td><td>${esc(c.procedure)}${
-              SIDE_LABEL[c.laterality] ? ` – <strong>${esc(T(SIDE_LABEL[c.laterality]!))}</strong>` : ''
+              SIDE_LABEL[c.laterality]
+                ? ` – <strong>${esc(T(SIDE_LABEL[c.laterality]!))}</strong>`
+                : ''
             }</td><td>${esc(c.surgeon)}</td><td>${esc(T(STATUS_LABEL[c.status] ?? c.status))}</td></tr>`,
         )
         .join('')}</tbody></table>`

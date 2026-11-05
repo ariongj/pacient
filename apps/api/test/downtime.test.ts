@@ -199,7 +199,7 @@ describe('downtime packs', () => {
     expect(html).not.toContain('Stopped-drug');
     expect(html).toContain('BP 128/82');
     expect(html).toContain('Emergency department');
-    expect(html).toContain("Today&#39;s operating list");
+    expect(html).toContain('Today&#39;s operating list');
   });
 
   it('shows next due times for 12 hours: 3 for every-4-hours, 1 for twice daily', () => {
@@ -234,8 +234,11 @@ describe('downtime packs', () => {
     const other = await api().get('/api/v1/downtime/packs').set(bearer(w.tokens.otherDirector));
     expect(other.body.data).toHaveLength(0);
     expect(
-      (await api().get(`/api/v1/downtime/packs/${packId}/download`).set(bearer(w.tokens.otherDirector)))
-        .status,
+      (
+        await api()
+          .get(`/api/v1/downtime/packs/${packId}/download`)
+          .set(bearer(w.tokens.otherDirector))
+      ).status,
     ).toBe(404);
 
     const dl = await api()
@@ -288,7 +291,7 @@ describe('downtime packs', () => {
     const file = path.join(dir, row!.fileName);
     const original = readFileSync(file);
     const tampered = Buffer.from(original);
-    tampered[tampered.length - 1] ^= 0xff;
+    tampered.writeUInt8(tampered.readUInt8(tampered.length - 1) ^ 0xff, tampered.length - 1);
     writeFileSync(file, tampered);
     const res = await api()
       .get(`/api/v1/downtime/packs/${packId}/download`)
@@ -322,82 +325,92 @@ describe('downtime packs', () => {
     expect(after).toHaveLength(PACK_RETENTION);
     // The real (newest) packs survive; the oldest fakes went, with their files.
     expect(after.map((r) => r.id)).toEqual(expect.arrayContaining(before.map((r) => r.id)));
-    expect(existsSync(path.join(dir, `${w.facility.code}/old-${PACK_RETENTION - 1}.html.enc`))).toBe(
-      false,
-    );
+    expect(
+      existsSync(path.join(dir, `${w.facility.code}/old-${PACK_RETENTION - 1}.html.enc`)),
+    ).toBe(false);
     expect(existsSync(path.join(dir, `${w.facility.code}/old-0.html.enc`))).toBe(true);
   });
 
-  it.skipIf(!hasAge)('also writes an age copy that only the offline key opens, served to sync keys', async () => {
-    const keyFile = path.join(dir, 'ward-pc.key');
-    execFileSync('age-keygen', ['-o', keyFile], { stdio: 'pipe' });
-    const recipient = /public key: (age1[0-9a-z]+)/.exec(readFileSync(keyFile, 'utf8'))![1]!;
-    downtimeConfig.ageRecipient = recipient;
-    try {
-      const packs = await generateDowntimePacks(w.facility.id, new Date());
-      const age = packs.find((p) => p.kind === 'HTML_AGE')!;
-      expect(age.fileName).toMatch(/\.html\.age$/);
-      const plain = execFileSync('age', ['-d', '-i', keyFile, path.join(dir, age.fileName)]);
-      expect(sha(plain)).toBe(age.sha256);
-
-      // The web cannot open the age copy.
-      expect(
-        (await api().get(`/api/v1/downtime/packs/${age.id}/download`).set(bearer(w.tokens.director)))
-          .status,
-      ).toBe(409);
-
-      const key = `dts_${randomBytes(24).toString('base64url')}`;
-      setSyncKeysForTests(`${w.facility.code}:${sha(key)}`);
-      expect((await api().get('/api/v1/downtime/sync/latest')).status).toBe(401);
-      expect(
-        (await api().get('/api/v1/downtime/sync/latest').set(bearer(`dts_${'x'.repeat(32)}`))).status,
-      ).toBe(401);
-      // A staff access token is not a sync key.
-      expect((await api().get('/api/v1/downtime/sync/latest').set(bearer(w.tokens.director))).status).toBe(
-        401,
-      );
-      const res = await api()
-        .get('/api/v1/downtime/sync/latest')
-        .set(bearer(key))
-        .buffer(true)
-        .parse((r, cb) => {
-          const chunks: Buffer[] = [];
-          r.on('data', (c: Buffer) => chunks.push(c));
-          r.on('end', () => cb(null, Buffer.concat(chunks)));
-        });
-      expect(res.status).toBe(200);
-      expect(res.headers['x-pack-sha256']).toBe(age.sha256);
-      expect((res.body as Buffer).subarray(0, 21).toString()).toBe('age-encryption.org/v1');
-
-      // The ward PC script stores the encrypted copy and opens it with the offline key.
-      const server = app.listen(0);
+  it.skipIf(!hasAge)(
+    'also writes an age copy that only the offline key opens, served to sync keys',
+    async () => {
+      const keyFile = path.join(dir, 'ward-pc.key');
+      execFileSync('age-keygen', ['-o', keyFile], { stdio: 'pipe' });
+      const recipient = /public key: (age1[0-9a-z]+)/.exec(readFileSync(keyFile, 'utf8'))![1]!;
+      downtimeConfig.ageRecipient = recipient;
       try {
-        const port = (server.address() as AddressInfo).port;
-        const out = path.join(dir, 'ward-pc');
-        const script = path.resolve(__dirname, '../../../scripts/downtime-sync.mjs');
-        const envVars = {
-          ...process.env,
-          PACIENT_URL: `http://127.0.0.1:${port}`,
-          DOWNTIME_SYNC_KEY: key,
-          DOWNTIME_OUT_DIR: out,
-        };
-        await execFileAsync(process.execPath, [script, 'sync'], { env: envVars });
-        const opened = await execFileAsync(
-          process.execPath,
-          [script, 'open', '--identity', keyFile],
-          { env: envVars },
-        );
-        const htmlPath = opened.stdout.trim();
-        expect(sha(readFileSync(htmlPath))).toBe(age.sha256);
-        await execFileAsync(process.execPath, [script, 'check'], { env: envVars });
+        const packs = await generateDowntimePacks(w.facility.id, new Date());
+        const age = packs.find((p) => p.kind === 'HTML_AGE')!;
+        expect(age.fileName).toMatch(/\.html\.age$/);
+        const plain = execFileSync('age', ['-d', '-i', keyFile, path.join(dir, age.fileName)]);
+        expect(sha(plain)).toBe(age.sha256);
+
+        // The web cannot open the age copy.
+        expect(
+          (
+            await api()
+              .get(`/api/v1/downtime/packs/${age.id}/download`)
+              .set(bearer(w.tokens.director))
+          ).status,
+        ).toBe(409);
+
+        const key = `dts_${randomBytes(24).toString('base64url')}`;
+        setSyncKeysForTests(`${w.facility.code}:${sha(key)}`);
+        expect((await api().get('/api/v1/downtime/sync/latest')).status).toBe(401);
+        expect(
+          (
+            await api()
+              .get('/api/v1/downtime/sync/latest')
+              .set(bearer(`dts_${'x'.repeat(32)}`))
+          ).status,
+        ).toBe(401);
+        // A staff access token is not a sync key.
+        expect(
+          (await api().get('/api/v1/downtime/sync/latest').set(bearer(w.tokens.director))).status,
+        ).toBe(401);
+        const res = await api()
+          .get('/api/v1/downtime/sync/latest')
+          .set(bearer(key))
+          .buffer(true)
+          .parse((r, cb) => {
+            const chunks: Buffer[] = [];
+            r.on('data', (c: Buffer) => chunks.push(c));
+            r.on('end', () => cb(null, Buffer.concat(chunks)));
+          });
+        expect(res.status).toBe(200);
+        expect(res.headers['x-pack-sha256']).toBe(age.sha256);
+        expect((res.body as Buffer).subarray(0, 21).toString()).toBe('age-encryption.org/v1');
+
+        // The ward PC script stores the encrypted copy and opens it with the offline key.
+        const server = app.listen(0);
+        try {
+          const port = (server.address() as AddressInfo).port;
+          const out = path.join(dir, 'ward-pc');
+          const script = path.resolve(__dirname, '../../../scripts/downtime-sync.mjs');
+          const envVars = {
+            ...process.env,
+            PACIENT_URL: `http://127.0.0.1:${port}`,
+            DOWNTIME_SYNC_KEY: key,
+            DOWNTIME_OUT_DIR: out,
+          };
+          await execFileAsync(process.execPath, [script, 'sync'], { env: envVars });
+          const opened = await execFileAsync(
+            process.execPath,
+            [script, 'open', '--identity', keyFile],
+            { env: envVars },
+          );
+          const htmlPath = opened.stdout.trim();
+          expect(sha(readFileSync(htmlPath))).toBe(age.sha256);
+          await execFileAsync(process.execPath, [script, 'check'], { env: envVars });
+        } finally {
+          server.close();
+        }
       } finally {
-        server.close();
+        downtimeConfig.ageRecipient = undefined;
+        setSyncKeysForTests(undefined);
       }
-    } finally {
-      downtimeConfig.ageRecipient = undefined;
-      setSyncKeysForTests(undefined);
-    }
-  });
+    },
+  );
 });
 
 describe('downtime mode', () => {
@@ -429,7 +442,9 @@ describe('downtime mode', () => {
     const other = await api().get('/api/v1/downtime/status').set(bearer(w.tokens.otherDirector));
     expect(other.body.active).toBe(false);
     // The API keeps working during downtime (indicator, not a block).
-    expect((await api().get('/api/v1/downtime/packs').set(bearer(w.tokens.nurse))).status).toBe(200);
+    expect((await api().get('/api/v1/downtime/packs').set(bearer(w.tokens.nurse))).status).toBe(
+      200,
+    );
 
     const notes = await db
       .select()
@@ -443,7 +458,9 @@ describe('downtime mode', () => {
     const [rx] = await db
       .select()
       .from(prescriptions)
-      .where(and(eq(prescriptions.patientId, w.patient.id), eq(prescriptions.medication, 'Paracetamol')));
+      .where(
+        and(eq(prescriptions.patientId, w.patient.id), eq(prescriptions.medication, 'Paracetamol')),
+      );
     // Downtime began two hours ago; a paper dose given an hour ago is entered now.
     const since = new Date(Date.now() - 2 * 3_600_000);
     await db
@@ -463,11 +480,13 @@ describe('downtime mode', () => {
     const res = await api().get('/api/v1/downtime/back-entry').set(bearer(w.tokens.nurse));
     expect(res.status).toBe(200);
     expect(res.body.window.active).toBe(true);
-    const row = res.body.patients.find((p: { admissionId: string }) => p.admissionId === admissionId);
-    expect(row).toMatchObject({ bed: 'B7', administrations: 1, administrationsBackEntered: 1 });
-    expect((await api().get('/api/v1/downtime/back-entry').set(bearer(w.tokens.reception))).status).toBe(
-      403,
+    const row = res.body.patients.find(
+      (p: { admissionId: string }) => p.admissionId === admissionId,
     );
+    expect(row).toMatchObject({ bed: 'B7', administrations: 1, administrationsBackEntered: 1 });
+    expect(
+      (await api().get('/api/v1/downtime/back-entry').set(bearer(w.tokens.reception))).status,
+    ).toBe(403);
   });
 
   it('ends downtime, keeps the last window for back-entry and audits both', async () => {
@@ -475,7 +494,9 @@ describe('downtime mode', () => {
     expect(ended.status).toBe(200);
     expect(ended.body).toMatchObject({ active: false });
     expect(ended.body.lastWindow).toBeTruthy();
-    expect((await api().post('/api/v1/downtime/end').set(bearer(w.tokens.director))).status).toBe(409);
+    expect((await api().post('/api/v1/downtime/end').set(bearer(w.tokens.director))).status).toBe(
+      409,
+    );
 
     const checklist = await api().get('/api/v1/downtime/back-entry').set(bearer(w.tokens.doctor));
     expect(checklist.body.window).toMatchObject({ active: false });

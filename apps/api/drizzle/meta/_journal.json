@@ -120,6 +120,13 @@
       "when": 1793835485950,
       "tag": "0016_dosing_downtime_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793837055942,
+      "tag": "0017_prn_max_doses",
+      "breakpoints": true
     }
   ]
 }

@@ -183,9 +183,21 @@ const VitalsInput = z
     consciousness: z.enum(['A', 'C', 'V', 'P', 'U']).optional(),
     onSupplementalOxygen: z.boolean().optional(),
     painScore: z.number().int().min(0).max(10).optional(),
+    /** When the observation was actually taken – lets paper downtime charts be back-entered. */
+    recordedAt: z.coerce
+      .date()
+      .refine((d) => d.getTime() <= Date.now() + 5 * 60_000, 'recordedAt cannot be in the future')
+      .refine(
+        (d) => d.getTime() >= Date.now() - 14 * 86_400_000,
+        'recordedAt is too far in the past',
+      )
+      .optional(),
   })
   .refine(
-    (v) => Object.entries(v).some(([k, val]) => k !== 'encounterId' && val !== undefined),
+    (v) =>
+      Object.entries(v).some(
+        ([k, val]) => k !== 'encounterId' && k !== 'recordedAt' && val !== undefined,
+      ),
     'At least one measurement is required',
   );
 
@@ -629,6 +641,7 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
         frequencyCode: dose.frequencyCode,
         durationDays: dose.durationDays ?? null,
         asNeeded: Boolean(dose.asNeeded),
+        maxDosesPer24h: dose.maxDosesPer24h ?? null,
         endDate:
           rxInput.endDate ??
           (dose.durationDays
@@ -821,7 +834,13 @@ clinicalRouter.post('/vitals', async (req, res) => {
   const news = await scoreVitalSign(row.id).catch(() => null);
   res.status(201).json({
     ...row,
-    news: news && { id: news.id, scale: news.scale, score: news.score, risk: news.risk, complete: news.complete },
+    news: news && {
+      id: news.id,
+      scale: news.scale,
+      score: news.score,
+      risk: news.risk,
+      complete: news.complete,
+    },
   });
 });
 

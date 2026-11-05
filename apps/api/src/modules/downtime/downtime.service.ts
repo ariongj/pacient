@@ -33,11 +33,12 @@ export const PACK_INTERVAL_MS = 60 * 60 * 1000;
 const PURPOSE = 'downtime';
 
 /** Where packs are written. Mutable so tests can point it at a temporary directory. */
-export const downtimeConfig: { dir: string; ageRecipient: string | undefined; ageBinary: string } = {
-  dir: env.DOWNTIME_DIR,
-  ageRecipient: env.DOWNTIME_AGE_RECIPIENT,
-  ageBinary: 'age',
-};
+export const downtimeConfig: { dir: string; ageRecipient: string | undefined; ageBinary: string } =
+  {
+    dir: env.DOWNTIME_DIR,
+    ageRecipient: env.DOWNTIME_AGE_RECIPIENT,
+    ageBinary: 'age',
+  };
 
 export type PackKind = 'HTML_AES' | 'HTML_AGE';
 
@@ -55,10 +56,11 @@ function packPath(fileName: string): string {
   return full;
 }
 
-/** Encrypts with the age CLI for an offline recipient key (the private key never touches the server). */
+/** Encrypts with the age CLI for offline recipient keys (the private keys never touch the server). */
 function ageEncrypt(plain: Buffer, recipient: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn(downtimeConfig.ageBinary, ['-r', recipient], {
+    const recipients = recipient.split(',').flatMap((r) => ['-r', r.trim()]);
+    const child = spawn(downtimeConfig.ageBinary, recipients, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     const out: Buffer[] = [];

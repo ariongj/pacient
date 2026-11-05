@@ -135,6 +135,7 @@ export function listPrescriptions(patientId: string, view: ViewOptions = CLINICI
       frequencyCode: prescriptions.frequencyCode,
       durationDays: prescriptions.durationDays,
       asNeeded: prescriptions.asNeeded,
+      maxDosesPer24h: prescriptions.maxDosesPer24h,
       instructions: prescriptions.instructions,
       startDate: prescriptions.startDate,
       endDate: prescriptions.endDate,

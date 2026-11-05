@@ -15,4 +15,6 @@ export const sqBcma: Record<string, string> = {
   'Not due yet: last given {last}, next dose due {next}.':
     'Ende nuk është koha: dhënë së fundi {last}, doza e radhës {next}.',
   'Already given {last}.': 'Është dhënë tashmë {last}.',
+  'The as-needed limit is reached: {count} of {max} doses given in the last 24 hours.':
+    'Është arritur kufiri për dhënie sipas nevojës: {count} nga {max} doza në 24 orët e fundit.',
 };

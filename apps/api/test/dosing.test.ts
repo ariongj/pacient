@@ -140,7 +140,10 @@ const doseAlerts = (body: { alerts: Alert[] }) => body.alerts.filter((a) => a.ki
 
 describe('dose arithmetic', () => {
   it('reads catalogue strengths', () => {
-    expect(parseStrength('500 mg')).toEqual({ per: 'unit', amounts: [{ value: 500, dim: 'mass' }] });
+    expect(parseStrength('500 mg')).toEqual({
+      per: 'unit',
+      amounts: [{ value: 500, dim: 'mass' }],
+    });
     expect(parseStrength('1 g')?.amounts[0]?.value).toBe(1000);
     expect(parseStrength('10 mg/ml')).toEqual({ per: 'ml', amounts: [{ value: 10, dim: 'mass' }] });
     expect(parseStrength('40 mg/0.4 ml')?.amounts[0]?.value).toBe(100);
@@ -149,15 +152,19 @@ describe('dose arithmetic', () => {
       per: 'unit',
       amounts: [{ value: 0.1, dim: 'mass' }],
     });
-    expect(parseStrength('100 U/ml')).toEqual({ per: 'ml', amounts: [{ value: 100, dim: 'units' }] });
+    expect(parseStrength('100 U/ml')).toEqual({
+      per: 'ml',
+      amounts: [{ value: 100, dim: 'units' }],
+    });
     expect(parseStrength('0.9 %')).toEqual({ per: 'ml', amounts: [{ value: 9, dim: 'mass' }] });
     expect(parseStrength('as directed')).toBeNull();
   });
 
   it('converts doses to milligrams of each ingredient', () => {
     const tab = parseStrength('500 mg');
-    expect(ingredientDoses({ doseAmount: 2, doseUnit: 'tablet' }, ['paracetamol'], tab, null))
-      .toEqual({ doses: [{ ingredient: 'paracetamol', single: 1000, dim: 'mass' }] });
+    expect(
+      ingredientDoses({ doseAmount: 2, doseUnit: 'tablet' }, ['paracetamol'], tab, null),
+    ).toEqual({ doses: [{ ingredient: 'paracetamol', single: 1000, dim: 'mass' }] });
     expect(
       ingredientDoses({ doseAmount: 1, doseUnit: 'g' }, ['paracetamol'], null, null).doses[0]
         ?.single,
@@ -167,8 +174,12 @@ describe('dose arithmetic', () => {
         ?.single,
     ).toBe(0.25);
     expect(
-      ingredientDoses({ doseAmount: 15, doseUnit: 'ml' }, ['paracetamol'], parseStrength('10 mg/ml'), null)
-        .doses[0]?.single,
+      ingredientDoses(
+        { doseAmount: 15, doseUnit: 'ml' },
+        ['paracetamol'],
+        parseStrength('10 mg/ml'),
+        null,
+      ).doses[0]?.single,
     ).toBe(150);
     expect(
       ingredientDoses({ doseAmount: 15, doseUnit: 'mg/kg' }, ['paracetamol'], null, 20).doses[0]
@@ -341,7 +352,11 @@ describe('dose-range checks', () => {
       { doseAmount: 2, doseUnit: 'tablet', frequencyCode: 'TID' },
       catalog.coAmoxiclav,
     );
-    expect(doseAlerts(two).map((a) => a.code).sort()).toEqual([
+    expect(
+      doseAlerts(two)
+        .map((a) => a.code)
+        .sort(),
+    ).toEqual([
       'DOSE:amoxicillin:daily',
       'DOSE:amoxicillin:single',
       'DOSE:clavulanic acid:daily',
@@ -460,7 +475,8 @@ describe('dose-range checks', () => {
     expect(doseAlerts(over)).toMatchObject([
       {
         code: 'DOSE:ibuprofen:daily',
-        message: 'Daily dose of ibuprofen is 3200 mg (8 × 400 mg), above the maximum of 2400 mg per day.',
+        message:
+          'Daily dose of ibuprofen is 3200 mg (8 × 400 mg), above the maximum of 2400 mg per day.',
       },
     ]);
     // A PRN without its maximum is rejected.

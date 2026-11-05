@@ -315,6 +315,10 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
       consciousness: enumOf('A', 'C', 'V', 'P', 'U'),
       onSupplementalOxygen: bool,
       painScore: int({ minimum: 0, maximum: 10 }),
+      recordedAt: {
+        ...dateTime,
+        description: 'When the observation was taken (back-entry, up to 14 days ago)',
+      },
     }),
   }),
   op('post', `${pp}/immunizations`, CR, 'Record a vaccination given', {

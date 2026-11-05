@@ -463,7 +463,9 @@ safetyRouter.patch('/dose-rules/:id', requireRole('MINISTRY'), async (req, res) 
     if (!before) throw notFound('Dose rule not found');
     const next = {
       maxSingleDose:
-        input.maxSingleDose !== undefined ? input.maxSingleDose : Number(before.maxSingleDose) || null,
+        input.maxSingleDose !== undefined
+          ? input.maxSingleDose
+          : Number(before.maxSingleDose) || null,
       maxDailyDose:
         input.maxDailyDose !== undefined ? input.maxDailyDose : Number(before.maxDailyDose) || null,
       absoluteMaxDaily:

@@ -16,6 +16,7 @@ export type BcmaProblemCode =
   | 'DIFFERENT_STRENGTH'
   | 'NOT_DUE'
   | 'ALREADY_GIVEN'
+  | 'MAX_DOSES_REACHED'
   | 'ALLERGY';
 
 export interface BcmaProblem {

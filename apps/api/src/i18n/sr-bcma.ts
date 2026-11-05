@@ -14,4 +14,6 @@ export const srBcma: Record<string, string> = {
   'Not due yet: last given {last}, next dose due {next}.':
     'Još nije vreme: poslednji put dato {last}, sledeća doza {next}.',
   'Already given {last}.': 'Već dato {last}.',
+  'The as-needed limit is reached: {count} of {max} doses given in the last 24 hours.':
+    'Dostignuto je ograničenje za davanje po potrebi: {count} od {max} doza u poslednja 24 sata.',
 };

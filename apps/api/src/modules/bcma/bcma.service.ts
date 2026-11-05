@@ -1,4 +1,17 @@
-import { and, desc, eq, gte, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   admissions,
@@ -135,6 +148,7 @@ export const PROBLEM_CODES = [
   'DIFFERENT_STRENGTH',
   'NOT_DUE',
   'ALREADY_GIVEN',
+  'MAX_DOSES_REACHED',
   'ALLERGY',
 ] as const;
 export type ProblemCode = (typeof PROBLEM_CODES)[number];
@@ -166,6 +180,8 @@ const MESSAGES: Record<ProblemCode, string> = {
     'Same medicine, different strength ({scanned}). Check the dose before giving.',
   NOT_DUE: 'Not due yet: last given {last}, next dose due {next}.',
   ALREADY_GIVEN: 'Already given {last}.',
+  MAX_DOSES_REACHED:
+    'The as-needed limit is reached: {count} of {max} doses given in the last 24 hours.',
   ALLERGY: '{message}',
 };
 
@@ -323,6 +339,21 @@ export async function runChecks(
   const timing = timingCheck(doseInterval(rx), last?.at ?? null, now);
   if (opts.checkTiming !== false && timing.problem) {
     add(timing.problem, { last: timing.lastGivenAt, next: timing.nextDueAt });
+  }
+  if (opts.checkTiming !== false && rx.maxDosesPer24h) {
+    const [given] = await db
+      .select({ n: count() })
+      .from(medicationAdministrations)
+      .where(
+        and(
+          eq(medicationAdministrations.prescriptionId, rx.id),
+          eq(medicationAdministrations.status, 'GIVEN'),
+          gt(medicationAdministrations.administeredAt, new Date(now.getTime() - 86_400_000)),
+        ),
+      );
+    const n = Number(given?.n ?? 0);
+    if (n >= rx.maxDosesPer24h)
+      add('MAX_DOSES_REACHED', { count: String(n), max: String(rx.maxDosesPer24h) });
   }
 
   /* Allergy (the prescriber may have overridden it, but the nurse must see it at the bedside). */

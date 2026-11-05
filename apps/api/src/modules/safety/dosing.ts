@@ -672,10 +672,14 @@ export function doseText(
     }
   }
   if (dose.durationDays) {
-    frequency = tr(locale, dose.durationDays === 1 ? '{frequency}, for 1 day' : '{frequency}, for {n} days', {
-      frequency,
-      n: dose.durationDays,
-    });
+    frequency = tr(
+      locale,
+      dose.durationDays === 1 ? '{frequency}, for 1 day' : '{frequency}, for {n} days',
+      {
+        frequency,
+        n: dose.durationDays,
+      },
+    );
   }
   return { dosage: dosage.slice(0, 100), frequency: frequency.slice(0, 100) };
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "prescriptions" ADD COLUMN "max_doses_per_24h" smallint;

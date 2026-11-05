@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { scoreVitalSign } from '../news/news.service.js';
+import { enrolFromDiagnosis } from '../registers/registers.service.js';
 import { db, type Executor } from '../../db/client.js';
 import type { Role } from '../../db/schema.js';
 import {
@@ -543,6 +544,8 @@ clinicalRouter.post('/diagnoses', async (req, res) => {
     await auditChange(req, ctx, patientId, 'diagnosis', created!.id, tx);
     return created!;
   });
+  // Chronic disease registers: a matching ICD-10 code enrols the patient (never blocks the visit).
+  await enrolFromDiagnosis(row.id).catch(() => undefined);
   res.status(201).json(row);
 });
 

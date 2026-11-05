@@ -351,6 +351,8 @@ export const patients = pgTable(
     /** Free description for unidentified patients, e.g. "Man, about 40, brought by ambulance". */
     identityNote: varchar('identity_note', { length: 300 }),
     identityConfirmedAt: timestamp('identity_confirmed_at', { withTimezone: true }),
+    /** Set when a death certificate is signed (see death_records). */
+    deceasedAt: timestamp('deceased_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -592,6 +594,10 @@ export const vitalSigns = pgTable(
     consciousness: varchar('consciousness', { length: 1 }),
     onSupplementalOxygen: boolean('on_supplemental_oxygen'),
     painScore: integer('pain_score'),
+    /** Paediatric observations for PEWS: capillary refill (seconds) and work of breathing. */
+    capillaryRefillSeconds: numeric('capillary_refill_seconds', { precision: 3, scale: 1 }),
+    /** NONE, MILD, MODERATE or SEVERE respiratory distress. */
+    respiratoryEffort: varchar('respiratory_effort', { length: 10 }),
     weightKg: numeric('weight_kg', { precision: 5, scale: 1 }),
     heightCm: numeric('height_cm', { precision: 5, scale: 1 }),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1230,9 +1236,22 @@ export const patientDocuments = pgTable(
       onDelete: 'restrict',
     }),
     markedInErrorAt: timestamp('marked_in_error_at', { withTimezone: true }),
+    /** Where the encrypted bytes live: DB (document_contents) or S3 (object storage, storageKey). */
+    storageBackend: varchar('storage_backend', { length: 10 }).notNull().default('DB'),
+    storageKey: varchar('storage_key', { length: 300 }),
+    /** Versions: a new version points to the one it replaces, which becomes superseded. */
+    version: integer('version').notNull().default(1),
+    previousVersionId: uuid('previous_version_id').references(
+      (): AnyPgColumn => patientDocuments.id,
+      { onDelete: 'restrict' },
+    ),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('patient_documents_patient_idx').on(t.patientId, t.createdAt)],
+  (t) => [
+    index('patient_documents_patient_idx').on(t.patientId, t.createdAt),
+    uniqueIndex('patient_documents_previous_uq').on(t.previousVersionId),
+  ],
 );
 
 /** Encrypted document bytes (AES-256-GCM: 12-byte IV ‖ 16-byte tag ‖ ciphertext). */
@@ -1722,6 +1741,7 @@ export const PARTNER_SCOPES = [
   'births.notify',
   'claims.read',
   'surveillance.read',
+  'deaths.read',
 ] as const;
 export type PartnerScope = (typeof PARTNER_SCOPES)[number];
 
@@ -2684,6 +2704,384 @@ export const legalHolds = pgTable(
     releasedById: uuid('released_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [index('legal_holds_patient_idx').on(t.patientId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Death registration (WHO international form of the medical certificate of cause of death)
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * One death record per patient. Part I is the causal sequence (a = immediate cause … d = the
+ * underlying condition that started it), Part II other significant conditions. Signed records are
+ * immutable (trigger); corrections are amendment rows. The civil registry reads signed records over
+ * the partner API (scope deaths.read) and acknowledges them.
+ */
+export const deathRecords = pgTable(
+  'death_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    diedAt: timestamp('died_at', { withTimezone: true }).notNull(),
+    /** HOSPITAL, EMERGENCY_DEPARTMENT, HOME, NURSING_HOME, EN_ROUTE, OTHER. */
+    placeOfDeath: varchar('place_of_death', { length: 30 }).notNull(),
+    placeDetail: varchar('place_detail', { length: 200 }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    /** Part I lines a–d and Part II: [{ line, text, icd10, interval }]. */
+    causes: jsonb('causes').$type<DeathCause[]>().notNull(),
+    /** ICD-10 code of the underlying cause, used for mortality statistics. */
+    underlyingCauseIcd10: varchar('underlying_cause_icd10', { length: 10 }).notNull(),
+    /** NATURAL, ACCIDENT, INTENTIONAL_SELF_HARM, ASSAULT, PENDING_INVESTIGATION, UNDETERMINED. */
+    mannerOfDeath: varchar('manner_of_death', { length: 30 }).notNull(),
+    /** NONE, REQUESTED, PENDING, PERFORMED (findings used). */
+    autopsy: varchar('autopsy', { length: 12 }).notNull().default('NONE'),
+    /** Women 10–54: NOT_PREGNANT, PREGNANT, WITHIN_42_DAYS, DAYS_43_TO_1_YEAR, UNKNOWN. */
+    pregnancyStatus: varchar('pregnancy_status', { length: 20 }),
+    /** Deaths under one year: birth weight, gestation, mother's conditions … */
+    perinatal: jsonb('perinatal').$type<Record<string, unknown>>(),
+    /** Referred to the prosecutor / forensic medicine (unnatural or unexplained deaths). */
+    reportedToForensics: boolean('reported_to_forensics').notNull().default(false),
+    /** DRAFT or SIGNED. */
+    status: varchar('status', { length: 10 }).notNull().default('DRAFT'),
+    certifiedById: uuid('certified_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    signedAt: timestamp('signed_at', { withTimezone: true }),
+    /** Assigned when signed, e.g. "VD-2026-000123". */
+    certificateNumber: varchar('certificate_number', { length: 30 }),
+    civilRegistryAcknowledgedAt: timestamp('civil_registry_acknowledged_at', {
+      withTimezone: true,
+    }),
+    civilRegistryReference: varchar('civil_registry_reference', { length: 60 }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('death_records_patient_uq').on(t.patientId),
+    uniqueIndex('death_records_number_uq').on(t.certificateNumber),
+    index('death_records_facility_idx').on(t.facilityId, t.diedAt),
+  ],
+);
+export interface DeathCause {
+  line: 'a' | 'b' | 'c' | 'd' | 'II';
+  text: string;
+  icd10: string | null;
+  interval: string | null;
+}
+
+/** Corrections to a signed death record (the signed original stays unchanged). */
+export const deathRecordAmendments = pgTable(
+  'death_record_amendments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    deathRecordId: uuid('death_record_id')
+      .notNull()
+      .references(() => deathRecords.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** Changed fields with old and new values, e.g. { underlyingCauseIcd10: ['I21.9', 'I25.1'] }. */
+    changes: jsonb('changes').$type<Record<string, [unknown, unknown]>>().notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    amendedById: uuid('amended_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('death_record_amendments_record_idx').on(t.deathRecordId, t.createdAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Medical certificates (sick leave, fitness, school absence) with public verification
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Certificates are issued once and never edited; a wrong one is revoked (with a reason) and a new
+ * one issued. Employers and schools verify a certificate by its code (QR) and see only validity,
+ * kind, dates and issuer – never the diagnosis.
+ */
+export const medicalCertificates = pgTable(
+  'medical_certificates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    issuedById: uuid('issued_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    encounterId: uuid('encounter_id').references(() => encounters.id, { onDelete: 'set null' }),
+    /** SICK_LEAVE, FITNESS_FOR_WORK, SCHOOL_ABSENCE, SPORTS_FITNESS, DRIVING_FITNESS, GENERAL. */
+    kind: varchar('kind', { length: 30 }).notNull(),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }),
+    /** Internal only – printed only when the patient asks (diagnosisOnCertificate). */
+    icd10Code: varchar('icd10_code', { length: 10 }),
+    diagnosisOnCertificate: boolean('diagnosis_on_certificate').notNull().default(false),
+    /** Fitness certificates: FIT, FIT_WITH_RESTRICTIONS, UNFIT. */
+    outcome: varchar('outcome', { length: 30 }),
+    restrictions: varchar('restrictions', { length: 500 }),
+    purpose: varchar('purpose', { length: 200 }),
+    remarks: text('remarks'),
+    /** Extension of an earlier sick-leave certificate. */
+    extendsCertificateId: uuid('extends_certificate_id').references(
+      (): AnyPgColumn => medicalCertificates.id,
+      { onDelete: 'restrict' },
+    ),
+    serialNumber: varchar('serial_number', { length: 30 }).notNull(),
+    /** Random, unguessable code in the QR verification link. */
+    verificationCode: varchar('verification_code', { length: 40 }).notNull(),
+    /** ISSUED or REVOKED. */
+    status: varchar('status', { length: 10 }).notNull().default('ISSUED'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedById: uuid('revoked_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    revokeReason: varchar('revoke_reason', { length: 300 }),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('medical_certificates_serial_uq').on(t.serialNumber),
+    uniqueIndex('medical_certificates_code_uq').on(t.verificationCode),
+    index('medical_certificates_patient_idx').on(t.patientId, t.issuedAt),
+    index('medical_certificates_facility_idx').on(t.facilityId, t.issuedAt),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Elective waiting lists
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * A patient waiting for a planned procedure or a first specialist appointment. The waiting time
+ * runs from addedAt and pauses while the patient has asked to postpone (SUSPENDED).
+ */
+export const waitingListEntries = pgTable(
+  'waiting_list_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** e.g. ORTHOPAEDICS, OPHTHALMOLOGY, CARDIOLOGY, GENERAL_SURGERY … */
+    specialty: varchar('specialty', { length: 40 }).notNull(),
+    /** PROCEDURE (operation, intervention) or OUTPATIENT (first specialist appointment). */
+    kind: varchar('kind', { length: 12 }).notNull().default('PROCEDURE'),
+    procedureCode: varchar('procedure_code', { length: 20 }),
+    procedureName: varchar('procedure_name', { length: 200 }).notNull(),
+    /** URGENT, PRIORITY, ROUTINE – each with a maximum waiting time. */
+    priority: varchar('priority', { length: 10 }).notNull(),
+    clinicalReason: text('clinical_reason'),
+    referralId: uuid('referral_id').references(() => referrals.id, { onDelete: 'set null' }),
+    addedById: uuid('added_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    targetDate: date('target_date', { mode: 'string' }).notNull(),
+    /** WAITING, SCHEDULED, SUSPENDED, COMPLETED, REMOVED. */
+    status: varchar('status', { length: 10 }).notNull().default('WAITING'),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
+    surgicalCaseId: uuid('surgical_case_id').references(() => surgicalCases.id, {
+      onDelete: 'set null',
+    }),
+    appointmentId: uuid('appointment_id').references(() => appointments.id, {
+      onDelete: 'set null',
+    }),
+    /** Days paused at the patient's request (subtracted from the waiting time). */
+    suspendedDays: integer('suspended_days').notNull().default(0),
+    suspendedSince: timestamp('suspended_since', { withTimezone: true }),
+    /** TREATED_ELSEWHERE, NO_LONGER_NEEDED, PATIENT_DECLINED, DECEASED, DUPLICATE, OTHER. */
+    removedReason: varchar('removed_reason', { length: 30 }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index('waiting_list_facility_idx').on(t.facilityId, t.specialty, t.status),
+    index('waiting_list_patient_idx').on(t.patientId),
+  ],
+);
+
+/** Append-only history of waiting-list changes (status, priority, dates) with the reason. */
+export const waitingListEvents = pgTable(
+  'waiting_list_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    entryId: uuid('entry_id')
+      .notNull()
+      .references(() => waitingListEntries.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'restrict' }),
+    event: varchar('event', { length: 30 }).notNull(),
+    details: jsonb('details').$type<Record<string, unknown>>(),
+    reason: varchar('reason', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('waiting_list_events_entry_idx').on(t.entryId, t.createdAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Chronic disease registers (diabetes, hypertension, asthma, COPD, CKD, heart failure)
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Register membership. Patients join automatically from a matching ICD-10 diagnosis or are added
+ * by their doctor; the registers themselves (codes, care processes, targets) are defined in code.
+ */
+export const registerEnrolments = pgTable(
+  'register_enrolments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** DIABETES, HYPERTENSION, ASTHMA, COPD, CKD, HEART_FAILURE. */
+    register: varchar('register', { length: 20 }).notNull(),
+    /** Managing (primary care) facility. */
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** DIAGNOSIS (automatic) or MANUAL. */
+    source: varchar('source', { length: 10 }).notNull(),
+    diagnosisId: uuid('diagnosis_id').references(() => diagnoses.id, { onDelete: 'set null' }),
+    enrolledAt: timestamp('enrolled_at', { withTimezone: true }).notNull().defaultNow(),
+    enrolledById: uuid('enrolled_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** ACTIVE or LEFT (resolved, wrong diagnosis, moved away, deceased). */
+    status: varchar('status', { length: 10 }).notNull().default('ACTIVE'),
+    leftAt: timestamp('left_at', { withTimezone: true }),
+    leftReason: varchar('left_reason', { length: 200 }),
+  },
+  (t) => [
+    uniqueIndex('register_enrolments_active_uq')
+      .on(t.patientId, t.register)
+      .where(sql`${t.status} = 'ACTIVE'`),
+    index('register_enrolments_facility_idx').on(t.facilityId, t.register, t.status),
+  ],
+);
+
+/** An annual-review item that is not a lab result or vital sign (foot check, eye screening …). */
+export const careProcessRecords = pgTable(
+  'care_process_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    register: varchar('register', { length: 20 }).notNull(),
+    /** e.g. FOOT_EXAM, RETINAL_SCREENING, SMOKING_STATUS, INHALER_TECHNIQUE, ACTION_PLAN, SPIROMETRY. */
+    process: varchar('process', { length: 30 }).notNull(),
+    /** e.g. NORMAL, ABNORMAL, DONE, DECLINED, SMOKER, NON_SMOKER, EX_SMOKER. */
+    result: varchar('result', { length: 30 }).notNull(),
+    notes: varchar('notes', { length: 500 }),
+    performedAt: timestamp('performed_at', { withTimezone: true }).notNull(),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('care_process_records_patient_idx').on(t.patientId, t.register, t.process)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Patient safety incident reporting (incidents and near misses)
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Any staff member can report an incident or near miss, anonymously if they wish (reporter not
+ * stored). The facility's reviewers (director and named safety leads) investigate and close it;
+ * the Ministry sees aggregated, de-identified figures; incidents involving the system link to a
+ * clinical safety case hazard (hazardRef).
+ */
+export const safetyIncidents = pgTable(
+  'safety_incidents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** e.g. "INC-2026-00042". */
+    reference: varchar('reference', { length: 30 }).notNull(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** Null when reported anonymously. */
+    reportedById: uuid('reported_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    reporterRole: roleEnum('reporter_role').notNull(),
+    anonymous: boolean('anonymous').notNull().default(false),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    reportedAt: timestamp('reported_at', { withTimezone: true }).notNull().defaultNow(),
+    unitId: uuid('unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    location: varchar('location', { length: 200 }),
+    /**
+     * MEDICATION, FALL, PRESSURE_INJURY, IDENTIFICATION, TRANSFUSION, DIAGNOSTIC, SURGICAL,
+     * INFECTION, EQUIPMENT, IT_SYSTEM, COMMUNICATION, VIOLENCE, OTHER.
+     */
+    category: varchar('category', { length: 20 }).notNull(),
+    /** NEAR_MISS, NO_HARM, LOW, MODERATE, SEVERE, DEATH. */
+    harm: varchar('harm', { length: 10 }).notNull(),
+    description: text('description').notNull(),
+    immediateAction: text('immediate_action'),
+    /** Optional: the patient involved (visible only to reviewers). */
+    patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'restrict' }),
+    /** NEW, UNDER_REVIEW, ACTION_PLANNED, CLOSED. */
+    status: varchar('status', { length: 15 }).notNull().default('NEW'),
+    reviewerId: uuid('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Confirmed harm after review (may differ from the reporter's estimate). */
+    reviewedHarm: varchar('reviewed_harm', { length: 10 }),
+    contributingFactors: text('contributing_factors').array(),
+    findings: text('findings'),
+    lessons: text('lessons'),
+    /** Clinical safety case hazard (e.g. "H17") for incidents involving the system. */
+    hazardRef: varchar('hazard_ref', { length: 10 }),
+    /** Open disclosure: when the patient or family was told. */
+    patientInformedAt: timestamp('patient_informed_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('safety_incidents_reference_uq').on(t.reference),
+    index('safety_incidents_facility_idx').on(t.facilityId, t.status, t.reportedAt),
+  ],
+);
+
+export const incidentActions = pgTable(
+  'incident_actions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    incidentId: uuid('incident_id')
+      .notNull()
+      .references(() => safetyIncidents.id, { onDelete: 'restrict' }),
+    description: varchar('description', { length: 500 }).notNull(),
+    ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+    dueDate: date('due_date', { mode: 'string' }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('incident_actions_incident_idx').on(t.incidentId)],
+);
+
+/** Facility staff named as incident reviewers (safety leads) besides the director. */
+export const incidentReviewers = pgTable(
+  'incident_reviewers',
+  {
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('incident_reviewers_uq').on(t.facilityId, t.userId)],
 );
 
 /* ------------------------------------------------------------------------------------------------

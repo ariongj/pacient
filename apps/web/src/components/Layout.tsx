@@ -27,7 +27,10 @@ type NavSection = { title?: string; items: NavItem[] };
 
 const COMMS: NavSection = {
   title: 'Communication',
-  items: [{ to: '/channels', label: 'Team channels', icon: 'hash' }],
+  items: [
+    { to: '/channels', label: 'Team channels', icon: 'hash' },
+    { to: '/incidents', label: 'Report an incident', icon: 'alert' },
+  ],
 };
 
 const NAV: Record<Role, NavSection[]> = {
@@ -40,6 +43,8 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/portal/appointments', label: 'Appointments', icon: 'calendar' },
         { to: '/portal/vaccinations', label: 'Vaccinations', icon: 'syringe' },
         { to: '/portal/billing', label: 'Bills & payments', icon: 'clipboard' },
+        { to: '/portal/certificates', label: 'Medical certificates', icon: 'clipboard' },
+        { to: '/portal/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
       ],
     },
     {
@@ -67,6 +72,10 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/doctor/referrals', label: 'Referrals', icon: 'share' },
         { to: '/doctor/cover', label: 'Cover & absence', icon: 'users' },
         { to: '/doctor/availability', label: 'My consulting hours', icon: 'calendar' },
+        { to: '/certificates', label: 'Medical certificates', icon: 'clipboard' },
+        { to: '/registers', label: 'Disease registers', icon: 'activity' },
+        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
+        { to: '/deaths', label: 'Death certificates', icon: 'clipboard' },
       ],
     },
     {
@@ -99,6 +108,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/nurse/patients', label: 'Patients', icon: 'users' },
         { to: '/nurse/schedule', label: 'Clinic schedule', icon: 'calendar' },
         { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
+        { to: '/registers', label: 'Disease registers', icon: 'activity' },
       ],
     },
     {
@@ -140,6 +150,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/reception', label: 'Today', icon: 'desk', end: true },
         { to: '/reception/patients', label: 'Patients', icon: 'users' },
         { to: '/reception/appointments', label: 'Appointments', icon: 'calendar' },
+        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
         { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
         { to: '/billing', label: 'Billing & insurance', icon: 'clipboard' },
         { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
@@ -165,6 +176,10 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director/units', label: 'Wards & units', icon: 'building' },
         { to: '/pharmacy/stock', label: 'Pharmacy stock', icon: 'pill' },
         { to: '/director/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
+        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
+        { to: '/registers', label: 'Disease registers', icon: 'activity' },
+        { to: '/deaths', label: 'Deaths', icon: 'clipboard' },
+        { to: '/certificates', label: 'Medical certificates', icon: 'clipboard' },
         { to: '/billing', label: 'Billing & claims', icon: 'clipboard' },
         { to: '/surveillance', label: 'Notifiable diseases', icon: 'alert' },
         { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
@@ -177,6 +192,7 @@ const NAV: Record<Role, NavSection[]> = {
     {
       title: 'Oversight',
       items: [
+        { to: '/incidents', label: 'Safety incidents', icon: 'alert' },
         { to: '/director/emergency-access', label: 'Emergency access review', icon: 'alert' },
         { to: '/director/audit', label: 'Audit review', icon: 'shield' },
       ],
@@ -200,6 +216,9 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
         { to: '/ministry/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
         { to: '/surveillance', label: 'Disease surveillance', icon: 'alert' },
+        { to: '/deaths', label: 'Mortality', icon: 'chart' },
+        { to: '/registers', label: 'Chronic disease registers', icon: 'activity' },
+        { to: '/waiting-lists', label: 'Waiting times', icon: 'calendar' },
         { to: '/tools/interactions', label: 'Drug interaction database', icon: 'pill' },
         { to: '/privacy', label: 'Data protection', icon: 'shield' },
         { to: '/ministry/system', label: 'System health', icon: 'activity' },
@@ -210,6 +229,7 @@ const NAV: Record<Role, NavSection[]> = {
     {
       title: 'Oversight',
       items: [
+        { to: '/incidents', label: 'Safety incidents', icon: 'alert' },
         { to: '/ministry/emergency-access', label: 'Emergency access', icon: 'alert' },
         { to: '/ministry/audit', label: 'Audit review', icon: 'shield' },
       ],

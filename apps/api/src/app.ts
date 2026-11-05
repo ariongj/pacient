@@ -63,6 +63,12 @@ import { phoneRouter } from './modules/sms/phone.routes.js';
 import { integrationsAdminRouter } from './modules/integrations/admin.routes.js';
 import { labApiRouter } from './modules/integrations/lab-api.routes.js';
 import { labCatalogRouter, labOrdersRouter } from './modules/lab/orders.routes.js';
+import { deathsRouter } from './modules/deaths/deaths.routes.js';
+import { certificatesRouter } from './modules/certificates/certificates.routes.js';
+import { waitingListRouter } from './modules/waiting/waiting.routes.js';
+import { registersRouter } from './modules/registers/registers.routes.js';
+import { incidentsRouter } from './modules/incidents/incidents.routes.js';
+import { certificateVerifyRouter } from './modules/certificates/verify.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -169,6 +175,12 @@ export function createApp(): Express {
   api.use('/video', telemedicineRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
+  api.use('/deaths', deathsRouter);
+  api.use('/certificates', certificatesRouter);
+  api.use('/waiting-lists', waitingListRouter);
+  api.use('/registers', registersRouter);
+  api.use('/incidents', incidentsRouter);
+  api.use('/verify/certificates', certificateVerifyRouter);
   api.get('/openapi.json', openApiHandler);
   api.use('/patients/:patientId/lab-orders', labOrdersRouter);
   api.use('/patients/:patientId/documents', documentsRouter);

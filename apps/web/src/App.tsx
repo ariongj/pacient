@@ -81,6 +81,14 @@ import { ChannelsPage } from './pages/shared/ChannelsPage';
 import { TasksPage } from './pages/shared/TasksPage';
 import type { Role } from './api/types';
 import type { ReactElement } from 'react';
+import { DeathsPage } from './pages/deaths/DeathsPage';
+import { CertificatesPage } from './pages/certificates/CertificatesPage';
+import { VerifyCertificatePage } from './pages/certificates/VerifyCertificatePage';
+import { PortalCertificatesPage } from './pages/certificates/PortalCertificatesPage';
+import { WaitingListsPage } from './pages/waiting/WaitingListsPage';
+import { PortalWaitingListsPage } from './pages/waiting/PortalWaitingListsPage';
+import { RegistersPage } from './pages/registers/RegistersPage';
+import { IncidentsPage } from './pages/incidents/IncidentsPage';
 
 const STAFF: Role[] = ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
 const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{el}</RequireRole>;
@@ -99,6 +107,7 @@ export function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/setup-two-step" element={<MfaSetupPage />} />
+      <Route path="/verify/:code" element={<VerifyCertificatePage />} />
       <Route path="/" element={<HomeRedirect />} />
 
       <Route
@@ -238,6 +247,31 @@ export function App() {
         <Route
           path="/video/:appointmentId"
           element={guard(['DOCTOR', 'PATIENT'], <VideoVisit />)}
+        />
+        <Route path="/deaths" element={guard(['DOCTOR', 'DIRECTOR', 'MINISTRY'], <DeathsPage />)} />
+        <Route path="/certificates" element={guard(['DOCTOR', 'DIRECTOR'], <CertificatesPage />)} />
+        <Route
+          path="/portal/certificates"
+          element={guard(['PATIENT'], <PortalCertificatesPage />)}
+        />
+        <Route
+          path="/waiting-lists"
+          element={guard(['DOCTOR', 'RECEPTION', 'DIRECTOR', 'MINISTRY'], <WaitingListsPage />)}
+        />
+        <Route
+          path="/portal/waiting-lists"
+          element={guard(['PATIENT'], <PortalWaitingListsPage />)}
+        />
+        <Route
+          path="/registers"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <RegistersPage />)}
+        />
+        <Route
+          path="/incidents"
+          element={guard(
+            ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR', 'MINISTRY'],
+            <IncidentsPage />,
+          )}
         />
         <Route
           path="/downtime"

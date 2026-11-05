@@ -172,6 +172,22 @@ export const AuditAction = {
   RETENTION_RUN: 'privacy.retention_run',
   DATA_SUBJECT_REQUEST: 'privacy.request',
   LEGAL_HOLD_CHANGED: 'privacy.legal_hold',
+  DEATH_CERTIFICATE_DRAFTED: 'death.drafted',
+  DEATH_CERTIFICATE_SIGNED: 'death.signed',
+  DEATH_CERTIFICATE_AMENDED: 'death.amended',
+  DEATH_REGISTRY_ACKNOWLEDGED: 'death.registry_acknowledged',
+  CERTIFICATE_ISSUED: 'certificate.issued',
+  CERTIFICATE_REVOKED: 'certificate.revoked',
+  CERTIFICATE_VERIFIED: 'certificate.verified',
+  WAITING_LIST_ADDED: 'waiting_list.added',
+  WAITING_LIST_CHANGED: 'waiting_list.changed',
+  REGISTER_ENROLLED: 'register.enrolled',
+  REGISTER_LEFT: 'register.left',
+  CARE_PROCESS_RECORDED: 'register.care_process',
+  INCIDENT_REPORTED: 'incident.reported',
+  INCIDENT_UPDATED: 'incident.updated',
+  INCIDENT_REVIEWERS_CHANGED: 'incident.reviewers_changed',
+  DOCUMENT_VERSION_ADDED: 'document.version_added',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

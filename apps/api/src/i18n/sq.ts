@@ -23,6 +23,11 @@ import { sqIdentity } from './sq-identity.js';
 import { sqImaging } from './sq-imaging.js';
 import { sqInpatient } from './sq-inpatient.js';
 import { sqPartner } from './sq-partner.js';
+import { sqDeaths } from './sq-deaths.js';
+import { sqCertificates } from './sq-certificates.js';
+import { sqWaiting } from './sq-waiting.js';
+import { sqRegisters } from './sq-registers.js';
+import { sqIncidents } from './sq-incidents.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -50,4 +55,9 @@ export const sq: Record<string, string> = {
   ...sqDosing,
   ...sqBcma,
   ...sqPews,
+  ...sqDeaths,
+  ...sqCertificates,
+  ...sqWaiting,
+  ...sqRegisters,
+  ...sqIncidents,
 };

@@ -28,6 +28,11 @@ import { partner } from './partner';
 import { theatre } from './theatre';
 import { pharmacy } from './pharmacy';
 import { pacs } from './pacs';
+import { deaths } from './deaths';
+import { certificates } from './certificates';
+import { waiting } from './waiting';
+import { registers } from './registers';
+import { incidents } from './incidents';
 
 export const sr: Record<string, string> = {
   ...common,
@@ -60,4 +65,9 @@ export const sr: Record<string, string> = {
   ...downtime,
   ...privacy,
   ...monitoring,
+  ...deaths,
+  ...certificates,
+  ...waiting,
+  ...registers,
+  ...incidents,
 };

@@ -18,12 +18,15 @@ export const PATIENT_TABLES = [
   'appointments',
   'blood_group_tests',
   'care_assignments',
+  'care_process_records',
   'care_tasks',
   'case_reports',
   'charges',
   'consent_records',
   'correction_requests',
   'data_subject_requests',
+  'death_record_amendments',
+  'death_records',
   'diagnoses',
   'diet_orders',
   'early_warning_scores',
@@ -40,6 +43,7 @@ export const PATIENT_TABLES = [
   'lab_orders',
   'lab_results',
   'legal_holds',
+  'medical_certificates',
   'medication_administrations',
   'message_threads',
   'nutrition_screenings',
@@ -48,10 +52,14 @@ export const PATIENT_TABLES = [
   'prescription_alerts',
   'prescriptions',
   'referrals',
+  'register_enrolments',
+  'safety_incidents',
   'surgical_cases',
   'transfusion_requests',
   'transfusions',
   'vital_signs',
+  'waiting_list_entries',
+  'waiting_list_events',
 ] as const;
 export type PatientTable = (typeof PATIENT_TABLES)[number];
 
@@ -73,6 +81,14 @@ export const EXCLUDED_REFERENCES = [
 
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
+  care_process_records: 'Chronic care reviews',
+  death_record_amendments: 'Death certificate amendments',
+  death_records: 'Death certificate',
+  medical_certificates: 'Medical certificates',
+  register_enrolments: 'Disease registers',
+  safety_incidents: 'Safety incident reports',
+  waiting_list_entries: 'Waiting lists',
+  waiting_list_events: 'Waiting list history',
   data_subject_requests: 'Data protection requests',
   legal_holds: 'Legal holds',
   prescription_alerts: 'Medication safety alerts',
@@ -333,6 +349,14 @@ export async function mergePatients(
   if (linked.rows.length) {
     throw conflict('These records are a mother and her baby – they cannot be merged');
   }
+  // One death certificate per person.
+  const deaths = await tx.execute<{ n: number }>(sql`
+    SELECT count(*)::int AS n FROM death_records WHERE patient_id IN (${survivor.id}, ${merged.id})`);
+  if ((deaths.rows[0]?.n ?? 0) > 1) {
+    throw conflict(
+      'Both records have a death certificate. Amend or withdraw one of them, then merge.',
+    );
+  }
   // Only one active hospital stay and one active emergency attendance per person.
   const active = await tx.execute<{ admissions: number; ed: number }>(sql`
     SELECT
@@ -370,6 +394,14 @@ export async function mergePatients(
                   AND s.guardian_user_id = d.guardian_user_id AND s.revoked_at IS NULL)
     RETURNING d.id`);
   if (revoked.rows.length) movedRows['guardianships:revoked'] = revoked.rows.map((r) => r.id);
+  const left = await tx.execute<{ id: string }>(sql`
+    UPDATE register_enrolments d SET status = 'LEFT', left_at = ${now},
+      left_reason = 'Duplicate record merged'
+    WHERE d.patient_id = ${merged.id} AND d.status = 'ACTIVE'
+      AND EXISTS (SELECT 1 FROM register_enrolments s WHERE s.patient_id = ${survivor.id}
+                  AND s.register = d.register AND s.status = 'ACTIVE')
+    RETURNING d.id`);
+  if (left.rows.length) movedRows['register_enrolments:left'] = left.rows.map((r) => r.id);
 
   for (const table of PATIENT_TABLES) {
     const result = await tx.execute<{ id: string }>(
@@ -464,6 +496,16 @@ export async function unmergePatients(
         WHERE d.id IN ${idsJson(ids)} AND d.patient_id = ${merged.id}
           AND NOT EXISTS (SELECT 1 FROM care_assignments s WHERE s.patient_id = ${merged.id}
                           AND s.doctor_id = d.doctor_id AND s.ended_at IS NULL)`);
+      restored[key] = r.rowCount ?? 0;
+      continue;
+    }
+    if (key === 'register_enrolments:left') {
+      const r = await tx.execute(sql`
+        UPDATE register_enrolments d SET status = 'ACTIVE', left_at = NULL, left_reason = NULL
+        WHERE d.id IN ${idsJson(ids)} AND d.patient_id = ${merged.id}
+          AND d.left_reason = 'Duplicate record merged'
+          AND NOT EXISTS (SELECT 1 FROM register_enrolments s WHERE s.patient_id = ${merged.id}
+                          AND s.register = d.register AND s.status = 'ACTIVE')`);
       restored[key] = r.rowCount ?? 0;
       continue;
     }

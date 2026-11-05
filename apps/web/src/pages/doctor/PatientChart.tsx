@@ -42,6 +42,10 @@ import { ConsentsTab } from './chart/ConsentsTab';
 import { SummaryTab } from './chart/SummaryTab';
 import { VisitsTab } from './chart/VisitsTab';
 import { VitalsTab } from './chart/VitalsTab';
+import { CertificatesTab } from './chart/CertificatesTab';
+import { RegistersTab } from './chart/RegistersTab';
+import { WaitingListTab } from './chart/WaitingListTab';
+import { DeathTab } from './chart/DeathTab';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
 import { ConfirmIdentityDialog } from '../births/IdentityDialogs';
@@ -83,6 +87,10 @@ const TAB_IDS = [
   'transfusion',
   'nutrition',
   'births',
+  'registers',
+  'waiting',
+  'certificates',
+  'death',
   'documents',
   'consents',
   'corrections',
@@ -325,6 +333,9 @@ export function PatientChart() {
               { id: 'transfusion', label: t('Transfusions') },
               { id: 'nutrition', label: t('Nutrition') },
               { id: 'births', label: t('Birth & maternity') },
+              { id: 'registers', label: t('Chronic care') },
+              { id: 'waiting', label: t('Waiting lists') },
+              { id: 'certificates', label: t('Certificates') },
               { id: 'documents', label: t('Documents') },
               { id: 'consents', label: t('Consent') },
               {
@@ -333,6 +344,7 @@ export function PatientChart() {
                 count: s.counts.openCorrectionRequests,
               },
               { id: 'care-team', label: t('Care team') },
+              { id: 'death', label: t('Death certificate') },
             ]}
           />
           <TabPanel id={tab}>
@@ -349,6 +361,10 @@ export function PatientChart() {
               />
             )}
             {tab === 'mar' && <MarTab patientId={patientId} />}
+            {tab === 'registers' && <RegistersTab patientId={patientId} />}
+            {tab === 'waiting' && <WaitingListTab patientId={patientId} />}
+            {tab === 'certificates' && <CertificatesTab patientId={patientId} />}
+            {tab === 'death' && <DeathTab patientId={patientId} />}
             {tab === 'tasks' && <TasksTab patientId={patientId} />}
             {tab === 'allergies' && (
               <AllergiesTab patientId={patientId} assessment={s.patient.allergyAssessment} />

@@ -127,6 +127,13 @@
       "when": 1793837055942,
       "tag": "0017_prn_max_doses",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793881909212,
+      "tag": "0018_deaths_certificates_waiting_registers_incidents",
+      "breakpoints": true
     }
   ]
 }

@@ -63,6 +63,11 @@ import { seedCover } from './seed-cover.js';
 import { seedMerge } from './seed-merge.js';
 import { seedDocuments } from './seed-documents.js';
 import { ensureDefaultChannels } from '../modules/channels/channels.routes.js';
+import { seedDeaths } from './seed-deaths.js';
+import { seedCertificates } from './seed-certificates.js';
+import { seedWaiting } from './seed-waiting.js';
+import { seedRegisters } from './seed-registers.js';
+import { seedIncidents } from './seed-incidents.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
 /** Development-only key of the seeded laboratory connection. */
@@ -1222,6 +1227,11 @@ async function main() {
   await seedDowntime({ facilityId: ucc!.id });
   await seedPrivacy({ facilityId: ucc!.id });
   await seedTelemedicine({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedDeaths({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedCertificates({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedWaiting({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedRegisters({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedIncidents({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

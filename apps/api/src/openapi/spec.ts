@@ -9,6 +9,11 @@
 import { encounterTypeEnum } from '../db/schema.js';
 import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
+import { DEATHS_OPERATIONS, DEATHS_TAGS } from './deaths.js';
+import { CERTIFICATES_OPERATIONS, CERTIFICATES_TAGS } from './certificates.js';
+import { WAITING_OPERATIONS, WAITING_TAGS } from './waiting.js';
+import { REGISTERS_OPERATIONS, REGISTERS_TAGS } from './registers.js';
+import { INCIDENTS_OPERATIONS, INCIDENTS_TAGS } from './incidents.js';
 
 type Schema = Record<string, unknown>;
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -97,6 +102,11 @@ export const TAGS: { name: string; description: string }[] = [
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
   ...CORE_TAGS,
   ...MODULE_TAGS,
+  ...DEATHS_TAGS,
+  ...CERTIFICATES_TAGS,
+  ...WAITING_TAGS,
+  ...REGISTERS_TAGS,
+  ...INCIDENTS_TAGS,
   { name: 'FHIR', description: 'HL7 FHIR R4 export for authorised staff and patients.' },
   {
     name: 'Partner API',
@@ -802,7 +812,15 @@ const OPERATIONS: Operation[] = [
   },
 ];
 
-OPERATIONS.push(...CORE_OPERATIONS, ...MODULE_OPERATIONS);
+OPERATIONS.push(
+  ...CORE_OPERATIONS,
+  ...MODULE_OPERATIONS,
+  ...DEATHS_OPERATIONS,
+  ...CERTIFICATES_OPERATIONS,
+  ...WAITING_OPERATIONS,
+  ...REGISTERS_OPERATIONS,
+  ...INCIDENTS_OPERATIONS,
+);
 
 export function partnerOperations() {
   return OPERATIONS.filter((o) => o.auth === 'partner');

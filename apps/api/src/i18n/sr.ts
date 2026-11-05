@@ -23,6 +23,11 @@ import { srInpatient } from './sr-inpatient.js';
 import { srEd } from './sr-ed.js';
 import { srImaging } from './sr-imaging.js';
 import { srPartner } from './sr-partner.js';
+import { srDeaths } from './sr-deaths.js';
+import { srCertificates } from './sr-certificates.js';
+import { srWaiting } from './sr-waiting.js';
+import { srRegisters } from './sr-registers.js';
+import { srIncidents } from './sr-incidents.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -50,4 +55,9 @@ export const sr: Record<string, string> = {
   ...srDosing,
   ...srBcma,
   ...srPews,
+  ...srDeaths,
+  ...srCertificates,
+  ...srWaiting,
+  ...srRegisters,
+  ...srIncidents,
 };

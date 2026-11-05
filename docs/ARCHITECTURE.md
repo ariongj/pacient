@@ -301,3 +301,52 @@ and wakes the other side with a `video.signal` live event. Signalling messages a
 in one API process – with several API instances, route `/api/v1/video` with sticky sessions or
 move the queue to a shared store. STUN from `WEBRTC_STUN_URLS`; TURN credentials (coturn REST
 style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
+
+## Clinical safety and hospital services
+
+- **Medication safety** (`modules/safety`, `/safety`): one engine (`safety/engine.ts`) runs at
+  prescribing, pharmacy verification and the bedside – interactions (`drug_interactions`,
+  Ministry-maintained), allergy cross-reactions, kidney function, age, pregnancy, duplicate
+  therapy and dose ranges. Blocking alerts answer `409 SAFETY_ALERTS`; overrides need a reason and
+  are stored in `prescription_alerts`.
+- **Structured dosing** (`safety/dosing.ts`): prescriptions carry amount, unit, route, frequency
+  code, duration and PRN maximum per 24 h; the free text is generated in the prescriber's language.
+  Dose rules (`dose_rules`, Ministry-maintained) per ingredient, route and age group (neonate,
+  child, adult, elderly), absolute or per kg using the latest recorded weight; catalogue strengths
+  are parsed to convert tablets, ml or puffs to mg, per ingredient for combination products.
+- **Barcode administration** (`modules/bcma`): wristbands carry a signed code
+  (`PAC1.<payload>.<HMAC>`, patient id and issue time only). `POST /patients/:id/bcma/verify` and
+  the administration route check right patient, right medicine (barcode → catalogue item →
+  ingredients and strength), right time (interval from the frequency, PRN limit per 24 h) and
+  allergies. Wrong patient, wrong medicine and invalid wristbands can never be overridden; other
+  warnings need an audited reason. The scan flags are derived by the server, never trusted.
+- **Early warning** (`modules/news`): every set of vital signs is scored – NEWS2 for adults
+  (`news2.ts`), PEWS with age bands for patients under 18 (`pews.ts`) – and stored in
+  `early_warning_scores` with the scale. A worker escalates by risk and re-escalates
+  unacknowledged high scores; notifications name the ward and bed, never the patient.
+- **Blood bank** (`modules/bloodbank`), **nutrition** (`modules/nutrition`), **billing**
+  (`modules/billing`, claims to the Health Insurance Fund over the partner API) and
+  **surveillance** (`modules/surveillance`, notifiable disease reports and outbreak signals) follow
+  the same pattern: unit-based access, audited writes, append-only ledgers where money or blood
+  products move.
+
+## Business continuity, monitoring and data protection
+
+- **Downtime** (`modules/downtime`, `/downtime`): an hourly worker writes an encrypted HTML pack per
+  facility (admitted patients, allergies, medicines due in the next 12 h, last observations and early warning
+  score) to `DOWNTIME_DIR`, keeping the newest 48; optionally an `age`-encrypted copy for ward PCs
+  (`scripts/downtime-sync.mjs`, authenticated by per-facility sync keys stored as hashes).
+  Directors start and end downtime mode (a banner for all staff); the back-entry checklist lists
+  what to enter afterwards. Vital signs and doses accept their real time for back-entry. See
+  [DOWNTIME.md](DOWNTIME.md).
+- **Point-in-time recovery**: pgBackRest with WAL archiving (`deploy/pitr/`,
+  `deploy/compose.pitr.yml`), alongside the nightly encrypted dumps (`deploy/backup.sh`).
+- **Monitoring** (`modules/monitoring`): Prometheus metrics at `/metrics` (requests, latency,
+  database pool, event loop, memory, outbox depth and age, live events), alert rules and a Grafana dashboard in
+  `deploy/monitoring/`; the Ministry's system health page shows the same signals, and the Ministry can export the audit
+  trail for a SIEM (the export itself is audited).
+- **Data protection** (`modules/privacy`, `/privacy`): retention schedule for operational data
+  (sessions, tokens, delivered messages and similar – fixed, reviewed statements; the Ministry sets
+  only the days and can switch a category off). Clinical records and the audit trail are never
+  purged, and rows of a patient under a legal hold are always skipped. Legal holds and
+  data-subject requests with deadlines are managed on the same page. See [PRIVACY.md](PRIVACY.md).

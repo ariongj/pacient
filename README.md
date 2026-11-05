@@ -77,7 +77,8 @@ co-payments and monthly claims to the Health Insurance Fund.
 **Running a national service:** a downtime kit (hourly encrypted offline ward lists with
 allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
 recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
-(retention schedule, legal holds, data-subject requests, signed audit exports).
+(retention schedule for operational data, legal holds, data-subject requests) and an audit
+export for security monitoring.
 
 **Account security:** passkeys (phishing-resistant sign-in), signed-in devices with remote
 sign-out, personal sign-in history and alerts on sign-in from a new device. The portal can be

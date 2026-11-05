@@ -478,10 +478,12 @@ describe('dashboards', () => {
       suppressCells([
         { key: 'A', count: 4 },
         { key: 'B', count: 5 },
+        { key: 'C', count: 0 },
       ]),
     ).toEqual([
       { key: 'A', count: null, suppressed: true },
       { key: 'B', count: 5, suppressed: false },
+      { key: 'C', count: 0, suppressed: false },
     ]);
     expect(monthKeys(3, new Date('2026-01-15T12:00:00Z'))).toEqual([
       '2025-11',

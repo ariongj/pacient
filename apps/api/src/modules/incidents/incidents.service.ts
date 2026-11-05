@@ -85,10 +85,13 @@ export interface Cell {
   suppressed: boolean;
 }
 
-/** Counts below the threshold are hidden (null) so rare events cannot identify anyone. */
+/**
+ * Counts from 1 to below the threshold are hidden (null) so rare events cannot identify anyone;
+ * zero is shown (an empty month identifies no one).
+ */
 export function suppressCells(rows: { key: string; count: number }[]): Cell[] {
   return rows.map((r) =>
-    r.count < SMALL_CELL_THRESHOLD
+    r.count > 0 && r.count < SMALL_CELL_THRESHOLD
       ? { key: r.key, count: null, suppressed: true }
       : { key: r.key, count: r.count, suppressed: false },
   );

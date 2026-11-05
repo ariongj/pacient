@@ -236,4 +236,5 @@ export const incidents: Record<string, string> = {
   'the reporter': 'raportuesi',
   'Reference|incident number': 'Numri i referencës',
   'Medication|incident category': 'Barnat',
+  'Findings|incident review': 'Gjetjet',
 };

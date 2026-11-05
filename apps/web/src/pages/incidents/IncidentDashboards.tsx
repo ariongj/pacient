@@ -75,7 +75,7 @@ function CountTable({
         {rows.map((r) => (
           <tr key={r.key}>
             <td>{label(r.key)}</td>
-            <td style={{ textAlign: 'right' }}>
+            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
               {'suppressed' in r && r.suppressed
                 ? t('fewer than {n}', { n: threshold })
                 : formatNumber(r.count ?? 0)}
@@ -281,7 +281,9 @@ export function NationalView() {
                   {d.byMonth.map((m) => (
                     <tr key={m.key}>
                       <td>{formatMonth(m.key)}</td>
-                      <td style={{ textAlign: 'right' }}>{cellText(m, d.smallCellThreshold)}</td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {cellText(m, d.smallCellThreshold)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -345,7 +347,9 @@ export function SystemIncidentsView() {
                     </span>
                   }
                 >
-                  <p className="muted">{formatMonth(i.occurredMonth)}</p>
+                  <p className="muted">
+                    {formatMonth(i.occurredMonth)} {i.occurredMonth.slice(0, 4)}
+                  </p>
                   {i.textWithheld ? (
                     <p className="muted">{t('Shared after the facility closes its review.')}</p>
                   ) : (
@@ -355,7 +359,7 @@ export function SystemIncidentsView() {
                         <dd>{i.description}</dd>
                       </div>
                       <div>
-                        <dt>{t('Findings')}</dt>
+                        <dt>{t('Findings|incident review')}</dt>
                         <dd>{i.findings ?? '—'}</dd>
                       </div>
                       <div>

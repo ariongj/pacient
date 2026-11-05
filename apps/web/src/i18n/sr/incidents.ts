@@ -233,4 +233,5 @@ export const incidents: Record<string, string> = {
   'the reporter': 'podnosilac prijave',
   'Reference|incident number': 'Broj prijave',
   'Medication|incident category': 'Lekovi',
+  'Findings|incident review': 'Nalazi razmatranja',
 };

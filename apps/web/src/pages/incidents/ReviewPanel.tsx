@@ -233,7 +233,7 @@ function Review({ incident, meta }: { incident: IncidentDetail; meta: IncidentMe
             </div>
           </fieldset>
           <TextAreaField
-            label={t('Findings')}
+            label={t('Findings|incident review')}
             name="findings"
             defaultValue={incident.findings ?? ''}
             maxLength={10_000}

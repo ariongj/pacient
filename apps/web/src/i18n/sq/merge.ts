@@ -58,7 +58,7 @@ export const merge: Record<string, string> = {
   'Date of birth': 'Data e lindjes',
   Sex: 'Gjinia',
   Phone: 'Telefoni',
-  Email: 'Email-i',
+  Email: 'Email',
   Address: 'Adresa',
   Municipality: 'Komuna',
   'Emergency contact': 'Kontakti për emergjenca',
@@ -159,7 +159,7 @@ export const merge: Record<string, string> = {
   Charges: 'Pagesat e shërbimeve',
   Payments: 'Pagesat',
   'Early warning scores': 'Pikët e paralajmërimit të hershëm',
-  'Notifiable disease reports': 'Raportet e sëmundjeve ngjitëse',
+  'Notifiable disease reports': 'Raportet e sëmundjeve ngjitëse të detyrueshme',
   'Data protection requests': 'Kërkesat për mbrojtjen e të dhënave',
   'Legal holds': 'Ruajtjet ligjore',
 };

@@ -146,7 +146,7 @@ export function PortalDocuments() {
                               openDocument(doc).catch(setOpenError);
                             }}
                           >
-                            {t('Open')}
+                            {t('Open|action')}
                           </Button>
                           {doc.source === 'PATIENT' && doc.uploadedById === user.id && (
                             <Button

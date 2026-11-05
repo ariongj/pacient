@@ -44,8 +44,13 @@ const DICTIONARIES: Partial<Record<Locale, Record<string, string>>> = { sq, sr }
 
 type Vars = Record<string, string | number | null | undefined>;
 
+/**
+ * Translates an English source text. A key may carry a context after "|" when the same English
+ * word needs different translations ("Open|action" for the button, "Open" for the status); the
+ * context is never shown.
+ */
 export function t(text: string, vars?: Vars): string {
-  const template = DICTIONARIES[current]?.[text] ?? text;
+  const template = DICTIONARIES[current]?.[text] ?? text.replace(/\|[\w -]+$/, '');
   if (!vars) return template;
   return template.replace(/\{(\w+)\}/g, (m, k: string) =>
     vars[k] === undefined || vars[k] === null ? m : String(vars[k]),

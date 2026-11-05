@@ -72,7 +72,7 @@ function FacilityForm({ facility, onDone }: { facility?: Facility; onDone: () =>
           hint={t('Letters, digits and dashes, e.g. RH-FE')}
         />
         <TextField
-          label={t('Name')}
+          label={t('Name|thing')}
           name="name"
           required
           minLength={2}

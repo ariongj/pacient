@@ -50,7 +50,7 @@ export const merge: Record<string, string> = {
   'Date of birth': 'Datum rođenja',
   Sex: 'Pol',
   Phone: 'Telefon',
-  Email: 'E-adresa',
+  Email: 'E-pošta',
   Address: 'Adresa',
   Municipality: 'Opština',
   'Emergency contact': 'Kontakt za hitne slučajeve',

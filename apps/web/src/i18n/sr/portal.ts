@@ -21,7 +21,7 @@ export const portal: Record<string, string> = {
   'Added by you': 'Dodali ste Vi',
   Addendum: 'Dopuna',
   Address: 'Adresa',
-  Agreed: 'Saglasan/na',
+  Agreed: 'Saglasan',
   'agreed to': 'dao/la saglasnost za',
   Allergies: 'Alergije',
   'Allergies have not been recorded yet. Tell your doctor about any allergies.':
@@ -61,8 +61,8 @@ export const portal: Record<string, string> = {
   'Choose a file': 'Izaberite datoteku',
   'Choose a new password': 'Izaberite novu lozinku',
   'Clinical photo': 'Klinička fotografija',
-  Code: 'Kod',
-  Collected: 'Uzorak uzet',
+  Code: 'Šifra',
+  Collected: 'Uzorkovano',
   Completed: 'Završeno',
   Condition: 'Stanje',
   Conditions: 'Stanja',
@@ -112,7 +112,7 @@ export const portal: Record<string, string> = {
     'npr. promenjeno starateljstvo, zahtev pacijenta.',
   'Each code can be used once if you lose your phone. They will not be shown again. Store them somewhere safe (for example, printed in a locked drawer).':
     'Svaki kod može se upotrebiti jednom ako izgubite telefon. Neće biti ponovo prikazani. Čuvajte ih na bezbednom mestu (na primer odštampane u zaključanoj fioci).',
-  Email: 'E-adresa',
+  Email: 'E-pošta',
   'Email notifications': 'Obaveštenja e-poštom',
   'Emails tell you that something happened and link to Pacient. For your privacy they never include health information. They go to':
     'E-poruke Vas obaveštavaju da se nešto dogodilo i vode do sistema Pacient. Radi Vaše privatnosti nikada ne sadrže zdravstvene podatke. Šalju se na',
@@ -252,7 +252,7 @@ export const portal: Record<string, string> = {
   'Online (portal)': 'Onlajn (portal)',
   'Only PDF, JPEG or PNG files can be uploaded':
     'Mogu se otpremiti samo PDF, JPEG ili PNG datoteke',
-  Open: 'Otvori',
+  Open: 'Otvoreno',
   'Open messages': 'Otvori poruke',
   'Open record': 'Otvori karton',
   'Open your authenticator app and scan this code:':
@@ -430,7 +430,7 @@ export const portal: Record<string, string> = {
   'Verification code': 'Kod za potvrdu',
   Verified: 'Potvrđeno',
   'Verified by {name}': 'Potvrdio/la {name}',
-  Verify: 'Potvrdi',
+  Verify: 'Proveri',
   'Verify number': 'Potvrdi broj',
   View: 'Prikaži',
   Visits: 'Posete',

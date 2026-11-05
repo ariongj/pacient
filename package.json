@@ -21,7 +21,8 @@
     "test": "npm run test --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
-    "a11y": "node scripts/a11y-audit.mjs"
+    "a11y": "node scripts/a11y-audit.mjs",
+    "i18n:check": "tsx scripts/i18n-check.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

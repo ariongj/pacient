@@ -48,7 +48,7 @@ export function NewChannelDialog({
     <Dialog open={open} onClose={onClose} title={t('New channel')}>
       <form onSubmit={onSubmit}>
         <TextField
-          label={t('Name')}
+          label={t('Name|thing')}
           name="name"
           required
           pattern="[a-z0-9][a-z0-9\-]{1,40}"

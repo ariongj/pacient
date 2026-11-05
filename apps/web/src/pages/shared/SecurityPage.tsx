@@ -207,7 +207,7 @@ function PasskeysCard() {
             <Table caption={t('Passkeys')}>
               <thead>
                 <tr>
-                  <th>{t('Name')}</th>
+                  <th>{t('Name|thing')}</th>
                   <th>{t('Added')}</th>
                   <th>{t('Last used')}</th>
                   <th>

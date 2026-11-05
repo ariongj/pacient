@@ -186,7 +186,7 @@ export function DocumentsTab({ patientId }: { patientId: string }) {
                               openDocument(d).catch(setOpenError);
                             }}
                           >
-                            {t('Open')}
+                            {t('Open|action')}
                           </Button>
                           {isDoctor && current && d.source === 'STAFF' && (
                             <Button

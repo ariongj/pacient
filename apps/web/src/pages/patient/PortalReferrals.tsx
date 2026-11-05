@@ -57,7 +57,7 @@ export function PortalReferrals() {
                   <p>
                     <strong>{t('From')}</strong> {r.fromDoctorName}, {r.fromFacilityName}
                     <br />
-                    <strong>{t('To')}</strong> {r.toFacilityName}
+                    <strong>{t('To|recipient')}</strong> {r.toFacilityName}
                     {r.toDoctorName ? ` — ${r.toDoctorName}` : ''}
                   </p>
                   <p>

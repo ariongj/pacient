@@ -64,3 +64,20 @@ Keep placeholders such as `{name}` and `{count}` exactly.
 | Cover (result cover)                      | Zëvendësim (mjeku zëvendësues)                                                                           |
 | Escalation                                | Përshkallëzim                                                                                            |
 | Live (real-time)                          | Live → "Drejtpërdrejt"                                                                                   |
+
+## Same English word, different meaning
+
+The dictionaries are merged into one object, so a key must have exactly one translation per
+language (`npm run i18n:check` fails otherwise). When the same English text needs two translations,
+give the call site a context after `|` – it is never shown in English:
+
+| Key              | Meaning                             | Albanian       | Serbian  |
+| ---------------- | ----------------------------------- | -------------- | -------- |
+| `Open`           | status (an open task, an open case) | Hapur          | Otvoreno |
+| `Open\|action`   | button that opens something         | Hap            | Otvori   |
+| `To`             | end of a date range                 | Deri           | Do       |
+| `To\|recipient`  | receiving facility or person        | Për            | Za       |
+| `Name`           | a person's name                     | Emri           | Ime      |
+| `Name\|thing`    | name of a unit, facility, passkey   | Emri           | Naziv    |
+| `Available`      | available (service, blood unit)     | Në dispozicion | Dostupna |
+| `Available\|bed` | free bed                            | I lirë         | Slobodan |

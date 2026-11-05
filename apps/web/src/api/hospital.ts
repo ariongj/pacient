@@ -43,7 +43,7 @@ export const unitTypeLabel = (type: UnitType) =>
   })[type];
 export const bedStatusLabel = (s: BedStatus) =>
   ({
-    AVAILABLE: t('Available'),
+    AVAILABLE: t('Available|bed'),
     OCCUPIED: t('Occupied'),
     CLEANING: t('Being cleaned'),
     OUT_OF_SERVICE: t('Out of service'),

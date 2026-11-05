@@ -22,7 +22,7 @@ export const ed: Record<string, string> = {
   'Arrived {time}': 'Došao/la u {time}',
   'BP {s}/{d}': 'TA {s}/{d}',
   'HR {n}': 'Puls {n}',
-  'RR {n}': 'Disanje {n}',
+  'RR {n}': 'FD {n}',
   'Re-triage': 'Ponovna trijaža',
   Triage: 'Trijaža',
   'Start treatment': 'Započni lečenje',

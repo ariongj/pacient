@@ -55,7 +55,7 @@ function NewUnitDialog({ open, onClose }: { open: boolean; onClose: () => void }
   return (
     <Dialog open={open} onClose={onClose} title={t('New unit')}>
       <form onSubmit={onSubmit} className="stack">
-        <TextField label={t('Name')} name="name" required minLength={2} maxLength={120} />
+        <TextField label={t('Name|thing')} name="name" required minLength={2} maxLength={120} />
         <div className="form-grid">
           <TextField
             label={t('Code')}

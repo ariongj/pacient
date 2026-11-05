@@ -214,7 +214,7 @@ export function RegisterPatient() {
                     <th>{t('Name')}</th>
                     <th>{t('Date of birth')}</th>
                     <th>
-                      <span className="sr-only">{t('Open')}</span>
+                      <span className="sr-only">{t('Open|action')}</span>
                     </th>
                   </tr>
                 </thead>

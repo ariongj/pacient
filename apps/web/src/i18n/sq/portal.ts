@@ -29,7 +29,7 @@ export const portal: Record<string, string> = {
   Allergies: 'Alergjitë',
   'Allergies have not been recorded yet. Tell your doctor about any allergies.':
     'Alergjitë nuk janë regjistruar ende. Tregojini mjekut tuaj për çdo alergji.',
-  'Allergy status unknown': 'Statusi i alergjive është i panjohur',
+  'Allergy status unknown': 'Statusi i alergjive i panjohur',
   'An email for each new notification.': 'Një email për çdo njoftim të ri.',
   Appointments: 'Terminet',
   'appointments only': 'vetëm terminet',
@@ -94,7 +94,7 @@ export const portal: Record<string, string> = {
   'Discharge summary': 'Epikrizë (fletëlëshim)',
   'Do not use this for urgent problems — call 112 in an emergency.':
     'Mos e përdorni këtë për probleme urgjente — në rast emergjence telefononi 112.',
-  Doctor: 'Mjek',
+  Doctor: 'Mjeku',
   'Doctors can open your record when they are part of your care team. In an emergency, a doctor at your facility may use':
     'Mjekët mund ta hapin kartelën tuaj kur janë pjesë e ekipit tuaj të kujdesit. Në rast emergjence, një mjek në institucionin tuaj mund të përdorë',
   Document: 'Dokumenti',
@@ -103,7 +103,7 @@ export const portal: Record<string, string> = {
   Documents: 'Dokumentet',
   'Documents are stored encrypted. Your care team decides which of their documents are shared here; anything you add is visible to your care team. Every time someone opens a document it is shown under':
     'Dokumentet ruhen të enkriptuara. Ekipi juaj i kujdesit vendos cilat nga dokumentet e tyre ndahen këtu; çdo gjë që shtoni ju është e dukshme për ekipin tuaj të kujdesit. Sa herë që dikush hap një dokument, kjo shfaqet te',
-  Done: 'U krye',
+  Done: 'Kryer',
   Dose: 'Doza',
   'Dose & frequency': 'Doza dhe shpeshtësia',
   'Download (JSON)': 'Shkarko (JSON)',
@@ -115,15 +115,15 @@ export const portal: Record<string, string> = {
     'p.sh. ka ndryshuar marrëveshja e kujdestarisë, kërkesë e pacientit.',
   'Each code can be used once if you lose your phone. They will not be shown again. Store them somewhere safe (for example, printed in a locked drawer).':
     'Çdo kod mund të përdoret një herë nëse e humbni telefonin. Ato nuk do të shfaqen më. Ruajini diku të sigurt (për shembull, të shtypura në një sirtar të kyçur).',
-  Email: 'Email-i',
+  Email: 'Email',
   'Email notifications': 'Njoftimet me email',
   'Emails tell you that something happened and link to Pacient. For your privacy they never include health information. They go to':
     'Email-et ju njoftojnë se ka ndodhur diçka dhe ju lidhin me Pacient. Për privatësinë tuaj, ato nuk përmbajnë kurrë informacion shëndetësor. Dërgohen në',
   'Emergency access': 'Qasje emergjente',
   'emergency access': 'qasjen emergjente',
   'Emergency contact': 'Kontakti për emergjenca',
-  'Emergency contact name': 'Emri i kontaktit për emergjenca',
-  'Emergency contact phone': 'Telefoni i kontaktit për emergjenca',
+  'Emergency contact name': 'Emri i kontaktit emergjent',
+  'Emergency contact phone': 'Telefoni i kontaktit emergjent',
   'Enter one of the recovery codes you saved when you set up two-step sign-in. Each code works once.':
     'Shkruani një nga kodet e rikuperimit që keni ruajtur kur konfiguruat verifikimin me dy hapa. Çdo kod funksionon një herë.',
   'Enter the 6-digit code from your authenticator app.':
@@ -258,7 +258,7 @@ export const portal: Record<string, string> = {
   'Online (portal)': 'Në internet (portal)',
   'Only PDF, JPEG or PNG files can be uploaded':
     'Mund të ngarkohen vetëm skedarë PDF, JPEG ose PNG',
-  Open: 'Hap',
+  Open: 'Hapur',
   'Open messages': 'Hap mesazhet',
   'Open record': 'Hap kartelën',
   'Open your authenticator app and scan this code:':
@@ -286,7 +286,7 @@ export const portal: Record<string, string> = {
   'Preferred date and time': 'Data dhe ora e preferuar',
   'Prescribed by {doctor} since {date}': 'Përshkruar nga {doctor} që nga {date}',
   'Prescribed:': 'Përshkruar:',
-  Prescriber: 'Përshkruesi',
+  Prescriber: 'Mjeku përshkrues',
   Privacy: 'Privatësia',
   'Privacy & consent': 'Privatësia dhe pëlqimi',
   Profile: 'Profili',
@@ -365,7 +365,7 @@ export const portal: Record<string, string> = {
   'Signing in on a shared computer? Always sign out when you finish.':
     'Po kyçeni në një kompjuter të përbashkët? Gjithmonë dilni kur të përfundoni.',
   'Since {date}': 'Që nga {date}',
-  Site: 'Vendi i aplikimit',
+  Site: 'Vendi',
   'SMS alerts': 'Njoftimet me SMS',
   'Start over': 'Fillo nga e para',
   Status: 'Statusi',
@@ -402,7 +402,7 @@ export const portal: Record<string, string> = {
     'Ky portal nuk është për emergjenca. Nëse keni nevojë për ndihmë urgjente, telefononi',
   'This reset link is incomplete.': 'Kjo lidhje rivendosjeje është e paplotë.',
   Title: 'Titulli',
-  To: 'Për',
+  To: 'Deri',
   'To change a decision, talk to the doctor.': 'Për të ndryshuar një vendim, flisni me mjekun.',
   'To change a decision, talk to your doctor.':
     'Për të ndryshuar një vendim, flisni me mjekun tuaj.',

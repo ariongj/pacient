@@ -526,7 +526,7 @@ function ClaimsTab() {
                       </td>
                       <td>
                         <Button size="sm" variant="secondary" onClick={() => setOpenId(c.id)}>
-                          {t('Open')}
+                          {t('Open|action')}
                         </Button>
                       </td>
                     </tr>

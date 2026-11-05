@@ -315,6 +315,8 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
       consciousness: enumOf('A', 'C', 'V', 'P', 'U'),
       onSupplementalOxygen: bool,
       painScore: int({ minimum: 0, maximum: 10 }),
+      capillaryRefillSeconds: { ...num, minimum: 0, maximum: 20 },
+      respiratoryEffort: enumOf('NONE', 'MILD', 'MODERATE', 'SEVERE'),
       recordedAt: {
         ...dateTime,
         description: 'When the observation was taken (back-entry, up to 14 days ago)',

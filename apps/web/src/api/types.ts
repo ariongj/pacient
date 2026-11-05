@@ -136,6 +136,8 @@ export interface Vitals {
   oxygenSaturation: number | null;
   weightKg: string | null;
   heightCm: string | null;
+  capillaryRefillSeconds?: string | null;
+  respiratoryEffort?: string | null;
   recordedAt: string;
   recordedBy: string;
 }

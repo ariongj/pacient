@@ -853,4 +853,18 @@ export const common: Record<string, string> = {
   'Retention run': 'Primena rokova čuvanja',
   'Data protection request': 'Zahtev za zaštitu podataka',
   'Legal hold changed': 'Pravno zadržavanje je promenjeno',
+  /* Navigation and chart tabs (round 5 modules) */
+  'Medical certificates': 'Lekarska uverenja',
+  'Waiting lists': 'Liste čekanja',
+  'Disease registers': 'Registri bolesti',
+  'Death certificates': 'Potvrde o smrti',
+  'Report an incident': 'Prijavi incident',
+  'Deaths': 'Smrtni slučajevi',
+  'Safety incidents': 'Bezbednosni incidenti',
+  'Mortality': 'Smrtnost',
+  'Chronic disease registers': 'Registri hroničnih bolesti',
+  'Waiting times': 'Vreme čekanja',
+  'Chronic care': 'Hronične bolesti',
+  'Certificates': 'Uverenja',
+  'Death certificate': 'Potvrda o smrti',
 };

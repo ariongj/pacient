@@ -31,6 +31,9 @@ export type NewsComponents = Partial<Record<NewsParameter, number | null>> & {
   ageBand?: PewsAgeBand;
   ageMonths?: number;
   notRecorded?: string[];
+  /** PEWS only, when observed. */
+  capillaryRefill?: number | null;
+  respiratoryEffort?: number | null;
 };
 
 export interface NewsScore {
@@ -214,6 +217,21 @@ export function ageBandLabel(band: PewsAgeBand): string {
       return t('Child (5–11 years)');
     case 'ADOLESCENT':
       return t('Adolescent (12–17 years)');
+  }
+}
+
+export function respiratoryEffortLabel(effort: string): string {
+  switch (effort) {
+    case 'NONE':
+      return t('Normal (no distress)');
+    case 'MILD':
+      return t('Mild distress');
+    case 'MODERATE':
+      return t('Moderate distress');
+    case 'SEVERE':
+      return t('Severe distress');
+    default:
+      return effort;
   }
 }
 

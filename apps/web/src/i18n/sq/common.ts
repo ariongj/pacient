@@ -868,4 +868,18 @@ export const common: Record<string, string> = {
   'Retention run': 'Ekzekutimi i afateve të ruajtjes',
   'Data protection request': 'Kërkesë për mbrojtjen e të dhënave',
   'Legal hold changed': 'Ruajtja ligjore u ndryshua',
+  /* Navigation and chart tabs (round 5 modules) */
+  'Medical certificates': 'Vërtetimet mjekësore',
+  'Waiting lists': 'Listat e pritjes',
+  'Disease registers': 'Regjistrat e sëmundjeve',
+  'Death certificates': 'Certifikatat e vdekjes',
+  'Report an incident': 'Raporto një incident',
+  'Deaths': 'Vdekjet',
+  'Safety incidents': 'Incidentet e sigurisë',
+  'Mortality': 'Vdekshmëria',
+  'Chronic disease registers': 'Regjistrat e sëmundjeve kronike',
+  'Waiting times': 'Kohët e pritjes',
+  'Chronic care': 'Sëmundjet kronike',
+  'Certificates': 'Vërtetimet',
+  'Death certificate': 'Certifikata e vdekjes',
 };

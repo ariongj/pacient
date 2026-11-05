@@ -30,8 +30,10 @@
  *   unresponsive → 3.
  * Temperature (°C): ≤35.0 → 3, 35.1–36.0 → 1, 36.1–37.9 → 0, 38.0–38.9 → 1, ≥39.0 → 2; an infant
  *   under 3 months with ≥38.0 → 3 (fever in a young infant is a red flag).
- * Capillary refill and respiratory effort are part of most paediatric charts but are not recorded
- * in Pacient yet; their absence is listed on every result.
+ * Capillary refill (seconds): <3 → 0, 3–4 → 2, ≥5 → 3.
+ * Respiratory effort (work of breathing): none → 0, mild → 1, moderate → 2, severe → 3.
+ * Both are optional: when they were not observed they are listed under notRecorded and the score
+ * is computed from the other observations.
  *
  * Risk (aggregate): 0–3 LOW (any single 3 → LOW_MEDIUM, urgent bedside review), 4–6 MEDIUM,
  * ≥7 HIGH.
@@ -42,10 +44,22 @@ import type { Acvpu, News2Input, News2Parameter, News2Risk } from './news2.js';
 
 export type PewsAgeBand = 'INFANT' | 'TODDLER' | 'CHILD' | 'ADOLESCENT';
 
+export type RespiratoryEffort = 'NONE' | 'MILD' | 'MODERATE' | 'SEVERE';
+
+export interface PewsInput extends News2Input {
+  capillaryRefillSeconds?: number | string | null;
+  respiratoryEffort?: RespiratoryEffort | string | null;
+}
+
+/** Paediatric-only observations (optional). */
+export type PewsExtra = 'capillaryRefill' | 'respiratoryEffort';
+
 export interface PewsResult {
   score: number;
   risk: News2Risk;
   points: Record<News2Parameter, number | null>;
+  /** Points for the paediatric-only observations (null when not observed). */
+  extraPoints: Record<PewsExtra, number | null>;
   singleThree: boolean;
   complete: boolean;
   missing: News2Parameter[];
@@ -164,7 +178,26 @@ export function pewsRiskFor(score: number, singleThree: boolean): News2Risk {
 
 const has = (v: unknown): v is number | string => v !== null && v !== undefined && v !== '';
 
-export function scorePews(v: News2Input, ageMonths: number): PewsResult {
+export function pewsCapillaryRefillPoints(seconds: number): number {
+  if (seconds >= 5) return 3;
+  if (seconds >= 3) return 2;
+  return 0;
+}
+
+export function pewsRespiratoryEffortPoints(effort: string): number {
+  switch (effort) {
+    case 'SEVERE':
+      return 3;
+    case 'MODERATE':
+      return 2;
+    case 'MILD':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+export function scorePews(v: PewsInput, ageMonths: number): PewsResult {
   const band = ageBandFor(ageMonths);
   const points: Record<News2Parameter, number | null> = {
     respiration: has(v.respiratoryRate)
@@ -179,20 +212,31 @@ export function scorePews(v: News2Input, ageMonths: number): PewsResult {
       ? pewsTemperaturePoints(Number(v.temperatureC), ageMonths)
       : null,
   };
+  const extraPoints: Record<PewsExtra, number | null> = {
+    capillaryRefill: has(v.capillaryRefillSeconds)
+      ? pewsCapillaryRefillPoints(Number(v.capillaryRefillSeconds))
+      : null,
+    respiratoryEffort: has(v.respiratoryEffort)
+      ? pewsRespiratoryEffortPoints(String(v.respiratoryEffort))
+      : null,
+  };
   const missing = PEWS_PARAMETERS.filter((p) => points[p] === null);
-  const values = Object.values(points).filter((p): p is number => p !== null);
+  const values = [...Object.values(points), ...Object.values(extraPoints)].filter(
+    (p): p is number => p !== null,
+  );
   const score = values.reduce((a, b) => a + b, 0);
   const singleThree = values.some((p) => p === 3);
   return {
     score,
     risk: pewsRiskFor(score, singleThree),
     points,
+    extraPoints,
     singleThree,
     complete: missing.length === 0,
     missing,
     ageBand: band,
     ageMonths,
-    notRecorded: ['capillaryRefill', 'respiratoryEffort'],
+    notRecorded: (Object.keys(extraPoints) as PewsExtra[]).filter((k) => extraPoints[k] === null),
   };
 }
 

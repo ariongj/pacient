@@ -184,6 +184,9 @@ const VitalsInput = z
     consciousness: z.enum(['A', 'C', 'V', 'P', 'U']).optional(),
     onSupplementalOxygen: z.boolean().optional(),
     painScore: z.number().int().min(0).max(10).optional(),
+    /** Paediatric observations (scored by PEWS). */
+    capillaryRefillSeconds: z.number().min(0).max(20).optional(),
+    respiratoryEffort: z.enum(['NONE', 'MILD', 'MODERATE', 'SEVERE']).optional(),
     /** When the observation was actually taken – lets paper downtime charts be back-entered. */
     recordedAt: z.coerce
       .date()
@@ -824,6 +827,7 @@ clinicalRouter.post('/vitals', async (req, res) => {
       .values({
         ...input,
         temperatureC: input.temperatureC?.toString(),
+        capillaryRefillSeconds: input.capillaryRefillSeconds?.toString(),
         weightKg: input.weightKg?.toString(),
         heightCm: input.heightCm?.toString(),
         patientId,

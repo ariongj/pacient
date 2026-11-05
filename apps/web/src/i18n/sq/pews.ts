@@ -22,4 +22,10 @@ export const pews: Record<string, string> = {
   'Paediatric chart: {band}': 'Kartela pediatrike: {band}',
   'The latest set is incomplete: PEWS needs respiration, SpO₂, air or oxygen, blood pressure, pulse, consciousness and temperature.':
     'Grupi i fundit i matjeve është i paplotë: PEWS kërkon frymëmarrjen, SpO₂, ajër ose oksigjen, tensionin, pulsin, vetëdijen dhe temperaturën.',
+  'Capillary refill (seconds)': 'Mbushja kapilare (sekonda)',
+  'Normal (no distress)': 'Normale (pa vështirësi)',
+  'Mild distress': 'Vështirësi e lehtë',
+  'Moderate distress': 'Vështirësi e moderuar',
+  'Severe distress': 'Vështirësi e rëndë',
+  'Capillary refill {seconds} s': 'Mbushja kapilare {seconds} s',
 };

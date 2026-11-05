@@ -54,6 +54,7 @@ export function componentsOf(
   if ('ageBand' in result) {
     return {
       ...result.points,
+      ...result.extraPoints,
       scale: 'PEWS',
       singleThree: result.singleThree,
       missing: result.missing,
@@ -87,6 +88,8 @@ function resultFor(
     heartRate: v.heartRate,
     consciousness: v.consciousness,
     temperatureC: v.temperatureC,
+    capillaryRefillSeconds: v.capillaryRefillSeconds,
+    respiratoryEffort: v.respiratoryEffort,
   };
   if (dateOfBirth) {
     const months = ageInMonths(dateOfBirth, v.recordedAt);

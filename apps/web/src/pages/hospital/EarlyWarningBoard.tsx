@@ -108,6 +108,15 @@ export function NewsBreakdown({ components }: { components: NewsComponents }) {
           <dd>{components[p] ?? t('not measured')}</dd>
         </div>
       ))}
+      {pews &&
+        (['capillaryRefill', 'respiratoryEffort'] as const).map((p) =>
+          components[p] === null || components[p] === undefined ? null : (
+            <div key={p} style={{ display: 'contents' }}>
+              <dt>{notRecordedLabel(p)}</dt>
+              <dd>{components[p]}</dd>
+            </div>
+          ),
+        )}
       {!pews && components.spo2Scale === 2 && (
         <>
           <dt>{t('SpO₂ scale')}</dt>
@@ -116,7 +125,7 @@ export function NewsBreakdown({ components }: { components: NewsComponents }) {
       )}
       {pews && components.notRecorded && components.notRecorded.length > 0 && (
         <>
-          <dt>{t('Not recorded in Pacient')}</dt>
+          <dt>{t('Not recorded')}</dt>
           <dd>{components.notRecorded.map(notRecordedLabel).join(', ')}</dd>
         </>
       )}

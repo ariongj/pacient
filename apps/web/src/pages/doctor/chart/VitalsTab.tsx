@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import type { Encounter } from '../../../api/types';
+import { useQueryClient } from '@tanstack/react-query';
+import type { ClinicalSummary, Encounter } from '../../../api/types';
 import {
   consciousnessLabel,
+  respiratoryEffortLabel,
   ageBandLabel,
   usePatientNews,
   useSetSpo2Scale,
@@ -23,7 +25,7 @@ import {
   TextAreaField,
   TextField,
 } from '../../../components/ui';
-import { formatDateTime } from '../../../format';
+import { formatDateTime, formatNumber } from '../../../format';
 import { EncounterSelect, numbers, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
@@ -38,9 +40,18 @@ const FIELDS = [
   'weightKg',
   'heightCm',
   'painScore',
+  'capillaryRefillSeconds',
 ];
 
 const ACVPU = ['A', 'C', 'V', 'P', 'U'] as const;
+const RESPIRATORY_EFFORT = ['NONE', 'MILD', 'MODERATE', 'SEVERE'] as const;
+
+function isUnder18(dateOfBirth: string): boolean {
+  const d = new Date(`${dateOfBirth}T00:00:00`);
+  const limit = new Date();
+  limit.setFullYear(limit.getFullYear() - 18);
+  return d > limit;
+}
 
 /** Switch a patient to SpO2 scale 2 (hypercapnic respiratory failure) – doctors only. */
 function Spo2ScaleControl({ patientId, scale }: { patientId: string; scale: 1 | 2 }) {
@@ -119,6 +130,10 @@ export function VitalsTab({
   const byVitals = new Map((news.data?.items ?? []).map((s) => [s.vitalSignId, s]));
   const latestScore = news.data?.items[0];
   const pews = latestScore?.scale === 'PEWS';
+  // Paediatric observations are offered for patients under 18 (scored by PEWS).
+  const dob = useQueryClient().getQueryData<ClinicalSummary>(['patient', patientId, 'summary'])
+    ?.patient.dateOfBirth;
+  const child = pews || (dob ? isUnder18(dob) : false);
   // Trend per scale: a NEWS2 and a PEWS score are not comparable.
   const trend = (news.data?.items ?? [])
     .filter((s) => s.scale === latestScore?.scale)
@@ -138,6 +153,7 @@ export function VitalsTab({
     create.mutate({
       ...numbers(v, FIELDS),
       ...(v.consciousness ? { consciousness: v.consciousness } : {}),
+      ...(v.respiratoryEffort ? { respiratoryEffort: v.respiratoryEffort } : {}),
       ...(v.onSupplementalOxygen
         ? { onSupplementalOxygen: v.onSupplementalOxygen === 'true' }
         : {}),
@@ -238,6 +254,16 @@ export function VitalsTab({
                       {v.consciousness && (
                         <div className="muted">{consciousnessLabel(v.consciousness)}</div>
                       )}
+                      {v.capillaryRefillSeconds && (
+                        <div className="muted">
+                          {t('Capillary refill {seconds} s', {
+                            seconds: formatNumber(Number(v.capillaryRefillSeconds)),
+                          })}
+                        </div>
+                      )}
+                      {v.respiratoryEffort && (
+                        <div className="muted">{respiratoryEffortLabel(v.respiratoryEffort)}</div>
+                      )}
                       {v.painScore !== null && v.painScore !== undefined && (
                         <div className="muted">{t('Pain {score}/10', { score: v.painScore })}</div>
                       )}
@@ -317,6 +343,27 @@ export function VitalsTab({
               options={ACVPU.map((l) => ({ value: l, label: `${l} – ${consciousnessLabel(l)}` }))}
             />
             <TextField label={t('Pain (0–10)')} name="painScore" type="number" min={0} max={10} />
+            {child && (
+              <>
+                <TextField
+                  label={t('Capillary refill (seconds)')}
+                  name="capillaryRefillSeconds"
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  max={20}
+                />
+                <SelectField
+                  label={t('Respiratory effort')}
+                  name="respiratoryEffort"
+                  placeholder={t('Not recorded')}
+                  options={RESPIRATORY_EFFORT.map((e) => ({
+                    value: e,
+                    label: respiratoryEffortLabel(e),
+                  }))}
+                />
+              </>
+            )}
             <TextField
               label={t('Weight (kg)')}
               name="weightKg"

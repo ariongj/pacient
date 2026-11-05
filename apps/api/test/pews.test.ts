@@ -12,6 +12,8 @@ import {
   vitalSigns,
 } from '../src/db/schema.js';
 import {
+  pewsCapillaryRefillPoints,
+  pewsRespiratoryEffortPoints,
   ageBandFor,
   ageInMonths,
   isChild,
@@ -298,6 +300,34 @@ describe('PEWS aggregate', () => {
       ),
     ).toMatchObject({ score: 8, risk: 'HIGH' });
     expect(scorePews({ heartRate: 95 }, 96)).toMatchObject({ complete: false, score: 0 });
+  });
+
+  it('scores capillary refill and respiratory effort when they are observed', () => {
+    cases(pewsCapillaryRefillPoints, [
+      [1, 0],
+      [2.9, 0],
+      [3, 2],
+      [4.5, 2],
+      [5, 3],
+    ]);
+    expect(['NONE', 'MILD', 'MODERATE', 'SEVERE'].map(pewsRespiratoryEffortPoints)).toEqual([
+      0, 1, 2, 3,
+    ]);
+    const observed = scorePews(
+      { ...NORMAL_CHILD, capillaryRefillSeconds: 3, respiratoryEffort: 'MILD' },
+      96,
+    );
+    expect(observed).toMatchObject({
+      score: 3,
+      notRecorded: [],
+      extraPoints: { capillaryRefill: 2, respiratoryEffort: 1 },
+    });
+    const severe = scorePews({ ...NORMAL_CHILD, respiratoryEffort: 'SEVERE' }, 96);
+    expect(severe).toMatchObject({
+      singleThree: true,
+      risk: 'LOW_MEDIUM',
+      notRecorded: ['capillaryRefill'],
+    });
   });
 
   it('observation frequency', () => {

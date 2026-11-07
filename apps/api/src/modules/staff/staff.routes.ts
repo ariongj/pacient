@@ -10,6 +10,7 @@ import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
 import { revokeAllSessions } from '../auth/auth.service.js';
+import { autoLinkOnInvite, licencesOfUsers } from '../licences/licences.service.js';
 
 /**
  * Staff management follows the chain of command:
@@ -99,9 +100,27 @@ staffRouter.get('/', async (req, res) => {
       .offset(toOffset(q).offset),
     db.select({ total: count() }).from(users).where(where),
   ]);
+  // Licence state of clinical staff (doctors, nurses, pharmacists) from the national register.
+  const licences = await licencesOfUsers(rows.map((r) => r.id));
   res.json(
     paginated(
-      rows.map(({ activated, ...r }) => ({ ...r, activated: Boolean(activated) })),
+      rows.map(({ activated, ...r }) => {
+        const l = licences.get(r.id);
+        return {
+          ...r,
+          activated: Boolean(activated),
+          licence: LICENSED.includes(r.role)
+            ? l
+              ? {
+                  id: l.id,
+                  licenceNumber: l.licenceNumber,
+                  state: l.expiringSoon ? 'EXPIRING' : l.effectiveStatus,
+                  validUntil: l.validUntil,
+                }
+              : { id: null, licenceNumber: null, state: 'MISSING', validUntil: null }
+            : null,
+        };
+      }),
       total?.total ?? 0,
       q,
     ),
@@ -146,6 +165,13 @@ staffRouter.post('/invitations', async (req, res) => {
       },
       ctx.userId,
     );
+    // Link the register entry with the same number when profession and name match.
+    const licenceLinked = await autoLinkOnInvite(tx, {
+      id: invited.user.id,
+      role: input.role,
+      fullName: input.fullName,
+      licenseNumber: input.licenseNumber,
+    });
     await audit(
       {
         action: AuditAction.USER_INVITED,
@@ -153,11 +179,11 @@ staffRouter.post('/invitations', async (req, res) => {
         resourceType: 'user',
         resourceId: invited.user.id,
         meta: requestMeta(req),
-        metadata: { role: input.role, facilityId },
+        metadata: { role: input.role, facilityId, licenceLinked },
       },
       tx,
     );
-    return invited;
+    return { ...invited, licenceLinked };
   });
 
   res.status(201).json({
@@ -168,6 +194,7 @@ staffRouter.post('/invitations', async (req, res) => {
       role: result.user.role,
       facilityId: result.user.facilityId,
     },
+    licenceLinked: result.licenceLinked,
     activationUrl: result.activationUrl,
   });
 });

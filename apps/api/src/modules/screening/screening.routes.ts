@@ -123,7 +123,22 @@ screeningRouter.get('/patients/:patientId', requireRole('DOCTOR', 'NURSE'), asyn
   const person = (await personOf(patientId))!;
   const { programmes, optOuts } = await statusesFor(person);
   const history = await episodeHistory(patientId);
+  // Recent referrals of the patient, to link the follow-up of an abnormal result.
+  const recentReferrals = await db
+    .select({
+      id: referrals.id,
+      specialty: referrals.specialty,
+      status: referrals.status,
+      createdAt: referrals.createdAt,
+      toFacilityName: facilities.name,
+    })
+    .from(referrals)
+    .innerJoin(facilities, eq(facilities.id, referrals.toFacilityId))
+    .where(eq(referrals.patientId, patientId))
+    .orderBy(desc(referrals.createdAt))
+    .limit(20);
   res.json({
+    referrals: recentReferrals,
     person: {
       sex: person.sex,
       age: ageOn(person.dateOfBirth, new Date()),
@@ -350,7 +365,7 @@ async function followUpDoctor(patientId: string, executor: Executor) {
         eq(users.isActive, true),
       ),
     )
-    .orderBy(careAssignments.assignedAt)
+    .orderBy(careAssignments.startedAt)
     .limit(1);
   return doctor?.id ?? null;
 }
@@ -521,7 +536,10 @@ screeningRouter.post('/episodes/:id/decline', requireRole('DOCTOR', 'NURSE'), as
   res.json(row);
 });
 
-const CeaseInput = z.object({ programme: ProgrammeEnum, reason: z.string().trim().min(3).max(300) });
+const CeaseInput = z.object({
+  programme: ProgrammeEnum,
+  reason: z.string().trim().min(3).max(300),
+});
 
 /**
  * Clinical ceasing (doctor): the programme no longer applies to the person, e.g. after a total
@@ -681,9 +699,7 @@ screeningRouter.post(
     await assertClinicalWriteAccess(ctx, patientId, meta, WRITERS.careTeam);
     res
       .status(201)
-      .json(
-        await optOut(ctx, patientId, input.programme, input.reason ?? null, 'IN_PERSON', meta),
-      );
+      .json(await optOut(ctx, patientId, input.programme, input.reason ?? null, 'IN_PERSON', meta));
   },
 );
 

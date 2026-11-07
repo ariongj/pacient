@@ -96,8 +96,7 @@ export function kosovoDay(at: Date): string {
 export const eddFromLmp = (lmp: string) => addDays(lmp, FULL_TERM_DAYS);
 
 /** Gestational age in days on a calendar date. */
-export const gestationDays = (edd: string, on: string) =>
-  FULL_TERM_DAYS - daysBetween(on, edd);
+export const gestationDays = (edd: string, on: string) => FULL_TERM_DAYS - daysBetween(on, edd);
 
 /** "24+3" (completed weeks + days). */
 export function formatGestation(days: number): string {
@@ -278,8 +277,7 @@ export function contactSchedule(
 /* --------------------------------------------------------------------------- key tests -- */
 
 export type KeyTestSource =
-  | { kind: 'LAB'; loinc: string[]; namePattern: string }
-  | { kind: 'ULTRASOUND' };
+  { kind: 'LAB'; loinc: string[]; namePattern: string } | { kind: 'ULTRASOUND' };
 
 export interface KeyTestDef {
   code: string;
@@ -329,7 +327,11 @@ export const KEY_TESTS: KeyTestDef[] = [
     fromDay: 0,
     dueByDay: 16 * 7,
     atBooking: true,
-    source: { kind: 'LAB', loinc: ['75622-1', '7917-8', '56888-1', '68961-2'], namePattern: '\\bhiv\\b' },
+    source: {
+      kind: 'LAB',
+      loinc: ['75622-1', '7917-8', '56888-1', '68961-2'],
+      namePattern: '\\bhiv\\b',
+    },
   },
   {
     code: 'SYPHILIS',

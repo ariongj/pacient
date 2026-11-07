@@ -106,16 +106,16 @@ export function programmeStatus(
     optOut,
     invitationOverdue: Boolean(
       open &&
-        open.status !== 'REFERRED' &&
-        !open.screenedAt &&
-        open.invitedAt &&
-        open.invitedAt.getTime() < now.getTime() - INVITATION_OVERDUE_DAYS * DAY,
+      open.status !== 'REFERRED' &&
+      !open.screenedAt &&
+      open.invitedAt &&
+      open.invitedAt.getTime() < now.getTime() - INVITATION_OVERDUE_DAYS * DAY,
     ),
     followUpOverdue: Boolean(
       open?.status === 'REFERRED' &&
-        !open.referralId &&
-        (open.resultedAt ?? open.updatedAt).getTime() <
-          now.getTime() - FOLLOW_UP_SAFETY_NET_DAYS * DAY,
+      !open.referralId &&
+      (open.resultedAt ?? open.updatedAt).getTime() <
+        now.getTime() - FOLLOW_UP_SAFETY_NET_DAYS * DAY,
     ),
   };
 }
@@ -346,13 +346,13 @@ export interface CoverageRow {
 /** Interval (months) for the person's age, as an SQL CASE over the programme's bands. */
 function intervalMonths(code: ProgrammeCode, today: string): SQL {
   const bands = PROGRAMMES[code].bands;
-  return sql`CASE ${sql.join(
+  return sql`(CASE ${sql.join(
     bands.map(
       (b) =>
-        sql`WHEN date_part('year', age(${today}::date, p.date_of_birth)) BETWEEN ${b.fromAge} AND ${b.toAge} THEN ${b.months}`,
+        sql`WHEN date_part('year', age(${today}::date, p.date_of_birth)) BETWEEN ${b.fromAge} AND ${b.toAge} THEN ${b.months}::int`,
     ),
     sql` `,
-  )} ELSE ${bands.at(-1)!.months} END`;
+  )} ELSE ${bands.at(-1)!.months} END)::int`;
 }
 
 const small = (n: number) => n > 0 && n < SMALL_CELL_THRESHOLD;
@@ -410,7 +410,7 @@ export async function coverage(opts: {
           AND e.resulted_at >= ${today}::date - 365)), 0)::int AS abnormal,
         coalesce(sum((SELECT count(*) FROM screening_episodes e WHERE e.patient_id = p.id
           AND e.programme = ${code} AND e.status = 'REFERRED' AND e.referral_id IS NULL
-          AND coalesce(e.resulted_at, e.updated_at) < ${now} - make_interval(days => ${FOLLOW_UP_SAFETY_NET_DAYS}))), 0)::int AS follow_up_overdue
+          AND coalesce(e.resulted_at, e.updated_at) < ${now}::timestamptz - make_interval(days => ${FOLLOW_UP_SAFETY_NET_DAYS}::int))), 0)::int AS follow_up_overdue
       FROM patients p
       WHERE p.merged_into_id IS NULL AND p.deceased_at IS NULL AND p.temporary_identity IS NULL
         ${sexRule} ${scope}

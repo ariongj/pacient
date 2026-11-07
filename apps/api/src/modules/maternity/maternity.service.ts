@@ -44,7 +44,8 @@ export function pregnancyFlags(p: PregnancyRow, today: string) {
     gestationDays: ga,
     gestation: formatGestation(ga),
     postTerm: ongoing && daysBetween(p.eddDate, today) > POST_TERM_DAYS,
-    nearEdd: ongoing && daysBetween(today, p.eddDate) <= NEAR_EDD_DAYS && ga <= 280 + POST_TERM_DAYS,
+    nearEdd:
+      ongoing && daysBetween(today, p.eddDate) <= NEAR_EDD_DAYS && ga <= 280 + POST_TERM_DAYS,
   };
 }
 
@@ -158,7 +159,10 @@ export async function pregnancyView(patientId: string, opts: PregnancyViewOption
   const out = [];
   for (const { p, facilityName, bookedBy } of rows) {
     const visits = visitsByPregnancy.get(p.id) ?? [];
-    const flags = pregnancyFlags(p, p.status === 'ONGOING' ? today : toDay(p.endedAt ?? p.updatedAt));
+    const flags = pregnancyFlags(
+      p,
+      p.status === 'ONGOING' ? today : toDay(p.endedAt ?? p.updatedAt),
+    );
     const todayGa = gestationDays(p.eddDate, today);
     const booking = bookingGestation(p);
     const risk = decodeRiskFactors(p.riskFactors);

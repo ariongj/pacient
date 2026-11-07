@@ -359,7 +359,8 @@ interface FeedbackAgg {
   [item: string]: unknown;
 }
 
-const round1 = (v: unknown) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10);
+const round1 = (v: unknown) =>
+  v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10;
 
 function toGroup(r: FeedbackAgg): FeedbackGroup {
   const n = Number(r.n);
@@ -389,9 +390,7 @@ function toGroup(r: FeedbackAgg): FeedbackGroup {
 }
 
 const itemColumns = sql.join(
-  FEEDBACK_ITEMS.map(
-    (i) => sql`avg((f.scores ->> ${i})::numeric) AS ${sql.identifier(`i_${i}`)}`,
-  ),
+  FEEDBACK_ITEMS.map((i) => sql`avg((f.scores ->> ${i})::numeric) AS ${sql.identifier(`i_${i}`)}`),
   sql`, `,
 );
 
@@ -494,7 +493,8 @@ export async function complaintTimeliness(opts: { facilityId?: string; since: Da
     FROM complaints
     WHERE created_at >= ${opts.since}${opts.facilityId ? sql` AND facility_id = ${opts.facilityId}` : sql``}`);
   const r = result.rows[0]!;
-  const pct = (a: number, b: number) => (Number(b) > 0 ? Math.round((Number(a) / Number(b)) * 100) : null);
+  const pct = (a: number, b: number) =>
+    Number(b) > 0 ? Math.round((Number(a) / Number(b)) * 100) : null;
   return {
     acknowledgedOnTimePct: pct(r.ack_on_time, r.ack_due),
     acknowledgementsDue: Number(r.ack_due),
@@ -633,7 +633,9 @@ let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
   runComplaintsWorker().then(
-    (r) => (r.reminders || r.invitations) && logger.info(r, 'Complaint reminders and feedback invitations sent'),
+    (r) =>
+      (r.reminders || r.invitations) &&
+      logger.info(r, 'Complaint reminders and feedback invitations sent'),
     (err: unknown) => logger.error({ err }, 'Complaints worker failed'),
   );
 }

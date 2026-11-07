@@ -20,9 +20,18 @@ import {
   Table,
   TextField,
 } from '../../components/ui';
-import { formatDateTime, humanize } from '../../format';
+import { formatDate, formatDateTime, humanize } from '../../format';
+import { stateLabel, stateTone, type LicenceState } from '../../api/licences';
 
 type StaffRole = StaffMember['role'];
+/** Staff rows carry the state of the linked professional licence (clinical staff only). */
+type StaffRow = StaffMember & {
+  licence?: {
+    licenceNumber: string | null;
+    state: LicenceState;
+    validUntil: string | null;
+  } | null;
+};
 
 interface InviteResult {
   user: { id: string; email: string; fullName: string; role: StaffRole; facilityId: string | null };
@@ -357,7 +366,7 @@ export function StaffPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.items.map((m) => (
+                    {(data.items as StaffRow[]).map((m) => (
                       <tr key={m.id}>
                         <td>
                           <strong>{m.fullName}</strong>
@@ -371,6 +380,19 @@ export function StaffPage() {
                           {m.licenseNumber && (
                             <div>
                               <code>{m.licenseNumber}</code>
+                            </div>
+                          )}
+                          {m.licence && (
+                            <div>
+                              <Badge tone={stateTone(m.licence.state)}>
+                                {stateLabel(m.licence.state)}
+                              </Badge>
+                              {m.licence.validUntil && m.licence.state !== 'MISSING' && (
+                                <span className="muted">
+                                  {' '}
+                                  {t('until {date}', { date: formatDate(m.licence.validUntil) })}
+                                </span>
+                              )}
                             </div>
                           )}
                         </td>

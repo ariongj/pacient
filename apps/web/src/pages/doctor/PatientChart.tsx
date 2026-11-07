@@ -49,6 +49,7 @@ import { DeathTab } from './chart/DeathTab';
 import { PregnancyTab } from './chart/PregnancyTab';
 import { ScreeningTab } from './chart/ScreeningTab';
 import { DirectivesTab } from './chart/DirectivesTab';
+import { DirectivesBanner } from '../directives/DirectivesFlag';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
 import { ConfirmIdentityDialog } from '../births/IdentityDialogs';
@@ -308,6 +309,7 @@ export function PatientChart() {
           </div>
         )}
       </section>
+      <DirectivesBanner patientId={patientId} enabled={!!s} onOpen={() => setTab('directives')} />
 
       <ErrorAlert error={exportError} />
       {s?.accessBasis === 'EMERGENCY' && (

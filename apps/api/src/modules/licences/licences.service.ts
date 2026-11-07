@@ -251,7 +251,7 @@ export function validateCsv(text: string): {
   rows: (ImportRow & { line: number })[];
   errors: { line: number; message: string }[];
 } {
-  const table = parseCsv(text.replace(/^﻿/, ''));
+  const table = parseCsv(text.replace(/^\uFEFF/, ''));
   const errors: { line: number; message: string }[] = [];
   const rows: (ImportRow & { line: number })[] = [];
   if (!table.length) return { rows, errors: [{ line: 1, message: 'The file is empty' }] };

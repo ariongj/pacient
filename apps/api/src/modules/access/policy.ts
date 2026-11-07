@@ -5,6 +5,7 @@ import { forbidden, HttpError, notFound } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { AuditAction, auditSafe } from '../audit/audit.service.js';
 import { coverAccessVia } from '../cover/cover.service.js';
+import { assertLicensed } from '../licences/licences.service.js';
 
 /**
  * Access model: roles are distinct responsibilities, not a seniority ladder. Seniority alone never
@@ -294,7 +295,10 @@ export async function assertClinicalWriteAccess(
         : 'Only the treating care team can add clinical entries',
     );
   }
-  return resolveClinicalReadAccess(ctx, patientId, meta);
+  const access = await resolveClinicalReadAccess(ctx, patientId, meta);
+  // Clinical entries need a valid professional licence (reading is never blocked by it).
+  await assertLicensed(ctx, meta);
+  return access;
 }
 
 /**

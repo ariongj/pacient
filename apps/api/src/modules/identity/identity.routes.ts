@@ -26,6 +26,7 @@ import {
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient } from '../notifications/notifications.service.js';
+import { closePregnancyOnBirth } from '../maternity/maternity.service.js';
 import {
   careTeamDoctors,
   confirmIdentity,
@@ -297,6 +298,9 @@ identityRouter.post('/births', requireRole('DOCTOR', 'NURSE'), async (req, res) 
         notes: input.notes ?? null,
       })
       .returning();
+
+    // The mother's ongoing pregnancy record ends as delivered and points to this birth.
+    await closePregnancyOnBirth(m.id, birth!.id, bornAt, tx);
 
     // The baby joins the care of the attending doctor and the mother's doctors.
     const team = new Set(await careTeamDoctors(m.id, tx));

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { EdDirectiveBadges } from '../directives/DirectivesFlag';
 import { api } from '../../api/client';
 import {
   ARRIVAL_MODES,
@@ -256,6 +257,8 @@ function VisitCard({
             {big ? edPatientInitials(i.patient) : edPatientName(i.patient)}
           </div>
           {!big && <div className="muted">{patientLine(i.patient)}</div>}
+          {/* DNACPR / ceiling of care: for the department's clinicians, never on the big screen. */}
+          {!big && b.canTreat && <EdDirectiveBadges patientId={i.patient.id} />}
         </div>
         <LevelLabel level={i.triageLevel} />
       </div>

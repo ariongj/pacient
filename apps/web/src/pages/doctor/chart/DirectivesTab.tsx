@@ -354,7 +354,16 @@ function DonationRegisterCard({
       {saved && <Alert tone="success" title={t('The decision was recorded.')} />}
       <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
         {role.isDoctor && (
-          <Button variant="secondary" onClick={() => setChecking(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              // A new check starts clean; the last result stays visible until then.
+              check.reset();
+              setPurpose('');
+              setNote('');
+              setChecking(true);
+            }}
+          >
             {t('Check organ donation register')}
           </Button>
         )}
@@ -366,10 +375,7 @@ function DonationRegisterCard({
       </div>
       <Dialog
         open={checking}
-        onClose={() => {
-          setChecking(false);
-          check.reset();
-        }}
+        onClose={() => setChecking(false)}
         title={t('Check organ donation register')}
       >
         <form

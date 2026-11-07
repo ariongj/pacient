@@ -224,7 +224,9 @@ export function PortalScreeningPage() {
                             <td>{formatDate(h.screenedAt)}</td>
                             <td>{programmeLabel(h.programme)}</td>
                             <td>{h.testType ? testLabel(h.testType) : '—'}</td>
-                            <td>{h.result ? plainResult(h.result) : t('Result awaited|screening')}</td>
+                            <td>
+                              {h.result ? plainResult(h.result) : t('Result awaited|screening')}
+                            </td>
                             <td>{h.facilityName}</td>
                           </tr>
                         ))}

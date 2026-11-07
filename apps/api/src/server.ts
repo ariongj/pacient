@@ -33,6 +33,10 @@ import {
 import { logger } from './lib/logger.js';
 import { startLicencesWorker, stopLicencesWorker } from './modules/licences/licences.service.js';
 import {
+  startScreeningWorker,
+  stopScreeningWorker,
+} from './modules/screening/screening.service.js';
+import {
   startMaternityWorker,
   stopMaternityWorker,
 } from './modules/maternity/maternity.service.js';
@@ -55,6 +59,7 @@ startRegistersWorker();
 startComplaintsWorker();
 startLicencesWorker();
 startMaternityWorker();
+startScreeningWorker();
 startChargeCaptureWorker();
 startSurveillanceWorker();
 const server = app.listen(env.PORT, () => {
@@ -79,6 +84,7 @@ function shutdown(signal: string) {
   stopComplaintsWorker();
   stopLicencesWorker();
   stopMaternityWorker();
+  stopScreeningWorker();
   stopChargeCaptureWorker();
   stopSurveillanceWorker();
   server.close(() => {

@@ -51,7 +51,7 @@ export const screening: Record<string, string> = {
   'Invitations in the last 12 months': 'Pozivi u poslednjih 12 meseci',
   'Uptake of invitations': 'Odziv na pozive',
   'Abnormal results (last 12 months)': 'Nenormalni rezultati (poslednjih 12 meseci)',
-  'of {count}': 'od {count}',
+  'of {count} results': 'od {count} rezultata',
   'National total only': 'Samo nacionalni zbir',
   'Age ranges, intervals and tests are illustrative until confirmed by the national cancer control programme.':
     'Starosne grupe, intervali i testovi su okvirni dok ih ne potvrdi nacionalni program za kontrolu raka.',
@@ -189,4 +189,6 @@ export const screening: Record<string, string> = {
   'This programme is already ceased': 'Ovaj program je već obustavljen',
   'Already opted out of this programme': 'Već ste odjavljeni iz ovog programa',
   'No opt-out for this programme': 'Nema odjave za ovaj program',
+  'Not in the age or sex range of: {programmes}': 'Van starosne grupe ili pola za: {programmes}',
+  'No results yet': 'Još nema rezultata',
 };

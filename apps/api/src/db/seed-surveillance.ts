@@ -198,12 +198,14 @@ export async function seedSurveillance({ facilityId }: { facilityId: string }) {
   for (const [weekIdx, n] of fluPerWeek.entries()) {
     for (let k = 0; k < n; k++) {
       const place = fluPlaces[(weekIdx + k) % fluPlaces.length]!;
-      const name = fluNames[(weekIdx * 3 + k) % fluNames.length]!;
+      const nameIndex = (weekIdx * 3 + k) % fluNames.length;
+      const name = fluNames[nameIndex]!;
       const p = await person(
         name,
         'Gashi',
         `19${60 + ((weekIdx * 7 + k) % 39)}-0${1 + (k % 9)}-1${k % 9}`,
-        k % 2 ? 'FEMALE' : 'MALE',
+        // The list alternates male and female first names.
+        nameIndex % 2 ? 'FEMALE' : 'MALE',
         place.m,
         place.f,
         place.d,

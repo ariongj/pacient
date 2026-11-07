@@ -322,10 +322,12 @@ function ProgrammeCard({
     >
       <p className="muted">{programmeAudience(status.programme)}</p>
       <dl className="dl">
-        <div>
-          <dt>{t('Test offered|screening')}</dt>
-          <dd>{testLabel(status.testOffered)}</dd>
-        </div>
+        {status.inPopulation && (
+          <div>
+            <dt>{t('Test offered|screening')}</dt>
+            <dd>{testLabel(status.testOffered)}</dd>
+          </div>
+        )}
         <div>
           <dt>{t('Last test|screening')}</dt>
           <dd>
@@ -447,6 +449,7 @@ function ProgrammeCard({
             </>
           )}
           {data.canDecide &&
+            status.inPopulation &&
             status.state !== 'CEASED' &&
             status.state !== 'FOLLOW_UP' &&
             ep?.status !== 'SCREENED' && (
@@ -485,6 +488,12 @@ function ProgrammeCard({
   );
 }
 
+/** Programmes outside the person's age and sex range without any history are listed, not shown. */
+const relevant = (data: PatientScreening, s: ProgrammeStatus) =>
+  s.state !== 'NOT_IN_POPULATION' || data.history.some((h) => h.programme === s.programme);
+const shown = (data: PatientScreening) => data.programmes.filter((s) => relevant(data, s));
+const hidden = (data: PatientScreening) => data.programmes.filter((s) => !relevant(data, s));
+
 /** Cancer screening in the chart: programmes, the current round with its actions, history. */
 export function ScreeningTab({ patientId }: { patientId: string }) {
   const query = usePatientScreening(patientId);
@@ -499,7 +508,7 @@ export function ScreeningTab({ patientId }: { patientId: string }) {
             )}
           </p>
           <Grid min={300}>
-            {data.programmes.map((s) => (
+            {shown(data).map((s) => (
               <ProgrammeCard
                 key={s.programme}
                 status={s}
@@ -509,6 +518,15 @@ export function ScreeningTab({ patientId }: { patientId: string }) {
               />
             ))}
           </Grid>
+          {hidden(data).length > 0 && (
+            <p className="muted">
+              {t('Not in the age or sex range of: {programmes}', {
+                programmes: hidden(data)
+                  .map((s) => programmeLabel(s.programme))
+                  .join(', '),
+              })}
+            </p>
+          )}
           <Card title={t('Screening history')}>
             {data.history.length === 0 ? (
               <EmptyState title={t('No screening recorded')} />

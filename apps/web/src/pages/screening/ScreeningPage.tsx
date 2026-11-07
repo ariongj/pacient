@@ -184,6 +184,18 @@ function Worklist() {
 const count = (n: number | null) =>
   n === null ? <span className="muted">{t('suppressed')}</span> : formatNumber(n);
 const percent = (n: number | null) => (n === null ? '—' : `${formatNumber(n)} %`);
+/** A count followed by its percentage, when there is one. */
+const withPct = (n: number | null, pct: number | null) => (
+  <>
+    {count(n)}
+    {pct !== null && (
+      <>
+        {' '}
+        <strong>({percent(pct)})</strong>
+      </>
+    )}
+  </>
+);
 
 function CoverageCard({ row }: { row: CoverageRow }) {
   return (
@@ -197,9 +209,7 @@ function CoverageCard({ row }: { row: CoverageRow }) {
           </tr>
           <tr>
             <th scope="row">{t('Screened within the interval')}</th>
-            <td>
-              {count(row.screenedInInterval)} <strong>{percent(row.coveragePct)}</strong>
-            </td>
+            <td>{withPct(row.screenedInInterval, row.coveragePct)}</td>
           </tr>
           <tr>
             <th scope="row">{t('Opted out|screening')}</th>
@@ -211,15 +221,24 @@ function CoverageCard({ row }: { row: CoverageRow }) {
           </tr>
           <tr>
             <th scope="row">{t('Uptake of invitations')}</th>
-            <td>
-              {count(row.tookUp12m)} <strong>{percent(row.uptakePct)}</strong>
-            </td>
+            <td>{withPct(row.tookUp12m, row.uptakePct)}</td>
           </tr>
           <tr>
             <th scope="row">{t('Abnormal results (last 12 months)')}</th>
             <td>
-              {count(row.abnormal12m)} {t('of {count}', { count: row.resulted12m ?? '—' })}{' '}
-              <strong>{percent(row.abnormalPct)}</strong>
+              {row.resulted12m === 0 ? (
+                t('No results yet')
+              ) : (
+                <>
+                  {withPct(row.abnormal12m, row.abnormalPct)}{' '}
+                  <span className="muted">
+                    {t('of {count} results', {
+                      count:
+                        row.resulted12m === null ? t('suppressed') : formatNumber(row.resulted12m),
+                    })}
+                  </span>
+                </>
+              )}
             </td>
           </tr>
           <tr>

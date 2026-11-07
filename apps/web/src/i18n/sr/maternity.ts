@@ -200,4 +200,7 @@ export const maternity: Record<string, string> = {
   'Maternity dashboard (small cells suppressed)': 'Pregled materinstva (mali brojevi sakriveni)',
   'My pregnancy (portal)': 'Moja trudnoća (portal)',
   'Booked|pregnancy': 'Evidentirano',
+  'Not shown to guardians': 'Ne prikazuje se starateljima',
+  'Pregnancy records of a young person are confidential and are not shown in a guardian’s portal.':
+    'Podaci o trudnoći mlade osobe su poverljivi i ne prikazuju se na portalu staratelja.',
 };

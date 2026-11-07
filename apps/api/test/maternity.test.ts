@@ -458,7 +458,7 @@ describe('portal and reminders', () => {
     expect(again.find((n) => n.type === 'antenatal_reminder')!.title).not.toMatch(/smok/i);
   });
 
-  it('lets a guardian with full access see a minor’s pregnancy, not one with appointments only', async () => {
+  it('keeps a minor’s pregnancy confidential from guardians, whatever their access', async () => {
     const guardian = await createUser('PATIENT');
     const teen = await mother({ dateOfBirth: addDays(today(), -16 * 365) });
     await book(teen.id, { lmpDate: lmpFor(15) });
@@ -479,7 +479,7 @@ describe('portal and reminders', () => {
     const as = { ...bearer(token), 'X-Acting-For': teen.id };
     const res = await api().get('/api/v1/maternity/mine').set(as);
     expect(res.status).toBe(200);
-    expect(res.body.items[0].gestation).toBe('15+0');
+    expect(res.body).toEqual({ items: [], confidentialFromGuardians: true });
     await db
       .update(guardianships)
       .set({ scope: 'APPOINTMENTS' })

@@ -202,4 +202,7 @@ export const maternity: Record<string, string> = {
   'Maternity dashboard (small cells suppressed)': 'Pasqyra e amësisë (numrat e vegjël të fshehur)',
   'My pregnancy (portal)': 'Shtatzënia ime (portali)',
   'Booked|pregnancy': 'Regjistruar',
+  'Not shown to guardians': 'Nuk u shfaqet kujdestarëve',
+  'Pregnancy records of a young person are confidential and are not shown in a guardian’s portal.':
+    'Të dhënat e shtatzënisë së një të reje janë konfidenciale dhe nuk shfaqen në portalin e kujdestarit.',
 };

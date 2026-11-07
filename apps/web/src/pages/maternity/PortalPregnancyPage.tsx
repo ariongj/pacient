@@ -93,6 +93,17 @@ export function PortalPregnancyPage() {
       />
       <QueryView query={query}>
         {(data) => {
+          if (data.confidentialFromGuardians) {
+            return (
+              <Card>
+                <EmptyState title={t('Not shown to guardians')}>
+                  {t(
+                    'Pregnancy records of a young person are confidential and are not shown in a guardian’s portal.',
+                  )}
+                </EmptyState>
+              </Card>
+            );
+          }
           const current = data.items.find((p) => p.status === 'ONGOING');
           const earlier = data.items.filter((p) => p.status !== 'ONGOING');
           return (

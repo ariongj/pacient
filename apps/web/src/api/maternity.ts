@@ -325,7 +325,8 @@ export const usePatientPregnancies = (patientId: string) =>
 export const useMyPregnancy = () =>
   useQuery({
     queryKey: [...KEY, 'mine'],
-    queryFn: () => api<{ items: Pregnancy[] }>('/maternity/mine'),
+    queryFn: () =>
+      api<{ items: Pregnancy[]; confidentialFromGuardians?: boolean }>('/maternity/mine'),
   });
 
 export const useMaternityWorklist = (query: { filter: WorklistFilter; q?: string; page: number }) =>

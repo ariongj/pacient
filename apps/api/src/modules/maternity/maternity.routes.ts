@@ -617,12 +617,20 @@ maternityRouter.get('/dashboard', requireRole('DIRECTOR', 'MINISTRY'), async (re
 
 /* -------------------------------------------------------------------------- portal -- */
 
-/** The mother's own pregnancy record (or a guardian with full access to a minor's record). */
+/**
+ * The mother's own pregnancy record. Guardians never see it, even with full access to a minor's
+ * record: a pregnancy is confidential to the young person (adolescent confidentiality – the
+ * clinician discusses involving the family with her).
+ */
 maternityRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
   const ctx = requireAuth(req);
   if (!ctx.patientId) throw forbidden();
   const meta = requestMeta(req);
   const basis = await resolveClinicalReadAccess(ctx, ctx.patientId, meta);
+  if (basis === 'GUARDIAN') {
+    res.json({ items: [], confidentialFromGuardians: true });
+    return;
+  }
   await auditRecordView(ctx, ctx.patientId, basis, 'pregnancy', meta);
   const items = await pregnancyView(ctx.patientId, { includeNotes: false });
   res.json({

@@ -89,6 +89,17 @@ import { WaitingListsPage } from './pages/waiting/WaitingListsPage';
 import { PortalWaitingListsPage } from './pages/waiting/PortalWaitingListsPage';
 import { RegistersPage } from './pages/registers/RegistersPage';
 import { IncidentsPage } from './pages/incidents/IncidentsPage';
+import { MaternityPage } from './pages/maternity/MaternityPage';
+import { PortalPregnancyPage } from './pages/maternity/PortalPregnancyPage';
+import { ScreeningPage } from './pages/screening/ScreeningPage';
+import { PortalScreeningPage } from './pages/screening/PortalScreeningPage';
+import { EPrescriptionsPage } from './pages/erx/EPrescriptionsPage';
+import { PortalEPrescriptionsPage } from './pages/erx/PortalEPrescriptionsPage';
+import { LicencesPage } from './pages/licences/LicencesPage';
+import { ComplaintsPage } from './pages/complaints/ComplaintsPage';
+import { PortalComplaintsPage } from './pages/complaints/PortalComplaintsPage';
+import { OrganDonationRegistryPage } from './pages/directives/OrganDonationRegistryPage';
+import { PortalWishesPage } from './pages/directives/PortalWishesPage';
 
 const STAFF: Role[] = ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
 const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{el}</RequireRole>;
@@ -249,6 +260,32 @@ export function App() {
           path="/video/:appointmentId"
           element={guard(['DOCTOR', 'PATIENT'], <VideoVisit />)}
         />
+        <Route
+          path="/maternity"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <MaternityPage />)}
+        />
+        <Route path="/portal/pregnancy" element={guard(['PATIENT'], <PortalPregnancyPage />)} />
+        <Route
+          path="/screening"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <ScreeningPage />)}
+        />
+        <Route path="/portal/screening" element={guard(['PATIENT'], <PortalScreeningPage />)} />
+        <Route
+          path="/e-prescriptions"
+          element={guard(['DOCTOR', 'PHARMACIST', 'DIRECTOR', 'MINISTRY'], <EPrescriptionsPage />)}
+        />
+        <Route
+          path="/portal/e-prescriptions"
+          element={guard(['PATIENT'], <PortalEPrescriptionsPage />)}
+        />
+        <Route path="/licences" element={guard(['DIRECTOR', 'MINISTRY'], <LicencesPage />)} />
+        <Route path="/complaints" element={guard(['DIRECTOR', 'MINISTRY'], <ComplaintsPage />)} />
+        <Route path="/portal/complaints" element={guard(['PATIENT'], <PortalComplaintsPage />)} />
+        <Route
+          path="/organ-donation"
+          element={guard(['MINISTRY'], <OrganDonationRegistryPage />)}
+        />
+        <Route path="/portal/wishes" element={guard(['PATIENT'], <PortalWishesPage />)} />
         <Route path="/deaths" element={guard(['DOCTOR', 'DIRECTOR', 'MINISTRY'], <DeathsPage />)} />
         <Route path="/certificates" element={guard(['DOCTOR', 'DIRECTOR'], <CertificatesPage />)} />
         <Route

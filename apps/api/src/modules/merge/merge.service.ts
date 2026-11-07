@@ -14,7 +14,9 @@ import { conflict, forbidden, notFound } from '../../lib/errors.js';
  */
 export const PATIENT_TABLES = [
   'admissions',
+  'advance_directives',
   'allergies',
+  'antenatal_visits',
   'appointments',
   'blood_group_tests',
   'care_assignments',
@@ -22,6 +24,8 @@ export const PATIENT_TABLES = [
   'care_tasks',
   'case_reports',
   'charges',
+  'community_dispensings',
+  'complaints',
   'consent_records',
   'correction_requests',
   'data_subject_requests',
@@ -47,13 +51,17 @@ export const PATIENT_TABLES = [
   'medication_administrations',
   'message_threads',
   'nutrition_screenings',
+  'organ_donation_decisions',
   'patient_documents',
   'payments',
+  'pregnancies',
   'prescription_alerts',
   'prescriptions',
   'referrals',
   'register_enrolments',
   'safety_incidents',
+  'screening_episodes',
+  'screening_opt_outs',
   'surgical_cases',
   'transfusion_requests',
   'transfusions',
@@ -81,6 +89,14 @@ export const EXCLUDED_REFERENCES = [
 
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
+  advance_directives: 'Advance directives',
+  antenatal_visits: 'Antenatal visits',
+  community_dispensings: 'Community pharmacy dispensings',
+  complaints: 'Complaints',
+  organ_donation_decisions: 'Organ donation decisions',
+  pregnancies: 'Pregnancies',
+  screening_episodes: 'Cancer screening',
+  screening_opt_outs: 'Screening opt-outs',
   care_process_records: 'Chronic care reviews',
   death_record_amendments: 'Death certificate amendments',
   death_records: 'Death certificate',
@@ -351,11 +367,18 @@ export async function mergePatients(
   }
   // One death certificate per person.
   const deaths = await tx.execute<{ n: number }>(sql`
-    SELECT count(*)::int AS n FROM death_records WHERE patient_id IN (${survivor.id}, ${merged.id})`);
+    SELECT count(*)::int AS n FROM death_records
+    WHERE status <> 'WITHDRAWN' AND patient_id IN (${survivor.id}, ${merged.id})`);
   if ((deaths.rows[0]?.n ?? 0) > 1) {
     throw conflict(
       'Both records have a death certificate. Amend or withdraw one of them, then merge.',
     );
+  }
+  const pregnant = await tx.execute<{ n: number }>(sql`
+    SELECT count(*)::int AS n FROM pregnancies
+    WHERE status = 'ONGOING' AND patient_id IN (${survivor.id}, ${merged.id})`);
+  if ((pregnant.rows[0]?.n ?? 0) > 1) {
+    throw conflict('Both records have an ongoing pregnancy. Close the duplicate one, then merge.');
   }
   // Only one active hospital stay and one active emergency attendance per person.
   const active = await tx.execute<{ admissions: number; ed: number }>(sql`
@@ -402,6 +425,14 @@ export async function mergePatients(
                   AND s.register = d.register AND s.status = 'ACTIVE')
     RETURNING d.id`);
   if (left.rows.length) movedRows['register_enrolments:left'] = left.rows.map((r) => r.id);
+  const optOuts = await tx.execute<{ id: string }>(sql`
+    UPDATE screening_opt_outs d SET withdrawn_at = ${now}
+    WHERE d.patient_id = ${merged.id} AND d.withdrawn_at IS NULL
+      AND EXISTS (SELECT 1 FROM screening_opt_outs s WHERE s.patient_id = ${survivor.id}
+                  AND s.programme = d.programme AND s.withdrawn_at IS NULL)
+    RETURNING d.id`);
+  if (optOuts.rows.length)
+    movedRows['screening_opt_outs:withdrawn'] = optOuts.rows.map((r) => r.id);
 
   for (const table of PATIENT_TABLES) {
     const result = await tx.execute<{ id: string }>(
@@ -496,6 +527,15 @@ export async function unmergePatients(
         WHERE d.id IN ${idsJson(ids)} AND d.patient_id = ${merged.id}
           AND NOT EXISTS (SELECT 1 FROM care_assignments s WHERE s.patient_id = ${merged.id}
                           AND s.doctor_id = d.doctor_id AND s.ended_at IS NULL)`);
+      restored[key] = r.rowCount ?? 0;
+      continue;
+    }
+    if (key === 'screening_opt_outs:withdrawn') {
+      const r = await tx.execute(sql`
+        UPDATE screening_opt_outs d SET withdrawn_at = NULL
+        WHERE d.id IN ${idsJson(ids)} AND d.patient_id = ${merged.id}
+          AND NOT EXISTS (SELECT 1 FROM screening_opt_outs s WHERE s.patient_id = ${merged.id}
+                          AND s.programme = d.programme AND s.withdrawn_at IS NULL)`);
       restored[key] = r.rowCount ?? 0;
       continue;
     }

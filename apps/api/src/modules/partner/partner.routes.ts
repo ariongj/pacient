@@ -28,6 +28,7 @@ import { nationalStats } from '../stats/stats.service.js';
 import { billingPartnerRouter } from '../billing/partner.js';
 import { surveillancePartnerRouter } from '../surveillance/partner.js';
 import { deathsPartnerRouter } from '../deaths/partner.js';
+import { erxPartnerRouter } from '../erx/partner.js';
 import { openApiDocument } from '../../openapi/spec.js';
 import {
   auditPartner,
@@ -503,5 +504,6 @@ partnerApi.post(
 partnerApi.use('/claims', billingPartnerRouter);
 partnerApi.use('/surveillance', surveillancePartnerRouter);
 partnerApi.use('/deaths', deathsPartnerRouter);
+partnerApi.use('/e-prescriptions', erxPartnerRouter);
 
 partnerRouter.use(partnerApi);

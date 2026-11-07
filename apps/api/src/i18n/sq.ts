@@ -28,6 +28,12 @@ import { sqCertificates } from './sq-certificates.js';
 import { sqWaiting } from './sq-waiting.js';
 import { sqRegisters } from './sq-registers.js';
 import { sqIncidents } from './sq-incidents.js';
+import { sqMaternity } from './sq-maternity.js';
+import { sqScreening } from './sq-screening.js';
+import { sqErx } from './sq-erx.js';
+import { sqLicences } from './sq-licences.js';
+import { sqComplaints } from './sq-complaints.js';
+import { sqDirectives } from './sq-directives.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -60,4 +66,10 @@ export const sq: Record<string, string> = {
   ...sqWaiting,
   ...sqRegisters,
   ...sqIncidents,
+  ...sqMaternity,
+  ...sqScreening,
+  ...sqErx,
+  ...sqLicences,
+  ...sqComplaints,
+  ...sqDirectives,
 };

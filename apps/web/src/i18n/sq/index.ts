@@ -34,6 +34,12 @@ import { waiting } from './waiting';
 import { registers } from './registers';
 import { incidents } from './incidents';
 import { storage } from './storage';
+import { maternity } from './maternity';
+import { screening } from './screening';
+import { erx } from './erx';
+import { licences } from './licences';
+import { complaints } from './complaints';
+import { directives } from './directives';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -72,4 +78,10 @@ export const sq: Record<string, string> = {
   ...registers,
   ...incidents,
   ...storage,
+  ...maternity,
+  ...screening,
+  ...erx,
+  ...licences,
+  ...complaints,
+  ...directives,
 };

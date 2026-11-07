@@ -9,6 +9,12 @@
 import { encounterTypeEnum } from '../db/schema.js';
 import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
+import { MATERNITY_OPERATIONS, MATERNITY_TAGS } from './maternity.js';
+import { SCREENING_OPERATIONS, SCREENING_TAGS } from './screening.js';
+import { ERX_OPERATIONS, ERX_TAGS } from './erx.js';
+import { LICENCES_OPERATIONS, LICENCES_TAGS } from './licences.js';
+import { COMPLAINTS_OPERATIONS, COMPLAINTS_TAGS } from './complaints.js';
+import { DIRECTIVES_OPERATIONS, DIRECTIVES_TAGS } from './directives.js';
 import { DEATHS_OPERATIONS, DEATHS_TAGS } from './deaths.js';
 import { CERTIFICATES_OPERATIONS, CERTIFICATES_TAGS } from './certificates.js';
 import { WAITING_OPERATIONS, WAITING_TAGS } from './waiting.js';
@@ -102,6 +108,12 @@ export const TAGS: { name: string; description: string }[] = [
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
   ...CORE_TAGS,
   ...MODULE_TAGS,
+  ...MATERNITY_TAGS,
+  ...SCREENING_TAGS,
+  ...ERX_TAGS,
+  ...LICENCES_TAGS,
+  ...COMPLAINTS_TAGS,
+  ...DIRECTIVES_TAGS,
   ...DEATHS_TAGS,
   ...CERTIFICATES_TAGS,
   ...WAITING_TAGS,
@@ -815,6 +827,12 @@ const OPERATIONS: Operation[] = [
 OPERATIONS.push(
   ...CORE_OPERATIONS,
   ...MODULE_OPERATIONS,
+  ...MATERNITY_OPERATIONS,
+  ...SCREENING_OPERATIONS,
+  ...ERX_OPERATIONS,
+  ...LICENCES_OPERATIONS,
+  ...COMPLAINTS_OPERATIONS,
+  ...DIRECTIVES_OPERATIONS,
   ...DEATHS_OPERATIONS,
   ...CERTIFICATES_OPERATIONS,
   ...WAITING_OPERATIONS,

@@ -69,6 +69,12 @@ import { waitingListRouter } from './modules/waiting/waiting.routes.js';
 import { registersRouter } from './modules/registers/registers.routes.js';
 import { incidentsRouter } from './modules/incidents/incidents.routes.js';
 import { certificateVerifyRouter } from './modules/certificates/verify.routes.js';
+import { maternityRouter } from './modules/maternity/maternity.routes.js';
+import { screeningRouter } from './modules/screening/screening.routes.js';
+import { ePrescriptionsRouter } from './modules/erx/erx.routes.js';
+import { licencesRouter } from './modules/licences/licences.routes.js';
+import { complaintsRouter } from './modules/complaints/complaints.routes.js';
+import { directivesRouter } from './modules/directives/directives.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -175,6 +181,12 @@ export function createApp(): Express {
   api.use('/video', telemedicineRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
+  api.use('/maternity', maternityRouter);
+  api.use('/screening', screeningRouter);
+  api.use('/e-prescriptions', ePrescriptionsRouter);
+  api.use('/licences', licencesRouter);
+  api.use('/complaints', complaintsRouter);
+  api.use('/directives', directivesRouter);
   api.use('/deaths', deathsRouter);
   api.use('/certificates', certificatesRouter);
   api.use('/waiting-lists', waitingListRouter);

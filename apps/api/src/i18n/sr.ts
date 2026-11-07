@@ -28,6 +28,12 @@ import { srCertificates } from './sr-certificates.js';
 import { srWaiting } from './sr-waiting.js';
 import { srRegisters } from './sr-registers.js';
 import { srIncidents } from './sr-incidents.js';
+import { srMaternity } from './sr-maternity.js';
+import { srScreening } from './sr-screening.js';
+import { srErx } from './sr-erx.js';
+import { srLicences } from './sr-licences.js';
+import { srComplaints } from './sr-complaints.js';
+import { srDirectives } from './sr-directives.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -60,4 +66,10 @@ export const sr: Record<string, string> = {
   ...srWaiting,
   ...srRegisters,
   ...srIncidents,
+  ...srMaternity,
+  ...srScreening,
+  ...srErx,
+  ...srLicences,
+  ...srComplaints,
+  ...srDirectives,
 };

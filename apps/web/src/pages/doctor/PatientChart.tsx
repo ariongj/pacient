@@ -46,6 +46,9 @@ import { CertificatesTab } from './chart/CertificatesTab';
 import { RegistersTab } from './chart/RegistersTab';
 import { WaitingListTab } from './chart/WaitingListTab';
 import { DeathTab } from './chart/DeathTab';
+import { PregnancyTab } from './chart/PregnancyTab';
+import { ScreeningTab } from './chart/ScreeningTab';
+import { DirectivesTab } from './chart/DirectivesTab';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
 import { ConfirmIdentityDialog } from '../births/IdentityDialogs';
@@ -89,6 +92,9 @@ const TAB_IDS = [
   'transfusion',
   'nutrition',
   'births',
+  'directives',
+  'pregnancy',
+  'screening',
   'registers',
   'waiting',
   'certificates',
@@ -340,6 +346,9 @@ export function PatientChart() {
               { id: 'transfusion', label: t('Transfusions') },
               { id: 'nutrition', label: t('Nutrition') },
               { id: 'births', label: t('Birth & maternity') },
+              { id: 'directives', label: t('Wishes and directives') },
+              { id: 'pregnancy', label: t('Pregnancy') },
+              { id: 'screening', label: t('Screening|cancer') },
               { id: 'registers', label: t('Chronic care') },
               { id: 'waiting', label: t('Waiting lists') },
               { id: 'certificates', label: t('Certificates') },
@@ -371,6 +380,9 @@ export function PatientChart() {
               />
             )}
             {tab === 'mar' && <MarTab patientId={patientId} />}
+            {tab === 'directives' && <DirectivesTab patientId={patientId} />}
+            {tab === 'pregnancy' && <PregnancyTab patientId={patientId} />}
+            {tab === 'screening' && <ScreeningTab patientId={patientId} />}
             {tab === 'registers' && <RegistersTab patientId={patientId} />}
             {tab === 'waiting' && <WaitingListTab patientId={patientId} />}
             {tab === 'certificates' && <CertificatesTab patientId={patientId} />}

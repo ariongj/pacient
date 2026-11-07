@@ -543,11 +543,19 @@ export const prescriptions = pgTable(
     dispensedById: uuid('dispensed_by_id').references(() => users.id, { onDelete: 'restrict' }),
     dispensedAt: timestamp('dispensed_at', { withTimezone: true }),
     dispensedQuantity: varchar('dispensed_quantity', { length: 100 }),
+    /**
+     * National e-prescription for community pharmacies: the code the patient shows at any
+     * pharmacy, how many repeat supplies are allowed and until when it can be dispensed.
+     */
+    ePrescriptionCode: varchar('e_prescription_code', { length: 16 }),
+    repeatsAllowed: smallint('repeats_allowed').notNull().default(0),
+    communityValidUntil: date('community_valid_until', { mode: 'string' }),
     ...timestamps,
   },
   (t) => [
     index('prescriptions_patient_idx').on(t.patientId, t.status),
     index('prescriptions_pharmacy_idx').on(t.pharmacyStatus, t.createdAt),
+    uniqueIndex('prescriptions_e_code_uq').on(t.ePrescriptionCode),
   ],
 );
 
@@ -1742,6 +1750,7 @@ export const PARTNER_SCOPES = [
   'claims.read',
   'surveillance.read',
   'deaths.read',
+  'prescriptions.dispense',
 ] as const;
 export type PartnerScope = (typeof PARTNER_SCOPES)[number];
 
@@ -2757,10 +2766,16 @@ export const deathRecords = pgTable(
       withTimezone: true,
     }),
     civilRegistryReference: varchar('civil_registry_reference', { length: 60 }),
+    /** Withdrawn by the Ministry (e.g. certified for the wrong person); the record is restored. */
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    withdrawnById: uuid('withdrawn_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    withdrawReason: varchar('withdraw_reason', { length: 500 }),
     ...timestamps,
   },
   (t) => [
-    uniqueIndex('death_records_patient_uq').on(t.patientId),
+    uniqueIndex('death_records_patient_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} <> 'WITHDRAWN'`),
     uniqueIndex('death_records_number_uq').on(t.certificateNumber),
     index('death_records_facility_idx').on(t.facilityId, t.diedAt),
   ],
@@ -3082,6 +3097,375 @@ export const incidentReviewers = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('incident_reviewers_uq').on(t.facilityId, t.userId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Antenatal care (pregnancy record)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** One pregnancy episode, from booking to its outcome (linked to the birth when delivered). */
+export const pregnancies = pgTable(
+  'pregnancies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** Booking (managing) facility. */
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    lmpDate: date('lmp_date', { mode: 'string' }),
+    eddDate: date('edd_date', { mode: 'string' }).notNull(),
+    /** LMP or ULTRASOUND (dating scan). */
+    eddMethod: varchar('edd_method', { length: 12 }).notNull(),
+    gravida: smallint('gravida').notNull(),
+    para: smallint('para').notNull(),
+    /** LOW or HIGH, from the risk factors (recomputed when they change). */
+    riskLevel: varchar('risk_level', { length: 6 }).notNull().default('LOW'),
+    riskFactors: text('risk_factors')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** ONGOING, DELIVERED, MISCARRIAGE, TERMINATION, ECTOPIC, TRANSFERRED_OUT. */
+    status: varchar('status', { length: 16 }).notNull().default('ONGOING'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    outcomeNote: varchar('outcome_note', { length: 500 }),
+    birthId: uuid('birth_id').references(() => births.id, { onDelete: 'set null' }),
+    bookedById: uuid('booked_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('pregnancies_ongoing_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} = 'ONGOING'`),
+    index('pregnancies_facility_idx').on(t.facilityId, t.status, t.eddDate),
+  ],
+);
+
+/** An antenatal check-up (observations by gestational age). */
+export const antenatalVisits = pgTable(
+  'antenatal_visits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pregnancyId: uuid('pregnancy_id')
+      .notNull()
+      .references(() => pregnancies.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    visitAt: timestamp('visit_at', { withTimezone: true }).notNull(),
+    gestationDays: smallint('gestation_days').notNull(),
+    systolic: smallint('systolic'),
+    diastolic: smallint('diastolic'),
+    weightKg: numeric('weight_kg', { precision: 5, scale: 1 }),
+    fundalHeightCm: numeric('fundal_height_cm', { precision: 4, scale: 1 }),
+    fetalHeartRate: smallint('fetal_heart_rate'),
+    /** CEPHALIC, BREECH, TRANSVERSE, UNKNOWN. */
+    presentation: varchar('presentation', { length: 12 }),
+    /** NEGATIVE, TRACE, 1+, 2+, 3+. */
+    urineProtein: varchar('urine_protein', { length: 8 }),
+    oedema: boolean('oedema'),
+    fetalMovements: boolean('fetal_movements'),
+    notes: text('notes'),
+    nextVisitDate: date('next_visit_date', { mode: 'string' }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('antenatal_visits_pregnancy_idx').on(t.pregnancyId, t.visitAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Cancer screening programmes (cervical, breast, colorectal)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** One screening round for a person: invitation → test → result → next due date. */
+export const screeningEpisodes = pgTable(
+  'screening_episodes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** CERVICAL, BREAST, COLORECTAL. */
+    programme: varchar('programme', { length: 12 }).notNull(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** INVITED, BOOKED, SCREENED, RESULTED, REFERRED, DECLINED, NOT_ELIGIBLE, CLOSED. */
+    status: varchar('status', { length: 12 }).notNull().default('INVITED'),
+    invitedAt: timestamp('invited_at', { withTimezone: true }),
+    reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
+    dueDate: date('due_date', { mode: 'string' }).notNull(),
+    bookedFor: timestamp('booked_for', { withTimezone: true }),
+    screenedAt: timestamp('screened_at', { withTimezone: true }),
+    /** e.g. PAP/HPV, MAMMOGRAPHY, FIT. */
+    testType: varchar('test_type', { length: 20 }),
+    /** NORMAL, ABNORMAL, INADEQUATE. */
+    result: varchar('result', { length: 12 }),
+    resultDetail: varchar('result_detail', { length: 300 }),
+    resultedAt: timestamp('resulted_at', { withTimezone: true }),
+    referralId: uuid('referral_id').references(() => referrals.id, { onDelete: 'set null' }),
+    nextDueDate: date('next_due_date', { mode: 'string' }),
+    recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('screening_episodes_patient_idx').on(t.patientId, t.programme),
+    index('screening_episodes_facility_idx').on(t.facilityId, t.programme, t.status),
+  ],
+);
+
+/** A person's choice not to be invited to a programme (can be withdrawn). */
+export const screeningOptOuts = pgTable(
+  'screening_opt_outs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    programme: varchar('programme', { length: 12 }).notNull(),
+    reason: varchar('reason', { length: 300 }),
+    recordedVia: varchar('recorded_via', { length: 10 }).notNull(),
+    recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('screening_opt_outs_active_uq')
+      .on(t.patientId, t.programme)
+      .where(sql`${t.withdrawnAt} IS NULL`),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * National e-prescriptions dispensed by community pharmacies
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Dispensing of an e-prescription by a community pharmacy (a partner system with scope
+ * prescriptions.dispense). Append-only; a dispensing in error is reversed by a new row
+ * (reversesId), never edited.
+ */
+export const communityDispensings = pgTable(
+  'community_dispensings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    prescriptionId: uuid('prescription_id')
+      .notNull()
+      .references(() => prescriptions.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    partnerClientId: uuid('partner_client_id')
+      .notNull()
+      .references(() => partnerClients.id, { onDelete: 'restrict' }),
+    pharmacyName: varchar('pharmacy_name', { length: 200 }).notNull(),
+    pharmacistName: varchar('pharmacist_name', { length: 200 }).notNull(),
+    pharmacistLicence: varchar('pharmacist_licence', { length: 60 }),
+    /** 0 = original supply, 1… = repeats. */
+    supplyNumber: smallint('supply_number').notNull(),
+    productName: varchar('product_name', { length: 200 }).notNull(),
+    quantity: varchar('quantity', { length: 100 }).notNull(),
+    reversesId: uuid('reverses_id').references((): AnyPgColumn => communityDispensings.id, {
+      onDelete: 'restrict',
+    }),
+    reason: varchar('reason', { length: 300 }),
+    dispensedAt: timestamp('dispensed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('community_dispensings_prescription_idx').on(t.prescriptionId, t.dispensedAt),
+    uniqueIndex('community_dispensings_reverses_uq').on(t.reversesId),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Licensing of health professionals
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Professional licence issued by the chamber (doctors, nurses and midwives, pharmacists, dentists).
+ * Clinical accounts are linked to a licence; an expired, suspended or revoked licence blocks
+ * clinical work.
+ */
+export const professionalLicences = pgTable(
+  'professional_licences',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    licenceNumber: varchar('licence_number', { length: 40 }).notNull(),
+    holderName: varchar('holder_name', { length: 200 }).notNull(),
+    /** PHYSICIAN, NURSE, MIDWIFE, PHARMACIST, DENTIST. */
+    profession: varchar('profession', { length: 12 }).notNull(),
+    specialty: varchar('specialty', { length: 120 }),
+    /** Issuing body, e.g. "Oda e Mjekëve të Kosovës". */
+    issuedBy: varchar('issued_by', { length: 200 }).notNull(),
+    issuedOn: date('issued_on', { mode: 'string' }).notNull(),
+    validUntil: date('valid_until', { mode: 'string' }).notNull(),
+    /** ACTIVE, SUSPENDED, REVOKED (EXPIRED is computed from validUntil). */
+    status: varchar('status', { length: 10 }).notNull().default('ACTIVE'),
+    statusReason: varchar('status_reason', { length: 500 }),
+    /** Continuing professional development credits this licence period. */
+    cpdCredits: smallint('cpd_credits').notNull().default(0),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('professional_licences_number_uq').on(t.licenceNumber),
+    uniqueIndex('professional_licences_user_uq').on(t.userId),
+    index('professional_licences_valid_idx').on(t.status, t.validUntil),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Patient complaints and feedback
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A formal complaint about care at a facility, with statutory response deadlines. */
+export const complaints = pgTable(
+  'complaints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** e.g. "ANK-2026-00031". */
+    reference: varchar('reference', { length: 30 }).notNull(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** The patient the complaint is about (and usually from). */
+    patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'restrict' }),
+    /** Portal user who submitted it (patient or guardian), if submitted online. */
+    submittedByUserId: uuid('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    /** PORTAL, IN_PERSON, PHONE, LETTER. */
+    channel: varchar('channel', { length: 10 }).notNull(),
+    /** CARE_QUALITY, COMMUNICATION, WAITING_TIME, STAFF_ATTITUDE, BILLING, PRIVACY, FACILITIES, OTHER. */
+    category: varchar('category', { length: 20 }).notNull(),
+    description: text('description').notNull(),
+    desiredOutcome: text('desired_outcome'),
+    /** RECEIVED, ACKNOWLEDGED, INVESTIGATING, RESPONDED, CLOSED, ESCALATED. */
+    status: varchar('status', { length: 14 }).notNull().default('RECEIVED'),
+    assignedToId: uuid('assigned_to_id').references(() => users.id, { onDelete: 'set null' }),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgeDueAt: timestamp('acknowledge_due_at', { withTimezone: true }).notNull(),
+    responseDueAt: timestamp('response_due_at', { withTimezone: true }).notNull(),
+    response: text('response'),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    respondedById: uuid('responded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** UPHELD, PARTLY_UPHELD, NOT_UPHELD, WITHDRAWN. */
+    outcome: varchar('outcome', { length: 14 }),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+    escalationReason: text('escalation_reason'),
+    ministryDecision: text('ministry_decision'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('complaints_reference_uq').on(t.reference),
+    index('complaints_facility_idx').on(t.facilityId, t.status, t.responseDueAt),
+  ],
+);
+
+/**
+ * Anonymous experience feedback after a visit or stay. No patient or user is stored; dedupeKey is
+ * an HMAC of the visit so the same visit cannot be rated twice.
+ */
+export const feedbackResponses = pgTable(
+  'feedback_responses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    /** OUTPATIENT, INPATIENT, EMERGENCY, VIDEO. */
+    setting: varchar('setting', { length: 12 }).notNull(),
+    dedupeKey: varchar('dedupe_key', { length: 64 }).notNull(),
+    /** 1–5 overall, plus optional item scores. */
+    overall: smallint('overall').notNull(),
+    scores: jsonb('scores').$type<Record<string, number>>(),
+    wouldRecommend: boolean('would_recommend'),
+    comment: text('comment'),
+    /** Month only (no exact time) to protect anonymity. */
+    month: date('month', { mode: 'string' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('feedback_responses_dedupe_uq').on(t.dedupeKey),
+    index('feedback_responses_facility_idx').on(t.facilityId, t.month),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Organ donation registry and advance directives
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Organ donation decisions as an append-only history; the latest row is the current decision. */
+export const organDonationDecisions = pgTable(
+  'organ_donation_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** DONOR (all organs), DONOR_SOME (only `organs`), NOT_DONOR. */
+    decision: varchar('decision', { length: 12 }).notNull(),
+    /** KIDNEYS, LIVER, HEART, LUNGS, PANCREAS, CORNEAS, TISSUE. */
+    organs: text('organs').array(),
+    familyInformed: boolean('family_informed'),
+    faithOrBeliefNote: varchar('faith_or_belief_note', { length: 300 }),
+    /** PORTAL or IN_PERSON (recorded by staff with the person present). */
+    recordedVia: varchar('recorded_via', { length: 10 }).notNull(),
+    recordedByUserId: uuid('recorded_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('organ_donation_decisions_patient_idx').on(t.patientId, t.createdAt)],
+);
+
+/**
+ * Advance directives and resuscitation decisions shown prominently in the chart and the emergency
+ * department. Never edited: revoked (with a reason) and replaced.
+ */
+export const advanceDirectives = pgTable(
+  'advance_directives',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /**
+     * DNACPR (clinician's do-not-attempt-resuscitation decision), TREATMENT_ESCALATION (ceiling
+     * of care), ADVANCE_REFUSAL (patient's refusal of specific treatment), HEALTHCARE_PROXY.
+     */
+    kind: varchar('kind', { length: 22 }).notNull(),
+    /** ACTIVE or REVOKED. */
+    status: varchar('status', { length: 8 }).notNull().default('ACTIVE'),
+    summary: text('summary').notNull(),
+    /** Who took part: e.g. patient, proxy name, family. */
+    discussedWith: varchar('discussed_with', { length: 300 }),
+    proxyName: varchar('proxy_name', { length: 200 }),
+    proxyPhone: varchar('proxy_phone', { length: 40 }),
+    documentId: uuid('document_id').references(() => patientDocuments.id, {
+      onDelete: 'set null',
+    }),
+    reviewDate: date('review_date', { mode: 'string' }),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedById: uuid('revoked_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    revokeReason: varchar('revoke_reason', { length: 500 }),
+  },
+  (t) => [index('advance_directives_patient_idx').on(t.patientId, t.status)],
 );
 
 /* ------------------------------------------------------------------------------------------------

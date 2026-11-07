@@ -68,6 +68,12 @@ import { seedCertificates } from './seed-certificates.js';
 import { seedWaiting } from './seed-waiting.js';
 import { seedRegisters } from './seed-registers.js';
 import { seedIncidents } from './seed-incidents.js';
+import { seedMaternity } from './seed-maternity.js';
+import { seedScreening } from './seed-screening.js';
+import { seedErx } from './seed-erx.js';
+import { seedLicences } from './seed-licences.js';
+import { seedComplaints } from './seed-complaints.js';
+import { seedDirectives } from './seed-directives.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
 /** Development-only key of the seeded laboratory connection. */
@@ -1232,6 +1238,12 @@ async function main() {
   await seedWaiting({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedRegisters({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedIncidents({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedMaternity({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedScreening({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedErx({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedComplaints({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedDirectives({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

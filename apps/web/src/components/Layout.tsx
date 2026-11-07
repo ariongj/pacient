@@ -104,7 +104,11 @@ const NAV: Record<Role, NavSection[]> = {
     },
     {
       title: 'Communication',
-      items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items],
+      items: [
+        { to: '/messages', label: 'Patient messages', icon: 'message' },
+        ...COMMS.items,
+        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
+      ],
     },
   ],
   NURSE: [
@@ -139,7 +143,11 @@ const NAV: Record<Role, NavSection[]> = {
     },
     {
       title: 'Communication',
-      items: [{ to: '/messages', label: 'Patient messages', icon: 'message' }, ...COMMS.items],
+      items: [
+        { to: '/messages', label: 'Patient messages', icon: 'message' },
+        ...COMMS.items,
+        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
+      ],
     },
   ],
   PHARMACIST: [
@@ -150,6 +158,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/pharmacy/stock', label: 'Stock', icon: 'clipboard' },
         { to: '/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
         { to: '/tools/interactions', label: 'Interaction checker', icon: 'alert' },
+        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
       ],
     },
     COMMS,
@@ -162,6 +171,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/reception/patients', label: 'Patients', icon: 'users' },
         { to: '/reception/appointments', label: 'Appointments', icon: 'calendar' },
         { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
+        { to: '/complaints', label: 'Complaints', icon: 'message' },
         { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
         { to: '/billing', label: 'Billing & insurance', icon: 'clipboard' },
         { to: '/downtime', label: 'Downtime kit', icon: 'shield' },

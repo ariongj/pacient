@@ -435,7 +435,7 @@ export async function feedbackGroups(
  * Comments for the director: only from settings with at least the threshold of responses in the
  * window, shown with month and setting only (no unit), newest first.
  */
-export async function feedbackComments(facilityId: string, since: string, limit = 50) {
+export async function feedbackComments(facilityId: string, since: string, limit = 20) {
   const result = await db.execute<{
     month: string;
     setting: string;

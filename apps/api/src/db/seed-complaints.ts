@@ -272,7 +272,9 @@ export async function seedComplaints({ facilityId }: { facilityId: string; demoD
     const month = monthOf(daysAgo((i * 3) % 175));
     return {
       facilityId,
-      unitId: setting === 'INPATIENT' && units.length ? units[i % units.length]!.id : null,
+      // Two wards, so one of them has enough responses to be shown.
+      unitId:
+        setting === 'INPATIENT' && units.length ? units[i % Math.min(2, units.length)]!.id : null,
       setting,
       dedupeKey: `seed-${randomUUID()}`,
       overall,

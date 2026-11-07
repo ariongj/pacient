@@ -925,4 +925,6 @@ export const common: Record<string, string> = {
   'Wishes and directives': 'Dëshirat dhe direktivat',
   Pregnancy: 'Shtatzënia',
   'Screening|cancer': 'Depistimi',
+  'Complaints assigned to me': 'Ankesat e caktuara për mua',
+  Complaints: 'Ankesat',
 };

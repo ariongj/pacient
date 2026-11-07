@@ -31,6 +31,10 @@ import {
   stopSurveillanceWorker,
 } from './modules/surveillance/surveillance.service.js';
 import { logger } from './lib/logger.js';
+import {
+  startComplaintsWorker,
+  stopComplaintsWorker,
+} from './modules/complaints/complaints.service.js';
 
 const app = createApp();
 startEmailWorker();
@@ -43,6 +47,7 @@ startRetentionWorker();
 startDowntimeWorker();
 startWaitingWorker();
 startRegistersWorker();
+startComplaintsWorker();
 startChargeCaptureWorker();
 startSurveillanceWorker();
 const server = app.listen(env.PORT, () => {
@@ -64,6 +69,7 @@ function shutdown(signal: string) {
   stopDowntimeWorker();
   stopWaitingWorker();
   stopRegistersWorker();
+  stopComplaintsWorker();
   stopChargeCaptureWorker();
   stopSurveillanceWorker();
   server.close(() => {

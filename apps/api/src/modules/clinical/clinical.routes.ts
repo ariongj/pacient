@@ -3,6 +3,17 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { scoreVitalSign } from '../news/news.service.js';
 import { enrolFromDiagnosis } from '../registers/registers.service.js';
+import {
+  EPrescriptionRequestSchema,
+  notifyEPrescriptionCancelled,
+  recordIssued,
+} from '../erx/erx.routes.js';
+import {
+  atcOf,
+  eprescriptionTerms,
+  formatCode,
+  issueEPrescription,
+} from '../erx/erx.service.js';
 import { db, type Executor } from '../../db/client.js';
 import type { Role } from '../../db/schema.js';
 import {
@@ -134,6 +145,11 @@ const PrescriptionInput = z
     instructions: z.string().trim().max(2000).optional().nullable(),
     startDate: z.string().date(),
     endDate: z.string().date().optional().nullable(),
+    /**
+     * Issue as a national e-prescription that any community pharmacy can dispense (repeat supplies
+     * and validity; see modules/erx).
+     */
+    ePrescription: EPrescriptionRequestSchema.optional().nullable(),
     /** Reasons for proceeding despite blocking safety alerts (one per alert code). */
     overrides: z
       .array(
@@ -609,6 +625,7 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
   // Medication safety: blocking alerts need an override reason (409 SAFETY_ALERTS otherwise).
   const {
     overrides,
+    ePrescription,
     doseAmount,
     doseUnit,
     frequencyCode,
@@ -629,6 +646,13 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
           route: rxInput.route,
         }
       : null;
+  // E-prescription terms are checked before anything is saved (repeats, controlled medicines).
+  const erxTerms = ePrescription
+    ? eprescriptionTerms(ePrescription, {
+        atcCode: await atcOf(rxInput.catalogItemId),
+        medication: rxInput.medication,
+      })
+    : null;
   const safetyAlerts = await checkBeforePrescribing(ctx, {
     patientId,
     medication: rxInput.medication,
@@ -681,6 +705,12 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
       alerts: safetyAlerts,
       overrides,
     });
+    if (erxTerms) {
+      // Dispensed by a community pharmacy: the hospital pharmacy is not asked to verify it.
+      const issued = await issueEPrescription(tx, created!.id, created!.startDate, erxTerms);
+      await recordIssued(tx, ctx, req, issued, erxTerms.controlled);
+      return issued;
+    }
     await notifyFacilityRole(
       ctx.facilityId!,
       ['PHARMACIST'],
@@ -694,7 +724,11 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
     return created!;
   });
   const locale = await safetyLocaleOf(ctx.userId);
-  res.status(201).json({ ...row, alerts: safetyAlerts.map((a) => toPublicAlert(a, locale)) });
+  res.status(201).json({
+    ...row,
+    ePrescriptionCode: row.ePrescriptionCode ? formatCode(row.ePrescriptionCode) : null,
+    alerts: safetyAlerts.map((a) => toPublicAlert(a, locale)),
+  });
 });
 
 clinicalRouter.patch('/prescriptions/:entryId', async (req, res) => {
@@ -711,6 +745,10 @@ clinicalRouter.patch('/prescriptions/:entryId', async (req, res) => {
       .where(and(eq(prescriptions.id, entryId), eq(prescriptions.patientId, patientId)))
       .returning();
     if (!updated) throw notFound('Prescription not found');
+    // A stopped or cancelled e-prescription can no longer be dispensed by any pharmacy.
+    if (updated.ePrescriptionCode && status === 'CANCELLED') {
+      await notifyEPrescriptionCancelled(tx, updated);
+    }
     await auditChange(
       req,
       ctx,

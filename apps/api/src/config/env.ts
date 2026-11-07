@@ -166,6 +166,14 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['true', 'false']).optional(),
   ),
+  /**
+   * Professional licence check on clinical write actions: on (refuse without a valid licence),
+   * warn (allow, with a warning header) or off. Default: on in production, warn otherwise.
+   */
+  LICENCE_ENFORCEMENT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['on', 'warn', 'off']).optional(),
+  ),
 });
 
 export type Env = Omit<
@@ -177,7 +185,9 @@ export type Env = Omit<
   | 'PACS_MODE'
   | 'WEBAUTHN_RP_ID'
   | 'WEBAUTHN_ORIGINS'
+  | 'LICENCE_ENFORCEMENT'
 > & {
+  LICENCE_ENFORCEMENT: 'on' | 'warn' | 'off';
   WEBAUTHN_RP_ID: string;
   WEBAUTHN_ORIGINS: string[];
   PACS_MODE: 'off' | 'demo' | 'dicomweb';
@@ -285,6 +295,8 @@ function loadEnv(): Env {
     EMAIL_TRANSPORT: emailTransport,
     SMS_PROVIDER: smsProvider,
     PACS_MODE: pacsMode,
+    LICENCE_ENFORCEMENT:
+      data.LICENCE_ENFORCEMENT ?? (data.NODE_ENV === 'production' ? 'on' : 'warn'),
     WEBAUTHN_RP_ID: data.WEBAUTHN_RP_ID ?? new URL(data.WEB_APP_URL).hostname,
     WEBAUTHN_ORIGINS: data.WEBAUTHN_ORIGINS
       ? data.WEBAUTHN_ORIGINS.split(',')

@@ -75,6 +75,7 @@ import { ePrescriptionsRouter } from './modules/erx/erx.routes.js';
 import { licencesRouter } from './modules/licences/licences.routes.js';
 import { complaintsRouter } from './modules/complaints/complaints.routes.js';
 import { directivesRouter } from './modules/directives/directives.routes.js';
+import { licenceWarnings } from './modules/licences/licences.service.js';
 
 export function createApp(): Express {
   const app = express();
@@ -83,6 +84,8 @@ export function createApp(): Express {
   app.set('trust proxy', env.TRUST_PROXY);
 
   app.use(requestId);
+  // Warn-mode licence checks add X-Licence-Warning to the response.
+  app.use(licenceWarnings);
   app.use(httpMetrics);
   app.use(
     pinoHttp({

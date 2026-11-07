@@ -1241,9 +1241,10 @@ async function main() {
   await seedMaternity({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedScreening({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedErx({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
-  await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedComplaints({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedDirectives({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  // Last, so clinical accounts created by the other seeds get licences too.
+  await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

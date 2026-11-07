@@ -116,7 +116,7 @@ export async function seedDirectives({
         decision: 'DONOR_SOME',
         organs: ['KIDNEYS', 'LIVER', 'CORNEAS'],
         familyInformed: true,
-        faithOrBeliefNote: 'Discussed with my family and our imam',
+        faithOrBeliefNote: 'E kam diskutuar me familjen dhe imamin tonë',
         recordedVia: 'PORTAL',
         recordedByUserId: demo.userId,
         createdAt: new Date(now - 120 * DAY),
@@ -132,7 +132,7 @@ export async function seedDirectives({
     await db.insert(advanceDirectives).values({
       patientId: demo.id,
       kind: 'HEALTHCARE_PROXY',
-      summary: 'Husband – to be consulted if I cannot decide for myself',
+      summary: 'Bashkëshorti – të konsultohet nëse nuk mund të vendos vetë',
       proxyName: 'Driton Krasniqi',
       proxyPhone: '044 555 120',
       createdById: demo.userId,
@@ -168,24 +168,24 @@ export async function seedDirectives({
     {
       kind: 'DNACPR',
       summary:
-        'Do not attempt cardiopulmonary resuscitation. Advanced heart failure; resuscitation would not succeed. All other treatment continues.',
-      discussedWith: 'Patient and family, on the ward',
+        'Mos tento ringjalljen kardiopulmonare. Insuficiencë kardiake e avancuar; ringjallja nuk do të kishte sukses. Çdo trajtim tjetër vazhdon.',
+      discussedWith: 'Pacienti dhe familja, në repart',
       reviewDays: 60,
       createdDaysAgo: 5,
     },
     {
       kind: 'DNACPR',
       summary:
-        'Do not attempt cardiopulmonary resuscitation, at the patient’s wish after discussing the prognosis.',
-      discussedWith: 'Patient (has capacity) and family',
+        'Mos tento ringjalljen kardiopulmonare, me dëshirën e pacientit pas bisedës për prognozën.',
+      discussedWith: 'Pacienti (me aftësi vendimmarrëse) dhe familja',
       reviewDays: -10,
       createdDaysAgo: 190,
     },
     {
       kind: 'TREATMENT_ESCALATION',
       summary:
-        'Ward-based care with antibiotics, oxygen and fluids; not for intensive care or ventilation. Escalate to the medical registrar if NEWS2 is 5 or more.',
-      discussedWith: 'Patient and spouse',
+        'Kujdes në repart me antibiotikë, oksigjen dhe lëngje; jo për kujdes intensiv ose ventilim. Lajmëroni mjekun kujdestar nëse NEWS2 është 5 ose më shumë.',
+      discussedWith: 'Pacienti dhe bashkëshorti/bashkëshortja',
       reviewDays: 30,
       createdDaysAgo: 3,
     },

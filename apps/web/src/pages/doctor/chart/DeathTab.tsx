@@ -472,10 +472,26 @@ export function DeathTab({ patientId }: { patientId: string }) {
         const patient = demographics.data;
         if (!patient) return null;
         const r = d.record;
+        const withdrawnNotice = d.withdrawn.map((w) => (
+          <Alert key={w.id} tone="info" title={t('Death certificate withdrawn')}>
+            {t('Certificate {number} was withdrawn by the Ministry on {date}: {reason}', {
+              number: w.certificateNumber ?? '',
+              date: w.withdrawnAt ? formatDateTime(w.withdrawnAt) : '',
+              reason: w.withdrawReason ?? '',
+            })}
+          </Alert>
+        ));
         if (!r) {
-          if (!d.canCertify) return <EmptyState title={t('No death certificate')} />;
+          if (!d.canCertify)
+            return (
+              <>
+                {withdrawnNotice}
+                <EmptyState title={t('No death certificate')} />
+              </>
+            );
           return (
             <Card title={t('Death certificate')}>
+              {withdrawnNotice}
               {d.openAdmission && (
                 <Alert tone="warning" title={t('The patient is still admitted')}>
                   {t(

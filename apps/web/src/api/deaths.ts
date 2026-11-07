@@ -115,7 +115,7 @@ export interface DeathCheck {
 export interface DeathRecord extends DeathFields {
   id: string;
   patientId: string;
-  status: 'DRAFT' | 'SIGNED';
+  status: 'DRAFT' | 'SIGNED' | 'WITHDRAWN';
   certificateNumber: string | null;
   signedAt: string | null;
   certifiedBy: { id: string; name: string | null };
@@ -130,6 +130,8 @@ export interface DeathRecord extends DeathFields {
   }[];
   civilRegistryAcknowledgedAt: string | null;
   civilRegistryReference: string | null;
+  withdrawnAt: string | null;
+  withdrawReason: string | null;
   createdAt: string;
   updatedAt: string;
   checks: { problems: DeathCheck[]; warnings: DeathCheck[] };
@@ -148,11 +150,63 @@ export interface PatientDeath {
   openAdmission: boolean;
   canCertify: boolean;
   record: DeathRecord | null;
+  /** Certificates the Ministry withdrew (issued in error). */
+  withdrawn: {
+    id: string;
+    certificateNumber: string | null;
+    signedAt: string | null;
+    withdrawnAt: string | null;
+    withdrawReason: string | null;
+  }[];
+}
+
+/** What the Ministry sees when looking up a certificate by number (no causes). */
+export interface DeathLookup {
+  id: string;
+  patientId: string;
+  status: 'DRAFT' | 'SIGNED' | 'WITHDRAWN';
+  certificateNumber: string;
+  diedAt: string;
+  signedAt: string | null;
+  withdrawnAt: string | null;
+  withdrawReason: string | null;
+  civilRegistryReference: string | null;
+  facilityName: string;
+  firstName: string;
+  lastName: string;
+  nationalId: string;
+  dateOfBirth: string;
+}
+
+export const CERTIFICATE_NUMBER = /^VD-\d{4}-\d{6}$/;
+
+export const useDeathByNumber = (number: string) =>
+  useQuery({
+    queryKey: ['deaths', 'by-number', number],
+    queryFn: () => api<DeathLookup>(`/deaths/by-number/${encodeURIComponent(number)}`),
+    enabled: CERTIFICATE_NUMBER.test(number),
+    retry: false,
+  });
+
+export function useWithdrawDeath() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api<{
+        status: string;
+        effects: {
+          registersRestored: number;
+          waitingListRestored: number;
+          portalRestored: boolean;
+        };
+      }>(`/deaths/${id}/withdraw`, { method: 'POST', body: { reason } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['deaths'] }),
+  });
 }
 
 export interface DeathListItem {
   id: string;
-  status: 'DRAFT' | 'SIGNED';
+  status: 'DRAFT' | 'SIGNED' | 'WITHDRAWN';
   certificateNumber: string | null;
   diedAt: string;
   placeOfDeath: PlaceOfDeath;

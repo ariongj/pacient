@@ -564,6 +564,107 @@ describe('signing', () => {
     expect(facility.body.scope).toBe('FACILITY');
     expect((await api().get('/api/v1/deaths/stats').set(doctor())).status).toBe(403);
   });
+  it('lets the Ministry withdraw a certificate issued in error and restores the record', async () => {
+    const [signedRow] = await db.select().from(deathRecords).where(eq(deathRecords.id, recordId));
+    const number = signedRow!.certificateNumber!;
+    expect((await api().get(`/api/v1/deaths/by-number/${number}`).set(doctor())).status).toBe(403);
+    const found = await api()
+      .get(`/api/v1/deaths/by-number/${number}`)
+      .set(bearer(w.tokens.ministry));
+    expect(found.status).toBe(200);
+    expect(found.body).toMatchObject({ id: recordId, status: 'SIGNED' });
+    expect(found.body.causes).toBeUndefined();
+
+    expect(
+      (
+        await api()
+          .post(`/api/v1/deaths/${recordId}/withdraw`)
+          .set(doctor())
+          .send({ reason: 'Certified for the wrong person by mistake' })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await api()
+          .post(`/api/v1/deaths/${recordId}/withdraw`)
+          .set(bearer(w.tokens.ministry))
+          .send({ reason: 'wrong' })
+      ).status,
+    ).toBe(400);
+    const res = await api()
+      .post(`/api/v1/deaths/${recordId}/withdraw`)
+      .set(bearer(w.tokens.ministry))
+      .send({ reason: 'Certified for the wrong person by mistake (identity mix-up)' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'WITHDRAWN',
+      effects: { registersRestored: 1, waitingListRestored: 1, portalRestored: true },
+    });
+    const [p] = await db.select().from(patients).where(eq(patients.id, patientId));
+    expect(p!.deceasedAt).toBeNull();
+    const [entry] = await db
+      .select()
+      .from(waitingListEntries)
+      .where(eq(waitingListEntries.patientId, patientId));
+    expect(entry).toMatchObject({ status: 'WAITING', removedReason: null });
+    const [enrolment] = await db
+      .select()
+      .from(registerEnrolments)
+      .where(eq(registerEnrolments.patientId, patientId));
+    expect(enrolment).toMatchObject({ status: 'ACTIVE', leftReason: null });
+    // Cancelled appointments stay cancelled; the care team is asked to rebook.
+    const appts = await db.select().from(appointments).where(eq(appointments.patientId, patientId));
+    expect(appts.map((a) => a.status).sort()).toEqual(['CANCELLED', 'COMPLETED']);
+    const told = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.userId, w.users.colleague.id), eq(notifications.type, 'death')));
+    expect(told.some((n) => /withdrawn/i.test(n.title))).toBe(true);
+    // The portal account signs in again.
+    const signIn = await api()
+      .post('/api/v1/auth/login')
+      .send({ email: portalEmail, password: PASSWORD });
+    expect(signIn.status).toBe(200);
+
+    // Final: no second withdrawal, no amendment, no direct change.
+    expect(
+      (
+        await api()
+          .post(`/api/v1/deaths/${recordId}/withdraw`)
+          .set(bearer(w.tokens.ministry))
+          .send({ reason: 'Certified for the wrong person by mistake again' })
+      ).status,
+    ).toBe(409);
+    await expect(
+      db.update(deathRecords).set({ status: 'SIGNED' }).where(eq(deathRecords.id, recordId)),
+    ).rejects.toThrow();
+
+    // The civil registry sees the withdrawal; the chart allows a new certificate.
+    const client = await api()
+      .post('/api/v1/partner/clients')
+      .set(bearer(w.tokens.ministry))
+      .send({ name: 'Civil registry withdrawals', organisation: 'ARC', scopes: ['deaths.read'] });
+    const feed = await api()
+      .get('/api/v1/partner/deaths')
+      .set({ Authorization: `Bearer ${client.body.apiKey}` });
+    const item = feed.body.items.find(
+      (i: { certificateNumber: string }) => i.certificateNumber === number,
+    );
+    expect(item).toMatchObject({ status: 'WITHDRAWN' });
+    expect(item.withdrawnAt).toBeTruthy();
+    const chart = await api()
+      .get(`/api/v1/deaths/patients/${patientId}`)
+      .set(bearer(w.tokens.colleague));
+    expect(chart.status).toBe(200);
+    expect(chart.body.record).toBeNull();
+    expect(chart.body.withdrawn).toHaveLength(1);
+    expect(chart.body.canCertify).toBe(true);
+    const audit = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'death.withdrawn'), eq(auditLogs.resourceId, recordId)));
+    expect(audit).toHaveLength(1);
+  });
 });
 
 describe('reminders skip deceased patients', () => {

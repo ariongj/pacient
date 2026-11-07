@@ -95,6 +95,22 @@ acknowledge.params = acknowledge.params?.map((p) =>
     : p,
 );
 
+const byNumber = op(
+  'get',
+  '/deaths/by-number/{number}',
+  D,
+  'Find a death certificate by its number',
+  {
+    access: 'MINISTRY',
+    description: 'Identity, dates and status only (no causes). Audited for the person.',
+  },
+);
+byNumber.params = byNumber.params?.map((p) =>
+  p.name === 'number'
+    ? { ...p, schema: str({ pattern: '^VD-\\d{4}-\\d{6}$' }), description: 'e.g. VD-2026-000123' }
+    : p,
+);
+
 export const DEATHS_OPERATIONS: ModuleOperation[] = [
   op('get', '/deaths', D, 'Death certificates of my facility (no causes)', {
     access: 'DOCTOR, DIRECTOR',
@@ -136,6 +152,16 @@ export const DEATHS_OPERATIONS: ModuleOperation[] = [
         reason: str({ minLength: 10, maxLength: 500 }),
       },
       ['changes', 'reason'],
+    ),
+  }),
+  byNumber,
+  op('post', '/deaths/{id}/withdraw', D, 'Withdraw a death certificate issued in error', {
+    access: 'MINISTRY',
+    description:
+      'The person is no longer recorded as deceased; register membership and waiting-list entries ended because of the death are restored; cancelled appointments are not. The civil registry sees the withdrawal in its feed.',
+    body: obj(
+      { reason: str({ minLength: 20, maxLength: 500 }), restorePortal: { type: 'boolean' } },
+      ['reason'],
     ),
   }),
   op('get', '/partner/deaths', P, 'Signed death certificates for the civil registry (no causes)', {

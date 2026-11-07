@@ -200,4 +200,27 @@ export const deaths: Record<string, string> = {
   'Choose a period of at most five years': 'Zgjidhni një periudhë deri në pesë vjet',
   'Other significant condition': 'Gjendje tjetër e rëndësishme',
   'Deaths by age': 'Vdekjet sipas moshës',
+  /* Withdrawal by the Ministry */
+  'Withdraw a death certificate': 'Tërhiq një certifikatë vdekjeje',
+  'Use only when a certificate was issued in error, for example for the wrong person. The person is no longer recorded as deceased; disease registers, waiting lists and the portal account are restored. Cancelled appointments are not restored – the care team is asked to rebook. The civil registry sees the withdrawal.':
+    'Përdoreni vetëm kur një certifikatë është lëshuar gabimisht, për shembull për një person tjetër. Personi nuk regjistrohet më si i vdekur; regjistrat e sëmundjeve, listat e pritjes dhe llogaria në portal rikthehen. Terminet e anuluara nuk rikthehen – ekipi i kujdesit njoftohet t’i ricaktojë. Gjendja civile e sheh tërheqjen.',
+  'Check the number': 'Kontrolloni numrin',
+  'A death certificate number looks like VD-2026-000123.':
+    'Numri i certifikatës së vdekjes duket si VD-2026-000123.',
+  'Certifying facility': 'Institucioni që e certifikoi',
+  'Already withdrawn': 'E tërhequr tashmë',
+  'Withdrawn on {date}: {reason}': 'E tërhequr më {date}: {reason}',
+  'Reason for withdrawal': 'Arsyeja e tërheqjes',
+  'At least {count} characters. Recorded in the audit log.':
+    'Së paku {count} karaktere. Regjistrohet në regjistrin e auditimit.',
+  'Withdraw the certificate': 'Tërhiq certifikatën',
+  'The certificate was withdrawn': 'Certifikata u tërhoq',
+  'Restored: {registers} register memberships, {waiting} waiting-list entries; portal account {portal}.':
+    'U rikthyen: {registers} anëtarësime në regjistra, {waiting} regjistrime në listat e pritjes; llogaria në portal {portal}.',
+  're-enabled': 'u riaktivizua',
+  'Withdraw death certificate {number}? This cannot be undone.':
+    'Të tërhiqet certifikata e vdekjes {number}? Ky veprim nuk mund të zhbëhet.',
+  'Withdraw a certificate': 'Tërhiq një certifikatë',
+  'Certificate {number} was withdrawn by the Ministry on {date}: {reason}':
+    'Certifikata {number} u tërhoq nga Ministria më {date}: {reason}',
 };

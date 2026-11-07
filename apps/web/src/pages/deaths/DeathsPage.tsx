@@ -3,8 +3,11 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import {
+  CERTIFICATE_NUMBER,
   MANNER_LABEL,
   PLACE_LABEL,
+  useDeathByNumber,
+  useWithdrawDeath,
   useDeathList,
   useMortalityStats,
   type MortalityStats,
@@ -16,7 +19,9 @@ import {
   Badge,
   Button,
   Card,
+  Dialog,
   EmptyState,
+  ErrorAlert,
   Grid,
   PageHeader,
   Pagination,
@@ -25,6 +30,7 @@ import {
   Table,
   TabPanel,
   Tabs,
+  TextAreaField,
   TextField,
 } from '../../components/ui';
 import { formatDate, formatDateTime, formatMonth, formatNumber } from '../../format';
@@ -299,9 +305,170 @@ function StartCertificate() {
   );
 }
 
+/**
+ * The Ministry withdraws a certificate issued in error (e.g. for the wrong person): the person is
+ * no longer recorded as deceased and what signing ended is restored.
+ */
+function WithdrawSection() {
+  const [input, setInput] = useState('');
+  const [number, setNumber] = useState('');
+  const [reason, setReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const found = useDeathByNumber(number);
+  const withdraw = useWithdrawDeath();
+  const r = found.data;
+  return (
+    <Card title={t('Withdraw a death certificate')}>
+      <p className="muted">
+        {t(
+          'Use only when a certificate was issued in error, for example for the wrong person. The person is no longer recorded as deceased; disease registers, waiting lists and the portal account are restored. Cancelled appointments are not restored – the care team is asked to rebook. The civil registry sees the withdrawal.',
+        )}
+      </p>
+      <form
+        className="form-row"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          withdraw.reset();
+          setNumber(input.trim().toUpperCase());
+        }}
+      >
+        <TextField
+          label={t('Death certificate number')}
+          name="number"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="VD-2026-000123"
+          required
+        />
+        <Button type="submit" variant="secondary">
+          {t('Find')}
+        </Button>
+      </form>
+      {number && !CERTIFICATE_NUMBER.test(number) && (
+        <Alert tone="warning" title={t('Check the number')}>
+          {t('A death certificate number looks like VD-2026-000123.')}
+        </Alert>
+      )}
+      {found.isError && <ErrorAlert error={found.error} />}
+      {r && (
+        <div className="stack" style={{ marginTop: '1rem' }}>
+          <dl className="dl">
+            <div>
+              <dt>{t('Person')}</dt>
+              <dd>
+                {r.firstName} {r.lastName} · {r.nationalId} · {formatDate(r.dateOfBirth)}
+              </dd>
+            </div>
+            <div>
+              <dt>{t('Date and time of death')}</dt>
+              <dd>{formatDateTime(r.diedAt)}</dd>
+            </div>
+            <div>
+              <dt>{t('Certifying facility')}</dt>
+              <dd>{r.facilityName}</dd>
+            </div>
+            <div>
+              <dt>{t('Status')}</dt>
+              <dd>
+                {r.status === 'WITHDRAWN' ? (
+                  <Badge tone="neutral">{t('Withdrawn')}</Badge>
+                ) : r.status === 'SIGNED' ? (
+                  <Badge tone="success">{t('Signed')}</Badge>
+                ) : (
+                  <Badge tone="warning">{t('Draft')}</Badge>
+                )}
+              </dd>
+            </div>
+          </dl>
+          {r.status === 'WITHDRAWN' && (
+            <Alert tone="info" title={t('Already withdrawn')}>
+              {t('Withdrawn on {date}: {reason}', {
+                date: r.withdrawnAt ? formatDateTime(r.withdrawnAt) : '',
+                reason: r.withdrawReason ?? '',
+              })}
+            </Alert>
+          )}
+          {r.status === 'SIGNED' && !withdraw.isSuccess && (
+            <form
+              className="stack"
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                setConfirming(true);
+              }}
+            >
+              <TextAreaField
+                label={t('Reason for withdrawal')}
+                name="reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                minLength={20}
+                maxLength={500}
+                rows={3}
+                required
+                hint={t('At least {count} characters. Recorded in the audit log.', { count: 20 })}
+              />
+              <div>
+                <Button type="submit" variant="danger">
+                  {t('Withdraw the certificate')}
+                </Button>
+              </div>
+            </form>
+          )}
+          {withdraw.isSuccess && (
+            <Alert tone="success" title={t('The certificate was withdrawn')}>
+              {t(
+                'Restored: {registers} register memberships, {waiting} waiting-list entries; portal account {portal}.',
+                {
+                  registers: withdraw.data.effects.registersRestored,
+                  waiting: withdraw.data.effects.waitingListRestored,
+                  portal: withdraw.data.effects.portalRestored ? t('re-enabled') : t('unchanged'),
+                },
+              )}
+            </Alert>
+          )}
+          <ErrorAlert error={withdraw.error} />
+        </div>
+      )}
+      <Dialog
+        open={confirming && Boolean(r)}
+        onClose={() => setConfirming(false)}
+        title={t('Withdraw the certificate')}
+      >
+        <p>
+          {t('Withdraw death certificate {number}? This cannot be undone.', {
+            number: r?.certificateNumber ?? '',
+          })}
+        </p>
+        <div className="form-actions">
+          <Button variant="secondary" onClick={() => setConfirming(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            loading={withdraw.isPending}
+            onClick={() =>
+              r &&
+              withdraw.mutate(
+                { id: r.id, reason },
+                {
+                  onSettled: () => setConfirming(false),
+                  onSuccess: () => void found.refetch(),
+                },
+              )
+            }
+          >
+            {t('Withdraw')}
+          </Button>
+        </div>
+      </Dialog>
+    </Card>
+  );
+}
+
 export function DeathsPage() {
   const user = useUser();
   const [tab, setTab] = useState<'certificates' | 'statistics'>('certificates');
+  const [ministryTab, setMinistryTab] = useState<'statistics' | 'withdraw'>('statistics');
   if (user.role === 'MINISTRY') {
     return (
       <>
@@ -309,7 +476,18 @@ export function DeathsPage() {
           title={t('Mortality')}
           subtitle={t('National mortality from signed death certificates (no names).')}
         />
-        <StatsSection />
+        <Tabs
+          label={t('Mortality')}
+          active={ministryTab}
+          onChange={setMinistryTab}
+          tabs={[
+            { id: 'statistics', label: t('Statistics') },
+            { id: 'withdraw', label: t('Withdraw a certificate') },
+          ]}
+        />
+        <TabPanel id={ministryTab}>
+          {ministryTab === 'statistics' ? <StatsSection /> : <WithdrawSection />}
+        </TabPanel>
       </>
     );
   }

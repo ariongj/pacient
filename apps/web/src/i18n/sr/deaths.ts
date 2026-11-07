@@ -197,4 +197,27 @@ export const deaths: Record<string, string> = {
   'Choose a period of at most five years': 'Izaberite period od najviše pet godina',
   'Other significant condition': 'Drugo značajno stanje',
   'Deaths by age': 'Smrtni ishodi po uzrastu',
+  /* Withdrawal by the Ministry */
+  'Withdraw a death certificate': 'Povuci potvrdu o smrti',
+  'Use only when a certificate was issued in error, for example for the wrong person. The person is no longer recorded as deceased; disease registers, waiting lists and the portal account are restored. Cancelled appointments are not restored – the care team is asked to rebook. The civil registry sees the withdrawal.':
+    'Koristite samo kada je potvrda izdata greškom, na primer za pogrešnu osobu. Osoba se više ne vodi kao preminula; registri bolesti, liste čekanja i nalog na portalu se vraćaju. Otkazani termini se ne vraćaju – tim za negu dobija poruku da ih ponovo zakaže. Matična služba vidi povlačenje.',
+  'Check the number': 'Proverite broj',
+  'A death certificate number looks like VD-2026-000123.':
+    'Broj potvrde o smrti izgleda kao VD-2026-000123.',
+  'Certifying facility': 'Ustanova koja je izdala potvrdu',
+  'Already withdrawn': 'Već povučena',
+  'Withdrawn on {date}: {reason}': 'Povučena {date}: {reason}',
+  'Reason for withdrawal': 'Razlog povlačenja',
+  'At least {count} characters. Recorded in the audit log.':
+    'Najmanje {count} znakova. Beleži se u revizorskom tragu.',
+  'Withdraw the certificate': 'Povuci potvrdu',
+  'The certificate was withdrawn': 'Potvrda je povučena',
+  'Restored: {registers} register memberships, {waiting} waiting-list entries; portal account {portal}.':
+    'Vraćeno: {registers} članstava u registrima, {waiting} unosa na listama čekanja; nalog na portalu {portal}.',
+  're-enabled': 'ponovo aktiviran',
+  'Withdraw death certificate {number}? This cannot be undone.':
+    'Povući potvrdu o smrti {number}? Ovo se ne može poništiti.',
+  'Withdraw a certificate': 'Povuci potvrdu',
+  'Certificate {number} was withdrawn by the Ministry on {date}: {reason}':
+    'Ministarstvo je povuklo potvrdu {number} {date}: {reason}',
 };

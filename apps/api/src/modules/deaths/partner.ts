@@ -42,9 +42,10 @@ deathsPartnerRouter.get('/', async (req, res) => {
     .innerJoin(facilities, eq(facilities.id, deathRecords.facilityId))
     .where(
       and(
-        eq(deathRecords.status, 'SIGNED'),
+        inArray(deathRecords.status, ['SIGNED', 'WITHDRAWN']),
         or(
           gte(deathRecords.signedAt, from),
+          gte(deathRecords.withdrawnAt, from),
           sql`EXISTS (SELECT 1 FROM ${deathRecordAmendments} a WHERE a.death_record_id = ${deathRecords.id} AND a.created_at >= ${from})`,
         ),
       ),
@@ -67,6 +68,9 @@ deathsPartnerRouter.get('/', async (req, res) => {
       const v = effectiveValues(r.record, amendments.get(r.record.id) ?? []);
       return {
         certificateNumber: r.record.certificateNumber,
+        /** SIGNED, or WITHDRAWN when the Ministry withdrew a certificate issued in error. */
+        status: r.record.status,
+        withdrawnAt: r.record.withdrawnAt,
         nationalId: r.nationalId,
         /** True for unidentified people and newborns without a national number yet. */
         temporaryIdentity: Boolean(r.temporaryIdentity),

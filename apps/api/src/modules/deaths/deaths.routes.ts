@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, count, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
@@ -146,6 +146,8 @@ async function presentRecord(row: DeathRow, ctx: AuthContext) {
     })),
     civilRegistryAcknowledgedAt: row.civilRegistryAcknowledgedAt,
     civilRegistryReference: row.civilRegistryReference,
+    withdrawnAt: row.withdrawnAt,
+    withdrawReason: row.withdrawReason,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     checks: checkDeath(values, patient),
@@ -157,7 +159,7 @@ async function presentRecord(row: DeathRow, ctx: AuthContext) {
 /* ------------------------------------------------------------------ list & statistics ---- */
 
 const ListQuery = PaginationSchema.extend({
-  status: z.enum(['DRAFT', 'SIGNED']).optional(),
+  status: z.enum(['DRAFT', 'SIGNED', 'WITHDRAWN']).optional(),
 });
 
 /** The facility's certificates (no causes): doctors and the director. */
@@ -257,13 +259,28 @@ deathsRouter.get('/patients/:patientId', requireRole('DOCTOR', 'NURSE'), async (
   const { patientId } = parse(PatientParam, req.params);
   await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'death_certificate');
   const patient = await getPatientOrThrow(patientId);
-  const [row] = await db.select().from(deathRecords).where(eq(deathRecords.patientId, patientId));
+  const rows = await db
+    .select()
+    .from(deathRecords)
+    .where(eq(deathRecords.patientId, patientId))
+    .orderBy(desc(deathRecords.createdAt));
+  // At most one certificate that is not withdrawn (partial unique index).
+  const row = rows.find((r) => r.status !== 'WITHDRAWN');
   const openAdmission = await openAdmissionOf(patientId);
   res.json({
     deceasedAt: patient.deceasedAt,
     openAdmission: Boolean(openAdmission),
     canCertify: ctx.role === 'DOCTOR' && !row,
     record: row ? await presentRecord(row, ctx) : null,
+    withdrawn: rows
+      .filter((r) => r.status === 'WITHDRAWN')
+      .map((r) => ({
+        id: r.id,
+        certificateNumber: r.certificateNumber,
+        signedAt: r.signedAt,
+        withdrawnAt: r.withdrawnAt,
+        withdrawReason: r.withdrawReason,
+      })),
   });
 });
 
@@ -281,7 +298,7 @@ deathsRouter.post('/patients/:patientId', requireRole('DOCTOR'), async (req, res
     const [existing] = await tx
       .select({ id: deathRecords.id })
       .from(deathRecords)
-      .where(eq(deathRecords.patientId, patientId));
+      .where(and(eq(deathRecords.patientId, patientId), ne(deathRecords.status, 'WITHDRAWN')));
     if (existing) throw conflict('This patient already has a death certificate');
     const [row] = await tx
       .insert(deathRecords)
@@ -625,4 +642,205 @@ deathsRouter.post('/:id/amendments', requireRole('DOCTOR'), async (req, res) => 
     );
   });
   res.status(201).json(await presentRecord(await loadRecord(id), ctx));
+});
+
+/* ------------------------------------------------------------------ withdrawal (Ministry) - */
+
+const NumberParam = z.object({
+  number: z
+    .string()
+    .trim()
+    .regex(/^VD-\d{4}-\d{6}$/),
+});
+
+/** The Ministry finds a signed certificate by its number (identity and dates only, no causes). */
+deathsRouter.get('/by-number/:number', requireRole('MINISTRY'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const { number } = parse(NumberParam, req.params);
+  const [row] = await db
+    .select({
+      id: deathRecords.id,
+      patientId: deathRecords.patientId,
+      status: deathRecords.status,
+      certificateNumber: deathRecords.certificateNumber,
+      diedAt: deathRecords.diedAt,
+      signedAt: deathRecords.signedAt,
+      withdrawnAt: deathRecords.withdrawnAt,
+      withdrawReason: deathRecords.withdrawReason,
+      civilRegistryReference: deathRecords.civilRegistryReference,
+      facilityName: facilities.name,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+      nationalId: patients.nationalId,
+      dateOfBirth: patients.dateOfBirth,
+    })
+    .from(deathRecords)
+    .innerJoin(patients, eq(patients.id, deathRecords.patientId))
+    .innerJoin(facilities, eq(facilities.id, deathRecords.facilityId))
+    .where(eq(deathRecords.certificateNumber, number));
+  if (!row) throw notFound('Death certificate not found');
+  await audit({
+    action: AuditAction.PATIENT_RECORD_VIEWED,
+    actor: ctx,
+    resourceType: 'death_record',
+    resourceId: row.id,
+    patientId: row.patientId,
+    meta: requestMeta(req),
+    metadata: { section: 'death_certificate_lookup' },
+  });
+  res.json(row);
+});
+
+const WithdrawInput = z.object({
+  reason: z.string().trim().min(20, 'Explain why the certificate is withdrawn').max(500),
+  /** Re-enable the person's portal account (disabled when the certificate was signed). */
+  restorePortal: z.boolean().default(true),
+});
+
+/**
+ * Withdraw a signed certificate that was issued in error (e.g. for the wrong person). The record
+ * stays as evidence; the person is no longer deceased, register membership and waiting-list
+ * entries ended because of the death are restored, and the civil registry sees the withdrawal in
+ * its feed. Cancelled appointments are not restored (their slots may have been given away); the
+ * care team is told to rebook.
+ */
+deathsRouter.post('/:id/withdraw', requireRole('MINISTRY'), async (req, res) => {
+  const ctx = requireAuth(req);
+  const { id } = parse(IdParam, req.params);
+  const meta = requestMeta(req);
+  const { reason, restorePortal } = parse(WithdrawInput, req.body);
+  const now = new Date();
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx.select().from(deathRecords).where(eq(deathRecords.id, id)).for('update');
+    if (!row) throw notFound('Death certificate not found');
+    if (row.status !== 'SIGNED') throw conflict('Only a signed death certificate can be withdrawn');
+    const [withdrawn] = await tx
+      .update(deathRecords)
+      .set({
+        status: 'WITHDRAWN',
+        withdrawnAt: now,
+        withdrawnById: ctx.userId,
+        withdrawReason: reason,
+      })
+      .where(eq(deathRecords.id, id))
+      .returning();
+    await tx.update(patients).set({ deceasedAt: null }).where(eq(patients.id, row.patientId));
+
+    // Register membership ended because of the death (one active row per register).
+    const rejoined = await tx.execute<{ id: string }>(sql`
+      UPDATE register_enrolments e SET status = 'ACTIVE', left_at = NULL, left_reason = NULL
+      WHERE e.patient_id = ${row.patientId} AND e.status = 'LEFT' AND e.left_reason = 'Deceased'
+        AND NOT EXISTS (SELECT 1 FROM register_enrolments o WHERE o.patient_id = e.patient_id
+                        AND o.register = e.register AND o.status = 'ACTIVE')
+      RETURNING e.id`);
+
+    // Waiting-list entries removed because of the death go back on the list.
+    const removed = await tx
+      .select()
+      .from(waitingListEntries)
+      .where(
+        and(
+          eq(waitingListEntries.patientId, row.patientId),
+          eq(waitingListEntries.status, 'REMOVED'),
+          eq(waitingListEntries.removedReason, 'DECEASED'),
+        ),
+      );
+    for (const e of removed) {
+      const status = e.scheduledFor && e.scheduledFor > now ? 'SCHEDULED' : 'WAITING';
+      await tx
+        .update(waitingListEntries)
+        .set({ status, removedReason: null })
+        .where(eq(waitingListEntries.id, e.id));
+    }
+    if (removed.length) {
+      await tx.insert(waitingListEvents).values(
+        removed.map((e) => ({
+          entryId: e.id,
+          patientId: row.patientId,
+          actorId: ctx.userId,
+          event: 'REINSTATED',
+          details: { deathRecordId: id },
+          reason: 'Death certificate withdrawn',
+        })),
+      );
+    }
+
+    let portalRestored = false;
+    const [patient] = await tx
+      .select({ userId: patients.userId })
+      .from(patients)
+      .where(eq(patients.id, row.patientId));
+    if (restorePortal && patient?.userId) {
+      const restored = await tx
+        .update(users)
+        .set({ isActive: true })
+        .where(and(eq(users.id, patient.userId), eq(users.isActive, false)))
+        .returning({ id: users.id });
+      portalRestored = restored.length > 0;
+    }
+
+    await audit(
+      {
+        action: AuditAction.DEATH_CERTIFICATE_WITHDRAWN,
+        actor: ctx,
+        resourceType: 'death_record',
+        resourceId: id,
+        patientId: row.patientId,
+        meta,
+        metadata: {
+          certificateNumber: row.certificateNumber,
+          registersRestored: rejoined.rows.length,
+          waitingListRestored: removed.length,
+          portalRestored,
+        },
+      },
+      tx,
+    );
+    await notifyCareTeam(
+      row.patientId,
+      {
+        type: 'death',
+        title:
+          'A death certificate was withdrawn for a patient in your care – check and rebook appointments',
+        link: `/doctor/patients/${row.patientId}?tab=death`,
+      },
+      tx,
+      ctx.userId,
+    );
+    const directors = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.facilityId, row.facilityId),
+          eq(users.role, 'DIRECTOR'),
+          eq(users.isActive, true),
+        ),
+      );
+    await notifyUsers(
+      [row.certifiedById, ...directors.map((d) => d.id)],
+      {
+        type: 'death',
+        title: 'The Ministry withdrew death certificate {number}',
+        vars: { number: row.certificateNumber ?? '' },
+        link: '/deaths',
+      },
+      tx,
+    );
+    return {
+      withdrawn: withdrawn!,
+      effects: {
+        registersRestored: rejoined.rows.length,
+        waitingListRestored: removed.length,
+        portalRestored,
+      },
+    };
+  });
+  res.json({
+    id: result.withdrawn.id,
+    status: result.withdrawn.status,
+    certificateNumber: result.withdrawn.certificateNumber,
+    withdrawnAt: result.withdrawn.withdrawnAt,
+    effects: result.effects,
+  });
 });

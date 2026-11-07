@@ -277,8 +277,7 @@ erxPartnerRouter.post('/:code/dispense', failedLookupLimiter, async (req, res) =
     return {
       created: created!,
       patientId: patient.id,
-      substituted:
-        body.productName.trim().toLowerCase() !== rx.medication.trim().toLowerCase(),
+      substituted: body.productName.trim().toLowerCase() !== rx.medication.trim().toLowerCase(),
       remaining: state.suppliesRemaining - 1,
     };
   });

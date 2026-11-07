@@ -639,4 +639,7 @@ export const partner: Record<string, string> = {
     'Lekarske potvrde o uzroku smrti, statistika smrtnosti.',
   'Elective waiting lists, maximum waiting times, transparency.':
     'Liste čekanja za planirane intervencije, najduže vreme čekanja, transparentnost.',
+  'E-prescriptions for community pharmacies': 'E-recepti za javne apoteke',
+  'Look up an e-prescription with its code and the patient’s national ID, record dispensing and reverse a dispensing made in error. No diagnoses.':
+    'Pronalazi e-recept po kodu i ličnom broju pacijenta, beleži izdavanje i poništava pogrešno izdavanje. Bez dijagnoza.',
 };

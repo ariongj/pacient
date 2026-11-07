@@ -1,13 +1,19 @@
 import { randomInt } from 'node:crypto';
 import { asc, eq, inArray } from 'drizzle-orm';
+import type { Request } from 'express';
+import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
 import {
   communityDispensings,
+  encounters,
   medicationCatalog,
   partnerClients,
   prescriptions,
 } from '../../db/schema.js';
 import { badRequest } from '../../lib/errors.js';
+import { requestMeta, type AuthContext } from '../../lib/http.js';
+import { audit, AuditAction } from '../audit/audit.service.js';
+import { notifyPatient } from '../notifications/notifications.service.js';
 
 /**
  * National e-prescriptions for community pharmacies.
@@ -48,7 +54,10 @@ export function normaliseCode(input: string): string | null {
 
 /** "ABCDEFGHJKLM" → "ABCD-EFGH-JKLM". */
 export const formatCode = (code: string) =>
-  code.replace(/[\s-]/g, '').match(/.{1,4}/g)!.join('-');
+  code
+    .replace(/[\s-]/g, '')
+    .match(/.{1,4}/g)!
+    .join('-');
 
 export function generateCode(): string {
   let body = '';
@@ -189,12 +198,7 @@ export async function issueEPrescription(
 
 export type DispensingRow = typeof communityDispensings.$inferSelect;
 export type EPrescriptionStatus =
-  | 'ACTIVE'
-  | 'PARTLY_DISPENSED'
-  | 'DISPENSED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'STOPPED';
+  'ACTIVE' | 'PARTLY_DISPENSED' | 'DISPENSED' | 'EXPIRED' | 'CANCELLED' | 'STOPPED';
 
 /** Supplies that count: dispensings that are not reversals and have not been reversed. */
 export function effectiveDispensings(rows: DispensingRow[]): DispensingRow[] {
@@ -266,4 +270,71 @@ export function presentDispensings(rows: (DispensingRow & { client?: string })[]
         reversalReason: reversal?.reason ?? null,
       };
     });
+}
+
+/* ------------------------------------------------------------------ issuing ------------- */
+
+export const EPrescriptionRequestSchema = z.object({
+  repeats: z.coerce.number().int().min(0).max(MAX_REPEATS).default(0),
+  validDays: z.coerce.number().int().min(1).max(365).optional().nullable(),
+});
+
+/** Audit and patient notification for a newly issued e-prescription (in the transaction). */
+export async function recordIssued(
+  tx: Executor,
+  ctx: AuthContext,
+  req: Request,
+  rx: typeof prescriptions.$inferSelect,
+  controlled: boolean,
+) {
+  await audit(
+    {
+      action: AuditAction.EPRESCRIPTION_ISSUED,
+      actor: ctx,
+      resourceType: 'prescription',
+      resourceId: rx.id,
+      patientId: rx.patientId,
+      meta: requestMeta(req),
+      metadata: {
+        repeatsAllowed: rx.repeatsAllowed,
+        validUntil: rx.communityValidUntil,
+        controlled,
+      },
+    },
+    tx,
+  );
+  const confidential = rx.encounterId
+    ? (
+        await tx
+          .select({ c: encounters.confidentialFromGuardians })
+          .from(encounters)
+          .where(eq(encounters.id, rx.encounterId))
+      )[0]?.c === true
+    : false;
+  // Never the code or the medicine in a notification: the portal shows both after sign-in.
+  await notifyPatient(
+    rx.patientId,
+    {
+      type: 'prescription',
+      title: 'A new e-prescription is ready in your portal',
+      link: '/portal/e-prescriptions',
+    },
+    tx,
+    { guardians: confidential ? 'none' : 'full' },
+  );
+}
+
+export async function notifyEPrescriptionCancelled(
+  tx: Executor,
+  rx: typeof prescriptions.$inferSelect,
+) {
+  await notifyPatient(
+    rx.patientId,
+    {
+      type: 'prescription',
+      title: 'Your doctor cancelled an e-prescription',
+      link: '/portal/e-prescriptions',
+    },
+    tx,
+  );
 }

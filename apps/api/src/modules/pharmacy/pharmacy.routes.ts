@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
@@ -134,7 +134,12 @@ const queueColumns = {
 };
 
 /** Prescriptions belong to the facility of the prescribing doctor. */
-const atFacility = (ctx: AuthContext) => eq(prescriber.facilityId, ctx.facilityId!);
+/**
+ * The hospital pharmacy handles its own facility's prescriptions; national e-prescriptions are
+ * dispensed by community pharmacies and never appear here.
+ */
+const atFacility = (ctx: AuthContext) =>
+  and(eq(prescriber.facilityId, ctx.facilityId!), isNull(prescriptions.ePrescriptionCode));
 
 /**
  * Safety context for prescriptions in the queue: the engine's patient contexts (other medicines,

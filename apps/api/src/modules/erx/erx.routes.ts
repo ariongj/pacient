@@ -4,11 +4,10 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { encounters, patients, prescriptions } from '../../db/schema.js';
 import { conflict, forbidden, notFound } from '../../lib/errors.js';
-import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
+import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { assertClinicalWriteAccess, resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
-import { notifyPatient } from '../notifications/notifications.service.js';
 import { SMALL_CELL_THRESHOLD } from '../stats/stats.service.js';
 import {
   atcOf,
@@ -16,9 +15,11 @@ import {
   eprescriptionStatus,
   eprescriptionTerms,
   formatCode,
+  EPrescriptionRequestSchema,
   issueEPrescription,
-  MAX_REPEATS,
+  notifyEPrescriptionCancelled,
   presentDispensings,
+  recordIssued,
 } from './erx.service.js';
 
 /**
@@ -31,11 +32,6 @@ ePrescriptionsRouter.use(authenticate);
 
 const PatientParam = z.object({ patientId: z.string().uuid() });
 const PrescriptionParam = z.object({ prescriptionId: z.string().uuid() });
-
-export const EPrescriptionRequestSchema = z.object({
-  repeats: z.coerce.number().int().min(0).max(MAX_REPEATS).default(0),
-  validDays: z.coerce.number().int().min(1).max(365).optional().nullable(),
-});
 
 type RxRow = typeof prescriptions.$inferSelect;
 
@@ -100,51 +96,6 @@ ePrescriptionsRouter.post('/prescriptions/:prescriptionId/issue', async (req, re
   res.status(201).json({ ...item, controlled: terms.controlled });
 });
 
-/** Audit and patient notification for a newly issued e-prescription (in the transaction). */
-export async function recordIssued(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  ctx: AuthContext,
-  req: Parameters<typeof requestMeta>[0],
-  rx: RxRow,
-  controlled: boolean,
-) {
-  await audit(
-    {
-      action: AuditAction.EPRESCRIPTION_ISSUED,
-      actor: ctx,
-      resourceType: 'prescription',
-      resourceId: rx.id,
-      patientId: rx.patientId,
-      meta: requestMeta(req),
-      metadata: {
-        repeatsAllowed: rx.repeatsAllowed,
-        validUntil: rx.communityValidUntil,
-        controlled,
-      },
-    },
-    tx,
-  );
-  const confidential = rx.encounterId
-    ? (
-        await tx
-          .select({ c: encounters.confidentialFromGuardians })
-          .from(encounters)
-          .where(eq(encounters.id, rx.encounterId))
-      )[0]?.c === true
-    : false;
-  // Never the code or the medicine in a notification: the portal shows both after sign-in.
-  await notifyPatient(
-    rx.patientId,
-    {
-      type: 'prescription',
-      title: 'A new e-prescription is ready in your portal',
-      link: '/portal/e-prescriptions',
-    },
-    tx,
-    { guardians: confidential ? 'none' : 'full' },
-  );
-}
-
 const CancelBody = z.object({ reason: z.string().trim().min(5).max(500) });
 
 /** Cancel an e-prescription: no pharmacy can dispense it any more. */
@@ -183,21 +134,6 @@ ePrescriptionsRouter.post('/prescriptions/:prescriptionId/cancel', async (req, r
   res.json(item);
 });
 
-export async function notifyEPrescriptionCancelled(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  rx: RxRow,
-) {
-  await notifyPatient(
-    rx.patientId,
-    {
-      type: 'prescription',
-      title: 'Your doctor cancelled an e-prescription',
-      link: '/portal/e-prescriptions',
-    },
-    tx,
-  );
-}
-
 /** The prescriber's recent e-prescriptions and their status. */
 ePrescriptionsRouter.get('/mine', requireRole('DOCTOR'), async (req, res) => {
   const ctx = requireAuth(req);
@@ -224,7 +160,9 @@ ePrescriptionsRouter.get('/mine', requireRole('DOCTOR'), async (req, res) => {
 /* ------------------------------------------------------------------ statistics ----------- */
 
 const suppress = (n: number) =>
-  n > 0 && n < SMALL_CELL_THRESHOLD ? { value: null, suppressed: true } : { value: n, suppressed: false };
+  n > 0 && n < SMALL_CELL_THRESHOLD
+    ? { value: null, suppressed: true }
+    : { value: n, suppressed: false };
 
 /** ATC anatomical main groups (first letter). */
 const ATC_GROUPS = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V'];
@@ -252,7 +190,12 @@ ePrescriptionsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (r
     WHERE p.e_prescription_code IS NOT NULL AND p.created_at >= ${since} AND ${scope}`;
 
   const [totals, byMonth, topMedicines, byAtc, pharmacies] = await Promise.all([
-    db.execute<{ issued: number; dispensed: number; cancelled: number; median_hours: number | null }>(sql`
+    db.execute<{
+      issued: number;
+      dispensed: number;
+      cancelled: number;
+      median_hours: number | null;
+    }>(sql`
       WITH rx AS (
         SELECT p.id, p.status, p.created_at,
           (SELECT min(d.dispensed_at) FROM community_dispensings d
@@ -321,4 +264,3 @@ ePrescriptionsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (r
       : null,
   });
 });
-

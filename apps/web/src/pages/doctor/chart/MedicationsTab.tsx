@@ -41,6 +41,29 @@ import { formatDate } from '../../../format';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { getLocale, t } from '../../../i18n';
+import {
+  useCancelEPrescription,
+  useIssueEPrescription,
+  usePatientEPrescriptions,
+  type EPrescription,
+} from '../../../api/erx';
+import {
+  CodeQr,
+  CodeText,
+  DispensingTable,
+  ErxStatusBadge,
+  ErxSummary,
+} from '../../erx/ErxComponents';
+
+/** Prescription row with the national e-prescription fields. */
+type RxRow = Prescription & {
+  ePrescriptionCode?: string | null;
+  repeatsAllowed?: number;
+  communityValidUntil?: string | null;
+};
+
+/** Repeats offered when sending to a community pharmacy (controlled medicines: none, 7 days). */
+const REPEAT_OPTIONS = [0, 1, 2, 3, 5, 11];
 
 /** The value after it has stopped changing for `ms` (avoids a safety check per keystroke). */
 function useDebounced<T>(value: T, ms = 400): T {
@@ -70,6 +93,16 @@ export function MedicationsTab({
   const [reasons, setReasons] = useState<Record<string, string>>({});
   /** Structured dose builder (free text remains available for unusual regimens). */
   const [builder, setBuilder] = useState<DoseBuilderState>(EMPTY_BUILDER);
+  /** Issue as a national e-prescription for any community pharmacy. */
+  const [erx, setErx] = useState({ enabled: false, repeats: '0', validDays: '' });
+  const [erxDetail, setErxDetail] = useState<EPrescription | null>(null);
+  const [cancelling, setCancelling] = useState<RxRow | null>(null);
+  const [sending, setSending] = useState<RxRow | null>(null);
+  const [issuedCode, setIssuedCode] = useState<string | null>(null);
+  const ePrescriptions = usePatientEPrescriptions(patientId);
+  const erxById = new Map((ePrescriptions.data ?? []).map((e) => [e.prescriptionId, e]));
+  const cancelErx = useCancelEPrescription(patientId);
+  const issueErx = useIssueEPrescription(patientId);
   const create = useChartMutation(
     patientId,
     (body: Record<string, unknown>) => ({ path: '/prescriptions', method: 'POST', body }),
@@ -79,8 +112,14 @@ export function MedicationsTab({
       setMedication('');
       setReasons({});
       setBuilder(EMPTY_BUILDER);
+      setErx({ enabled: false, repeats: '0', validDays: '' });
     },
   );
+  const createdCode =
+    (create.data as { ePrescriptionCode?: string | null } | undefined)?.ePrescriptionCode ?? null;
+  useEffect(() => {
+    if (createdCode) setIssuedCode(createdCode);
+  }, [createdCode]);
   const update = useChartMutation(patientId, ({ id, status }: { id: string; status: string }) => ({
     path: `/prescriptions/${id}`,
     method: 'PATCH',
@@ -128,9 +167,20 @@ export function MedicationsTab({
       .filter((a) => a.blocking && (reasons[a.code] ?? '').trim().length >= 10)
       .map((a) => ({ code: a.code, reason: reasons[a.code]!.trim() }));
     create.mutate({
-      ...compact({ ...formValues(e.currentTarget), catalogItemId: catalogItem?.id ?? undefined }),
+      ...compact({
+        ...withoutErxFields(formValues(e.currentTarget)),
+        catalogItemId: catalogItem?.id ?? undefined,
+      }),
       ...(builder.freeText ? {} : (dose ?? {})),
       ...(overrides.length ? { overrides } : {}),
+      ...(erx.enabled
+        ? {
+            ePrescription: {
+              repeats: Number(erx.repeats),
+              ...(erx.validDays ? { validDays: Number(erx.validDays) } : {}),
+            },
+          }
+        : {}),
     });
   }
 
@@ -151,8 +201,29 @@ export function MedicationsTab({
       <p className="muted">
         {t(
           'New prescriptions go to the pharmacy for verification before they can be dispensed or administered.',
+        )}{' '}
+        {t(
+          'An e-prescription is dispensed by any community pharmacy with the patient’s code and national ID.',
         )}
       </p>
+      {issuedCode && (
+        <Alert tone="success" title={t('E-prescription issued')}>
+          <div className="row" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+            <CodeQr code={issuedCode} size={96} />
+            <div>
+              <CodeText code={issuedCode} />
+              <div className="muted">
+                {t(
+                  'The patient finds the code in the portal; give it to them on paper if they do not use the portal.',
+                )}
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setIssuedCode(null)}>
+                {t('Close')}
+              </Button>
+            </div>
+          </div>
+        </Alert>
+      )}
       <ErrorAlert error={update.error} />
       <QueryView query={list}>
         {(items) =>
@@ -193,14 +264,19 @@ export function MedicationsTab({
                       )}
                     </td>
                     <td>
-                      {formatDate(p.startDate)} – {p.endDate ? formatDate(p.endDate) : 'ongoing'}
+                      {formatDate(p.startDate)} –{' '}
+                      {p.endDate ? formatDate(p.endDate) : t('ongoing|period')}
                     </td>
                     <td>{p.doctorName}</td>
                     <td>
                       <StatusBadge value={p.status} />
                     </td>
                     <td>
-                      {p.pharmacyStatus && <StatusBadge value={p.pharmacyStatus} />}
+                      {(p as RxRow).ePrescriptionCode ? (
+                        <ErxCell e={erxById.get(p.id)} onOpen={(e) => setErxDetail(e)} />
+                      ) : (
+                        p.pharmacyStatus && <StatusBadge value={p.pharmacyStatus} />
+                      )}
                       {p.pharmacistNote && (
                         <div className="muted" style={{ maxWidth: '22rem' }}>
                           {t('Pharmacist: {note}', { note: p.pharmacistNote })}
@@ -224,14 +300,33 @@ export function MedicationsTab({
                             >
                               {t('Complete')}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={update.isPending}
-                              onClick={() => update.mutate({ id: p.id, status: 'CANCELLED' })}
-                            >
-                              {t('Stop')}
-                            </Button>
+                            {(p as RxRow).ePrescriptionCode ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setCancelling(p as RxRow)}
+                              >
+                                {t('Cancel e-prescription')}
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setSending(p as RxRow)}
+                                >
+                                  {t('Send as e-prescription')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={update.isPending}
+                                  onClick={() => update.mutate({ id: p.id, status: 'CANCELLED' })}
+                                >
+                                  {t('Stop')}
+                                </Button>
+                              </>
+                            )}
                           </div>
                         )}
                       </td>
@@ -243,6 +338,111 @@ export function MedicationsTab({
           )
         }
       </QueryView>
+      <Dialog
+        open={erxDetail !== null}
+        onClose={() => setErxDetail(null)}
+        title={t('E-prescription')}
+        wide
+      >
+        {erxDetail && (
+          <div className="stack">
+            <div className="row" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+              {erxDetail.code && <CodeQr code={erxDetail.code} size={120} />}
+              <div className="stack" style={{ gap: '0.3rem' }}>
+                <strong>{erxDetail.medication}</strong>
+                {erxDetail.code && <CodeText code={erxDetail.code} />}
+                <ErxSummary e={erxDetail} />
+              </div>
+            </div>
+            <DispensingTable items={erxDetail.dispensings} caption={t('Dispensing history')} />
+          </div>
+        )}
+      </Dialog>
+      <Dialog
+        open={cancelling !== null}
+        onClose={() => setCancelling(null)}
+        title={t('Cancel e-prescription')}
+      >
+        {cancelling && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const reason = formValues(e.currentTarget).reason ?? '';
+              cancelErx.mutate(
+                { prescriptionId: cancelling.id, reason },
+                { onSuccess: () => setCancelling(null) },
+              );
+            }}
+          >
+            <p>
+              {t(
+                'No pharmacy will be able to dispense {medication} any more. Supplies already handed over stay in the history. The patient is told.',
+                { medication: cancelling.medication },
+              )}
+            </p>
+            <TextAreaField
+              label={t('Reason')}
+              name="reason"
+              required
+              minLength={5}
+              maxLength={500}
+              rows={2}
+            />
+            <ErrorAlert error={cancelErx.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={() => setCancelling(null)}>
+                {t('Back')}
+              </Button>
+              <Button type="submit" variant="danger" loading={cancelErx.isPending}>
+                {t('Cancel e-prescription')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+      <Dialog
+        open={sending !== null}
+        onClose={() => setSending(null)}
+        title={t('Send as e-prescription')}
+      >
+        {sending && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = formValues(e.currentTarget);
+              issueErx.mutate(
+                {
+                  prescriptionId: sending.id,
+                  repeats: Number(v.repeats ?? 0),
+                  ...(v.validDays ? { validDays: Number(v.validDays) } : {}),
+                },
+                {
+                  onSuccess: (issued) => {
+                    setSending(null);
+                    setIssuedCode(issued.code);
+                  },
+                },
+              );
+            }}
+          >
+            <p>
+              {t('{medication} can then be dispensed at any community pharmacy.', {
+                medication: sending.medication,
+              })}
+            </p>
+            <ErxFields />
+            <ErrorAlert error={issueErx.error} />
+            <div className="form-actions">
+              <Button variant="secondary" onClick={() => setSending(null)}>
+                {t('Back')}
+              </Button>
+              <Button type="submit" loading={issueErx.isPending}>
+                {t('Send as e-prescription')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
       <Dialog
         open={resubmitting !== null}
         onClose={() => setResubmitting(null)}
@@ -355,6 +555,43 @@ export function MedicationsTab({
             summary={builder.freeText ? null : (check.data?.dose ?? null)}
             patientId={patientId}
           />
+          <fieldset className="stack">
+            <legend>{t('Community pharmacy')}</legend>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={erx.enabled}
+                onChange={(e) => setErx((x) => ({ ...x, enabled: e.target.checked }))}
+              />{' '}
+              {t('E-prescription for a community pharmacy')}
+            </label>
+            {erx.enabled && (
+              <div className="form-grid">
+                <SelectField
+                  label={t('Repeat supplies')}
+                  name="erxRepeats"
+                  value={erx.repeats}
+                  onChange={(e) => setErx((x) => ({ ...x, repeats: e.target.value }))}
+                  options={REPEAT_OPTIONS.map((n) => ({
+                    value: String(n),
+                    label: n === 0 ? t('None (one supply)') : t('{n} repeats', { n }),
+                  }))}
+                />
+                <TextField
+                  label={t('Valid for (days)')}
+                  name="erxValidDays"
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={erx.validDays}
+                  onChange={(e) => setErx((x) => ({ ...x, validDays: e.target.value }))}
+                  hint={t(
+                    'Default 30 days per supply. Controlled medicines (opioids, benzodiazepines): no repeats, at most 7 days.',
+                  )}
+                />
+              </div>
+            )}
+          </fieldset>
           <EncounterSelect encounters={encounters} />
           <TextAreaField
             label={t('Instructions for the patient')}
@@ -400,6 +637,69 @@ export function MedicationsTab({
         </form>
       </Dialog>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ e-prescriptions -------- */
+
+/** The e-prescription controls are state, not prescription fields. */
+function withoutErxFields(v: Record<string, string>) {
+  const { erxRepeats: _repeats, erxValidDays: _validDays, ...rest } = v;
+  return rest;
+}
+
+/** Repeats and validity when sending an existing prescription as an e-prescription. */
+function ErxFields() {
+  return (
+    <div className="form-grid">
+      <SelectField
+        label={t('Repeat supplies')}
+        name="repeats"
+        defaultValue="0"
+        options={REPEAT_OPTIONS.map((n) => ({
+          value: String(n),
+          label: n === 0 ? t('None (one supply)') : t('{n} repeats', { n }),
+        }))}
+      />
+      <TextField
+        label={t('Valid for (days)')}
+        name="validDays"
+        type="number"
+        min={1}
+        max={365}
+        hint={t(
+          'Default 30 days per supply. Controlled medicines (opioids, benzodiazepines): no repeats, at most 7 days.',
+        )}
+      />
+    </div>
+  );
+}
+
+/** Status of an e-prescription in the prescriptions table. */
+function ErxCell({
+  e,
+  onOpen,
+}: {
+  e: EPrescription | undefined;
+  onOpen: (e: EPrescription) => void;
+}) {
+  if (!e) return <span className="muted">{t('E-prescription')}</span>;
+  return (
+    <div className="stack" style={{ gap: '0.2rem' }}>
+      <span className="row" style={{ gap: '0.3rem', flexWrap: 'wrap' }}>
+        <ErxStatusBadge status={e.status} />
+        {e.code && <span className="mono">{e.code}</span>}
+      </span>
+      <span className="muted">
+        {t('{dispensed} of {total} supplies dispensed', {
+          dispensed: e.suppliesDispensed,
+          total: e.suppliesTotal,
+        })}
+      </span>
+      <Button size="sm" variant="ghost" onClick={() => onOpen(e)}>
+        {t('Details|e-prescription')}
+      </Button>
+    </div>
   );
 }
 

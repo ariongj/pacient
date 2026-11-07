@@ -654,4 +654,7 @@ export const partner: Record<string, string> = {
     'Certifikatat mjekësore të shkakut të vdekjes, statistikat e vdekshmërisë.',
   'Elective waiting lists, maximum waiting times, transparency.':
     'Listat e pritjes për ndërhyrje të planifikuara, kohët maksimale të pritjes, transparenca.',
+  'E-prescriptions for community pharmacies': 'E-recetat për farmacitë komunitare',
+  'Look up an e-prescription with its code and the patient’s national ID, record dispensing and reverse a dispensing made in error. No diagnoses.':
+    'Kërkon një e-recetë me kodin dhe numrin personal të pacientit, regjistron dhënien dhe anulon një dhënie të gabuar. Pa diagnoza.',
 };

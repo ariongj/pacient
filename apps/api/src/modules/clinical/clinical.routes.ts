@@ -4,15 +4,13 @@ import { z } from 'zod';
 import { scoreVitalSign } from '../news/news.service.js';
 import { enrolFromDiagnosis } from '../registers/registers.service.js';
 import {
-  EPrescriptionRequestSchema,
-  notifyEPrescriptionCancelled,
-  recordIssued,
-} from '../erx/erx.routes.js';
-import {
   atcOf,
+  EPrescriptionRequestSchema,
   eprescriptionTerms,
   formatCode,
   issueEPrescription,
+  notifyEPrescriptionCancelled,
+  recordIssued,
 } from '../erx/erx.service.js';
 import { db, type Executor } from '../../db/client.js';
 import type { Role } from '../../db/schema.js';

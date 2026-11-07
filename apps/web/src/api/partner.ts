@@ -7,7 +7,8 @@ export type PartnerScope =
   | 'births.notify'
   | 'claims.read'
   | 'surveillance.read'
-  | 'deaths.read';
+  | 'deaths.read'
+  | 'prescriptions.dispense';
 
 export interface PartnerClient {
   id: string;
@@ -38,6 +39,7 @@ export const PARTNER_SCOPES: PartnerScope[] = [
   'claims.read',
   'surveillance.read',
   'deaths.read',
+  'prescriptions.dispense',
 ];
 
 /** Plain-language description of what a scope allows (translated at call time). */
@@ -86,6 +88,13 @@ export function scopeInfo(scope: PartnerScope): { title: string; description: st
         title: t('Deaths for civil registration'),
         description: t(
           'Read signed death certificates (identity, date and place of death – never the causes) and acknowledge their registration.',
+        ),
+      };
+    case 'prescriptions.dispense':
+      return {
+        title: t('E-prescriptions for community pharmacies'),
+        description: t(
+          'Look up an e-prescription with its code and the patient’s national ID, record dispensing and reverse a dispensing made in error. No diagnoses.',
         ),
       };
     default:

@@ -691,7 +691,7 @@ function OngoingCard({
             ],
             [t('Gravida / para'), `G${p.gravida} P${p.para}`],
             [
-              t('Booked'),
+              t('Booked|pregnancy'),
               t('{date} at {ga}', {
                 date: formatDate(p.bookedAt),
                 ga: gestationLabel(p.bookingGestation),

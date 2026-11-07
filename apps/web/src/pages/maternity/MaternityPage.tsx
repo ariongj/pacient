@@ -132,7 +132,7 @@ function IndicatorTable({ rows, caption }: { rows: IndicatorRow[]; caption: stri
       <thead>
         <tr>
           <th>{t('Municipality')}</th>
-          <th className="num">{t('Booked')}</th>
+          <th className="num">{t('Booked|pregnancy')}</th>
           <th className="num">{t('Booked before 14 weeks')}</th>
           <th className="num">{t('High risk')}</th>
           <th className="num">{t('Deliveries')}</th>
@@ -175,7 +175,7 @@ function Dashboard({ data }: { data: MaternityDashboard }) {
       {ind && (
         <Card title={t('Last 12 months')}>
           <Grid min={170}>
-            <Stat label={t('Booked')} value={cell(ind.booked)} />
+            <Stat label={t('Booked|pregnancy')} value={cell(ind.booked)} />
             <Stat label={t('Booked before 14 weeks')} value={pct(ind.firstTrimesterPct)} />
             <Stat label={t('High risk')} value={pct(ind.highRiskPct)} />
             <Stat label={t('Deliveries')} value={cell(ind.delivered)} />

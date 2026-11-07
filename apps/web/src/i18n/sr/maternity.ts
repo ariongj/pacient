@@ -199,4 +199,5 @@ export const maternity: Record<string, string> = {
   'Ongoing pregnancies of patients in my care': 'Trudnoće u toku pacijentkinja o kojima brinem',
   'Maternity dashboard (small cells suppressed)': 'Pregled materinstva (mali brojevi sakriveni)',
   'My pregnancy (portal)': 'Moja trudnoća (portal)',
+  'Booked|pregnancy': 'Evidentirano',
 };

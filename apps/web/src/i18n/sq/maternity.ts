@@ -201,4 +201,5 @@ export const maternity: Record<string, string> = {
     'Shtatzënitë në vijim të pacienteve në kujdesin tim',
   'Maternity dashboard (small cells suppressed)': 'Pasqyra e amësisë (numrat e vegjël të fshehur)',
   'My pregnancy (portal)': 'Shtatzënia ime (portali)',
+  'Booked|pregnancy': 'Regjistruar',
 };

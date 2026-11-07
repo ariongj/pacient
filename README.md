@@ -81,6 +81,13 @@ elective waiting lists with maximum waiting times and published waits; chronic d
 (diabetes, hypertension, asthma, COPD, kidney disease, heart failure) with recalls and quality
 indicators; patient safety incident and near-miss reporting with review and learning.
 
+**Prevention, prescriptions and rights:** antenatal care (pregnancy record, WHO contact schedule,
+warning signs); cancer screening programmes with invitations and coverage; national e-prescriptions
+dispensed by any community pharmacy (code and QR in the portal); a national register of professional
+licences checked on clinical work; patient complaints with deadlines and anonymous feedback; the
+organ donation registry, advance directives and resuscitation decisions shown in the chart and the
+emergency department.
+
 **Running a national service:** a downtime kit (hourly encrypted offline ward lists with
 allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
 recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
@@ -230,6 +237,17 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
 - **Safety incidents** (all staff): _Raporto një incident_ – report anonymously or by name;
   `director@` and `pharmacist@` (named medication-safety lead) see the review queue; the Ministry
   sees national counts and incidents involving the system.
+- **E-prescriptions** (doctor, patient): prescribe with _E-recetë për barnatore_; the
+  patient sees the code and QR under _E-recetat_; a pharmacy system looks up the demo code
+  `DEMA-ERX2-345C` with the partner key in [docs/API.md](docs/API.md).
+- **Antenatal care and screening** (doctor, nurse): _Kujdesi antenatal_ – pregnancies with
+  warnings (one possible pre-eclampsia, one past 42 weeks); _Depistimi i kancerit_ – who is due and
+  the abnormal result awaiting follow-up; the patient sees her screening invitation in the portal.
+- **Wishes and directives**: the patient records an organ donation decision and a healthcare proxy
+  under _Dhurimi i organeve dhe dëshirat_; doctor@ sees the DNACPR banner on Dardan Berisha's chart.
+- **Complaints and licences**: the patient complains or rates a recent visit under _Ankesat dhe
+  vlerësimet_; director@ handles complaints and sees staff licences; the Ministry manages the
+  licence register and can withdraw a death certificate (_Vdekshmëria_ → _Tërhiq një certifikatë_).
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and

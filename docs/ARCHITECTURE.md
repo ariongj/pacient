@@ -377,3 +377,30 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
 - **Documents at scale** (`modules/storage`): database or S3-compatible object storage (SigV4,
   ciphertext only, keys without identifiers), integrity checked on read, a migration script, and
   document versions (`previous_version_id`, one successor per version).
+
+## Prevention, community prescribing, licensing and patient rights
+
+- **Antenatal care** (`modules/maternity`, `/maternity`): `pregnancies` (one ongoing per patient,
+  closed as delivered by birth registration) and `antenatal_visits`; due date from LMP or a dating
+  scan; visit alerts, the WHO 2016 contact schedule and key tests derived from lab results; worklist
+  for the care team, counts for directors, national indicators; guardians never see a minor's
+  pregnancy.
+- **Cancer screening** (`modules/screening`, `/screening`): programme definitions in code;
+  `screening_episodes` from invitation to result with next due dates; `screening_opt_outs`; a daily
+  worker invites (capped per facility, under an advisory lock) and reminds; abnormal results create
+  an urgent task for the patient's doctor.
+- **E-prescriptions** (`modules/erx`, `/e-prescriptions`, partner `/partner/e-prescriptions`):
+  prescriptions carry a code with a check character, repeats and validity; community pharmacies
+  dispense with a row lock into the append-only `community_dispensings` (reversal rows); they never
+  appear in the hospital pharmacy queue.
+- **Licences** (`modules/licences`, `/licences`): `professional_licences` linked to staff accounts;
+  `assertClinicalWriteAccess` checks the licence of doctors, nurses and pharmacists (cached;
+  `LICENCE_ENFORCEMENT` off/warn/on); public licence check; expiry reminders.
+- **Complaints and feedback** (`modules/complaints`, `/complaints`): complaints with working-day
+  deadlines, assignment, escalation to the Ministry; anonymous `feedback_responses` keyed by an HMAC
+  of the visit, with no patient, user or exact time.
+- **Organ donation and directives** (`modules/directives`, `/directives`): append-only
+  `organ_donation_decisions` (consulted only through an audited check with a purpose; aggregates for
+  the Ministry) and revoke-only `advance_directives` shown as chart banners and emergency-board badges.
+- **Death certificate withdrawal**: the Ministry withdraws a signed certificate issued in error
+  (`status = WITHDRAWN`, final by trigger); what signing ended is restored except appointments.

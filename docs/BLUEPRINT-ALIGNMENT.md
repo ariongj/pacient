@@ -163,6 +163,12 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Chronic disease registers, recalls, quality indicators                                    | ✅ (targets to confirm)             |
 | Patient safety incident and near-miss reporting                                           | ✅                                  |
 | Object storage for documents, document versions                                           | ✅                                  |
+| Antenatal care: pregnancy record, visits, WHO contact schedule                            | ✅ (thresholds to confirm)          |
+| Cancer screening programmes, invitations, coverage                                        | ✅ (protocols to confirm)           |
+| National e-prescriptions for community pharmacies                                         | ✅                                  |
+| Register of professional licences, enforced on clinical work                              | ✅                                  |
+| Patient complaints and anonymous experience feedback                                      | ✅                                  |
+| Organ donation registry, advance directives, DNACPR alerts                                | ✅                                  |
 
 ## Open decisions (§10) — needed from the project sponsor
 

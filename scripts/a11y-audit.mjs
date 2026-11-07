@@ -38,6 +38,11 @@ const PAGES = {
     '/account/security',
     '/portal/certificates',
     '/portal/waiting-lists',
+    '/portal/e-prescriptions',
+    '/portal/screening',
+    '/portal/pregnancy',
+    '/portal/wishes',
+    '/portal/complaints',
   ],
   'doctor@pacient.local': [
     '/doctor',
@@ -58,6 +63,9 @@ const PAGES = {
     '/waiting-lists',
     '/deaths',
     '/incidents',
+    '/maternity',
+    '/screening',
+    '/e-prescriptions',
   ],
   'nurse@pacient.local': [
     '/nurse',
@@ -67,8 +75,8 @@ const PAGES = {
     '/births',
     '/identities',
   ],
-  'pharmacist@pacient.local': ['/pharmacy', '/pharmacy/stock'],
-  'reception@pacient.local': ['/reception', '/reception/patients', '/billing'],
+  'pharmacist@pacient.local': ['/pharmacy', '/pharmacy/stock', '/e-prescriptions'],
+  'reception@pacient.local': ['/reception', '/reception/patients', '/billing', '/complaints'],
   'director@pacient.local': [
     '/director',
     '/director/reports',
@@ -82,6 +90,8 @@ const PAGES = {
     '/registers',
     '/deaths',
     '/incidents',
+    '/complaints',
+    '/licences',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -97,6 +107,9 @@ const PAGES = {
     '/registers',
     '/waiting-lists',
     '/incidents',
+    '/organ-donation',
+    '/licences',
+    '/complaints',
   ],
 };
 

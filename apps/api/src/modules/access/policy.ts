@@ -183,6 +183,9 @@ export async function unitAccessVia(
             WHERE ei.patient_id = ${patientId} AND ei.service_unit_id = cu.id
               AND (ei.status NOT IN ('CLOSED', 'CANCELLED')
                    OR ei.closed_at > now() - interval '24 hours')))
+      OR (cu.type::text = 'DIALYSIS' AND EXISTS (
+            SELECT 1 FROM dialysis_schedules ds
+            WHERE ds.patient_id = ${patientId} AND ds.unit_id = cu.id AND ds.status = 'ACTIVE'))
       OR (cu.type::text = 'COMMUNITY_NURSING' AND EXISTS (
             SELECT 1 FROM home_care_episodes hc
             WHERE hc.patient_id = ${patientId} AND hc.team_unit_id = cu.id

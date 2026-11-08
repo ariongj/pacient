@@ -52,6 +52,10 @@ import { DirectivesTab } from './chart/DirectivesTab';
 import { InfectionTab } from './chart/InfectionTab';
 import { SepsisTab } from './chart/SepsisTab';
 import { HomeCareTab } from './chart/HomeCareTab';
+import { RemoteMonitoringTab } from './chart/RemoteMonitoringTab';
+import { OncologyTab } from './chart/OncologyTab';
+import { DialysisTab } from './chart/DialysisTab';
+import { MentalHealthTab } from './chart/MentalHealthTab';
 import { DirectivesBanner } from '../directives/DirectivesFlag';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
@@ -100,6 +104,10 @@ const TAB_IDS = [
   'sepsis',
   'infection',
   'homecare',
+  'remote',
+  'oncology',
+  'dialysis',
+  'mentalhealth',
   'pregnancy',
   'screening',
   'registers',
@@ -358,6 +366,10 @@ export function PatientChart() {
               { id: 'sepsis', label: t('Sepsis') },
               { id: 'infection', label: t('Infection prevention') },
               { id: 'homecare', label: t('Home care') },
+              { id: 'remote', label: t('Remote monitoring') },
+              { id: 'oncology', label: t('Cancer registry') },
+              { id: 'dialysis', label: t('Dialysis') },
+              { id: 'mentalhealth', label: t('Mental health safeguards') },
               { id: 'pregnancy', label: t('Pregnancy') },
               { id: 'screening', label: t('Screening|cancer') },
               { id: 'registers', label: t('Chronic care') },
@@ -395,6 +407,10 @@ export function PatientChart() {
             {tab === 'sepsis' && <SepsisTab patientId={patientId} />}
             {tab === 'infection' && <InfectionTab patientId={patientId} />}
             {tab === 'homecare' && <HomeCareTab patientId={patientId} />}
+            {tab === 'remote' && <RemoteMonitoringTab patientId={patientId} />}
+            {tab === 'oncology' && <OncologyTab patientId={patientId} />}
+            {tab === 'dialysis' && <DialysisTab patientId={patientId} />}
+            {tab === 'mentalhealth' && <MentalHealthTab patientId={patientId} />}
             {tab === 'pregnancy' && <PregnancyTab patientId={patientId} />}
             {tab === 'screening' && <ScreeningTab patientId={patientId} />}
             {tab === 'registers' && <RegistersTab patientId={patientId} />}

@@ -40,6 +40,12 @@ import { srSepsis } from './sr-sepsis.js';
 import { srRosters } from './sr-rosters.js';
 import { srHomecare } from './sr-homecare.js';
 import { srEquipment } from './sr-equipment.js';
+import { srRemote } from './sr-remote.js';
+import { srOncology } from './sr-oncology.js';
+import { srDialysis } from './sr-dialysis.js';
+import { srMentalhealth } from './sr-mentalhealth.js';
+import { srDonors } from './sr-donors.js';
+import { srOpendata } from './sr-opendata.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -84,4 +90,10 @@ export const sr: Record<string, string> = {
   ...srRosters,
   ...srHomecare,
   ...srEquipment,
+  ...srRemote,
+  ...srOncology,
+  ...srDialysis,
+  ...srMentalhealth,
+  ...srDonors,
+  ...srOpendata,
 };

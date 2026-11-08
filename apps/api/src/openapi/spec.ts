@@ -9,6 +9,12 @@
 import { encounterTypeEnum } from '../db/schema.js';
 import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
+import { REMOTE_OPERATIONS, REMOTE_TAGS } from './remote.js';
+import { ONCOLOGY_OPERATIONS, ONCOLOGY_TAGS } from './oncology.js';
+import { DIALYSIS_OPERATIONS, DIALYSIS_TAGS } from './dialysis.js';
+import { MENTALHEALTH_OPERATIONS, MENTALHEALTH_TAGS } from './mentalhealth.js';
+import { DONORS_OPERATIONS, DONORS_TAGS } from './donors.js';
+import { OPENDATA_OPERATIONS, OPENDATA_TAGS } from './opendata.js';
 import { EMS_OPERATIONS, EMS_TAGS } from './ems.js';
 import { INFECTION_OPERATIONS, INFECTION_TAGS } from './infection.js';
 import { SEPSIS_OPERATIONS, SEPSIS_TAGS } from './sepsis.js';
@@ -114,6 +120,12 @@ export const TAGS: { name: string; description: string }[] = [
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
   ...CORE_TAGS,
   ...MODULE_TAGS,
+  ...REMOTE_TAGS,
+  ...ONCOLOGY_TAGS,
+  ...DIALYSIS_TAGS,
+  ...MENTALHEALTH_TAGS,
+  ...DONORS_TAGS,
+  ...OPENDATA_TAGS,
   ...EMS_TAGS,
   ...INFECTION_TAGS,
   ...SEPSIS_TAGS,
@@ -839,6 +851,12 @@ const OPERATIONS: Operation[] = [
 OPERATIONS.push(
   ...CORE_OPERATIONS,
   ...MODULE_OPERATIONS,
+  ...REMOTE_OPERATIONS,
+  ...ONCOLOGY_OPERATIONS,
+  ...DIALYSIS_OPERATIONS,
+  ...MENTALHEALTH_OPERATIONS,
+  ...DONORS_OPERATIONS,
+  ...OPENDATA_OPERATIONS,
   ...EMS_OPERATIONS,
   ...INFECTION_OPERATIONS,
   ...SEPSIS_OPERATIONS,

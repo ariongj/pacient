@@ -40,6 +40,12 @@ import { sqSepsis } from './sq-sepsis.js';
 import { sqRosters } from './sq-rosters.js';
 import { sqHomecare } from './sq-homecare.js';
 import { sqEquipment } from './sq-equipment.js';
+import { sqRemote } from './sq-remote.js';
+import { sqOncology } from './sq-oncology.js';
+import { sqDialysis } from './sq-dialysis.js';
+import { sqMentalhealth } from './sq-mentalhealth.js';
+import { sqDonors } from './sq-donors.js';
+import { sqOpendata } from './sq-opendata.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -84,4 +90,10 @@ export const sq: Record<string, string> = {
   ...sqRosters,
   ...sqHomecare,
   ...sqEquipment,
+  ...sqRemote,
+  ...sqOncology,
+  ...sqDialysis,
+  ...sqMentalhealth,
+  ...sqDonors,
+  ...sqOpendata,
 };

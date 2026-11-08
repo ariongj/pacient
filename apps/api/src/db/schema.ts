@@ -1418,6 +1418,8 @@ export const careUnitTypeEnum = pgEnum('care_unit_type', [
   'AMBULANCE_SERVICE',
   'COMMUNITY_NURSING',
   'INFECTION_CONTROL',
+  'DIALYSIS',
+  'PSYCHIATRIC',
 ]);
 export const bedStatusEnum = pgEnum('bed_status', [
   'AVAILABLE',
@@ -3878,6 +3880,419 @@ export const equipmentEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('equipment_events_item_idx').on(t.itemId, t.occurredAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Remote patient monitoring (home readings)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A patient enrolled in home monitoring by their doctor, with personal alert limits. */
+export const monitoringPlans = pgTable(
+  'monitoring_plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    enrolledById: uuid('enrolled_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** BLOOD_PRESSURE, GLUCOSE, WEIGHT, SPO2, HEART_RATE, TEMPERATURE, PEAK_FLOW. */
+    kinds: text('kinds').array().notNull(),
+    /** Personal limits, e.g. { systolicHigh: 160, glucoseLow: 4, weightGainKg3Days: 2 }. */
+    thresholds: jsonb('thresholds').$type<Record<string, number>>().notNull(),
+    /** Expected readings, e.g. "twice daily". */
+    frequency: varchar('frequency', { length: 100 }),
+    instructions: text('instructions'),
+    /** ACTIVE or ENDED. */
+    status: varchar('status', { length: 8 }).notNull().default('ACTIVE'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: varchar('end_reason', { length: 300 }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('monitoring_plans_active_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} = 'ACTIVE'`),
+  ],
+);
+
+/** A reading taken at home and entered in the portal (or sent by a connected device). */
+export const homeReadings = pgTable(
+  'home_readings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    planId: uuid('plan_id').references(() => monitoringPlans.id, { onDelete: 'set null' }),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    /** e.g. { systolic: 150, diastolic: 95, pulse: 80 } or { value: 7.2, unit: 'mmol/L', context: 'FASTING' }. */
+    values: jsonb('values').$type<Record<string, unknown>>().notNull(),
+    measuredAt: timestamp('measured_at', { withTimezone: true }).notNull(),
+    /** PORTAL or DEVICE. */
+    source: varchar('source', { length: 8 }).notNull().default('PORTAL'),
+    enteredByUserId: uuid('entered_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    note: varchar('note', { length: 300 }),
+    /** NORMAL, OUT_OF_RANGE, URGENT (from the plan's limits). */
+    flag: varchar('flag', { length: 12 }).notNull().default('NORMAL'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewNote: varchar('review_note', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('home_readings_patient_idx').on(t.patientId, t.kind, t.measuredAt),
+    index('home_readings_flag_idx').on(t.flag, t.reviewedAt),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Cancer registry and multidisciplinary team (tumour board) meetings
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A registered primary cancer (ICD-O-3 topography/morphology, stage at diagnosis). */
+export const cancerCases = pgTable(
+  'cancer_cases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    diagnosedOn: date('diagnosed_on', { mode: 'string' }).notNull(),
+    icd10: varchar('icd10', { length: 10 }).notNull(),
+    /** ICD-O-3 topography, e.g. C50.4. */
+    topography: varchar('topography', { length: 10 }).notNull(),
+    /** ICD-O-3 morphology with behaviour, e.g. 8500/3. */
+    morphology: varchar('morphology', { length: 10 }).notNull(),
+    /** LEFT, RIGHT, BILATERAL, NOT_APPLICABLE, UNKNOWN. */
+    laterality: varchar('laterality', { length: 14 }).notNull().default('NOT_APPLICABLE'),
+    /** HISTOLOGY, CYTOLOGY, CLINICAL_INVESTIGATION, CLINICAL_ONLY, DEATH_CERTIFICATE_ONLY. */
+    basisOfDiagnosis: varchar('basis_of_diagnosis', { length: 24 }).notNull(),
+    tnmT: varchar('tnm_t', { length: 6 }),
+    tnmN: varchar('tnm_n', { length: 6 }),
+    tnmM: varchar('tnm_m', { length: 6 }),
+    /** 0, I, II, III, IV, UNKNOWN (stage group, AJCC/UICC edition noted in tnmEdition). */
+    stage: varchar('stage', { length: 8 }),
+    tnmEdition: varchar('tnm_edition', { length: 10 }),
+    /** ACTIVE (registered), DUPLICATE, WITHDRAWN (registered in error). */
+    status: varchar('status', { length: 10 }).notNull().default('ACTIVE'),
+    registeredById: uuid('registered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('cancer_cases_patient_idx').on(t.patientId),
+    index('cancer_cases_diagnosed_idx').on(t.diagnosedOn, t.topography),
+  ],
+);
+
+export const mdtMeetings = pgTable(
+  'mdt_meetings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** BREAST, LUNG, COLORECTAL, UROLOGY, GYNAECOLOGY, HAEMATOLOGY, HEAD_NECK, SKIN, UPPER_GI, OTHER. */
+    tumourGroup: varchar('tumour_group', { length: 14 }).notNull(),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+    chairId: uuid('chair_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** PLANNED, HELD, CANCELLED. */
+    status: varchar('status', { length: 10 }).notNull().default('PLANNED'),
+    /** Names and roles of those present (recorded when held). */
+    attendees: text('attendees')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    ...timestamps,
+  },
+  (t) => [index('mdt_meetings_facility_idx').on(t.facilityId, t.scheduledFor)],
+);
+
+/** A patient discussed at a meeting: the question, and the agreed recommendation. */
+export const mdtCaseReviews = pgTable(
+  'mdt_case_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    meetingId: uuid('meeting_id')
+      .notNull()
+      .references(() => mdtMeetings.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    cancerCaseId: uuid('cancer_case_id').references(() => cancerCases.id, { onDelete: 'set null' }),
+    referredById: uuid('referred_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    question: varchar('question', { length: 500 }).notNull(),
+    summary: text('summary'),
+    /** e.g. SURGERY, CHEMOTHERAPY, RADIOTHERAPY, COMBINED, SURVEILLANCE, PALLIATIVE, MORE_TESTS, OTHER. */
+    recommendation: varchar('recommendation', { length: 14 }),
+    recommendationText: text('recommendation_text'),
+    /** PENDING, DISCUSSED, DEFERRED. */
+    status: varchar('status', { length: 10 }).notNull().default('PENDING'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    patientInformedAt: timestamp('patient_informed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('mdt_case_reviews_meeting_idx').on(t.meetingId),
+    index('mdt_case_reviews_patient_idx').on(t.patientId),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Dialysis
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Regular haemodialysis schedule of a patient at a DIALYSIS unit. */
+export const dialysisSchedules = pgTable(
+  'dialysis_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    /** e.g. {MON,WED,FRI}. */
+    days: text('days').array().notNull(),
+    /** MORNING, AFTERNOON, EVENING. */
+    shift: varchar('shift', { length: 10 }).notNull(),
+    durationMinutes: smallint('duration_minutes').notNull().default(240),
+    targetWeightKg: numeric('target_weight_kg', { precision: 5, scale: 1 }),
+    /** FISTULA, GRAFT, TUNNELLED_CATHETER, TEMPORARY_CATHETER. */
+    vascularAccess: varchar('vascular_access', { length: 20 }).notNull(),
+    /** ACTIVE, ENDED. */
+    status: varchar('status', { length: 8 }).notNull().default('ACTIVE'),
+    startedOn: date('started_on', { mode: 'string' }).notNull(),
+    endedOn: date('ended_on', { mode: 'string' }),
+    endReason: varchar('end_reason', { length: 300 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dialysis_schedules_active_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} = 'ACTIVE'`),
+    index('dialysis_schedules_unit_idx').on(t.unitId, t.status),
+  ],
+);
+
+export const dialysisSessions = pgTable(
+  'dialysis_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    scheduleId: uuid('schedule_id').references(() => dialysisSchedules.id, {
+      onDelete: 'set null',
+    }),
+    sessionDate: date('session_date', { mode: 'string' }).notNull(),
+    /** PLANNED, IN_PROGRESS, COMPLETED, MISSED, CANCELLED. */
+    status: varchar('status', { length: 12 }).notNull().default('PLANNED'),
+    machine: varchar('machine', { length: 40 }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    preWeightKg: numeric('pre_weight_kg', { precision: 5, scale: 1 }),
+    postWeightKg: numeric('post_weight_kg', { precision: 5, scale: 1 }),
+    preSystolic: smallint('pre_systolic'),
+    preDiastolic: smallint('pre_diastolic'),
+    postSystolic: smallint('post_systolic'),
+    postDiastolic: smallint('post_diastolic'),
+    ultrafiltrationMl: integer('ultrafiltration_ml'),
+    bloodFlowMlMin: smallint('blood_flow_ml_min'),
+    /** Pre- and post-dialysis urea for URR and Kt/V. */
+    preUrea: numeric('pre_urea', { precision: 5, scale: 1 }),
+    postUrea: numeric('post_urea', { precision: 5, scale: 1 }),
+    complications: text('complications')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    notes: text('notes'),
+    missedReason: varchar('missed_reason', { length: 300 }),
+    nurseId: uuid('nurse_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dialysis_sessions_patient_day_uq').on(t.patientId, t.sessionDate),
+    index('dialysis_sessions_unit_idx').on(t.unitId, t.sessionDate),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Mental health: involuntary admission safeguards and restrictive interventions
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Admission without consent under mental health law, with its legal steps and deadlines (the
+ * deadlines are configured in code from the law and are illustrative until confirmed).
+ */
+export const involuntaryAdmissions = pgTable(
+  'involuntary_admissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id')
+      .notNull()
+      .references(() => admissions.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** Grounds as assessed, e.g. danger to self, danger to others. */
+    grounds: text('grounds').array().notNull(),
+    assessment: text('assessment').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    decidedById: uuid('decided_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Second, independent psychiatric examination. */
+    secondOpinionById: uuid('second_opinion_by_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    secondOpinionAt: timestamp('second_opinion_at', { withTimezone: true }),
+    secondOpinionConfirms: boolean('second_opinion_confirms'),
+    courtNotifiedAt: timestamp('court_notified_at', { withTimezone: true }),
+    courtReference: varchar('court_reference', { length: 60 }),
+    courtDecisionAt: timestamp('court_decision_at', { withTimezone: true }),
+    /** CONFIRMED, REJECTED. */
+    courtDecision: varchar('court_decision', { length: 10 }),
+    authorisedUntil: timestamp('authorised_until', { withTimezone: true }),
+    rightsExplainedAt: timestamp('rights_explained_at', { withTimezone: true }),
+    representativeName: varchar('representative_name', { length: 200 }),
+    representativeNotifiedAt: timestamp('representative_notified_at', { withTimezone: true }),
+    /** ACTIVE, ENDED (discharged or became voluntary), RELEASED (not confirmed). */
+    status: varchar('status', { length: 10 }).notNull().default('ACTIVE'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: varchar('end_reason', { length: 300 }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('involuntary_admissions_active_uq')
+      .on(t.patientId)
+      .where(sql`${t.status} = 'ACTIVE'`),
+    index('involuntary_admissions_facility_idx').on(t.facilityId, t.status),
+  ],
+);
+
+/** Physical restraint, seclusion or rapid tranquillisation, with observations and debrief. */
+export const restrictiveInterventions = pgTable(
+  'restrictive_interventions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** PHYSICAL_RESTRAINT, MECHANICAL_RESTRAINT, SECLUSION, RAPID_TRANQUILLISATION. */
+    kind: varchar('kind', { length: 24 }).notNull(),
+    reason: text('reason').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Observation log: [{ at, by, note, vitalsChecked }]. */
+    observations: jsonb('observations').$type<Record<string, unknown>[]>().notNull().default([]),
+    injuries: varchar('injuries', { length: 300 }),
+    debriefAt: timestamp('debrief_at', { withTimezone: true }),
+    debriefNote: text('debrief_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('restrictive_interventions_facility_idx').on(t.facilityId, t.startedAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Blood donors and donations
+ * ---------------------------------------------------------------------------------------------- */
+
+export const bloodDonors = pgTable(
+  'blood_donors',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** Confirmed blood group (ABO and RhD) once tested. */
+    abo: varchar('abo', { length: 2 }),
+    rhD: varchar('rh_d', { length: 3 }),
+    /** ACTIVE, DEFERRED, PERMANENTLY_DEFERRED. */
+    status: varchar('status', { length: 22 }).notNull().default('ACTIVE'),
+    deferredUntil: date('deferred_until', { mode: 'string' }),
+    deferralReason: varchar('deferral_reason', { length: 300 }),
+    firstDonationAt: timestamp('first_donation_at', { withTimezone: true }),
+    lastDonationAt: timestamp('last_donation_at', { withTimezone: true }),
+    donationCount: integer('donation_count').notNull().default(0),
+    /** Consent to be contacted for appeals (e.g. rare groups). */
+    contactConsent: boolean('contact_consent').notNull().default(false),
+    registeredAtFacilityId: uuid('registered_at_facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('blood_donors_patient_uq').on(t.patientId)],
+);
+
+/** A donation attempt: screening answers, checks, and the resulting blood unit. */
+export const bloodDonations = pgTable(
+  'blood_donations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    donorId: uuid('donor_id')
+      .notNull()
+      .references(() => bloodDonors.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    attendedAt: timestamp('attended_at', { withTimezone: true }).notNull(),
+    /** Health questionnaire answers by question code. */
+    questionnaire: jsonb('questionnaire').$type<Record<string, unknown>>().notNull(),
+    haemoglobin: numeric('haemoglobin', { precision: 4, scale: 1 }),
+    systolic: smallint('systolic'),
+    diastolic: smallint('diastolic'),
+    pulse: smallint('pulse'),
+    weightKg: numeric('weight_kg', { precision: 5, scale: 1 }),
+    /** COMPLETED, DEFERRED (not eligible today), ABORTED (started, not completed). */
+    outcome: varchar('outcome', { length: 10 }).notNull(),
+    deferralReason: varchar('deferral_reason', { length: 300 }),
+    volumeMl: integer('volume_ml'),
+    /** The blood bank unit created from this donation. */
+    bloodUnitId: uuid('blood_unit_id').references(() => bloodUnits.id, { onDelete: 'set null' }),
+    adverseReaction: varchar('adverse_reaction', { length: 300 }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('blood_donations_donor_idx').on(t.donorId, t.attendedAt)],
 );
 
 /* ------------------------------------------------------------------------------------------------

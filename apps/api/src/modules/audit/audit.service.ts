@@ -221,6 +221,19 @@ export const AuditAction = {
   HOME_VISIT_RECORDED: 'homecare.visit',
   EQUIPMENT_CHANGED: 'equipment.changed',
   EQUIPMENT_EVENT: 'equipment.event',
+  MONITORING_PLAN_CHANGED: 'remote.plan',
+  READING_SUBMITTED: 'remote.reading',
+  READING_REVIEWED: 'remote.reviewed',
+  CANCER_REGISTERED: 'oncology.registered',
+  CANCER_UPDATED: 'oncology.updated',
+  MDT_MEETING_CHANGED: 'oncology.mdt_meeting',
+  MDT_REVIEW_RECORDED: 'oncology.mdt_review',
+  DIALYSIS_SCHEDULE_CHANGED: 'dialysis.schedule',
+  DIALYSIS_SESSION_RECORDED: 'dialysis.session',
+  INVOLUNTARY_ADMISSION_CHANGED: 'mentalhealth.involuntary',
+  RESTRICTIVE_INTERVENTION_RECORDED: 'mentalhealth.restrictive',
+  DONOR_CHANGED: 'donors.donor',
+  DONATION_RECORDED: 'donors.donation',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

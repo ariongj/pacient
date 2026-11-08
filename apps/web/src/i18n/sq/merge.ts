@@ -162,4 +162,16 @@ export const merge: Record<string, string> = {
   'Notifiable disease reports': 'Raportet e sëmundjeve ngjitëse të detyrueshme',
   'Data protection requests': 'Kërkesat për mbrojtjen e të dhënave',
   'Legal holds': 'Ruajtjet ligjore',
+  'Both records have a death certificate. Amend or withdraw one of them, then merge.':
+    'Të dyja kartelat kanë certifikatë vdekjeje. Ndryshoni ose tërhiqni njërën, pastaj bashkojini.',
+  'Both records have an ongoing pregnancy. Close the duplicate one, then merge.':
+    'Të dyja kartelat kanë shtatzëni në vijim. Mbyllni atë të dyfishtën, pastaj bashkojini.',
+  'Both records have a blood donor record. Contact the blood bank, then merge.':
+    'Të dyja kartelat kanë regjistrim dhuruesi gjaku. Kontaktoni bankën e gjakut, pastaj bashkojini.',
+  'Both records have an active home monitoring plan. End one of them, then merge.':
+    'Të dyja kartelat kanë plan aktiv monitorimi në shtëpi. Përfundoni njërin, pastaj bashkojini.',
+  'Both records have an active dialysis schedule. End one of them, then merge.':
+    'Të dyja kartelat kanë orar aktiv dialize. Përfundoni njërin, pastaj bashkojini.',
+  'Both records have an active involuntary admission. End one of them, then merge.':
+    'Të dyja kartelat kanë shtrim aktiv pa pëlqim. Përfundoni njërin, pastaj bashkojini.',
 };

@@ -82,6 +82,12 @@ import { sepsisRouter } from './modules/sepsis/sepsis.routes.js';
 import { rostersRouter } from './modules/rosters/rosters.routes.js';
 import { homeCareRouter } from './modules/homecare/homecare.routes.js';
 import { equipmentRouter } from './modules/equipment/equipment.routes.js';
+import { remoteMonitoringRouter } from './modules/remote/remote.routes.js';
+import { oncologyRouter } from './modules/oncology/oncology.routes.js';
+import { dialysisRouter } from './modules/dialysis/dialysis.routes.js';
+import { mentalHealthRouter } from './modules/mentalhealth/mentalhealth.routes.js';
+import { bloodDonorsRouter } from './modules/donors/donors.routes.js';
+import { openDataRouter } from './modules/opendata/opendata.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -190,6 +196,12 @@ export function createApp(): Express {
   api.use('/video', telemedicineRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
+  api.use('/remote-monitoring', remoteMonitoringRouter);
+  api.use('/oncology', oncologyRouter);
+  api.use('/dialysis', dialysisRouter);
+  api.use('/mental-health', mentalHealthRouter);
+  api.use('/blood-donors', bloodDonorsRouter);
+  api.use('/open-data', openDataRouter);
   api.use('/ems', emsRouter);
   api.use('/infection', infectionRouter);
   api.use('/sepsis', sepsisRouter);

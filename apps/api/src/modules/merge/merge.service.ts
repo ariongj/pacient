@@ -19,7 +19,10 @@ export const PATIENT_TABLES = [
   'antenatal_visits',
   'antimicrobial_approvals',
   'appointments',
+  'blood_donations',
+  'blood_donors',
   'blood_group_tests',
+  'cancer_cases',
   'care_assignments',
   'care_process_records',
   'care_tasks',
@@ -33,6 +36,8 @@ export const PATIENT_TABLES = [
   'death_record_amendments',
   'death_records',
   'diagnoses',
+  'dialysis_schedules',
+  'dialysis_sessions',
   'diet_orders',
   'early_warning_scores',
   'ed_visits',
@@ -44,19 +49,23 @@ export const PATIENT_TABLES = [
   'guardianships',
   'hai_events',
   'home_care_episodes',
+  'home_readings',
   'home_visits',
   'imaging_orders',
   'immunization_reminders',
   'immunizations',
   'insurance_coverages',
   'integration_messages',
+  'involuntary_admissions',
   'isolation_orders',
   'lab_orders',
   'lab_results',
   'legal_holds',
+  'mdt_case_reviews',
   'medical_certificates',
   'medication_administrations',
   'message_threads',
+  'monitoring_plans',
   'nutrition_screenings',
   'organ_donation_decisions',
   'patient_documents',
@@ -66,6 +75,7 @@ export const PATIENT_TABLES = [
   'prescriptions',
   'referrals',
   'register_enrolments',
+  'restrictive_interventions',
   'safety_incidents',
   'screening_episodes',
   'screening_opt_outs',
@@ -97,6 +107,16 @@ export const EXCLUDED_REFERENCES = [
 
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
+  blood_donations: 'Blood donations',
+  blood_donors: 'Blood donor record',
+  cancer_cases: 'Cancer registry',
+  dialysis_schedules: 'Dialysis schedule',
+  dialysis_sessions: 'Dialysis sessions',
+  home_readings: 'Home readings',
+  involuntary_admissions: 'Involuntary admissions',
+  mdt_case_reviews: 'Tumour board reviews',
+  monitoring_plans: 'Home monitoring',
+  restrictive_interventions: 'Restrictive interventions',
   antimicrobial_approvals: 'Restricted antibiotic approvals',
   ems_care_records: 'Ambulance care records',
   ems_incidents: 'Ambulance calls',
@@ -381,6 +401,28 @@ export async function mergePatients(
   if (linked.rows.length) {
     throw conflict('These records are a mother and her baby – they cannot be merged');
   }
+  // Records that exist at most once per person (or once while active).
+  const single = await tx.execute<{ what: string; n: number }>(sql`
+    SELECT 'blood donor record' AS what, count(*)::int AS n FROM blood_donors
+      WHERE patient_id IN (${survivor.id}, ${merged.id})
+    UNION ALL SELECT 'active home monitoring plan', count(*)::int FROM monitoring_plans
+      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})
+    UNION ALL SELECT 'active dialysis schedule', count(*)::int FROM dialysis_schedules
+      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})
+    UNION ALL SELECT 'active involuntary admission', count(*)::int FROM involuntary_admissions
+      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})`);
+  const SINGLE_CLASH: Record<string, string> = {
+    'blood donor record':
+      'Both records have a blood donor record. Contact the blood bank, then merge.',
+    'active home monitoring plan':
+      'Both records have an active home monitoring plan. End one of them, then merge.',
+    'active dialysis schedule':
+      'Both records have an active dialysis schedule. End one of them, then merge.',
+    'active involuntary admission':
+      'Both records have an active involuntary admission. End one of them, then merge.',
+  };
+  const clash = single.rows.find((r) => r.n > 1);
+  if (clash) throw conflict(SINGLE_CLASH[clash.what]!);
   // One death certificate per person.
   const deaths = await tx.execute<{ n: number }>(sql`
     SELECT count(*)::int AS n FROM death_records

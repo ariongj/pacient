@@ -149,4 +149,16 @@ export const merge: Record<string, string> = {
   'Notifiable disease reports': 'Prijave zaraznih bolesti',
   'Data protection requests': 'Zahtevi za zaštitu podataka',
   'Legal holds': 'Zakonska zadržavanja',
+  'Both records have a death certificate. Amend or withdraw one of them, then merge.':
+    'Oba kartona imaju potvrdu o smrti. Izmenite ili povucite jednu, pa ih spojite.',
+  'Both records have an ongoing pregnancy. Close the duplicate one, then merge.':
+    'Oba kartona imaju trudnoću u toku. Zatvorite dupliranu, pa ih spojite.',
+  'Both records have a blood donor record. Contact the blood bank, then merge.':
+    'Oba kartona imaju evidenciju davaoca krvi. Obratite se banci krvi, pa ih spojite.',
+  'Both records have an active home monitoring plan. End one of them, then merge.':
+    'Oba kartona imaju aktivan plan kućnog praćenja. Završite jedan, pa ih spojite.',
+  'Both records have an active dialysis schedule. End one of them, then merge.':
+    'Oba kartona imaju aktivan raspored dijalize. Završite jedan, pa ih spojite.',
+  'Both records have an active involuntary admission. End one of them, then merge.':
+    'Oba kartona imaju aktivan prinudni prijem. Završite jedan, pa ih spojite.',
 };

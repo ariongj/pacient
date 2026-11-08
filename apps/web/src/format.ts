@@ -334,5 +334,18 @@ export const ACTION_LABELS: Record<string, string> = {
   'homecare.visit': 'Home visit recorded',
   'equipment.changed': 'Equipment register changed',
   'equipment.event': 'Equipment service or fault recorded',
+  'remote.plan': 'Home monitoring plan changed',
+  'remote.reading': 'Home reading submitted',
+  'remote.reviewed': 'Home reading reviewed',
+  'oncology.registered': 'Cancer registered',
+  'oncology.updated': 'Cancer registration updated',
+  'oncology.mdt_meeting': 'Tumour board meeting changed',
+  'oncology.mdt_review': 'Tumour board recommendation recorded',
+  'dialysis.schedule': 'Dialysis schedule changed',
+  'dialysis.session': 'Dialysis session recorded',
+  'mentalhealth.involuntary': 'Involuntary admission changed',
+  'mentalhealth.restrictive': 'Restrictive intervention recorded',
+  'donors.donor': 'Blood donor record changed',
+  'donors.donation': 'Blood donation recorded',
 };
 export const actionLabel = (a: string) => (ACTION_LABELS[a] ? t(ACTION_LABELS[a]) : humanize(a));

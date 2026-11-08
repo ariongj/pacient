@@ -107,6 +107,14 @@ import { RostersPage } from './pages/rosters/RostersPage';
 import { HomeCarePage } from './pages/homecare/HomeCarePage';
 import { PortalHomeVisitsPage } from './pages/homecare/PortalHomeVisitsPage';
 import { EquipmentPage } from './pages/equipment/EquipmentPage';
+import { RemoteMonitoringPage } from './pages/remote/RemoteMonitoringPage';
+import { PortalReadingsPage } from './pages/remote/PortalReadingsPage';
+import { OncologyPage } from './pages/oncology/OncologyPage';
+import { DialysisPage } from './pages/dialysis/DialysisPage';
+import { MentalHealthPage } from './pages/mentalhealth/MentalHealthPage';
+import { BloodDonorsPage } from './pages/donors/BloodDonorsPage';
+import { PortalDonorPage } from './pages/donors/PortalDonorPage';
+import { OpenDataPage } from './pages/opendata/OpenDataPage';
 
 const STAFF: Role[] = ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
 const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{el}</RequireRole>;
@@ -126,6 +134,7 @@ export function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/setup-two-step" element={<MfaSetupPage />} />
       <Route path="/verify" element={<VerifyCertificatePage />} />
+      <Route path="/open-data" element={<OpenDataPage />} />
       <Route path="/verify/:code" element={<VerifyCertificatePage />} />
       <Route path="/" element={<HomeRedirect />} />
 
@@ -327,6 +336,31 @@ export function App() {
           path="/equipment"
           element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <EquipmentPage />)}
         />
+        <Route
+          path="/remote-monitoring"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR'], <RemoteMonitoringPage />)}
+        />
+        <Route path="/portal/readings" element={guard(['PATIENT'], <PortalReadingsPage />)} />
+        <Route
+          path="/oncology"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <OncologyPage />)}
+        />
+        <Route
+          path="/dialysis"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <DialysisPage />)}
+        />
+        <Route
+          path="/mental-health"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <MentalHealthPage />)}
+        />
+        <Route
+          path="/blood-donors"
+          element={guard(
+            ['DOCTOR', 'NURSE', 'RECEPTION', 'DIRECTOR', 'MINISTRY'],
+            <BloodDonorsPage />,
+          )}
+        />
+        <Route path="/portal/blood-donation" element={guard(['PATIENT'], <PortalDonorPage />)} />
         <Route path="/deaths" element={guard(['DOCTOR', 'DIRECTOR', 'MINISTRY'], <DeathsPage />)} />
         <Route path="/certificates" element={guard(['DOCTOR', 'DIRECTOR'], <CertificatesPage />)} />
         <Route

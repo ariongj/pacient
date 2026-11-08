@@ -46,6 +46,12 @@ import { sepsis } from './sepsis';
 import { rosters } from './rosters';
 import { homecare } from './homecare';
 import { equipment } from './equipment';
+import { remote } from './remote';
+import { oncology } from './oncology';
+import { dialysis } from './dialysis';
+import { mentalhealth } from './mentalhealth';
+import { donors } from './donors';
+import { opendata } from './opendata';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -96,4 +102,10 @@ export const sq: Record<string, string> = {
   ...rosters,
   ...homecare,
   ...equipment,
+  ...remote,
+  ...oncology,
+  ...dialysis,
+  ...mentalhealth,
+  ...donors,
+  ...opendata,
 };

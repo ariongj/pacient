@@ -57,66 +57,68 @@ export function PortalHomeVisitsPage() {
                   title={e.teamName}
                   actions={<EpisodeStatusBadge status={e.status} />}
                 >
-                  <DefinitionList
-                    items={[
-                      [t('Team'), `${e.teamName} – ${e.teamFacilityName}`],
-                      [t('Address for visits'), e.visitAddress],
-                      ...(e.startedAt
-                        ? ([[t('Since'), formatDate(e.startedAt)]] as [string, string][])
-                        : []),
-                      ...(e.endedAt
-                        ? ([[t('Ended'), formatDate(e.endedAt)]] as [string, string][])
-                        : []),
-                      ...(e.carePlan
-                        ? ([
-                            [t('Goals of care'), e.carePlan.goals || '—'],
-                            [t('Care at home'), taskList(e.carePlan.tasks)],
-                          ] as [string, string][])
-                        : []),
-                    ]}
-                  />
-                  <h3>{t('Upcoming visits')}</h3>
-                  {e.upcoming.length === 0 ? (
-                    <p className="muted">
-                      {e.status === 'REFERRED'
-                        ? t('The team will contact you to agree the first visit.')
-                        : t('No visits planned at the moment.')}
-                    </p>
-                  ) : (
-                    <Table caption={t('Upcoming visits')}>
-                      <thead>
-                        <tr>
-                          <th>{t('Day')}</th>
-                          <th>{t('Time')}</th>
-                          <th>{t('Nurse')}</th>
-                          {!data.limited && <th>{t('Care')}</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {e.upcoming.map((v) => (
-                          <tr key={v.id}>
-                            <td>{formatDayHeading(new Date(v.scheduledFor))}</td>
-                            <td>{formatTime(v.scheduledFor)}</td>
-                            <td>{v.nurse ?? t('To be confirmed')}</td>
-                            {!data.limited && <td>{taskList(v.tasks)}</td>}
+                  <div className="stack">
+                    <DefinitionList
+                      items={[
+                        [t('Team'), `${e.teamName} – ${e.teamFacilityName}`],
+                        [t('Address for visits'), e.visitAddress],
+                        ...(e.startedAt
+                          ? ([[t('Since'), formatDate(e.startedAt)]] as [string, string][])
+                          : []),
+                        ...(e.endedAt
+                          ? ([[t('Ended'), formatDate(e.endedAt)]] as [string, string][])
+                          : []),
+                        ...(e.carePlan
+                          ? ([
+                              [t('Goals of care'), e.carePlan.goals || '—'],
+                              [t('Care at home'), taskList(e.carePlan.tasks)],
+                            ] as [string, string][])
+                          : []),
+                      ]}
+                    />
+                    <h3>{t('Upcoming visits')}</h3>
+                    {e.upcoming.length === 0 ? (
+                      <p className="muted">
+                        {e.status === 'REFERRED'
+                          ? t('The team will contact you to agree the first visit.')
+                          : t('No visits planned at the moment.')}
+                      </p>
+                    ) : (
+                      <Table caption={t('Upcoming visits')}>
+                        <thead>
+                          <tr>
+                            <th>{t('Day')}</th>
+                            <th>{t('Time')}</th>
+                            <th>{t('Nurse')}</th>
+                            {!data.limited && <th>{t('Care')}</th>}
                           </tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                  )}
-                  {e.recent.length > 0 && (
-                    <>
-                      <h3>{t('Recent visits')}</h3>
-                      <ul>
-                        {e.recent.map((v) => (
-                          <li key={v.id}>
-                            {formatDate(v.date)} – {visitStatusLabel(v.status)}
-                            {v.nurse ? ` (${v.nurse})` : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
+                        </thead>
+                        <tbody>
+                          {e.upcoming.map((v) => (
+                            <tr key={v.id}>
+                              <td>{formatDayHeading(new Date(v.scheduledFor))}</td>
+                              <td>{formatTime(v.scheduledFor)}</td>
+                              <td>{v.nurse ?? t('To be confirmed')}</td>
+                              {!data.limited && <td>{taskList(v.tasks)}</td>}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    )}
+                    {e.recent.length > 0 && (
+                      <>
+                        <h3>{t('Recent visits')}</h3>
+                        <ul>
+                          {e.recent.map((v) => (
+                            <li key={v.id}>
+                              {formatDate(v.date)} – {visitStatusLabel(v.status)}
+                              {v.nurse ? ` (${v.nurse})` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 </Card>
               ))}
               <p className="muted">

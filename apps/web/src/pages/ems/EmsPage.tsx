@@ -61,7 +61,7 @@ export function EmsPage() {
       />
       <QueryView query={services}>
         {(s) => (
-          <>
+          <div className="stack">
             {s.mine.length > 0 && <DispatchBoard services={s.mine} />}
             {user.role === 'DIRECTOR' && s.atFacility.length > 0 && (
               <Fleet services={s.atFacility} />
@@ -81,7 +81,7 @@ export function EmsPage() {
                 </EmptyState>
               </Card>
             )}
-          </>
+          </div>
         )}
       </QueryView>
     </>
@@ -333,7 +333,7 @@ function StatsSection() {
               <BarChart
                 title={t('Calls by month')}
                 data={s.byMonth.map((m) => ({
-                  label: formatMonth(`${m.month}-01`),
+                  label: formatMonth(m.month),
                   value: m.calls ?? 0,
                 }))}
               />
@@ -347,7 +347,7 @@ function StatsSection() {
                 <tbody>
                   {s.byMonth.map((m) => (
                     <tr key={m.month}>
-                      <td>{formatMonth(`${m.month}-01`)}</td>
+                      <td>{formatMonth(m.month)}</td>
                       <td className="num">{count(m.calls)}</td>
                     </tr>
                   ))}

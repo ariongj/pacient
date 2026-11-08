@@ -245,6 +245,8 @@ describe('dispatch and progress', () => {
     expect(alerts.length).toBeGreaterThan(0);
     expect(alerts.at(-1)!.title).toContain('P1');
     expect(alerts.at(-1)!.title).not.toContain('Test');
+    // No complaint in the title (it can go out by SMS): priority and arrival time only.
+    expect(alerts.at(-1)!.title).not.toMatch(/Dhimbje|:/);
     expect((await post(crew, `${id}/status`, { status: 'AT_HOSPITAL' })).status).toBe(200);
     expect((await post(crew, `${id}/status`, { status: 'AT_HOSPITAL' })).status).toBe(409);
   });

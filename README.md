@@ -94,6 +94,12 @@ bundle; infection prevention (isolation on the bed board, healthcare-associated 
 approval of reserve antibiotics; staff rosters and who is on call now; home care by community nursing
 teams; the medical equipment register with maintenance and faults.
 
+**Specialist programmes:** remote monitoring of home readings (blood pressure, glucose, weight,
+oxygen) with personal limits and urgent alerts; the cancer registry with tumour boards; haemodialysis
+schedules, sessions and adequacy; legal safeguards for admission without consent and restrictive
+interventions; blood donors from eligibility to tested units; and public open data (CSV/JSON, no
+sign-in) with small numbers hidden.
+
 **Running a national service:** a downtime kit (hourly encrypted offline ward lists with
 allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
 recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
@@ -262,6 +268,11 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   (`pharmacist@` decides), an overdue 72-hour review.
 - **Rosters, home care, equipment**: _Turnet dhe kujdestaria_ – who is on call tonight; _Kujdesi në
   shtëpi_ – the community nurses' day list; _Pajisjet mjekësore_ – a ventilator out of service.
+- **Specialist programmes**: _Monitorimi në distancë_ – an urgent home reading waiting for review
+  and a patient who stopped sending readings (the patient enters readings under _Matjet në shtëpi_);
+  _Regjistri i kancerit_ – the registry and next week's tumour board; _Dializa_ – the day board by
+  shift; _Mbrojtjet në shëndetin mendor_ – legal deadlines of admissions without consent; _Dhuruesit e gjakut_ –
+  the testing queue; _Të dhëna të hapura shëndetësore_ (link on the sign-in page) – the public open-data page (`/open-data`, no sign-in).
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and

@@ -10,7 +10,10 @@ import {
   notifications,
   patients,
 } from '../src/db/schema.js';
-import { addDays } from '../src/modules/certificates/certificates.service.js';
+import {
+  protectCertificateStats,
+  addDays,
+} from '../src/modules/certificates/certificates.service.js';
 import { kosovoDate } from '../src/modules/identity/identity.service.js';
 import { api, bearer, createUser, createWorld, login, nextNationalId } from './helpers.js';
 
@@ -474,6 +477,33 @@ describe('who sees certificates', () => {
 });
 
 describe('statistics and lookup', () => {
+  it('hides small counts and the counts that would give them away', () => {
+    const r = (month: string, kind: string, issued: number, days = 0) => ({
+      month,
+      kind,
+      issued,
+      revoked: 0,
+      days,
+    });
+    const out = protectCertificateStats([
+      r('2026-01', 'SICK_LEAVE', 10, 50),
+      r('2026-02', 'SICK_LEAVE', 2, 6),
+      r('2026-02', 'SCHOOL_ABSENCE', 7),
+      r('2026-03', 'SICK_LEAVE', 8, 30),
+    ]);
+    expect(out.rows.map((x) => x.issued)).toEqual([10, null, null, 8]);
+    // Days are hidden with their counts; February's sick-leave days alone could be worked out from
+    // the total, so March's are hidden too.
+    expect(out.rows.map((x) => x.days)).toEqual([50, null, null, null]);
+    expect(out.totals).toMatchObject({ issued: 27, sickLeaveCertificates: 20, sickLeaveDays: 86 });
+    const few = protectCertificateStats([r('2026-01', 'SICK_LEAVE', 3, 12)]);
+    expect(few.totals).toMatchObject({
+      issued: null,
+      sickLeaveDays: null,
+      averageSickLeaveDays: null,
+    });
+  });
+
   it('gives directors and the Ministry aggregate figures only', async () => {
     const stats = await api().get('/api/v1/certificates/stats').set(bearer(w.tokens.director));
     expect(stats.status).toBe(200);

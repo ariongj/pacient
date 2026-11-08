@@ -6,6 +6,7 @@ import { encounters, facilities, medicalCertificates, patients, users } from '..
 import { env } from '../../config/env.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import { kosovoDate } from '../identity/identity.service.js';
+import { suppressGroup, THRESHOLD } from '../opendata/suppression.js';
 
 /**
  * Medical certificates: sick leave, fitness (work, sports, driving), school absence and general
@@ -441,19 +442,57 @@ export async function certificateStats(opts: {
     .where(where)
     .groupBy(month, medicalCertificates.kind)
     .orderBy(month, medicalCertificates.kind);
-  const sick = rows.filter((r) => r.kind === 'SICK_LEAVE');
-  const sickCount = sick.reduce((a, r) => a + r.issued, 0);
-  const sickDays = sick.reduce((a, r) => a + r.days, 0);
+  return { from: opts.from, to: opts.to, ...protectCertificateStats(rows) };
+}
+
+type StatRow = { month: string; kind: string; issued: number; revoked: number; days: number };
+
+/**
+ * Small-cell protection: issued and revoked counts of 1–4 are hidden, with a second count hidden
+ * where a single one could be worked out from the totals. Sick-leave days are hidden with their
+ * certificate count (few certificates would reveal one person's leave), and the totals derived
+ * from hidden values are hidden too when they would give a hidden value away.
+ */
+export function protectCertificateStats(rows: StatRow[]) {
+  const issuedTotal = rows.reduce((a, r) => a + r.issued, 0);
+  const revokedTotal = rows.reduce((a, r) => a + r.revoked, 0);
+  const issued = suppressGroup(
+    rows.map((r) => r.issued),
+    issuedTotal,
+  );
+  const revoked = suppressGroup(
+    rows.map((r) => r.revoked),
+    revokedTotal,
+  );
+  const sickIdx = rows.flatMap((r, i) => (r.kind === 'SICK_LEAVE' ? [i] : []));
+  const sickCount = sickIdx.reduce((a, i) => a + rows[i]!.issued, 0);
+  const sickDays = sickIdx.reduce((a, i) => a + rows[i]!.days, 0);
+  const daysHidden = rows.map((_, i) => issued.hidden[i]!);
+  let sickTotalsHidden = sickCount > 0 && sickCount < THRESHOLD;
+  // One hidden sick-leave month could be worked out from the total days: hide another, or the total.
+  if (!sickTotalsHidden && sickIdx.filter((i) => daysHidden[i]).length === 1) {
+    const other = sickIdx
+      .filter((i) => !daysHidden[i] && rows[i]!.days > 0)
+      .sort((a, b) => rows[a]!.days - rows[b]!.days)[0];
+    if (other !== undefined) daysHidden[other] = true;
+    else sickTotalsHidden = true;
+  }
   return {
-    from: opts.from,
-    to: opts.to,
-    rows,
+    smallCellThreshold: THRESHOLD,
+    rows: rows.map((r, i) => ({
+      month: r.month,
+      kind: r.kind,
+      issued: issued.hidden[i] ? null : r.issued,
+      revoked: revoked.hidden[i] ? null : r.revoked,
+      days: daysHidden[i] ? null : r.days,
+    })),
     totals: {
-      issued: rows.reduce((a, r) => a + r.issued, 0),
-      revoked: rows.reduce((a, r) => a + r.revoked, 0),
-      sickLeaveCertificates: sickCount,
-      sickLeaveDays: sickDays,
-      averageSickLeaveDays: sickCount ? Math.round((sickDays / sickCount) * 10) / 10 : null,
+      issued: issued.totalHidden ? null : issuedTotal,
+      revoked: revoked.totalHidden ? null : revokedTotal,
+      sickLeaveCertificates: sickTotalsHidden ? null : sickCount,
+      sickLeaveDays: sickTotalsHidden ? null : sickDays,
+      averageSickLeaveDays:
+        sickTotalsHidden || !sickCount ? null : Math.round((sickDays / sickCount) * 10) / 10,
     },
   };
 }

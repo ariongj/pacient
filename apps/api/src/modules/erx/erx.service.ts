@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
@@ -10,7 +10,7 @@ import {
   partnerClients,
   prescriptions,
 } from '../../db/schema.js';
-import { badRequest } from '../../lib/errors.js';
+import { badRequest, conflict } from '../../lib/errors.js';
 import { requestMeta, type AuthContext } from '../../lib/http.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient } from '../notifications/notifications.service.js';
@@ -182,9 +182,11 @@ export async function issueEPrescription(
           repeatsAllowed: terms.repeatsAllowed,
           communityValidUntil: validUntil,
         })
-        .where(eq(prescriptions.id, prescriptionId))
+        // Never replace a code already issued (two simultaneous requests: one wins).
+        .where(and(eq(prescriptions.id, prescriptionId), isNull(prescriptions.ePrescriptionCode)))
         .returning();
-      return row!;
+      if (!row) throw conflict('This prescription is already an e-prescription');
+      return row;
     } catch (err) {
       // A collision is astronomically unlikely; retry a couple of times on the unique index.
       if (attempt >= 2 || !String((err as { code?: string }).code ?? '').startsWith('23')) {
@@ -303,14 +305,7 @@ export async function recordIssued(
     },
     tx,
   );
-  const confidential = rx.encounterId
-    ? (
-        await tx
-          .select({ c: encounters.confidentialFromGuardians })
-          .from(encounters)
-          .where(eq(encounters.id, rx.encounterId))
-      )[0]?.c === true
-    : false;
+  const confidential = await confidentialFromGuardians(tx, rx);
   // Never the code or the medicine in a notification: the portal shows both after sign-in.
   await notifyPatient(
     rx.patientId,
@@ -322,6 +317,19 @@ export async function recordIssued(
     tx,
     { guardians: confidential ? 'none' : 'full' },
   );
+}
+
+/** True when the prescription belongs to a visit kept confidential from guardians. */
+export async function confidentialFromGuardians(
+  tx: Executor,
+  rx: Pick<typeof prescriptions.$inferSelect, 'encounterId'>,
+): Promise<boolean> {
+  if (!rx.encounterId) return false;
+  const [e] = await tx
+    .select({ c: encounters.confidentialFromGuardians })
+    .from(encounters)
+    .where(eq(encounters.id, rx.encounterId));
+  return e?.c === true;
 }
 
 export async function notifyEPrescriptionCancelled(
@@ -336,5 +344,6 @@ export async function notifyEPrescriptionCancelled(
       link: '/portal/e-prescriptions',
     },
     tx,
+    { guardians: (await confidentialFromGuardians(tx, rx)) ? 'none' : 'full' },
   );
 }

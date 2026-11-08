@@ -44,6 +44,9 @@ const PAGES = {
     '/portal/wishes',
     '/portal/complaints',
     '/portal/home-visits',
+    '/portal/readings',
+    '/portal/blood-donation',
+    '/open-data',
   ],
   'doctor@pacient.local': [
     '/doctor',
@@ -73,6 +76,10 @@ const PAGES = {
     '/rosters',
     '/home-care',
     '/equipment',
+    '/remote-monitoring',
+    '/oncology',
+    '/dialysis',
+    '/mental-health',
   ],
   'nurse@pacient.local': [
     '/nurse',
@@ -81,6 +88,8 @@ const PAGES = {
     '/vaccinations/due',
     '/births',
     '/identities',
+    '/dialysis',
+    '/blood-donors',
   ],
   'pharmacist@pacient.local': ['/pharmacy', '/pharmacy/stock', '/e-prescriptions'],
   'reception@pacient.local': ['/reception', '/reception/patients', '/billing', '/complaints'],
@@ -101,6 +110,11 @@ const PAGES = {
     '/licences',
     '/equipment',
     '/rosters',
+    '/remote-monitoring',
+    '/oncology',
+    '/dialysis',
+    '/mental-health',
+    '/blood-donors',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -122,6 +136,10 @@ const PAGES = {
     '/ems',
     '/infection',
     '/equipment',
+    '/oncology',
+    '/dialysis',
+    '/mental-health',
+    '/blood-donors',
   ],
 };
 

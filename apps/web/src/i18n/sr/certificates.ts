@@ -185,4 +185,6 @@ export const certificates: Record<string, string> = {
   'Revoke a certificate': 'Opozovi uverenje',
   'Verify a certificate by its QR code': 'Proveri uverenje putem QR koda',
   'the issuing DOCTOR': 'LEKAR koji ga je izdao',
+  'Counts below {n} are hidden, as are counts from which a hidden one could be worked out.':
+    'Brojevi manji od {n} se skrivaju, kao i brojevi iz kojih bi se mogao izračunati skriveni broj.',
 };

@@ -19,6 +19,7 @@ import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
   assertFullProxyScope,
+  auditRecordView,
   resolveAndAuditRead,
   WRITERS,
 } from '../access/policy.js';
@@ -863,6 +864,9 @@ screeningRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
   const ctx = requireAuth(req);
   if (!ctx.patientId) throw forbidden();
   assertFullProxyScope(ctx);
+  if (ctx.proxy) {
+    await auditRecordView(ctx, ctx.patientId, 'GUARDIAN', 'screening', requestMeta(req));
+  }
   const person = await personOf(ctx.patientId);
   if (!person) throw notFound('Patient not found');
   const { programmes, optOuts } = await statusesFor(person);

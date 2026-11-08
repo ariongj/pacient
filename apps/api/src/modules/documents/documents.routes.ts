@@ -3,7 +3,7 @@ import express, { Router, type Request, type RequestHandler } from 'express';
 import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
-import { documentCategoryEnum, patientDocuments } from '../../db/schema.js';
+import { documentCategoryEnum, encounters, patientDocuments } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, HttpError } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
@@ -11,6 +11,7 @@ import { sealBuffer } from '../../lib/secret-box.js';
 import { authenticate } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
+  resolveAndAuditRead,
   resolveClinicalReadAccess,
   WRITERS,
   type ClinicalAccessBasis,
@@ -189,6 +190,16 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
   if (!fromPatient && !q.category) throw badRequest('Choose a document category');
   if (!fromPatient && q.encounterId)
     await assertEncounterBelongsToPatient(q.encounterId, patientId);
+  // A document of a visit hidden from guardians is hidden from them too (and not announced).
+  const encounterConfidential =
+    !fromPatient && q.encounterId
+      ? (
+          await db
+            .select({ c: encounters.confidentialFromGuardians })
+            .from(encounters)
+            .where(eq(encounters.id, q.encounterId))
+        )[0]?.c === true
+      : false;
   const id = randomUUID();
   const createdAt = new Date();
   const placement = plannedStorage(id, createdAt);
@@ -207,7 +218,9 @@ documentsRouter.post('/', authoriseUpload, rawBody, async (req, res) => {
     scanStatus,
     source: fromPatient ? 'PATIENT' : 'STAFF',
     visibleToPatient: fromPatient ? true : (q.visibleToPatient ?? false),
-    confidentialFromGuardians: fromPatient ? false : (q.confidentialFromGuardians ?? false),
+    confidentialFromGuardians: fromPatient
+      ? false
+      : encounterConfidential || (q.confidentialFromGuardians ?? false),
     facilityId: ctx.facilityId ?? null,
     uploadedById: ctx.userId,
   };
@@ -394,7 +407,7 @@ documentsRouter.post('/:documentId/versions', authoriseUpload, rawBody, async (r
 documentsRouter.get('/:documentId/versions', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId, documentId } = parse(DocumentParams, req.params);
-  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'documents');
   const view = viewFor(basis);
   await getDocument(patientId, documentId, view);
   const items = await listVersions(patientId, documentId, view);
@@ -404,7 +417,7 @@ documentsRouter.get('/:documentId/versions', async (req, res) => {
 documentsRouter.get('/', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
-  const basis = await resolveClinicalReadAccess(ctx, patientId, requestMeta(req));
+  const basis = await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'documents');
   const items = await listDocuments(patientId, viewFor(basis));
   res.json({ items: items.map(publicDocument) });
 });

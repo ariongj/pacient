@@ -386,6 +386,8 @@ export async function runAntenatalRemindersOnce(now = new Date()): Promise<numbe
           link: `/portal/pregnancy?visit=${row.visit_id}&patient=${row.patient_id}`,
         },
         tx,
+        // A pregnancy is confidential to the young person: never tell guardians.
+        { guardians: 'none' },
       );
       return true;
     });

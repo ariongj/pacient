@@ -63,13 +63,20 @@ export function PortalWaitingListsPage() {
 function EntryCard({ e }: { e: MyWaitingEntry }) {
   const active = ['WAITING', 'SCHEDULED', 'SUSPENDED'].includes(e.status);
   return (
-    <Card title={e.procedureName} actions={<WaitingStatusBadge status={e.status} />}>
+    <Card
+      title={e.procedureName ?? t('Planned treatment')}
+      actions={<WaitingStatusBadge status={e.status} />}
+    >
       <DefinitionList
         items={[
           [t('Facility'), e.facilityName],
-          [t('Specialty'), specialtyLabel(e.specialty)],
+          ...(e.specialty
+            ? ([[t('Specialty'), specialtyLabel(e.specialty)]] as [string, string][])
+            : []),
           [t('Type'), kindLabel(e.kind)],
-          [t('Priority'), priorityLabel(e.priority)],
+          ...(e.priority
+            ? ([[t('Priority'), priorityLabel(e.priority)]] as [string, string][])
+            : []),
           [t('Added to the list'), formatDate(e.addedAt)],
           ...(active
             ? ([

@@ -31,6 +31,7 @@ import {
   AMENDABLE_FIELDS,
   amendmentsFor,
   buildMortalityStats,
+  wholeMonths,
   checkDeath,
   DeathFields,
   deathsForStats,
@@ -217,8 +218,12 @@ deathsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (req, res)
   const ctx = requireAuth(req);
   const q = parse(StatsQuery, req.query);
   const now = new Date();
-  const to = q.to ?? new Date(now.getTime() + 86_400_000);
-  const from = q.from ?? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + 1, 1));
+  // Whole months only: overlapping periods that differ by a day could otherwise be subtracted
+  // from each other to reveal a single death.
+  const { from, to } = wholeMonths(
+    q.from ?? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + 1, 1)),
+    q.to ?? new Date(now.getTime() + 86_400_000),
+  );
   if (from >= to) throw badRequest('The start must be before the end');
   if (to.getTime() - from.getTime() > 5 * 366 * 86_400_000) {
     throw badRequest('Choose a period of at most five years');

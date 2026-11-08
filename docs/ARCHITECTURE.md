@@ -429,4 +429,22 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
 - **Equipment** (`modules/equipment`, `/equipment`): `equipment_items` and append-only
   `equipment_events` (service, fault, repair, status); faults on life-support items take them out of
   service; daily maintenance alerts.
+- **Remote monitoring** (`modules/remote`, `/remote-monitoring`): `monitoring_plans` (one active per
+  patient, limits stored with the plan) and `home_readings` flagged NORMAL / OUT_OF_RANGE / URGENT;
+  urgent readings notify the care team at once; a daily digest per doctor. Home readings are never
+  copied into `vital_signs` (uncalibrated, patient-entered).
+- **Oncology** (`modules/oncology`, `/oncology`): `cancer_cases` coded ICD-10 / ICD-O-3 / TNM with
+  coding warnings and a duplicate check; death-certificate-only cases from signed death
+  certificates; `mdt_meetings` and `mdt_case_reviews` for tumour boards.
+- **Dialysis** (`modules/dialysis`, `/dialysis`): `dialysis_schedules` with station capacity
+  (beds of the `DIALYSIS` unit) and `dialysis_sessions` planned 14 days ahead; URR and spKt/V.
+- **Mental health** (`modules/mentalhealth`, `/mental-health`): `involuntary_admissions` with legal
+  clocks per step and an hourly reminder worker; `restrictive_interventions` with observations and
+  debriefs. Narrower access than the rest of the chart (no break-glass).
+- **Blood donors** (`modules/donors`, `/blood-donors`): `blood_donors` and `blood_donations`
+  (append-only apart from the reaction and unit link); no `blood_units` row exists until the
+  donation is tested.
+- **Open data** (`modules/opendata`, `/api/v1/open-data`, public): nine national datasets built from
+  live tables with primary and complementary small-cell suppression (`opendata/suppression.ts`),
+  cached for 10 minutes, rate limited, CSV with formula-injection protection.
 - **Capacity**: see [PERFORMANCE.md](PERFORMANCE.md).

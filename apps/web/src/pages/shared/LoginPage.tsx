@@ -297,6 +297,9 @@ export function LoginPage() {
       <p style={{ marginTop: '1rem' }}>
         <Link to="/forgot-password">{t('Forgot your password?')}</Link>
       </p>
+      <p className="muted" style={{ fontSize: '0.85rem' }}>
+        <Link to="/open-data">{t('Open health data')}</Link>
+      </p>
       {DEMO.length > 0 && (
         <div className="demo-accounts">
           <p className="muted">

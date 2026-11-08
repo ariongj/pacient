@@ -463,9 +463,18 @@ async function present(row: Incident, staff: boolean) {
       .map((r) => ({ recordedAt: r.recordedAt, data: r.data })),
     patient?.dateOfBirth ?? null,
   );
+  const base = summary(row);
+  const identityWithheld = !staff && row.status === 'TRANSPORTING' && Boolean(patient);
   return {
-    ...summary(row),
-    patient: patient ?? null,
+    ...base,
+    // The receiving ED needs the patient and the clinical record, not who called or the exact
+    // address of the scene (the municipality stays).
+    ...(staff
+      ? {}
+      : { callerName: null, callerPhone: null, address: null, latitude: null, longitude: null }),
+    // As on the incoming list: no identity for the ED before it takes over the patient.
+    patient: identityWithheld ? null : (patient ?? null),
+    identityWithheld,
     vehicle: vehicle ? { id: vehicle.id, callSign: vehicle.callSign, level: vehicle.level } : null,
     destination: destination ?? null,
     careRecords: records,
@@ -700,7 +709,10 @@ emsRouter.post('/incidents/:id/status', requireRole('DOCTOR', 'NURSE'), async (r
   res.json(await present(result, true));
 });
 
-/** Pre-alert to the destination emergency department (no patient name). */
+/**
+ * Pre-alert to the destination emergency department: priority and arrival time only. Titles can go
+ * out by SMS or e-mail, so the complaint stays in the ED view behind sign-in.
+ */
 async function preAlert(
   row: Incident,
   etaMinutes: number,
@@ -712,8 +724,8 @@ async function preAlert(
     recipients,
     {
       type: 'ems_prealert',
-      title: 'Ambulance {priority} arriving in about {minutes} min: {complaint}',
-      vars: { priority: row.priority, minutes: etaMinutes, complaint: row.complaint },
+      title: 'Ambulance {priority} arriving in about {minutes} min',
+      vars: { priority: row.priority, minutes: etaMinutes },
       link: '/ed',
     },
     tx,

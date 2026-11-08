@@ -16,6 +16,10 @@ import {
   scheduleTimes,
   serialiseCarePlan,
 } from '../src/modules/homecare/homecare.service.js';
+import {
+  resetLicenceAuditMemory,
+  setLicenceEnforcementForTests,
+} from '../src/modules/licences/licences.service.js';
 import { api, bearer, createPatient, createUser, createWorld, login } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -320,6 +324,35 @@ describe('the team at work', () => {
           .send({ notes: 'sërish' })
       ).status,
     ).toBe(409);
+  });
+
+  it('refuses visit work by a team member without a valid licence (enforcement on)', async () => {
+    const created = await api()
+      .post(`/api/v1/home-care/episodes/${episodeId}/visits`)
+      .set(nurse())
+      .send({
+        startAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+        frequency: 'ONCE',
+        assignedToId: teamNurse2.id,
+        tasks: ['OBSERVATIONS'],
+      });
+    expect(created.status).toBe(201);
+    const visitId = created.body.items[0].id;
+    setLicenceEnforcementForTests('on');
+    resetLicenceAuditMemory();
+    try {
+      const res = await api()
+        .post(`/api/v1/home-care/visits/${visitId}/check-in`)
+        .set(bearer(teamNurse2Token));
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('LICENCE_INVALID');
+    } finally {
+      setLicenceEnforcementForTests(undefined);
+    }
+    await api()
+      .post(`/api/v1/home-care/visits/${visitId}/cancel`)
+      .set(nurse())
+      .send({ reason: 'Test' });
   });
 
   it('tells the referring doctor and the team once when a medication visit is missed', async () => {

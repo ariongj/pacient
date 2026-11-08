@@ -18,6 +18,7 @@ import { hashToken } from '../../lib/tokens.js';
 import { notifyPatient } from '../notifications/notifications.service.js';
 import { auditPartner, requireScope } from '../partner/partner.auth.js';
 import {
+  confidentialFromGuardians,
   dispensingsFor,
   effectiveDispensings,
   eprescriptionStatus,
@@ -273,6 +274,7 @@ erxPartnerRouter.post('/:code/dispense', failedLookupLimiter, async (req, res) =
         link: '/portal/e-prescriptions',
       },
       tx,
+      { guardians: (await confidentialFromGuardians(tx, rx)) ? 'none' : 'full' },
     );
     return {
       created: created!,

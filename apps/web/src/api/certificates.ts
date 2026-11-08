@@ -118,12 +118,20 @@ export interface CertificateVerification {
 export interface CertificateStats {
   from: string;
   to: string;
-  rows: { month: string; kind: CertificateKind; issued: number; revoked: number; days: number }[];
+  /** Counts below this are hidden (null), as are counts that would let one be worked out. */
+  smallCellThreshold: number;
+  rows: {
+    month: string;
+    kind: CertificateKind;
+    issued: number | null;
+    revoked: number | null;
+    days: number | null;
+  }[];
   totals: {
-    issued: number;
-    revoked: number;
-    sickLeaveCertificates: number;
-    sickLeaveDays: number;
+    issued: number | null;
+    revoked: number | null;
+    sickLeaveCertificates: number | null;
+    sickLeaveDays: number | null;
     averageSickLeaveDays: number | null;
   };
 }

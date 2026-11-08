@@ -175,6 +175,12 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Staff rosters, on-call, staffing ratios                                                   | ✅ (rules to confirm)               |
 | Home care and community nursing                                                           | ✅                                  |
 | Medical equipment register and maintenance                                                | ✅                                  |
+| Remote patient monitoring (home readings)                                                 | ✅ (limits to confirm)              |
+| Cancer registry and tumour boards                                                         | ✅                                  |
+| Haemodialysis                                                                             | ✅ (targets to confirm)             |
+| Mental health legal safeguards                                                            | ✅ (time limits to confirm)         |
+| Blood donors                                                                              | ✅ (rules to confirm)               |
+| Public open data                                                                          | ✅ (licence to confirm)             |
 | Load test and capacity baseline                                                           | ✅ (`docs/PERFORMANCE.md`)          |
 
 ## Open decisions (§10) — needed from the project sponsor

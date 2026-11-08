@@ -574,12 +574,24 @@ complaintsRouter.post('/', requireRole('RECEPTION', 'DIRECTOR'), async (req, res
     throw badRequest('Record a complaint within 30 days of receiving it');
   }
   const [p] = await db
-    .select({ id: patients.id, mergedIntoId: patients.mergedIntoId })
+    .select({
+      id: patients.id,
+      mergedIntoId: patients.mergedIntoId,
+      primaryFacilityId: patients.primaryFacilityId,
+    })
     .from(patients)
     .where(eq(patients.nationalId, input.patientNationalId));
-  if (!p) throw badRequest('No patient with this national ID number');
-  const patientId = p.mergedIntoId ?? p.id;
   const facilityId = ctx.facilityId;
+  // Only people registered or recently cared for here; the same answer for unknown and
+  // inaccessible numbers, so the form cannot be used to look people up nationally.
+  const reachable =
+    p &&
+    (p.primaryFacilityId === facilityId ||
+      (await hadRecentCare(p.mergedIntoId ?? p.id, facilityId, now)));
+  if (!p || !reachable) {
+    throw badRequest('No person with this national ID number is registered or treated here');
+  }
+  const patientId = p.mergedIntoId ?? p.id;
   const row = await db.transaction(async (tx) => {
     const reference = await nextComplaintReference(tx, now);
     const [created] = await tx
@@ -616,7 +628,8 @@ complaintsRouter.post('/', requireRole('RECEPTION', 'DIRECTOR'), async (req, res
     );
     return created!;
   });
-  res.status(201).json(await staffView(row, ctx.role === 'DIRECTOR' ? 'director' : null));
+  // Contact details are not echoed back; the complaint is opened from the list.
+  res.status(201).json({ id: row.id, reference: row.reference, status: row.status });
 });
 
 const ListQuery = PaginationSchema.extend({

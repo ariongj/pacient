@@ -19,6 +19,7 @@ import {
   checkDeath,
   chapterOf,
   buildMortalityStats,
+  wholeMonths,
 } from '../src/modules/deaths/deaths.service.js';
 import { api, bearer, createPatient, createUser, createWorld, login, PASSWORD } from './helpers.js';
 
@@ -177,8 +178,39 @@ describe('certification rules', () => {
       },
     );
     expect(stats.total).toBe(8);
-    expect(stats.byChapter.find((c) => c.chapter === 'IX')?.count).toBe(6);
-    expect(stats.byChapter.find((c) => c.chapter === 'II')?.count).toBeNull();
+    // Chapter II (2 deaths) is not named; it is pooled, and since 8 − 6 would reveal the pooled
+    // count, chapter IX is hidden as well (complementary suppression).
+    expect(stats.byChapter.find((c) => c.chapter === 'II')).toBeUndefined();
+    expect(stats.byChapter.map((c) => [c.chapter, c.count])).toEqual([
+      ['IX', null],
+      ['OTHER', null],
+    ]);
+    // 6 men, 2 women in one band: the women are hidden, so the men are too; the band total stays.
+    const band = stats.byAgeBand.find((b) => b.total !== 0);
+    expect(band).toMatchObject({ male: null, female: null, total: 8 });
+    const more = buildMortalityStats(
+      [
+        ...Array.from({ length: 6 }, () => d('I21.9')),
+        ...Array.from({ length: 5 }, () => d('C34.9')),
+        d('J18.9'),
+      ],
+      {
+        from: new Date(Date.now() - 30 * 86_400_000),
+        to: new Date(Date.now() + 86_400_000),
+        discharges: 0,
+        deceasedDischarges: 0,
+        threshold: 5,
+      },
+    );
+    // One pooled death: hidden, and the smallest named chapter is hidden with it.
+    expect(more.byChapter.map((c) => [c.chapter, c.count])).toEqual([
+      ['IX', 6],
+      ['II', null],
+      ['OTHER', null],
+    ]);
+    expect(wholeMonths(new Date('2026-03-14T10:00:00Z'), new Date('2026-05-02T00:00:00Z'))).toEqual(
+      { from: new Date('2026-03-01T00:00:00Z'), to: new Date('2026-06-01T00:00:00Z') },
+    );
     expect(stats.inHospital).toEqual({
       deaths: 8,
       discharges: 100,

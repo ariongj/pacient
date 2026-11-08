@@ -204,4 +204,6 @@ export const ems: Record<string, string> = {
   'NURSE of the destination emergency department': 'MEDICINSKA SESTRA odredišnog urgentnog centra',
   'Emergency calls, dispatch, pre-hospital care and handover to the emergency department.':
     'Hitni pozivi, dispečerstvo, prehospitalno zbrinjavanje i predaja urgentnom centru.',
+  'Shown when the emergency department takes over':
+    'Prikazuje se kada urgentno odeljenje preuzme pacijenta',
 };

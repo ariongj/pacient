@@ -136,4 +136,5 @@ export const waiting: Record<string, string> = {
   'After the target date': 'Pas datës së synuar',
   'Target date {date}. The patient is told the date and the facility, never the procedure.':
     'Data e synuar {date}. Pacienti njoftohet për datën dhe institucionin, asnjëherë për procedurën.',
+  'Planned treatment': 'Trajtim i planifikuar',
 };

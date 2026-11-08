@@ -38,8 +38,7 @@ import { t } from '../../i18n';
 
 function Statistics({ stats }: { stats: MortalityStats }) {
   const threshold = stats.suppressionThreshold;
-  const below = (n: number | null) =>
-    n === null ? t('fewer than {n}', { n: threshold }) : formatNumber(n);
+  const below = (n: number | null) => (n === null ? t('Hidden|small numbers') : formatNumber(n));
   return (
     <div className="stack">
       <Grid>
@@ -72,7 +71,10 @@ function Statistics({ stats }: { stats: MortalityStats }) {
         />
         {stats.byMonth.some((m) => m.count === null) && (
           <p className="muted">
-            {t('Months with fewer than {n} deaths are shown as 0.', { n: threshold })}
+            {t(
+              'Months whose count is hidden are shown as 0. A count is hidden when it is below {n}, or when a small count could be worked out from it.',
+              { n: threshold },
+            )}
           </p>
         )}
       </Card>
@@ -85,7 +87,7 @@ function Statistics({ stats }: { stats: MortalityStats }) {
             rows={stats.byChapter.map((c) => ({
               key: c.chapter,
               label: t(c.label),
-              sublabel: c.range,
+              sublabel: c.range || undefined,
               value: c.count,
               suppressed: c.count === null,
             }))}

@@ -105,7 +105,9 @@ function IncidentBody({ d, vehicles }: { d: IncidentDetail; vehicles: Vehicle[] 
             t('Patient'),
             d.patient
               ? `${displayName(d.patient as Parameters<typeof displayName>[0])} · ${d.patient.nationalId} · ${formatDate(d.patient.dateOfBirth)}`
-              : (d.patientDescription ?? t('Not identified yet')),
+              : d.identityWithheld
+                ? t('Shown when the emergency department takes over')
+                : (d.patientDescription ?? t('Not identified yet')),
           ],
           [t('Vehicle'), d.vehicle ? `${d.vehicle.callSign} (${d.vehicle.level})` : '—'],
           [t('Destination'), d.destination?.name ?? '—'],

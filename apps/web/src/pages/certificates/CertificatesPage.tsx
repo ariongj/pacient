@@ -131,11 +131,11 @@ function DirectorView() {
           {(s) => (
             <div className="stack">
               <Grid>
-                <Stat label={t('Certificates issued')} value={formatNumber(s.totals.issued)} />
-                <Stat label={t('Revoked|certificate')} value={formatNumber(s.totals.revoked)} />
+                <Stat label={t('Certificates issued')} value={shown(s.totals.issued)} />
+                <Stat label={t('Revoked|certificate')} value={shown(s.totals.revoked)} />
                 <Stat
                   label={t('Sick-leave days')}
-                  value={formatNumber(s.totals.sickLeaveDays)}
+                  value={shown(s.totals.sickLeaveDays)}
                   hint={
                     s.totals.averageSickLeaveDays !== null
                       ? t('{days} days per certificate on average', {
@@ -146,6 +146,12 @@ function DirectorView() {
                 />
               </Grid>
               <MonthlyTable rows={s.rows} />
+              <p className="muted">
+                {t(
+                  'Counts below {n} are hidden, as are counts from which a hidden one could be worked out.',
+                  { n: s.smallCellThreshold },
+                )}
+              </p>
             </div>
           )}
         </QueryView>
@@ -155,15 +161,28 @@ function DirectorView() {
   );
 }
 
+/** A count, or a dash with screen-reader text when it is hidden to protect privacy. */
+function shown(n: number | null) {
+  return n === null ? (
+    <span title={t('Hidden|small numbers')}>
+      –<span className="sr-only">{t('Hidden|small numbers')}</span>
+    </span>
+  ) : (
+    formatNumber(n)
+  );
+}
+
 function MonthlyTable({
   rows,
 }: {
-  rows: { month: string; kind: (typeof CERTIFICATE_KINDS)[number]; issued: number }[];
+  rows: { month: string; kind: (typeof CERTIFICATE_KINDS)[number]; issued: number | null }[];
 }) {
   const months = [...new Set(rows.map((r) => r.month))].sort().reverse();
   if (!months.length) return <EmptyState title={t('No certificates in this period')} />;
-  const count = (m: string, k: string) =>
-    rows.find((r) => r.month === m && r.kind === k)?.issued ?? 0;
+  const count = (m: string, k: string) => {
+    const row = rows.find((r) => r.month === m && r.kind === k);
+    return row ? row.issued : 0;
+  };
   return (
     <Table caption={t('Certificates by month and kind')}>
       <thead>
@@ -182,7 +201,7 @@ function MonthlyTable({
             <th scope="row">{formatMonth(m)}</th>
             {CERTIFICATE_KINDS.map((k) => (
               <td key={k} className="num">
-                {formatNumber(count(m, k))}
+                {shown(count(m, k))}
               </td>
             ))}
           </tr>

@@ -107,10 +107,11 @@ export interface PublicTimes {
 export interface MyWaitingEntry {
   id: string;
   facilityName: string;
-  specialty: string;
+  /** Null for guardians with appointments-only access (as are procedure, priority and reason). */
+  specialty: string | null;
   kind: WaitingKind;
-  procedureName: string;
-  priority: WaitingPriority;
+  procedureName: string | null;
+  priority: WaitingPriority | null;
   status: WaitingStatus;
   addedAt: string;
   targetDate: string;

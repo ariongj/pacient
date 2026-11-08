@@ -103,6 +103,7 @@ directivesRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
     // concern the child are shown with full guardian access only.
     if (ctx.proxy.scope !== 'FULL')
       throw forbidden('Your guardian access covers appointments only');
+    await auditRecordView(ctx, p.id, 'GUARDIAN', 'directives', requestMeta(req));
     res.json({
       acting: true,
       donation: { eligible: false, reason: 'GUARDIAN', current: null, history: [] },

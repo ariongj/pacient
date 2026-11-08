@@ -243,8 +243,13 @@ ePrescriptionsRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (r
     issued: suppress(t.issued),
     dispensed: suppress(t.dispensed),
     cancelled: suppress(t.cancelled),
+    // Only when neither count is suppressed (a percentage would reveal a hidden count).
     dispensedPct:
-      t.issued >= SMALL_CELL_THRESHOLD ? Math.round((t.dispensed / t.issued) * 1000) / 10 : null,
+      t.issued >= SMALL_CELL_THRESHOLD &&
+      (t.dispensed === 0 || t.dispensed >= SMALL_CELL_THRESHOLD) &&
+      (t.issued - t.dispensed === 0 || t.issued - t.dispensed >= SMALL_CELL_THRESHOLD)
+        ? Math.round((t.dispensed / t.issued) * 1000) / 10
+        : null,
     medianHoursToFirstDispensing:
       t.dispensed >= SMALL_CELL_THRESHOLD && t.median_hours !== null
         ? Math.round(Number(t.median_hours) * 10) / 10

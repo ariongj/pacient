@@ -187,4 +187,6 @@ export const certificates: Record<string, string> = {
   'Revoke a certificate': 'Anulo një vërtetim',
   'Verify a certificate by its QR code': 'Verifiko një vërtetim me kodin QR',
   'the issuing DOCTOR': 'MJEKU që e lëshoi',
+  'Counts below {n} are hidden, as are counts from which a hidden one could be worked out.':
+    'Numrat nën {n} fshihen, si edhe numrat nga të cilët mund të nxirret një numër i fshehur.',
 };

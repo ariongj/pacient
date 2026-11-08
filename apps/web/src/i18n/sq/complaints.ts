@@ -183,4 +183,6 @@ export const complaints: Record<string, string> = {
     'DREJTORI i institucionit, punonjësi i caktuar, MINISTRIA (nëse është përcjellë)',
   'DIRECTOR of the facility, the assigned member of staff':
     'DREJTORI i institucionit, punonjësi i caktuar',
+  'No person with this national ID number is registered or treated here':
+    'Asnjë person me këtë numër personal nuk është i regjistruar ose i trajtuar këtu',
 };

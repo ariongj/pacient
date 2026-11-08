@@ -459,11 +459,58 @@ export async function deathsForStats(opts: {
     .filter((d) => d.diedAt >= opts.from && d.diedAt < opts.to);
 }
 
+/**
+ * Small-cell protection for one group of counts. Counts from 1 to threshold − 1 are hidden, and
+ * when exactly one hidden count could be worked out from the published total (the residual of
+ * cells that are not listed, e.g. an unknown manner, counts as a cell), the smallest other count is
+ * hidden as well – or the total, when there is none. The residual is derivable by subtraction, so
+ * it is protected like a published cell.
+ */
+function protect(cells: number[], total: number, threshold: number) {
+  const isSmall = (n: number) => n > 0 && n < threshold;
+  const residual = Math.max(0, total - cells.reduce((a, b) => a + b, 0));
+  const all = residual > 0 ? [...cells, residual] : [...cells];
+  const hidden = all.map(isSmall);
+  let totalHidden = isSmall(total);
+  if (!totalHidden && hidden.filter(Boolean).length === 1) {
+    const r = all.length - 1;
+    let candidate = -1;
+    // The unlisted residual is never published, so hiding it costs nothing: prefer it.
+    if (residual > 0 && !hidden[r]) candidate = r;
+    else {
+      all.forEach((n, i) => {
+        if (hidden[i] || n <= 0) return;
+        if (candidate === -1 || n < all[candidate]!) candidate = i;
+      });
+    }
+    if (candidate >= 0) hidden[candidate] = true;
+    else totalHidden = true;
+  }
+  return {
+    cells: cells.map((n, i) => (hidden[i] ? null : n)),
+    total: totalHidden ? null : total,
+  };
+}
+
+/** Whole calendar months (UTC) around the requested period, so periods cannot be differenced. */
+export function wholeMonths(from: Date, to: Date) {
+  const start = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
+  const firstOfTo = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+  const end =
+    firstOfTo.getTime() === to.getTime()
+      ? firstOfTo
+      : new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() + 1, 1));
+  return { from: start, to: end };
+}
+
 export function buildMortalityStats(
   deaths: DeathForStats[],
   opts: { from: Date; to: Date; discharges: number; deceasedDischarges: number; threshold: number },
 ) {
-  const suppress = (n: number) => (n > 0 && n < opts.threshold ? null : n);
+  const th = opts.threshold;
+  const n = deaths.length;
+  const totalShown = n > 0 && n < th ? null : n;
+
   const months: string[] = [];
   for (
     let d = new Date(Date.UTC(opts.from.getUTCFullYear(), opts.from.getUTCMonth(), 1));
@@ -472,56 +519,98 @@ export function buildMortalityStats(
   ) {
     months.push(d.toISOString().slice(0, 7));
   }
-  const byMonth = months.map((month) => ({
-    month,
-    count: suppress(deaths.filter((x) => kosovoDate(x.diedAt).slice(0, 7) === month).length),
-  }));
+  const monthCounts = months.map(
+    (month) => deaths.filter((x) => kosovoDate(x.diedAt).slice(0, 7) === month).length,
+  );
+  const monthCells = protect(monthCounts, n, th).cells;
+  const byMonth = months.map((month, i) => ({ month, count: monthCells[i]! }));
+
+  // Chapters: only chapters with enough deaths are listed by name; the others are pooled in
+  // one row, so the table does not reveal that a rare cause occurred.
   const chapterCounts = new Map<string, number>();
   for (const x of deaths) {
     const ch = chapterOf(x.underlyingCauseIcd10)?.chapter ?? '?';
     chapterCounts.set(ch, (chapterCounts.get(ch) ?? 0) + 1);
   }
-  const byChapter = ICD10_CHAPTERS.filter((ch) => chapterCounts.has(ch.chapter))
-    .map((ch) => ({
+  const named = ICD10_CHAPTERS.filter((ch) => (chapterCounts.get(ch.chapter) ?? 0) >= th);
+  const pooled = n - named.reduce((a, ch) => a + chapterCounts.get(ch.chapter)!, 0);
+  const chapterCells = protect(
+    [...named.map((ch) => chapterCounts.get(ch.chapter)!), pooled],
+    n,
+    th,
+  ).cells;
+  const byChapter: { chapter: string; range: string; label: string; count: number | null }[] =
+    named.map((ch, i) => ({
       chapter: ch.chapter,
       range: `${ch.from}–${ch.to}`,
       label: ch.label,
-      count: suppress(chapterCounts.get(ch.chapter) ?? 0),
-    }))
-    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
-  const byAgeBand = AGE_BANDS.map((b) => {
+      count: chapterCells[i]!,
+    }));
+  byChapter.sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+  if (pooled > 0) {
+    byChapter.push({
+      chapter: 'OTHER',
+      range: '',
+      label: 'Other chapters (each with fewer deaths)',
+      count: chapterCells[named.length]!,
+    });
+  }
+
+  const bandRows = AGE_BANDS.map((b) => {
     const inBand = deaths.filter((x) => {
       const a = ageYears(x.dateOfBirth, x.diedAt);
       return a >= b.from && a <= b.to;
     });
     return {
       band: b.band,
-      male: suppress(inBand.filter((x) => x.sex === 'MALE').length),
-      female: suppress(inBand.filter((x) => x.sex === 'FEMALE').length),
-      total: suppress(inBand.length),
+      male: inBand.filter((x) => x.sex === 'MALE').length,
+      female: inBand.filter((x) => x.sex === 'FEMALE').length,
+      total: inBand.length,
     };
   });
-  const byManner = MANNERS_OF_DEATH.map((m) => ({
+  const bandTotals = protect(
+    bandRows.map((r) => r.total),
+    n,
+    th,
+  ).cells;
+  const byAgeBand = bandRows.map((r, i) => {
+    const total = bandTotals[i]!;
+    // A hidden band total hides its split too; otherwise the split is protected against it.
+    if (total === null) return { band: r.band, male: null, female: null, total: null };
+    const split = protect([r.male, r.female], r.total, th);
+    return { band: r.band, male: split.cells[0]!, female: split.cells[1]!, total: split.total };
+  });
+
+  const mannerCounts = MANNERS_OF_DEATH.map(
+    (m) => deaths.filter((x) => x.mannerOfDeath === m).length,
+  );
+  const mannerCells = protect(mannerCounts, n, th).cells;
+  const byManner = MANNERS_OF_DEATH.map((m, i) => ({
     manner: m,
-    count: suppress(deaths.filter((x) => x.mannerOfDeath === m).length),
-  })).filter((m) => m.count !== 0);
+    count: mannerCells[i]!,
+    raw: mannerCounts[i]!,
+  }))
+    .filter((m) => m.raw !== 0)
+    .map(({ manner, count }) => ({ manner, count }));
+
   const inHospital = deaths.filter(
     (x) => x.placeOfDeath === 'HOSPITAL' || x.placeOfDeath === 'EMERGENCY_DEPARTMENT',
   ).length;
-  const inHospitalShown = suppress(inHospital);
-  const deceasedShown = suppress(opts.deceasedDischarges);
+  const inHospitalCells = protect([inHospital], n, th).cells;
+  const deceasedShown =
+    opts.deceasedDischarges > 0 && opts.deceasedDischarges < th ? null : opts.deceasedDischarges;
   return {
     from: opts.from.toISOString(),
     to: opts.to.toISOString(),
-    suppressionThreshold: opts.threshold,
-    total: suppress(deaths.length),
+    suppressionThreshold: th,
+    total: totalShown,
     byMonth,
     byChapter,
     byAgeBand,
     byManner,
     inHospital: {
       /** Certificates with place of death hospital or emergency department. */
-      deaths: inHospitalShown,
+      deaths: inHospitalCells[0]!,
       discharges: opts.discharges,
       /** Hospital stays that ended with the outcome "deceased". */
       deceasedDischarges: deceasedShown,

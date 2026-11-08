@@ -56,8 +56,8 @@ export const deaths: Record<string, string> = {
     'Certifikatat mjekësore të shkakut të vdekjes (formulari ndërkombëtar i OBSH-së).',
   Men: 'Burra',
   Women: 'Gra',
-  'Months with fewer than {n} deaths are shown as 0.':
-    'Muajt me më pak se {n} vdekje shfaqen si 0.',
+  'Months whose count is hidden are shown as 0. A count is hidden when it is below {n}, or when a small count could be worked out from it.':
+    'Muajt me numër të fshehur shfaqen si 0. Një numër fshihet kur është më i vogël se {n}, ose kur nga ai mund të nxirret një numër i vogël.',
   'National mortality from signed death certificates (no names).':
     'Vdekshmëria kombëtare nga certifikatat e nënshkruara të vdekjes (pa emra).',
   'No death certificate': 'Nuk ka certifikatë vdekjeje',
@@ -223,4 +223,6 @@ export const deaths: Record<string, string> = {
   'Withdraw a certificate': 'Tërhiq një certifikatë',
   'Certificate {number} was withdrawn by the Ministry on {date}: {reason}':
     'Certifikata {number} u tërhoq nga Ministria më {date}: {reason}',
+  'Other chapters (each with fewer deaths)': 'Kapitujt e tjerë (secili me më pak vdekje)',
+  'Hidden|small numbers': 'E fshehur',
 };

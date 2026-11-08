@@ -190,7 +190,14 @@ export async function unitAccessVia(
             SELECT 1 FROM home_care_episodes hc
             WHERE hc.patient_id = ${patientId} AND hc.team_unit_id = cu.id
               AND hc.status IN ('REFERRED', 'ACTIVE', 'ON_HOLD')))
-      OR (cu.type::text = 'INFECTION_CONTROL' AND (
+      -- Infection control: only while the patient is admitted at the unit's facility, and only
+      -- when there is current infection work (isolation, a recent infection, an open request or
+      -- an approved reserve antibiotic still running without its review).
+      OR (cu.type::text = 'INFECTION_CONTROL'
+          AND EXISTS (SELECT 1 FROM admissions ad
+                      WHERE ad.patient_id = ${patientId} AND ad.facility_id = cu.facility_id
+                        AND ad.status = 'ADMITTED')
+          AND (
             EXISTS (SELECT 1 FROM isolation_orders io
                     WHERE io.patient_id = ${patientId} AND io.facility_id = cu.facility_id
                       AND io.ended_at IS NULL)
@@ -198,8 +205,11 @@ export async function unitAccessVia(
                        WHERE he.patient_id = ${patientId} AND he.facility_id = cu.facility_id
                          AND he.created_at > now() - interval '90 days')
             OR EXISTS (SELECT 1 FROM antimicrobial_approvals aa
+                       JOIN prescriptions rx ON rx.id = aa.prescription_id
                        WHERE aa.patient_id = ${patientId} AND aa.facility_id = cu.facility_id
-                         AND (aa.status = 'REQUESTED' OR aa.reviewed_at IS NULL))))
+                         AND (aa.status = 'REQUESTED'
+                              OR (aa.status = 'APPROVED' AND aa.reviewed_at IS NULL
+                                  AND rx.status = 'ACTIVE')))))
       OR (cu.type IN ('MATERNITY', 'NEONATAL') AND EXISTS (
             SELECT 1 FROM births b
             WHERE (b.newborn_patient_id = ${patientId} OR b.mother_patient_id = ${patientId})

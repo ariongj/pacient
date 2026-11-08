@@ -181,4 +181,6 @@ export const complaints: Record<string, string> = {
     'DIREKTOR ustanove, dodeljeni zaposleni, MINISTARSTVO (ako je prosleđena)',
   'DIRECTOR of the facility, the assigned member of staff':
     'DIREKTOR ustanove, dodeljeni zaposleni',
+  'No person with this national ID number is registered or treated here':
+    'Nijedna osoba sa ovim ličnim brojem nije registrovana niti lečena ovde',
 };

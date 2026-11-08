@@ -65,9 +65,16 @@ const StatsQuery = z.object({
 certificatesRouter.get('/stats', requireRole('DIRECTOR', 'MINISTRY'), async (req, res) => {
   const ctx = requireAuth(req);
   const q = parse(StatsQuery, req.query);
-  const to = q.to ?? kosovoDate(new Date());
-  const from = q.from ?? `${String(Number(to.slice(0, 4)) - 1)}${to.slice(4, 8)}01`;
-  if (from > to) throw badRequest('The start date must be before the end date.');
+  const requestedTo = q.to ?? kosovoDate(new Date());
+  const requestedFrom =
+    q.from ?? `${String(Number(requestedTo.slice(0, 4)) - 1)}${requestedTo.slice(4, 8)}01`;
+  if (requestedFrom > requestedTo) {
+    throw badRequest('The start date must be before the end date.');
+  }
+  // Whole months only, so that overlapping periods cannot be subtracted from each other.
+  const from = `${requestedFrom.slice(0, 7)}-01`;
+  const [y, m] = requestedTo.split('-').map(Number) as [number, number];
+  const to = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   const facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId : (q.facilityId ?? null);
   if (ctx.role === 'DIRECTOR' && !facilityId) throw forbidden();
   res.json(await certificateStats({ facilityId, from, to }));

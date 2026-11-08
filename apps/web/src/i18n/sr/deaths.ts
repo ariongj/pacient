@@ -56,8 +56,8 @@ export const deaths: Record<string, string> = {
     'Lekarske potvrde o uzroku smrti (međunarodni obrazac SZO).',
   Men: 'Muškarci',
   Women: 'Žene',
-  'Months with fewer than {n} deaths are shown as 0.':
-    'Meseci sa manje od {n} smrtnih ishoda prikazuju se kao 0.',
+  'Months whose count is hidden are shown as 0. A count is hidden when it is below {n}, or when a small count could be worked out from it.':
+    'Meseci sa skrivenim brojem prikazuju se kao 0. Broj se skriva kada je manji od {n} ili kada bi se iz njega mogao izračunati mali broj.',
   'National mortality from signed death certificates (no names).':
     'Nacionalna smrtnost iz potpisanih potvrda o smrti (bez imena).',
   'No death certificate': 'Nema potvrde o smrti',
@@ -220,4 +220,6 @@ export const deaths: Record<string, string> = {
   'Withdraw a certificate': 'Povuci potvrdu',
   'Certificate {number} was withdrawn by the Ministry on {date}: {reason}':
     'Ministarstvo je povuklo potvrdu {number} {date}: {reason}',
+  'Other chapters (each with fewer deaths)': 'Ostala poglavlja (svako sa manje smrtnih ishoda)',
+  'Hidden|small numbers': 'Skriveno',
 };

@@ -18,7 +18,15 @@ import {
   monthOf,
   runComplaintsWorker,
 } from '../src/modules/complaints/complaints.service.js';
-import { api, bearer, createUser, createWorld, login, nextNationalId } from './helpers.js';
+import {
+  api,
+  bearer,
+  createPatient,
+  createUser,
+  createWorld,
+  login,
+  nextNationalId,
+} from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
 let child: typeof patients.$inferSelect;
@@ -217,7 +225,20 @@ describe('submitting complaints', () => {
       description,
     });
     expect(res.status).toBe(201);
-    expect(res.body.channel).toBe('PHONE');
+    expect(res.body.reference).toMatch(/^ANK-/);
+    // The response does not echo the person's identity or contact details.
+    expect(res.body.patientName).toBeUndefined();
+    expect(res.body.patientPhone).toBeUndefined();
+    // Someone registered elsewhere, never treated here: the same answer as an unknown number.
+    const elsewhere = await createPatient(w.otherFacility.id);
+    const notHere = await api().post('/api/v1/complaints').set(bearer(w.tokens.reception)).send({
+      patientNationalId: elsewhere.nationalId,
+      channel: 'PHONE',
+      category: 'BILLING',
+      description,
+    });
+    expect(notHere.status).toBe(400);
+    expect(notHere.body.error.message).toBe(unknown.body.error.message);
     const doctor = await api().post('/api/v1/complaints').set(bearer(w.tokens.doctor)).send({
       patientNationalId: w.otherPatient.nationalId,
       channel: 'PHONE',

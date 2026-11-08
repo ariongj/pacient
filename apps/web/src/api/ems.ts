@@ -62,7 +62,8 @@ export interface EmsIncident {
   receivedAt: string;
   callerName: string | null;
   callerPhone: string | null;
-  address: string;
+  /** Null for the receiving emergency department (it sees the municipality only). */
+  address: string | null;
   municipality: string | null;
   latitude: string | null;
   longitude: string | null;
@@ -118,6 +119,8 @@ export interface EarlyWarningSummary {
 }
 
 export interface IncidentDetail extends EmsIncident {
+  /** The receiving ED sees no identity until it takes over the patient. */
+  identityWithheld?: boolean;
   patient: EmsPatient | null;
   vehicle: { id: string; callSign: string; level: string } | null;
   destination: { id: string; name: string } | null;

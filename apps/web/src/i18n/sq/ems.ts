@@ -205,4 +205,6 @@ export const ems: Record<string, string> = {
   'NURSE of the destination emergency department': 'INFERMIERI i emergjencës së destinacionit',
   'Emergency calls, dispatch, pre-hospital care and handover to the emergency department.':
     'Thirrjet urgjente, dispeçimi, kujdesi paraspitalor dhe dorëzimi në emergjencë.',
+  'Shown when the emergency department takes over':
+    'Shfaqet kur urgjenca e merr pacientin në dorëzim',
 };

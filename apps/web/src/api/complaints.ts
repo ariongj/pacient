@@ -325,7 +325,10 @@ export function useRecordComplaint() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      api<ComplaintDetail>('/complaints', { method: 'POST', body }),
+      api<{ id: string; reference: string; status: string }>('/complaints', {
+        method: 'POST',
+        body,
+      }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
   });
 }

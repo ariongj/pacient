@@ -17,11 +17,14 @@ import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/htt
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
   assertClinicalWriteAccess,
+  assertNotMerged,
+  auditRecordView,
   getPatientOrThrow,
   resolveAndAuditRead,
   resolveClinicalReadAccess,
 } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { assertLicensed } from '../licences/licences.service.js';
 import { scoreVitalSign } from '../news/news.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
 import {
@@ -51,6 +54,20 @@ import {
  */
 export const homeCareRouter = Router();
 homeCareRouter.use(authenticate);
+
+/**
+ * Clinical writes by the community nursing team: the user must be on the team, hold a valid
+ * licence, and the patient record must not have been merged into another.
+ */
+async function assertTeamWrite(
+  ctx: AuthContext,
+  req: Parameters<typeof requestMeta>[0],
+  episode: { teamUnitId: string; patientId: string },
+) {
+  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertLicensed(ctx, requestMeta(req));
+  assertNotMerged(await getPatientOrThrow(episode.patientId));
+}
 
 const IdParam = z.object({ id: z.string().uuid() });
 const PatientParam = z.object({ patientId: z.string().uuid() });
@@ -387,7 +404,7 @@ homeCareRouter.post('/episodes/:id/accept', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const e = await loadEpisode(id);
-  await assertTeamMember(ctx, e.teamUnitId);
+  await assertTeamWrite(ctx, req, e);
   if (e.status !== 'REFERRED') throw conflict('Only a new referral can be accepted');
   const [row] = await db
     .update(homeCareEpisodes)
@@ -472,7 +489,7 @@ homeCareRouter.post('/episodes/:id/hold', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(z.object({ reason: Reason }), req.body);
   const e = await loadEpisode(id);
-  await assertTeamMember(ctx, e.teamUnitId);
+  await assertTeamWrite(ctx, req, e);
   if (e.status !== 'ACTIVE') throw conflict('Only an active episode can be put on hold');
   const result = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -499,7 +516,7 @@ homeCareRouter.post('/episodes/:id/resume', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const e = await loadEpisode(id);
-  await assertTeamMember(ctx, e.teamUnitId);
+  await assertTeamWrite(ctx, req, e);
   if (e.status !== 'ON_HOLD') throw conflict('The episode is not on hold');
   const [row] = await db
     .update(homeCareEpisodes)
@@ -563,7 +580,7 @@ homeCareRouter.post('/episodes/:id/visits', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const input = parse(ScheduleInput, req.body);
   const e = await loadEpisode(id);
-  await assertTeamMember(ctx, e.teamUnitId);
+  await assertTeamWrite(ctx, req, e);
   if (e.status !== 'ACTIVE') {
     throw conflict(
       'Visits can be planned once the referral is accepted and while the episode is active',
@@ -621,7 +638,7 @@ homeCareRouter.patch('/visits/:id', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const input = parse(VisitPatch, req.body);
   const { visit, episode } = await loadVisit(id);
-  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertTeamWrite(ctx, req, episode);
   if (visit.status !== 'PLANNED' || visit.visitedAt) {
     throw conflict('Only a planned visit that has not started can be changed');
   }
@@ -648,7 +665,7 @@ homeCareRouter.post('/visits/:id/check-in', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const { visit, episode } = await loadVisit(id);
-  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertTeamWrite(ctx, req, episode);
   if (visit.status !== 'PLANNED') throw conflict('The visit is already closed');
   if (visit.visitedAt) throw conflict('The visit has already started');
   if (episode.status !== 'ACTIVE') throw conflict('The home care episode is not active');
@@ -696,8 +713,9 @@ homeCareRouter.post('/visits/:id/complete', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const input = parse(CompleteInput, req.body);
   const { visit, episode } = await loadVisit(id);
-  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertTeamWrite(ctx, req, episode);
   if (visit.status !== 'PLANNED') throw conflict('The visit is already closed');
+  if (episode.status !== 'ACTIVE') throw conflict('The home care episode is not active');
   const now = new Date();
   const obs =
     input.observations && Object.keys(input.observations).length ? input.observations : null;
@@ -770,8 +788,9 @@ homeCareRouter.post('/visits/:id/missed', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(z.object({ reason: Reason }), req.body);
   const { visit, episode } = await loadVisit(id);
-  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertTeamWrite(ctx, req, episode);
   if (visit.status !== 'PLANNED') throw conflict('The visit is already closed');
+  if (episode.status !== 'ACTIVE') throw conflict('The home care episode is not active');
   const result = await db.transaction(async (tx) => {
     const [row] = await tx
       .update(homeVisits)
@@ -799,7 +818,7 @@ homeCareRouter.post('/visits/:id/cancel', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(z.object({ reason: Reason }), req.body);
   const { visit, episode } = await loadVisit(id);
-  await assertTeamMember(ctx, episode.teamUnitId);
+  await assertTeamWrite(ctx, req, episode);
   if (visit.status !== 'PLANNED' || visit.visitedAt) {
     throw conflict('Only a planned visit that has not started can be cancelled');
   }
@@ -1041,6 +1060,9 @@ homeCareRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
   if (!ctx.patientId) throw forbidden();
   const limited = Boolean(ctx.proxy && ctx.proxy.scope !== 'FULL');
   if (!limited) await resolveClinicalReadAccess(ctx, ctx.patientId, requestMeta(req));
+  if (ctx.proxy) {
+    await auditRecordView(ctx, ctx.patientId, 'GUARDIAN', 'home-care', requestMeta(req));
+  }
   const now = new Date();
   const items = await episodesWithVisits(eq(homeCareEpisodes.patientId, ctx.patientId), 200);
   res.json({

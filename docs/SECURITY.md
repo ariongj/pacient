@@ -183,6 +183,29 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   to write unencrypted dumps, and restores are verified in a throw-away database.
 - Dependencies are audited in CI (`npm audit --omit=dev --audit-level=high`).
 
+## Internal review of the newer modules
+
+A separate reviewer (not the author of the code) went through the modules added since the last
+review – maternity, complaints, waiting lists, e-prescriptions, infection control, home care,
+deaths, certificates, ambulance service and documents – looking for access-control gaps and data
+leaking through notifications or statistics. Confirmed findings and their fixes:
+
+| Finding                                                                                                      | Fix                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Antenatal reminders reached guardians of a pregnant minor                                                    | Reminders go to the patient only                                                                                                                                                                                                                                   |
+| Infection-control staff could open any patient of the facility                                               | Access only for patients admitted there with an active isolation, a recent infection, or an open antibiotic approval                                                                                                                                               |
+| Recording a complaint returned the name and phone number of any person by national ID                        | Only people registered or recently treated at the facility; the reply carries the reference only                                                                                                                                                                   |
+| Guardians with appointments-only access saw procedure, specialty and priority on the waiting list            | Times and status only; guardian reads are audited                                                                                                                                                                                                                  |
+| Notifications about e-prescriptions of a confidential visit went to guardians; one prescription issued twice | Guardians not notified when the visit is confidential; issuing is atomic (409 on a second attempt); the dispensed share is suppressed with small numbers                                                                                                           |
+| Home-care visits recorded without a valid licence, or for a merged record or an inactive episode             | Licence check, merged-record check and active episode required for every team write                                                                                                                                                                                |
+| Death statistics: one suppressed cell could be worked out from the total, or from overlapping periods        | Complementary suppression in every breakdown, rare causes pooled, whole calendar months only                                                                                                                                                                       |
+| Certificate statistics showed small counts and sick-leave days                                               | Counts of 1–4 hidden with complementary suppression; days hidden with their counts; whole months only                                                                                                                                                              |
+| The ambulance pre-alert title contained the complaint (titles can go out by SMS)                             | Priority and arrival time only                                                                                                                                                                                                                                     |
+| Lower severity                                                                                               | Document lists and versions audited as record views; guardian reads of screening, home care and directives audited; documents of a confidential visit hidden from guardians; the receiving ED sees no caller, address or identity before it takes over the patient |
+
+Regression tests cover each fix. This review does not replace the independent review and
+penetration test listed below.
+
 ## Required before production (not yet implemented)
 
 These are tracked in [BLUEPRINT-ALIGNMENT.md](BLUEPRINT-ALIGNMENT.md):

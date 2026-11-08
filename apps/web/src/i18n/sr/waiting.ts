@@ -134,4 +134,5 @@ export const waiting: Record<string, string> = {
   'After the target date': 'Posle ciljnog datuma',
   'Target date {date}. The patient is told the date and the facility, never the procedure.':
     'Ciljni datum {date}. Pacijent dobija obaveštenje o datumu i ustanovi, nikada o proceduri.',
+  'Planned treatment': 'Planirano lečenje',
 };

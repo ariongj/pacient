@@ -541,10 +541,15 @@ waitingListRouter.get('/national', requireRole('MINISTRY'), async (_req, res) =>
 
 /* ------------------------------------------------------------------------------ portal -- */
 
-/** The patient's own entries (also for guardians, including appointments-only access). */
+/** The patient's own entries (guardians with appointments-only access see dates and places only). */
 waitingListRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
   const ctx = requireAuth(req);
   if (!ctx.patientId) throw forbidden();
+  // Guardians with appointments-only access see dates and the facility, not what the procedure is.
+  const limited = Boolean(ctx.proxy && ctx.proxy.scope !== 'FULL');
+  if (ctx.proxy) {
+    await auditRecordView(ctx, ctx.patientId, 'GUARDIAN', 'waiting-lists', requestMeta(req));
+  }
   const rows = await db
     .select({ entry: waitingListEntries, facilityName: facilities.name })
     .from(waitingListEntries)
@@ -558,16 +563,16 @@ waitingListRouter.get('/mine', requireRole('PATIENT'), async (req, res) => {
       return {
         id: p.id,
         facilityName: p.facilityName,
-        specialty: p.specialty,
+        specialty: limited ? null : p.specialty,
         kind: p.kind,
-        procedureName: p.procedureName,
-        priority: p.priority,
+        procedureName: limited ? null : p.procedureName,
+        priority: limited ? null : p.priority,
         status: p.status,
         addedAt: p.addedAt,
         targetDate: p.targetDate,
         scheduledFor: p.scheduledFor,
         completedAt: p.completedAt,
-        removedReason: p.removedReason,
+        removedReason: limited ? null : p.removedReason,
         waitingDays: p.waitingDays,
         maxDays: p.maxDays,
         suspendedDays: p.suspendedDays,

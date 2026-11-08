@@ -1415,6 +1415,9 @@ export const careUnitTypeEnum = pgEnum('care_unit_type', [
   'OPERATING_THEATRE',
   'BLOOD_BANK',
   'NUTRITION',
+  'AMBULANCE_SERVICE',
+  'COMMUNITY_NURSING',
+  'INFECTION_CONTROL',
 ]);
 export const bedStatusEnum = pgEnum('bed_status', [
   'AVAILABLE',
@@ -3466,6 +3469,415 @@ export const advanceDirectives = pgTable(
     revokeReason: varchar('revoke_reason', { length: 500 }),
   },
   (t) => [index('advance_directives_patient_idx').on(t.patientId, t.status)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Emergency medical services (ambulance dispatch, pre-hospital care, handover)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** An ambulance (crewed vehicle) of an ambulance service unit. */
+export const ambulanceUnits = pgTable(
+  'ambulance_units',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** The AMBULANCE_SERVICE care unit (station) the vehicle belongs to. */
+    stationUnitId: uuid('station_unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    callSign: varchar('call_sign', { length: 20 }).notNull(),
+    /** BLS (basic) or ALS (advanced, with a doctor or paramedic). */
+    level: varchar('level', { length: 4 }).notNull(),
+    /** AVAILABLE, DISPATCHED, ON_SCENE, TRANSPORTING, AT_HOSPITAL, OUT_OF_SERVICE. */
+    status: varchar('status', { length: 14 }).notNull().default('AVAILABLE'),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('ambulance_units_call_sign_uq').on(t.callSign)],
+);
+
+/** An emergency call and everything that happens until handover or closure. */
+export const emsIncidents = pgTable(
+  'ems_incidents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** e.g. "EMS-2026-000123". */
+    reference: varchar('reference', { length: 30 }).notNull(),
+    /** The ambulance service (care unit) that handles the call. */
+    serviceUnitId: uuid('service_unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    callerName: varchar('caller_name', { length: 200 }),
+    callerPhone: varchar('caller_phone', { length: 40 }),
+    address: varchar('address', { length: 300 }).notNull(),
+    municipality: varchar('municipality', { length: 100 }),
+    latitude: numeric('latitude', { precision: 9, scale: 6 }),
+    longitude: numeric('longitude', { precision: 9, scale: 6 }),
+    /** Chief complaint as reported, e.g. "chest pain", "road traffic collision". */
+    complaint: varchar('complaint', { length: 300 }).notNull(),
+    /** P1 immediately life-threatening, P2 urgent, P3 non-urgent (illustrative categories). */
+    priority: varchar('priority', { length: 2 }).notNull(),
+    /** RECEIVED, DISPATCHED, ON_SCENE, TRANSPORTING, HANDED_OVER, CLOSED, CANCELLED. */
+    status: varchar('status', { length: 12 }).notNull().default('RECEIVED'),
+    patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'restrict' }),
+    /** Description when the patient is not identified yet. */
+    patientDescription: varchar('patient_description', { length: 300 }),
+    ambulanceUnitId: uuid('ambulance_unit_id').references(() => ambulanceUnits.id, {
+      onDelete: 'set null',
+    }),
+    dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
+    onSceneAt: timestamp('on_scene_at', { withTimezone: true }),
+    leftSceneAt: timestamp('left_scene_at', { withTimezone: true }),
+    atHospitalAt: timestamp('at_hospital_at', { withTimezone: true }),
+    handedOverAt: timestamp('handed_over_at', { withTimezone: true }),
+    destinationFacilityId: uuid('destination_facility_id').references(() => facilities.id, {
+      onDelete: 'set null',
+    }),
+    /** The emergency department attendance created at handover. */
+    edVisitId: uuid('ed_visit_id').references(() => edVisits.id, { onDelete: 'set null' }),
+    /** TRANSPORTED, TREATED_ON_SCENE, REFUSED_TRANSPORT, DECEASED_ON_SCENE, NO_PATIENT, CANCELLED. */
+    outcome: varchar('outcome', { length: 20 }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('ems_incidents_reference_uq').on(t.reference),
+    index('ems_incidents_service_idx').on(t.serviceUnitId, t.status, t.receivedAt),
+    index('ems_incidents_patient_idx').on(t.patientId),
+  ],
+);
+
+/** Pre-hospital patient care record (observations, interventions, medicines given). */
+export const emsCareRecords = pgTable(
+  'ems_care_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    incidentId: uuid('incident_id')
+      .notNull()
+      .references(() => emsIncidents.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'restrict' }),
+    /** OBSERVATION, INTERVENTION, MEDICATION, NOTE. */
+    kind: varchar('kind', { length: 12 }).notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+    /** Observations: { systolic, diastolic, heartRate, respiratoryRate, spo2, gcs, glucose, temperature }. */
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    text: varchar('text', { length: 500 }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('ems_care_records_incident_idx').on(t.incidentId, t.recordedAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Infection prevention and antimicrobial stewardship
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Isolation precautions for a patient (shown on bed boards and the chart). */
+export const isolationOrders = pgTable(
+  'isolation_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    /** CONTACT, DROPLET, AIRBORNE, PROTECTIVE. */
+    precaution: varchar('precaution', { length: 10 }).notNull(),
+    /** Organism or reason, e.g. "MRSA", "suspected TB", "neutropenia". */
+    reason: varchar('reason', { length: 200 }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    orderedById: uuid('ordered_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedById: uuid('ended_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    endReason: varchar('end_reason', { length: 300 }),
+  },
+  (t) => [index('isolation_orders_patient_idx').on(t.patientId, t.endedAt)],
+);
+
+/** A healthcare-associated infection (surveillance definitions in code). */
+export const haiEvents = pgTable(
+  'hai_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    unitId: uuid('unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    /** CLABSI, CAUTI, VAP, SSI, CDI, MRSA_BACTERAEMIA, OTHER. */
+    type: varchar('type', { length: 20 }).notNull(),
+    organism: varchar('organism', { length: 120 }),
+    onsetAt: timestamp('onset_at', { withTimezone: true }).notNull(),
+    deviceRelated: boolean('device_related').notNull().default(false),
+    /** SUSPECTED, CONFIRMED, RULED_OUT. */
+    status: varchar('status', { length: 10 }).notNull().default('SUSPECTED'),
+    notes: text('notes'),
+    reportedById: uuid('reported_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index('hai_events_facility_idx').on(t.facilityId, t.onsetAt)],
+);
+
+/** Approval of a restricted antimicrobial (reserve antibiotics) by the stewardship team. */
+export const antimicrobialApprovals = pgTable(
+  'antimicrobial_approvals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    prescriptionId: uuid('prescription_id')
+      .notNull()
+      .references(() => prescriptions.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    indication: varchar('indication', { length: 300 }).notNull(),
+    /** Culture/sensitivity result or reason empirical treatment is needed. */
+    justification: text('justification').notNull(),
+    /** REQUESTED, APPROVED, DECLINED. */
+    status: varchar('status', { length: 10 }).notNull().default('REQUESTED'),
+    requestedById: uuid('requested_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    decidedById: uuid('decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionNote: varchar('decision_note', { length: 500 }),
+    /** 48–72 hour antibiotic review ("start smart, then focus"). */
+    reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    /** CONTINUE, NARROW, SWITCH_ORAL, STOP. */
+    reviewOutcome: varchar('review_outcome', { length: 12 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('antimicrobial_approvals_prescription_uq').on(t.prescriptionId),
+    index('antimicrobial_approvals_facility_idx').on(t.facilityId, t.status),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Sepsis screening and the Sepsis Six bundle
+ * ---------------------------------------------------------------------------------------------- */
+
+export const sepsisScreens = pgTable(
+  'sepsis_screens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    admissionId: uuid('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+    edVisitId: uuid('ed_visit_id').references(() => edVisits.id, { onDelete: 'set null' }),
+    /** The early warning score that prompted the screen, if any. */
+    earlyWarningScoreId: uuid('early_warning_score_id').references(() => earlyWarningScores.id, {
+      onDelete: 'set null',
+    }),
+    /** PROMPTED (by a score) or MANUAL. */
+    trigger: varchar('trigger', { length: 10 }).notNull(),
+    /** PENDING (prompt not yet answered), NOT_SEPSIS, SEPSIS_SUSPECTED, RED_FLAG. */
+    status: varchar('status', { length: 16 }).notNull().default('PENDING'),
+    suspectedSource: varchar('suspected_source', { length: 100 }),
+    redFlags: text('red_flags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    screenedAt: timestamp('screened_at', { withTimezone: true }),
+    screenedById: uuid('screened_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Sepsis Six steps with the time each was done: { oxygen, cultures, antibiotics, fluids, lactate, urineOutput }. */
+    bundle: jsonb('bundle').$type<Record<string, string>>().notNull().default({}),
+    bundleStartedAt: timestamp('bundle_started_at', { withTimezone: true }),
+    bundleCompletedAt: timestamp('bundle_completed_at', { withTimezone: true }),
+    seniorReviewAt: timestamp('senior_review_at', { withTimezone: true }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('sepsis_screens_patient_idx').on(t.patientId, t.createdAt),
+    index('sepsis_screens_facility_idx').on(t.facilityId, t.status),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Staff rosters and on-call
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A rostered shift or on-call period for a staff member. */
+export const rosterShifts = pgTable(
+  'roster_shifts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** DAY, LATE, NIGHT, ON_CALL. */
+    kind: varchar('kind', { length: 8 }).notNull(),
+    /** For on-call: the specialty covered, e.g. CARDIOLOGY, GENERAL_SURGERY. */
+    specialty: varchar('specialty', { length: 40 }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    /** PLANNED, CANCELLED. */
+    status: varchar('status', { length: 10 }).notNull().default('PLANNED'),
+    note: varchar('note', { length: 300 }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('roster_shifts_facility_idx').on(t.facilityId, t.startsAt),
+    index('roster_shifts_user_idx').on(t.userId, t.startsAt),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Home care and community nursing
+ * ---------------------------------------------------------------------------------------------- */
+
+export const homeCareEpisodes = pgTable(
+  'home_care_episodes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    /** The COMMUNITY_NURSING care unit responsible. */
+    teamUnitId: uuid('team_unit_id')
+      .notNull()
+      .references(() => careUnits.id, { onDelete: 'restrict' }),
+    referredById: uuid('referred_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: varchar('reason', { length: 300 }).notNull(),
+    /** Goals and interventions agreed with the patient. */
+    carePlan: text('care_plan'),
+    /** Home address used for visits (may differ from the registered address). */
+    visitAddress: varchar('visit_address', { length: 300 }),
+    accessNotes: varchar('access_notes', { length: 300 }),
+    /** REFERRED, ACTIVE, ON_HOLD, DISCHARGED. */
+    status: varchar('status', { length: 10 }).notNull().default('REFERRED'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: varchar('end_reason', { length: 300 }),
+    ...timestamps,
+  },
+  (t) => [
+    index('home_care_episodes_team_idx').on(t.teamUnitId, t.status),
+    index('home_care_episodes_patient_idx').on(t.patientId),
+  ],
+);
+
+export const homeVisits = pgTable(
+  'home_visits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    episodeId: uuid('episode_id')
+      .notNull()
+      .references(() => homeCareEpisodes.id, { onDelete: 'restrict' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+    assignedToId: uuid('assigned_to_id').references(() => users.id, { onDelete: 'set null' }),
+    /** PLANNED, DONE, MISSED, CANCELLED. */
+    status: varchar('status', { length: 10 }).notNull().default('PLANNED'),
+    /** e.g. WOUND_CARE, MEDICATION, INJECTION, CATHETER, OBSERVATIONS, PALLIATIVE, ASSESSMENT. */
+    tasks: text('tasks')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    visitedAt: timestamp('visited_at', { withTimezone: true }),
+    notes: text('notes'),
+    missedReason: varchar('missed_reason', { length: 300 }),
+    recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('home_visits_episode_idx').on(t.episodeId, t.scheduledFor),
+    index('home_visits_assignee_idx').on(t.assignedToId, t.scheduledFor),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Medical equipment register and maintenance
+ * ---------------------------------------------------------------------------------------------- */
+
+export const equipmentItems = pgTable(
+  'equipment_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    unitId: uuid('unit_id').references(() => careUnits.id, { onDelete: 'set null' }),
+    assetTag: varchar('asset_tag', { length: 40 }).notNull(),
+    /** VENTILATOR, MONITOR, DEFIBRILLATOR, INFUSION_PUMP, IMAGING, LAB_ANALYSER, DIALYSIS, OTHER. */
+    category: varchar('category', { length: 20 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    manufacturer: varchar('manufacturer', { length: 120 }),
+    model: varchar('model', { length: 120 }),
+    serialNumber: varchar('serial_number', { length: 120 }),
+    /** HIGH (life support), MEDIUM, LOW. */
+    criticality: varchar('criticality', { length: 6 }).notNull(),
+    /** IN_SERVICE, OUT_OF_SERVICE, IN_MAINTENANCE, RETIRED. */
+    status: varchar('status', { length: 14 }).notNull().default('IN_SERVICE'),
+    serviceIntervalDays: smallint('service_interval_days'),
+    lastServiceAt: date('last_service_at', { mode: 'string' }),
+    nextServiceDue: date('next_service_due', { mode: 'string' }),
+    commissionedOn: date('commissioned_on', { mode: 'string' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('equipment_items_tag_uq').on(t.facilityId, t.assetTag),
+    index('equipment_items_status_idx').on(t.facilityId, t.status, t.nextServiceDue),
+  ],
+);
+
+/** Append-only history: services, faults, repairs and status changes. */
+export const equipmentEvents = pgTable(
+  'equipment_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => equipmentItems.id, { onDelete: 'restrict' }),
+    /** SERVICE, FAULT, REPAIR, STATUS. */
+    kind: varchar('kind', { length: 8 }).notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    description: varchar('description', { length: 500 }).notNull(),
+    /** Status after the event. */
+    status: varchar('status', { length: 14 }),
+    /** A fault that harmed or could have harmed a patient is also a safety incident. */
+    incidentId: uuid('incident_id').references(() => safetyIncidents.id, { onDelete: 'set null' }),
+    recordedById: uuid('recorded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('equipment_events_item_idx').on(t.itemId, t.occurredAt)],
 );
 
 /* ------------------------------------------------------------------------------------------------

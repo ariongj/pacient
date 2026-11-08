@@ -100,6 +100,13 @@ import { ComplaintsPage } from './pages/complaints/ComplaintsPage';
 import { PortalComplaintsPage } from './pages/complaints/PortalComplaintsPage';
 import { OrganDonationRegistryPage } from './pages/directives/OrganDonationRegistryPage';
 import { PortalWishesPage } from './pages/directives/PortalWishesPage';
+import { EmsPage } from './pages/ems/EmsPage';
+import { InfectionPage } from './pages/infection/InfectionPage';
+import { SepsisPage } from './pages/sepsis/SepsisPage';
+import { RostersPage } from './pages/rosters/RostersPage';
+import { HomeCarePage } from './pages/homecare/HomeCarePage';
+import { PortalHomeVisitsPage } from './pages/homecare/PortalHomeVisitsPage';
+import { EquipmentPage } from './pages/equipment/EquipmentPage';
 
 const STAFF: Role[] = ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
 const guard = (roles: Role[], el: ReactElement) => <RequireRole roles={roles}>{el}</RequireRole>;
@@ -292,6 +299,34 @@ export function App() {
           element={guard(['MINISTRY'], <OrganDonationRegistryPage />)}
         />
         <Route path="/portal/wishes" element={guard(['PATIENT'], <PortalWishesPage />)} />
+        <Route
+          path="/ems"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <EmsPage />)}
+        />
+        <Route
+          path="/infection"
+          element={guard(
+            ['DOCTOR', 'NURSE', 'PHARMACIST', 'DIRECTOR', 'MINISTRY'],
+            <InfectionPage />,
+          )}
+        />
+        <Route path="/sepsis" element={guard(['DOCTOR', 'NURSE', 'DIRECTOR'], <SepsisPage />)} />
+        <Route
+          path="/rosters"
+          element={guard(
+            ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR'],
+            <RostersPage />,
+          )}
+        />
+        <Route
+          path="/home-care"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR'], <HomeCarePage />)}
+        />
+        <Route path="/portal/home-visits" element={guard(['PATIENT'], <PortalHomeVisitsPage />)} />
+        <Route
+          path="/equipment"
+          element={guard(['DOCTOR', 'NURSE', 'DIRECTOR', 'MINISTRY'], <EquipmentPage />)}
+        />
         <Route path="/deaths" element={guard(['DOCTOR', 'DIRECTOR', 'MINISTRY'], <DeathsPage />)} />
         <Route path="/certificates" element={guard(['DOCTOR', 'DIRECTOR'], <CertificatesPage />)} />
         <Route

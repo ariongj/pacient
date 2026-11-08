@@ -9,6 +9,12 @@
 import { encounterTypeEnum } from '../db/schema.js';
 import { CORE_OPERATIONS, CORE_TAGS } from './core.js';
 import { MODULE_OPERATIONS, MODULE_TAGS } from './modules.js';
+import { EMS_OPERATIONS, EMS_TAGS } from './ems.js';
+import { INFECTION_OPERATIONS, INFECTION_TAGS } from './infection.js';
+import { SEPSIS_OPERATIONS, SEPSIS_TAGS } from './sepsis.js';
+import { ROSTERS_OPERATIONS, ROSTERS_TAGS } from './rosters.js';
+import { HOMECARE_OPERATIONS, HOMECARE_TAGS } from './homecare.js';
+import { EQUIPMENT_OPERATIONS, EQUIPMENT_TAGS } from './equipment.js';
 import { MATERNITY_OPERATIONS, MATERNITY_TAGS } from './maternity.js';
 import { SCREENING_OPERATIONS, SCREENING_TAGS } from './screening.js';
 import { ERX_OPERATIONS, ERX_TAGS } from './erx.js';
@@ -108,6 +114,12 @@ export const TAGS: { name: string; description: string }[] = [
   { name: 'Administration', description: 'Facilities, staff, lab connections, partner systems.' },
   ...CORE_TAGS,
   ...MODULE_TAGS,
+  ...EMS_TAGS,
+  ...INFECTION_TAGS,
+  ...SEPSIS_TAGS,
+  ...ROSTERS_TAGS,
+  ...HOMECARE_TAGS,
+  ...EQUIPMENT_TAGS,
   ...MATERNITY_TAGS,
   ...SCREENING_TAGS,
   ...ERX_TAGS,
@@ -827,6 +839,12 @@ const OPERATIONS: Operation[] = [
 OPERATIONS.push(
   ...CORE_OPERATIONS,
   ...MODULE_OPERATIONS,
+  ...EMS_OPERATIONS,
+  ...INFECTION_OPERATIONS,
+  ...SEPSIS_OPERATIONS,
+  ...ROSTERS_OPERATIONS,
+  ...HOMECARE_OPERATIONS,
+  ...EQUIPMENT_OPERATIONS,
   ...MATERNITY_OPERATIONS,
   ...SCREENING_OPERATIONS,
   ...ERX_OPERATIONS,

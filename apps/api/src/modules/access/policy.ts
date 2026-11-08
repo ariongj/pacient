@@ -178,6 +178,25 @@ export async function unitAccessVia(
             WHERE sc.patient_id = ${patientId} AND sc.facility_id = cu.facility_id
               AND (sc.status IN ('SCHEDULED', 'IN_THEATRE')
                    OR (sc.status = 'COMPLETED' AND sc.out_of_theatre_at > now() - interval '24 hours'))))
+      OR (cu.type::text = 'AMBULANCE_SERVICE' AND EXISTS (
+            SELECT 1 FROM ems_incidents ei
+            WHERE ei.patient_id = ${patientId} AND ei.service_unit_id = cu.id
+              AND (ei.status NOT IN ('CLOSED', 'CANCELLED')
+                   OR ei.closed_at > now() - interval '24 hours')))
+      OR (cu.type::text = 'COMMUNITY_NURSING' AND EXISTS (
+            SELECT 1 FROM home_care_episodes hc
+            WHERE hc.patient_id = ${patientId} AND hc.team_unit_id = cu.id
+              AND hc.status IN ('REFERRED', 'ACTIVE', 'ON_HOLD')))
+      OR (cu.type::text = 'INFECTION_CONTROL' AND (
+            EXISTS (SELECT 1 FROM isolation_orders io
+                    WHERE io.patient_id = ${patientId} AND io.facility_id = cu.facility_id
+                      AND io.ended_at IS NULL)
+            OR EXISTS (SELECT 1 FROM hai_events he
+                       WHERE he.patient_id = ${patientId} AND he.facility_id = cu.facility_id
+                         AND he.created_at > now() - interval '90 days')
+            OR EXISTS (SELECT 1 FROM antimicrobial_approvals aa
+                       WHERE aa.patient_id = ${patientId} AND aa.facility_id = cu.facility_id
+                         AND (aa.status = 'REQUESTED' OR aa.reviewed_at IS NULL))))
       OR (cu.type IN ('MATERNITY', 'NEONATAL') AND EXISTS (
             SELECT 1 FROM births b
             WHERE (b.newborn_patient_id = ${patientId} OR b.mother_patient_id = ${patientId})

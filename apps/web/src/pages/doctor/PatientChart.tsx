@@ -49,6 +49,9 @@ import { DeathTab } from './chart/DeathTab';
 import { PregnancyTab } from './chart/PregnancyTab';
 import { ScreeningTab } from './chart/ScreeningTab';
 import { DirectivesTab } from './chart/DirectivesTab';
+import { InfectionTab } from './chart/InfectionTab';
+import { SepsisTab } from './chart/SepsisTab';
+import { HomeCareTab } from './chart/HomeCareTab';
 import { DirectivesBanner } from '../directives/DirectivesFlag';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
@@ -94,6 +97,9 @@ const TAB_IDS = [
   'nutrition',
   'births',
   'directives',
+  'sepsis',
+  'infection',
+  'homecare',
   'pregnancy',
   'screening',
   'registers',
@@ -349,6 +355,9 @@ export function PatientChart() {
               { id: 'nutrition', label: t('Nutrition') },
               { id: 'births', label: t('Birth & maternity') },
               { id: 'directives', label: t('Wishes and directives') },
+              { id: 'sepsis', label: t('Sepsis') },
+              { id: 'infection', label: t('Infection prevention') },
+              { id: 'homecare', label: t('Home care') },
               { id: 'pregnancy', label: t('Pregnancy') },
               { id: 'screening', label: t('Screening|cancer') },
               { id: 'registers', label: t('Chronic care') },
@@ -383,6 +392,9 @@ export function PatientChart() {
             )}
             {tab === 'mar' && <MarTab patientId={patientId} />}
             {tab === 'directives' && <DirectivesTab patientId={patientId} />}
+            {tab === 'sepsis' && <SepsisTab patientId={patientId} />}
+            {tab === 'infection' && <InfectionTab patientId={patientId} />}
+            {tab === 'homecare' && <HomeCareTab patientId={patientId} />}
             {tab === 'pregnancy' && <PregnancyTab patientId={patientId} />}
             {tab === 'screening' && <ScreeningTab patientId={patientId} />}
             {tab === 'registers' && <RegistersTab patientId={patientId} />}

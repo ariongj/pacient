@@ -40,6 +40,12 @@ import { erx } from './erx';
 import { licences } from './licences';
 import { complaints } from './complaints';
 import { directives } from './directives';
+import { ems } from './ems';
+import { infection } from './infection';
+import { sepsis } from './sepsis';
+import { rosters } from './rosters';
+import { homecare } from './homecare';
+import { equipment } from './equipment';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -84,4 +90,10 @@ export const sq: Record<string, string> = {
   ...licences,
   ...complaints,
   ...directives,
+  ...ems,
+  ...infection,
+  ...sepsis,
+  ...rosters,
+  ...homecare,
+  ...equipment,
 };

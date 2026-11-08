@@ -34,6 +34,12 @@ import { sqErx } from './sq-erx.js';
 import { sqLicences } from './sq-licences.js';
 import { sqComplaints } from './sq-complaints.js';
 import { sqDirectives } from './sq-directives.js';
+import { sqEms } from './sq-ems.js';
+import { sqInfection } from './sq-infection.js';
+import { sqSepsis } from './sq-sepsis.js';
+import { sqRosters } from './sq-rosters.js';
+import { sqHomecare } from './sq-homecare.js';
+import { sqEquipment } from './sq-equipment.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -72,4 +78,10 @@ export const sq: Record<string, string> = {
   ...sqLicences,
   ...sqComplaints,
   ...sqDirectives,
+  ...sqEms,
+  ...sqInfection,
+  ...sqSepsis,
+  ...sqRosters,
+  ...sqHomecare,
+  ...sqEquipment,
 };

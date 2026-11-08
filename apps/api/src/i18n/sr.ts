@@ -34,6 +34,12 @@ import { srErx } from './sr-erx.js';
 import { srLicences } from './sr-licences.js';
 import { srComplaints } from './sr-complaints.js';
 import { srDirectives } from './sr-directives.js';
+import { srEms } from './sr-ems.js';
+import { srInfection } from './sr-infection.js';
+import { srSepsis } from './sr-sepsis.js';
+import { srRosters } from './sr-rosters.js';
+import { srHomecare } from './sr-homecare.js';
+import { srEquipment } from './sr-equipment.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -72,4 +78,10 @@ export const sr: Record<string, string> = {
   ...srLicences,
   ...srComplaints,
   ...srDirectives,
+  ...srEms,
+  ...srInfection,
+  ...srSepsis,
+  ...srRosters,
+  ...srHomecare,
+  ...srEquipment,
 };

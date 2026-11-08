@@ -76,6 +76,12 @@ import { licencesRouter } from './modules/licences/licences.routes.js';
 import { complaintsRouter } from './modules/complaints/complaints.routes.js';
 import { directivesRouter } from './modules/directives/directives.routes.js';
 import { licenceWarnings } from './modules/licences/licences.service.js';
+import { emsRouter } from './modules/ems/ems.routes.js';
+import { infectionRouter } from './modules/infection/infection.routes.js';
+import { sepsisRouter } from './modules/sepsis/sepsis.routes.js';
+import { rostersRouter } from './modules/rosters/rosters.routes.js';
+import { homeCareRouter } from './modules/homecare/homecare.routes.js';
+import { equipmentRouter } from './modules/equipment/equipment.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -184,6 +190,12 @@ export function createApp(): Express {
   api.use('/video', telemedicineRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
+  api.use('/ems', emsRouter);
+  api.use('/infection', infectionRouter);
+  api.use('/sepsis', sepsisRouter);
+  api.use('/rosters', rostersRouter);
+  api.use('/home-care', homeCareRouter);
+  api.use('/equipment', equipmentRouter);
   api.use('/maternity', maternityRouter);
   api.use('/screening', screeningRouter);
   api.use('/e-prescriptions', ePrescriptionsRouter);

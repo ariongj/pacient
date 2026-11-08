@@ -74,6 +74,12 @@ import { seedErx } from './seed-erx.js';
 import { seedLicences } from './seed-licences.js';
 import { seedComplaints } from './seed-complaints.js';
 import { seedDirectives } from './seed-directives.js';
+import { seedEms } from './seed-ems.js';
+import { seedInfection } from './seed-infection.js';
+import { seedSepsis } from './seed-sepsis.js';
+import { seedRosters } from './seed-rosters.js';
+import { seedHomecare } from './seed-homecare.js';
+import { seedEquipment } from './seed-equipment.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
 /** Development-only key of the seeded laboratory connection. */
@@ -1243,6 +1249,12 @@ async function main() {
   await seedErx({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedComplaints({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedDirectives({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedEms({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedInfection({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedSepsis({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedRosters({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedHomecare({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedEquipment({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   // Last, so clinical accounts created by the other seeds get licences too.
   await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 

@@ -206,6 +206,21 @@ export const AuditAction = {
   DIRECTIVE_RECORDED: 'directive.recorded',
   DIRECTIVE_REVOKED: 'directive.revoked',
   DEATH_CERTIFICATE_WITHDRAWN: 'death.withdrawn',
+  EMS_INCIDENT_CREATED: 'ems.incident_created',
+  EMS_INCIDENT_UPDATED: 'ems.incident_updated',
+  EMS_CARE_RECORDED: 'ems.care_recorded',
+  EMS_HANDOVER: 'ems.handover',
+  ISOLATION_CHANGED: 'infection.isolation',
+  HAI_RECORDED: 'infection.hai',
+  ANTIMICROBIAL_REQUESTED: 'infection.antimicrobial_requested',
+  ANTIMICROBIAL_DECIDED: 'infection.antimicrobial_decided',
+  SEPSIS_SCREENED: 'sepsis.screened',
+  SEPSIS_BUNDLE_UPDATED: 'sepsis.bundle',
+  ROSTER_CHANGED: 'roster.changed',
+  HOME_CARE_CHANGED: 'homecare.changed',
+  HOME_VISIT_RECORDED: 'homecare.visit',
+  EQUIPMENT_CHANGED: 'equipment.changed',
+  EQUIPMENT_EVENT: 'equipment.event',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

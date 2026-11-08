@@ -229,7 +229,7 @@ export async function notifyMissedVisit(
   const plan = parseCarePlan(episode.carePlan);
   const tasks = new Set([...visit.tasks, ...plan.tasks]);
   if (![...tasks].some((t) => HIGH_RISK_TASKS.has(t))) return false;
-  const link = `/home-care?visit=${visit.id}&missed=1`;
+  const link = `/home-care?episode=${episode.id}&visit=${visit.id}&missed=1`;
   const [already] = await executor
     .select({ id: notifications.id })
     .from(notifications)

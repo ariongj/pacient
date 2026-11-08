@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import {
@@ -342,8 +342,10 @@ describe('the team at work', () => {
           .send({ reason: 'sërish' })
       ).status,
     ).toBe(409);
-    const link = `/home-care?visit=${visit!.id}&missed=1`;
-    const sent = await db.select().from(notifications).where(eq(notifications.link, link));
+    const sent = await db
+      .select()
+      .from(notifications)
+      .where(like(notifications.link, `/home-care?episode=%&visit=${visit!.id}&missed=1`));
     expect(sent.map((n) => n.userId).sort()).toEqual([w.users.doctor.id, teamNurse2.id].sort());
     expect(sent[0]!.title).not.toMatch(/Patient/);
   });

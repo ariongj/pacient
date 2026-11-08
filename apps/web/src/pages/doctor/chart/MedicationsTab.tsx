@@ -95,6 +95,9 @@ export function MedicationsTab({
   const [builder, setBuilder] = useState<DoseBuilderState>(EMPTY_BUILDER);
   /** Issue as a national e-prescription for any community pharmacy. */
   const [erx, setErx] = useState({ enabled: false, repeats: '0', validDays: '' });
+  /** Restricted (reserve) antibiotics: indication and justification for the stewardship team. */
+  const [amr, setAmr] = useState({ indication: '', justification: '' });
+  const [approvalRequested, setApprovalRequested] = useState<string | null>(null);
   const [erxDetail, setErxDetail] = useState<EPrescription | null>(null);
   const [cancelling, setCancelling] = useState<RxRow | null>(null);
   const [sending, setSending] = useState<RxRow | null>(null);
@@ -113,8 +116,27 @@ export function MedicationsTab({
       setReasons({});
       setBuilder(EMPTY_BUILDER);
       setErx({ enabled: false, repeats: '0', validDays: '' });
+      setAmr({ indication: '', justification: '' });
     },
   );
+  /** The server asks for the stewardship block when the medicine is a restricted antibiotic. */
+  const restricted =
+    create.error instanceof ApiError && create.error.code === 'ANTIMICROBIAL_APPROVAL_REQUIRED'
+      ? ((create.error.details as { name?: string } | undefined)?.name ?? medication)
+      : null;
+  const [needsApproval, setNeedsApproval] = useState<string | null>(null);
+  useEffect(() => {
+    if (restricted) setNeedsApproval(restricted);
+  }, [restricted]);
+  const createdApproval = (create.data as { antimicrobialApproval?: unknown } | undefined)
+    ?.antimicrobialApproval;
+  useEffect(() => {
+    if (createdApproval) {
+      setApprovalRequested(medication || t('the antibiotic'));
+      setNeedsApproval(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createdApproval]);
   const createdCode =
     (create.data as { ePrescriptionCode?: string | null } | undefined)?.ePrescriptionCode ?? null;
   useEffect(() => {
@@ -173,6 +195,14 @@ export function MedicationsTab({
       }),
       ...(builder.freeText ? {} : (dose ?? {})),
       ...(overrides.length ? { overrides } : {}),
+      ...(needsApproval
+        ? {
+            antimicrobial: {
+              indication: amr.indication.trim(),
+              justification: amr.justification.trim(),
+            },
+          }
+        : {}),
       ...(erx.enabled
         ? {
             ePrescription: {
@@ -206,6 +236,14 @@ export function MedicationsTab({
           'An e-prescription is dispensed by any community pharmacy with the patient’s code and national ID.',
         )}
       </p>
+      {approvalRequested && (
+        <Alert tone="info" title={t('Approval requested from the antibiotic stewardship team')}>
+          {t(
+            '{name} is a restricted antibiotic. The prescription is active; the stewardship team reviews the request, and a 72-hour review is due.',
+            { name: approvalRequested },
+          )}
+        </Alert>
+      )}
       {issuedCode && (
         <Alert tone="success" title={t('E-prescription issued')}>
           <div className="row" style={{ flexWrap: 'wrap', gap: '1rem' }}>
@@ -625,7 +663,37 @@ export function MedicationsTab({
                 <p className="muted">{t('No safety alerts found by the automated checks.')}</p>
               )}
           </section>
-          {!blockedByServer && <ErrorAlert error={create.error} />}
+          {needsApproval && (
+            <fieldset className="stack">
+              <legend>{t('Restricted antibiotic')}</legend>
+              <Alert tone="warning" title={t('Approval by the antibiotic stewardship team')}>
+                {t(
+                  '{name} is a reserve antibiotic. Give the indication and why it is needed (culture result or reason for empirical treatment). Treatment is not delayed: the prescription is saved and the team reviews it.',
+                  { name: needsApproval },
+                )}
+              </Alert>
+              <TextField
+                label={t('Indication')}
+                name="amrIndication"
+                value={amr.indication}
+                onChange={(e) => setAmr((a) => ({ ...a, indication: e.target.value }))}
+                minLength={3}
+                maxLength={300}
+                required
+              />
+              <TextAreaField
+                label={t('Justification')}
+                name="amrJustification"
+                value={amr.justification}
+                onChange={(e) => setAmr((a) => ({ ...a, justification: e.target.value }))}
+                minLength={10}
+                maxLength={2000}
+                rows={3}
+                required
+              />
+            </fieldset>
+          )}
+          {!blockedByServer && !restricted && <ErrorAlert error={create.error} />}
           <div className="form-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>
               {t('Cancel')}
@@ -644,7 +712,13 @@ export function MedicationsTab({
 
 /** The e-prescription controls are state, not prescription fields. */
 function withoutErxFields(v: Record<string, string>) {
-  const { erxRepeats: _repeats, erxValidDays: _validDays, ...rest } = v;
+  const {
+    erxRepeats: _repeats,
+    erxValidDays: _validDays,
+    amrIndication: _indication,
+    amrJustification: _justification,
+    ...rest
+  } = v;
   return rest;
 }
 

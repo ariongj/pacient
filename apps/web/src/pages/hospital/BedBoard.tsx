@@ -53,12 +53,7 @@ function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
         {news?.latest && (
           <>
             {' '}
-            <Link
-              to="/wards/early-warning"
-              className="news-bed-link"
-              // Enough room between the two links for touch targets (WCAG 2.5.8).
-              style={{ marginLeft: '0.75rem' }}
-            >
+            <Link to="/wards/early-warning" className="news-bed-link">
               <NewsChip
                 scale={news.latest.scale}
                 score={news.latest.score}

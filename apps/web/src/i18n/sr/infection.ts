@@ -185,4 +185,16 @@ export const infection: Record<string, string> = {
     'FARMACEUT i kontrola infekcija (ne sopstveni zahtevi)',
   'infection control staff (DOCTOR, NURSE of an INFECTION_CONTROL unit)':
     'osoblje kontrole infekcija (LEKAR, MEDICINSKA SESTRA jedinice za kontrolu infekcija)',
+  /* Prescribing a restricted antibiotic (medications tab) */
+  'the antibiotic': 'antibiotik',
+  'Approval requested from the antibiotic stewardship team':
+    'Zatraženo je odobrenje tima za racionalnu upotrebu antibiotika',
+  '{name} is a restricted antibiotic. The prescription is active; the stewardship team reviews the request, and a 72-hour review is due.':
+    '{name} je antibiotik sa ograničenjem. Recept je aktivan; tim za racionalnu upotrebu antibiotika razmatra zahtev, a posle 72 sata je potrebna revizija.',
+  'Restricted antibiotic': 'Antibiotik sa ograničenjem',
+  'Approval by the antibiotic stewardship team':
+    'Odobrenje tima za racionalnu upotrebu antibiotika',
+  '{name} is a reserve antibiotic. Give the indication and why it is needed (culture result or reason for empirical treatment). Treatment is not delayed: the prescription is saved and the team reviews it.':
+    '{name} je rezervni antibiotik. Navedite indikaciju i zašto je potreban (rezultat kulture ili razlog za empirijsku terapiju). Lečenje se ne odlaže: recept se čuva, a tim ga razmatra.',
+  Justification: 'Obrazloženje',
 };

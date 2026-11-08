@@ -251,10 +251,33 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
         startDate: date,
         endDate: date,
         overrides,
+        ePrescription: {
+          ...obj({
+            repeats: int({ minimum: 0, maximum: 12 }),
+            validDays: int({ minimum: 1, maximum: 365 }),
+          }),
+          description:
+            'Issue as a national e-prescription for community pharmacies (code returned as ePrescriptionCode).',
+        },
+        antimicrobial: {
+          ...obj(
+            {
+              indication: str({ minLength: 3, maxLength: 300 }),
+              justification: str({ minLength: 10, maxLength: 2000 }),
+            },
+            ['indication', 'justification'],
+          ),
+          description:
+            'Required for restricted (reserve) antibiotics: the prescription is saved and an approval request goes to the stewardship team.',
+        },
       },
       ['medication', 'startDate'],
     ),
-    responses: { '409': 'Unacknowledged medication-safety alerts (listed in details)' },
+    responses: {
+      '400':
+        'ANTIMICROBIAL_APPROVAL_REQUIRED for a restricted antibiotic without the antimicrobial block',
+      '409': 'Unacknowledged medication-safety alerts (listed in details)',
+    },
   }),
   op('patch', `${pp}/prescriptions/{entryId}`, CR, 'Stop or complete a prescription', {
     access: DOCTOR,

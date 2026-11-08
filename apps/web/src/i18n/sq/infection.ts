@@ -188,4 +188,15 @@ export const infection: Record<string, string> = {
     'FARMACISTI dhe kontrolli i infeksioneve (jo kërkesat e veta)',
   'infection control staff (DOCTOR, NURSE of an INFECTION_CONTROL unit)':
     'stafi i kontrollit të infeksioneve (MJEKU, INFERMIERI i njësisë së kontrollit të infeksioneve)',
+  /* Prescribing a restricted antibiotic (medications tab) */
+  'the antibiotic': 'antibiotiku',
+  'Approval requested from the antibiotic stewardship team':
+    'U kërkua miratimi nga ekipi i menaxhimit të antibiotikëve',
+  '{name} is a restricted antibiotic. The prescription is active; the stewardship team reviews the request, and a 72-hour review is due.':
+    '{name} është antibiotik i kufizuar. Receta është aktive; ekipi i menaxhimit të antibiotikëve e shqyrton kërkesën dhe pas 72 orësh duhet bërë rishikimi.',
+  'Restricted antibiotic': 'Antibiotik i kufizuar',
+  'Approval by the antibiotic stewardship team': 'Miratimi nga ekipi i menaxhimit të antibiotikëve',
+  '{name} is a reserve antibiotic. Give the indication and why it is needed (culture result or reason for empirical treatment). Treatment is not delayed: the prescription is saved and the team reviews it.':
+    '{name} është antibiotik rezervë. Shënoni indikacionin dhe pse nevojitet (rezultati i kulturës ose arsyeja e trajtimit empirik). Trajtimi nuk vonohet: receta ruhet dhe ekipi e shqyrton.',
+  Justification: 'Arsyetimi',
 };

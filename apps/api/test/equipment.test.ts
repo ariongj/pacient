@@ -16,6 +16,7 @@ import {
   todayIso,
   validateCsv,
 } from '../src/modules/equipment/equipment.service.js';
+import { nextIncidentReference } from '../src/modules/incidents/incidents.service.js';
 import { api, bearer, createWorld } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -268,10 +269,12 @@ describe('events', () => {
   it('takes life-support equipment out of service on a fault and links a safety incident', async () => {
     const res = await addItem();
     const id = res.body.id as string;
+    // A real reference from the incidents module, so its numbering is not disturbed.
+    const reference = await db.transaction((tx) => nextIncidentReference(tx));
     const [incident] = await db
       .insert(safetyIncidents)
       .values({
-        reference: `INC-2026-${uniq()}`,
+        reference,
         facilityId: w.facility.id,
         reportedById: w.users.nurse.id,
         reporterRole: 'NURSE',
@@ -301,14 +304,11 @@ describe('events', () => {
     // An unknown reference, or one of another facility, is refused.
     expect(
       (
-        await api()
-          .post(`/api/v1/equipment/items/${id}/events`)
-          .set(bearer(w.tokens.nurse))
-          .send({
-            kind: 'FAULT',
-            description: 'Alarmi nuk bie',
-            incidentReference: 'INC-1999-00001',
-          })
+        await api().post(`/api/v1/equipment/items/${id}/events`).set(bearer(w.tokens.nurse)).send({
+          kind: 'FAULT',
+          description: 'Alarmi nuk bie',
+          incidentReference: 'INC-1999-00001',
+        })
       ).status,
     ).toBe(400);
     // Repair puts it back in service.

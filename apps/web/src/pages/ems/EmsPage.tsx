@@ -105,7 +105,7 @@ function DispatchBoard({ services }: { services: { id: string; name: string }[] 
           options={services.map((s) => ({ value: s.id, label: s.name }))}
         />
       )}
-      <div className="split">
+      <div className="stack">
         <Card
           title={t('Open calls')}
           actions={<Button onClick={() => setNewCall(true)}>{t('New emergency call')}</Button>}

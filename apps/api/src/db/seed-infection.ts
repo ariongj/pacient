@@ -19,7 +19,7 @@ const HOUR = 3_600_000;
 
 /**
  * Synthetic demo data for infection prevention (development only): an infection control unit with
- * doctor@ as a member, isolated inpatients, healthcare-associated infections over six months,
+ * doctor@ as a member, isolated inpatients, healthcare-associated infections over the past months,
  * restricted antibiotics in every stewardship state and one positive culture to review.
  */
 export async function seedInfection(opts: { facilityId: string; demoDoctorId: string }) {
@@ -110,9 +110,9 @@ export async function seedInfection(opts: { facilityId: string; demoDoctorId: st
     .where(
       and(
         eq(admissions.facilityId, facilityId),
-        gte(admissions.admittedAt, new Date(now - 180 * DAY)),
+        gte(admissions.admittedAt, new Date(now - 300 * DAY)),
         sql`${careUnits.type} IN ('GENERAL_WARD', 'SURGICAL_WARD', 'ICU')`,
-        sql`coalesce(${admissions.dischargedAt}, now()) - ${admissions.admittedAt} > interval '3 days'`,
+        sql`coalesce(${admissions.dischargedAt}, now()) - ${admissions.admittedAt} > interval '2 days'`,
       ),
     )
     .orderBy(desc(admissions.admittedAt))

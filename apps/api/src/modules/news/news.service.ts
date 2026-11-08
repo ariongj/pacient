@@ -25,6 +25,7 @@ import {
   type Spo2Scale,
 } from './news2.js';
 import { ageInMonths, scorePews, type PewsResult } from './pews.js';
+import { promptSepsisScreen } from '../sepsis/sepsis.service.js';
 
 /** NEWS2 for adults, PEWS for children under 18 at the time of the observation. */
 export type EarlyWarningScale = 'NEWS2' | 'PEWS';
@@ -144,6 +145,10 @@ export async function scoreVitalSign(vitalSignId: string, now = new Date()) {
     return existing ?? null;
   }
   if (inserted.admissionId) await maybeEscalateNew(inserted, now);
+  // A raised score may prompt a sepsis screen; a failure there never affects scoring.
+  await promptSepsisScreen(inserted, now).catch((err: unknown) =>
+    logger.error({ err, scoreId: inserted.id }, 'Sepsis prompt failed'),
+  );
   return inserted;
 }
 

@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
-import { isTest } from '../../config/env.js';
+import { isTest, sepsisScreeningEnabled } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import {
   admissions,
@@ -257,6 +257,7 @@ export function setSepsisPromptFailureForTests(fail: boolean) {
  */
 export async function promptSepsisScreen(score: ScoreRow, now = new Date()) {
   if (failPromptForTests) throw new Error('Sepsis prompt failure (test)');
+  if (!sepsisScreeningEnabled) return null;
   if (!scorePromptsScreen(score)) return null;
   const created = await db.transaction(async (tx) => {
     // One prompt at a time per patient, even when several scores arrive together.
@@ -424,7 +425,7 @@ async function runSafely() {
 
 /** Every minute: escalate overdue bundles and unanswered prompts (never in tests). */
 export function startSepsisWorker() {
-  if (isTest || timer) return;
+  if (isTest || timer || !sepsisScreeningEnabled) return;
   timer = setInterval(runSafely, 60_000);
   timer.unref();
 }

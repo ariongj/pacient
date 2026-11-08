@@ -176,6 +176,14 @@ const EnvSchema = z.object({
   ),
   /** General API requests per user (or per IP when anonymous) per minute. Raise only for load tests. */
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(60).max(100_000).default(600),
+  /**
+   * Automatic sepsis screening prompts and escalation: off by default in production until the local
+   * sepsis protocol is adopted (clinical safety case H58), on elsewhere.
+   */
+  SEPSIS_SCREENING: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['on', 'off']).optional(),
+  ),
   /** Database connections per API process. */
   DB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(10),
 });
@@ -313,3 +321,6 @@ function loadEnv(): Env {
 export const env = loadEnv();
 export const isProd = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+/** See SEPSIS_SCREENING. */
+export const sepsisScreeningEnabled =
+  (env.SEPSIS_SCREENING ?? (env.NODE_ENV === 'production' ? 'off' : 'on')) === 'on';

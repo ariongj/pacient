@@ -43,6 +43,7 @@ const PAGES = {
     '/portal/pregnancy',
     '/portal/wishes',
     '/portal/complaints',
+    '/portal/home-visits',
   ],
   'doctor@pacient.local': [
     '/doctor',
@@ -66,6 +67,12 @@ const PAGES = {
     '/maternity',
     '/screening',
     '/e-prescriptions',
+    '/sepsis',
+    '/infection',
+    '/ems',
+    '/rosters',
+    '/home-care',
+    '/equipment',
   ],
   'nurse@pacient.local': [
     '/nurse',
@@ -92,6 +99,8 @@ const PAGES = {
     '/incidents',
     '/complaints',
     '/licences',
+    '/equipment',
+    '/rosters',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -110,6 +119,9 @@ const PAGES = {
     '/organ-donation',
     '/licences',
     '/complaints',
+    '/ems',
+    '/infection',
+    '/equipment',
   ],
 };
 

@@ -404,3 +404,29 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
   the Ministry) and revoke-only `advance_directives` shown as chart banners and emergency-board badges.
 - **Death certificate withdrawal**: the Ministry withdraws a signed certificate issued in error
   (`status = WITHDRAWN`, final by trigger); what signing ended is restored except appointments.
+
+## Hospital operations and community care
+
+- **Ambulance service** (`modules/ems`, `/ems`): `AMBULANCE_SERVICE` units own `ambulance_units`
+  and `ems_incidents` (priority from structured questions, dispatch with row locks, time stamps per
+  step) with an append-only `ems_care_records` scored with NEWS2/PEWS; the destination emergency
+  department is pre-alerted and its clinicians take the handover, which opens the ED attendance.
+  Unit staff reach the patient's record only while the call is open (`unitAccessVia`).
+- **Sepsis** (`modules/sepsis`, `/sepsis`): `news.service` calls `promptSepsisScreen()` after a
+  score is stored; screens, red/amber flags and the Sepsis Six steps live in `sepsis_screens`; a
+  worker escalates incomplete bundles once (conditional update claim).
+- **Infection prevention** (`modules/infection`, `/infection`): `isolation_orders` (bed board
+  badges), `hai_events` with rates per 1,000 patient-days, `antimicrobial_approvals` created when a
+  reserve antibiotic is prescribed (`ANTIMICROBIAL_APPROVAL_REQUIRED` until indication and
+  justification are given) with a 72-hour review; `INFECTION_CONTROL` unit staff reach patients with
+  active isolation, recent infections or open requests.
+- **Rosters** (`modules/rosters`, `/rosters`): `roster_shifts` in local time (DST-safe), overlap
+  refusal, acknowledged working-time warnings, publish summaries, on-call now/next per specialty,
+  staffing against occupied beds, `.ics` export.
+- **Home care** (`modules/homecare`, `/home-care`): `home_care_episodes` and `home_visits` for
+  `COMMUNITY_NURSING` units; visit observations become `vital_signs` (scored); missed high-risk
+  visits alert the team and the referring doctor.
+- **Equipment** (`modules/equipment`, `/equipment`): `equipment_items` and append-only
+  `equipment_events` (service, fault, repair, status); faults on life-support items take them out of
+  service; daily maintenance alerts.
+- **Capacity**: see [PERFORMANCE.md](PERFORMANCE.md).

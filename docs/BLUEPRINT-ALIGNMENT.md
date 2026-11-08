@@ -169,6 +169,13 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Register of professional licences, enforced on clinical work                              | ✅                                  |
 | Patient complaints and anonymous experience feedback                                      | ✅                                  |
 | Organ donation registry, advance directives, DNACPR alerts                                | ✅                                  |
+| Ambulance service: dispatch, pre-hospital record, ED pre-alert and handover               | ✅ (categories to confirm)          |
+| Sepsis screening and the Sepsis Six bundle                                                | ✅ (thresholds to confirm)          |
+| Infection prevention, HAI rates, reserve antibiotic approval                              | ✅                                  |
+| Staff rosters, on-call, staffing ratios                                                   | ✅ (rules to confirm)               |
+| Home care and community nursing                                                           | ✅                                  |
+| Medical equipment register and maintenance                                                | ✅                                  |
+| Load test and capacity baseline                                                           | ✅ (`docs/PERFORMANCE.md`)          |
 
 ## Open decisions (§10) — needed from the project sponsor
 

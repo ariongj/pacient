@@ -304,7 +304,11 @@ describe('scoring and escalation of inpatients', () => {
       .send({ note: 'Antibiotikë dhe lëngje të nisura' });
     expect(ack.status).toBe(200);
     expect(ack.body.acknowledged).toBeGreaterThanOrEqual(1);
-    expect(await reescalateOnce(new Date(Date.now() + 3 * 3_600_000))).toBe(0);
+    // Other test files may leave unacknowledged scores of their own patients: check that nothing
+    // more reaches this patient's doctor.
+    const afterAck = (await newsNotifications(w.users.doctor.id)).length;
+    await reescalateOnce(new Date(Date.now() + 3 * 3_600_000));
+    expect(await newsNotifications(w.users.doctor.id)).toHaveLength(afterAck);
   });
 
   it('a single-parameter 3 notifies the unit nurses only', async () => {

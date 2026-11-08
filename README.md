@@ -88,6 +88,12 @@ licences checked on clinical work; patient complaints with deadlines and anonymo
 organ donation registry, advance directives and resuscitation decisions shown in the chart and the
 emergency department.
 
+**Hospital operations and community care:** the ambulance service (calls, dispatch, pre-hospital
+record, pre-alert and handover to the emergency department); sepsis screening with the Sepsis Six
+bundle; infection prevention (isolation on the bed board, healthcare-associated infection rates) and
+approval of reserve antibiotics; staff rosters and who is on call now; home care by community nursing
+teams; the medical equipment register with maintenance and faults.
+
 **Running a national service:** a downtime kit (hourly encrypted offline ward lists with
 allergies and medicines due, downtime mode and a back-entry checklist), point-in-time database
 recovery, Prometheus metrics with alert rules and a Grafana dashboard, and data protection tools
@@ -248,6 +254,14 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
 - **Complaints and licences**: the patient complains or rates a recent visit under _Ankesat dhe
   vlerësimet_; director@ handles complaints and sees staff licences; the Ministry manages the
   licence register and can withdraw a death certificate (_Vdekshmëria_ → _Tërhiq një certifikatë_).
+- **Ambulance and emergency** (doctor, nurse): _Shërbimi i ambulancës_ – the P1 chest-pain call is on
+  its way to the demo emergency department; the emergency board shows it as incoming and takes the
+  handover.
+- **Sepsis and infection** (doctor, nurse): _Sepsa_ – a red-flag patient with the one-hour clock
+  running; _Parandalimi i infeksioneve_ – isolated patients, a meropenem request waiting for approval
+  (`pharmacist@` decides), an overdue 72-hour review.
+- **Rosters, home care, equipment**: _Turnet dhe kujdestaria_ – who is on call tonight; _Kujdesi në
+  shtëpi_ – the community nurses' day list; _Pajisjet mjekësore_ – a ventilator out of service.
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and

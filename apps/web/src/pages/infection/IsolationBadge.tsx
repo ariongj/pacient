@@ -11,7 +11,7 @@ export function IsolationBadge({
 }) {
   const guidance = precautionGuidance(precaution);
   return (
-    <span title={guidance}>
+    <span title={guidance} className="badge-wrap">
       <Badge tone="danger">
         {precautionLabel(precaution)}
         {reason ? ` · ${reason}` : ''}

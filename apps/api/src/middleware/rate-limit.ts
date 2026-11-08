@@ -1,6 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import type { Request, Response } from 'express';
-import { isTest } from '../config/env.js';
+import { env, isTest } from '../config/env.js';
 import { verifyAccessToken } from '../lib/tokens.js';
 
 /**
@@ -29,7 +29,7 @@ const handler = (_req: Request, res: Response) => {
 /** General API limit, per user when signed in (per IP otherwise). */
 export const apiLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 600,
+  limit: env.RATE_LIMIT_PER_MINUTE,
   keyGenerator: userOrIpKey,
   standardHeaders: 'draft-8',
   legacyHeaders: false,

@@ -5,7 +5,8 @@ import * as schema from './schema.js';
 
 export const pool = new pg.Pool({
   connectionString: env.DATABASE_URL,
-  max: 10,
+  // Per API process; keep (instances × DB_POOL_MAX) below the database's connection limit.
+  max: env.DB_POOL_MAX,
   idleTimeoutMillis: 30_000,
 });
 

@@ -324,6 +324,7 @@ account with a one-off script or seed in a non-production environment).
 - [Blueprint alignment](docs/BLUEPRINT-ALIGNMENT.md) — requirement-by-requirement status and roadmap
 - [Clinical safety case](docs/CLINICAL-SAFETY.md) — hazard log, controls and go-live conditions
 - [Privacy](docs/PRIVACY.md) — data protection, retention and data-subject rights
+- [Performance](docs/PERFORMANCE.md) — load test, baseline and capacity planning
 - [Downtime](docs/DOWNTIME.md) — what to do when the system is unavailable, and recovery
 - [Partner API](docs/API.md) — keys, scopes, purpose of use, OpenAPI and FHIR
 - [Deployment](deploy/README.md) — production setup, backups, PITR and monitoring

@@ -2,7 +2,7 @@
   "name": "pacient",
   "private": true,
   "version": "0.1.0",
-  "description": "Pacient – national electronic health record platform with Ministry, Director, Doctor and Patient portals",
+  "description": "Pacient \u2013 national electronic health record platform with Ministry, Director, Doctor and Patient portals",
   "workspaces": [
     "apps/*"
   ],
@@ -22,7 +22,8 @@
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "a11y": "node scripts/a11y-audit.mjs",
-    "i18n:check": "tsx scripts/i18n-check.ts"
+    "i18n:check": "tsx scripts/i18n-check.ts",
+    "load-test": "node scripts/load-test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

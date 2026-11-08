@@ -174,6 +174,10 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['on', 'warn', 'off']).optional(),
   ),
+  /** General API requests per user (or per IP when anonymous) per minute. Raise only for load tests. */
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(60).max(100_000).default(600),
+  /** Database connections per API process. */
+  DB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(10),
 });
 
 export type Env = Omit<

@@ -1,4 +1,96 @@
 /**
  * Serbian Latin (sr) translations for rosters and on-call, keyed by the English source text. Keep {placeholders}.
  */
-export const rosters: Record<string, string> = {};
+export const rosters: Record<string, string> = {
+  'Less than {limit} hours of rest between shifts ({hours} h)':
+    'Manje od {limit} sati odmora između smena ({hours} h)',
+  'More than {limit} working hours in the week ({hours} h)':
+    'Više od {limit} radnih sati nedeljno ({hours} h)',
+  'Who is on call now': 'Ko je sada dežuran',
+  'No on-call rota at your facility': 'Vaša ustanova nema raspored dežurstava',
+  'On call now': 'Dežuran sada',
+  'until {time}': 'do {time}',
+  'Nobody on call – call the switchboard': 'Niko nije dežuran – pozovite centralu',
+  'from {time}': 'od {time}',
+  'Working-time rules': 'Pravila radnog vremena',
+  'These limits follow the EU Working Time Directive and are illustrative until local agreements are confirmed. To continue, give a reason.':
+    'Ova ograničenja prate Direktivu EU o radnom vremenu i ilustrativna su dok se ne potvrde lokalni sporazumi. Za nastavak navedite razlog.',
+  'Reason for the exception': 'Razlog za izuzetak',
+  'Change shift': 'Izmeni smenu',
+  'Plan a shift': 'Planiraj smenu',
+  'Staff member': 'Zaposleni',
+  Shift: 'Smena',
+  'No unit': 'Bez jedinice',
+  'An earlier time means the next day.': 'Raniji sat znači sledeći dan.',
+  'Save anyway': 'Ipak sačuvaj',
+  'Cancel shift': 'Otkaži smenu',
+  'Reason for cancelling': 'Razlog otkazivanja',
+  'Week from a pattern': 'Nedelja po obrascu',
+  'Day off': 'Slobodan dan',
+  'Create anyway': 'Ipak napravi',
+  'Create shifts': 'Napravi smene',
+  'Week of {date}': 'Nedelja od {date}',
+  'Previous week': 'Prethodna nedelja',
+  'This week': 'Ova nedelja',
+  'Next week': 'Sledeća nedelja',
+  'All units': 'Sve jedinice',
+  'Published to staff.': 'Objavljeno osoblju.',
+  'Not published yet – staff are told when you publish the week.':
+    'Još nije objavljeno – osoblje se obaveštava kada objavite nedelju.',
+  'Copy anyway': 'Ipak kopiraj',
+  'Copy last week': 'Kopiraj prošlu nedelju',
+  'Publish week': 'Objavi nedelju',
+  '{count} shifts copied': 'Kopirano smena: {count}',
+  'Published: {people} people notified about {shifts} shifts':
+    'Objavljeno: obavešteno {people} osoba o {shifts} smena',
+  'No shifts this week': 'Nema smena ove nedelje',
+  Roster: 'Raspored smena',
+  'My shifts': 'Moje smene',
+  'Add to my calendar (.ics)': 'Dodaj u moj kalendar (.ics)',
+  'You have no shifts in this period': 'Nemate smena u ovom periodu',
+  '{unit}: no night nurse on {date}': '{unit}: nema noćne medicinske sestre {date}',
+  '{specialty}: nobody on call on the night of {date}':
+    '{specialty}: niko nije dežuran u noći {date}',
+  '{unit}: nurses are not rostered in Pacient':
+    '{unit}: medicinske sestre se ne raspoređuju u Pacijentu',
+  'Nurse staffing': 'Popunjenost medicinskim sestrama',
+  'Patients per nurse – wards': 'Pacijenata po sestri – odeljenja',
+  'Patients per nurse – intensive care': 'Pacijenata po sestri – intenzivna nega',
+  'Occupied beds now against nurses rostered on each shift of the day. The limits are illustrative; set your own.':
+    'Trenutno zauzeti kreveti u odnosu na sestre raspoređene u svakoj smeni tog dana. Ograničenja su ilustrativna; postavite svoja.',
+  'Occupied beds': 'Zauzeti kreveti',
+  '{count} nurses': 'Sestara: {count}',
+  '{ratio} patients per nurse': '{ratio} pacijenata po sestri',
+  'No nurse rostered': 'Nijedna sestra nije raspoređena',
+  'Above {limit} per nurse': 'Iznad {limit} po sestri',
+  'Gaps in the next 7 days': 'Praznine u narednih 7 dana',
+  'No gaps': 'Nema praznina',
+  'Shifts, the on-call rota and who to call now.':
+    'Smene, raspored dežurstava i koga sada pozvati.',
+  Staffing: 'Popunjenost',
+  'Day shift': 'Dnevna smena',
+  'Late shift': 'Popodnevna smena',
+  'Night shift': 'Noćna smena',
+  'On call': 'Dežurstvo',
+  'D|shift': 'D',
+  'L|shift': 'P',
+  'N|shift': 'N',
+  'OC|shift': 'Dž',
+  'Internal medicine': 'Interna medicina',
+  Obstetrics: 'Akušerstvo',
+  'Staff shifts, on-call rota and who is on call now.':
+    'Smene osoblja, raspored dežurstava i ko je sada dežuran.',
+  'Shift kinds, default times, on-call specialties and rules':
+    'Vrste smena, podrazumevana vremena, specijalnosti dežurstva i pravila',
+  'Staff and units that can be rostered': 'Osoblje i jedinice koje se mogu rasporediti',
+  'The roster for one week': 'Raspored smena za jednu nedelju',
+  'My shifts as an iCalendar file': 'Moje smene kao iCalendar datoteka',
+  'Who is on call now and next': 'Ko je sada dežuran i ko sledeći',
+  'Nurse staffing per ward and gaps in the next 7 days':
+    'Sestre po odeljenju i praznine u narednih 7 dana',
+  'Change a shift': 'Izmeni smenu',
+  'Cancel a shift': 'Otkaži smenu',
+  'Create a week from a pattern or a copy': 'Napravi nedelju po obrascu ili kopiranjem',
+  'Publish a week (one summary notification per person)':
+    'Objavi nedelju (jedno zbirno obaveštenje po osobi)',
+};

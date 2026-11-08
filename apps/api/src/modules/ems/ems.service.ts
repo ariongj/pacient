@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { careUnits, emsCareRecords, unitStaff, users } from '../../db/schema.js';
-import { forbidden, notFound } from '../../lib/errors.js';
+import { notFound } from '../../lib/errors.js';
 import type { AuthContext } from '../../lib/http.js';
 import { scoreNews2, type News2Input, type News2Result } from '../news/news2.js';
 import { ageInMonths, scorePews, type PewsResult } from '../news/pews.js';
@@ -196,13 +196,6 @@ export async function isServiceStaff(ctx: AuthContext, serviceUnitId: string, ex
     .where(and(eq(unitStaff.unitId, serviceUnitId), eq(unitStaff.userId, ctx.userId)))
     .limit(1);
   return Boolean(row);
-}
-
-/** Dispatch and crew actions: doctors and nurses assigned to the ambulance service. */
-export async function assertServiceStaff(ctx: AuthContext, serviceUnitId: string, ex = db) {
-  if (!(await isServiceStaff(ctx, serviceUnitId, ex))) {
-    throw forbidden('Only staff of this ambulance service can do this');
-  }
 }
 
 /** Emergency department units of a facility. */

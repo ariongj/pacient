@@ -1,4 +1,95 @@
 /**
  * Albanian (sq) translations for rosters and on-call, keyed by the English source text. Keep {placeholders}.
  */
-export const rosters: Record<string, string> = {};
+export const rosters: Record<string, string> = {
+  'Less than {limit} hours of rest between shifts ({hours} h)':
+    'Më pak se {limit} orë pushim ndërmjet turneve ({hours} orë)',
+  'More than {limit} working hours in the week ({hours} h)':
+    'Më shumë se {limit} orë pune në javë ({hours} orë)',
+  'Who is on call now': 'Kush është kujdestar tani',
+  'No on-call rota at your facility': 'Institucioni juaj nuk ka orar kujdestarie',
+  'On call now': 'Kujdestar tani',
+  'until {time}': 'deri në {time}',
+  'Nobody on call – call the switchboard': 'Askush kujdestar – thirrni centralin',
+  'from {time}': 'nga {time}',
+  'Working-time rules': 'Rregullat e kohës së punës',
+  'These limits follow the EU Working Time Directive and are illustrative until local agreements are confirmed. To continue, give a reason.':
+    'Këto kufij ndjekin Direktivën e BE-së për kohën e punës dhe janë ilustrues derisa të konfirmohen marrëveshjet vendore. Për të vazhduar, jepni një arsye.',
+  'Reason for the exception': 'Arsyeja e përjashtimit',
+  'Change shift': 'Ndrysho turnin',
+  'Plan a shift': 'Planifiko një turn',
+  'Staff member': 'Punonjësi',
+  Shift: 'Turni',
+  'No unit': 'Pa njësi',
+  'An earlier time means the next day.': 'Një orë më e hershme do të thotë ditën tjetër.',
+  'Save anyway': 'Ruaje sidoqoftë',
+  'Cancel shift': 'Anulo turnin',
+  'Reason for cancelling': 'Arsyeja e anulimit',
+  'Week from a pattern': 'Java sipas një modeli',
+  'Day off': 'Ditë pushimi',
+  'Create anyway': 'Krijo sidoqoftë',
+  'Create shifts': 'Krijo turnet',
+  'Week of {date}': 'Java e {date}',
+  'Previous week': 'Java e kaluar',
+  'This week': 'Kjo javë',
+  'Next week': 'Java e ardhshme',
+  'All units': 'Të gjitha njësitë',
+  'Published to staff.': 'U publikua për stafin.',
+  'Not published yet – staff are told when you publish the week.':
+    'Ende e papublikuar – stafi njoftohet kur e publikoni javën.',
+  'Copy anyway': 'Kopjo sidoqoftë',
+  'Copy last week': 'Kopjo javën e kaluar',
+  'Publish week': 'Publiko javën',
+  '{count} shifts copied': 'U kopjuan {count} turne',
+  'Published: {people} people notified about {shifts} shifts':
+    'U publikua: {people} persona u njoftuan për {shifts} turne',
+  'No shifts this week': 'Nuk ka turne këtë javë',
+  Roster: 'Orari i turneve',
+  'My shifts': 'Turnet e mia',
+  'Add to my calendar (.ics)': 'Shto në kalendarin tim (.ics)',
+  'You have no shifts in this period': 'Nuk keni turne në këtë periudhë',
+  '{unit}: no night nurse on {date}': '{unit}: pa infermier nate më {date}',
+  '{specialty}: nobody on call on the night of {date}':
+    '{specialty}: askush kujdestar natën e {date}',
+  '{unit}: nurses are not rostered in Pacient': '{unit}: infermierët nuk planifikohen në Pacient',
+  'Nurse staffing': 'Numri i infermierëve',
+  'Patients per nurse – wards': 'Pacientë për infermier – repartet',
+  'Patients per nurse – intensive care': 'Pacientë për infermier – kujdesi intensiv',
+  'Occupied beds now against nurses rostered on each shift of the day. The limits are illustrative; set your own.':
+    'Shtretërit e zënë tani përkundrejt infermierëve të planifikuar në çdo turn të ditës. Kufijtë janë ilustrues; vendosni tuajët.',
+  'Occupied beds': 'Shtretërit e zënë',
+  '{count} nurses': '{count} infermierë',
+  '{ratio} patients per nurse': '{ratio} pacientë për infermier',
+  'No nurse rostered': 'Asnjë infermier i planifikuar',
+  'Above {limit} per nurse': 'Mbi {limit} për infermier',
+  'Gaps in the next 7 days': 'Mangësitë në 7 ditët e ardhshme',
+  'No gaps': 'Nuk ka mangësi',
+  'Shifts, the on-call rota and who to call now.':
+    'Turnet, orari i kujdestarisë dhe kë të thirrni tani.',
+  Staffing: 'Stafi në turne',
+  'Day shift': 'Turni i ditës',
+  'Late shift': 'Turni i pasdites',
+  'Night shift': 'Turni i natës',
+  'On call': 'Kujdestari',
+  'D|shift': 'D',
+  'L|shift': 'P',
+  'N|shift': 'N',
+  'OC|shift': 'K',
+  'Internal medicine': 'Mjekësi interne',
+  Obstetrics: 'Obstetrikë',
+  'Staff shifts, on-call rota and who is on call now.':
+    'Turnet e stafit, orari i kujdestarisë dhe kush është kujdestar tani.',
+  'Shift kinds, default times, on-call specialties and rules':
+    'Llojet e turneve, oraret e paracaktuara, specialitetet e kujdestarisë dhe rregullat',
+  'Staff and units that can be rostered': 'Stafi dhe njësitë që mund të planifikohen',
+  'The roster for one week': 'Orari i turneve për një javë',
+  'My shifts as an iCalendar file': 'Turnet e mia si skedar iCalendar',
+  'Who is on call now and next': 'Kush është kujdestar tani dhe më pas',
+  'Nurse staffing per ward and gaps in the next 7 days':
+    'Infermierët për repart dhe mangësitë në 7 ditët e ardhshme',
+  'Change a shift': 'Ndrysho një turn',
+  'Cancel a shift': 'Anulo një turn',
+  'Create a week from a pattern or a copy': 'Krijo një javë sipas modelit ose me kopjim',
+  'Publish a week (one summary notification per person)':
+    'Publiko një javë (një njoftim përmbledhës për person)',
+};

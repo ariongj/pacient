@@ -97,7 +97,7 @@ export function scheduleTimes(start: Date, frequency: Frequency, weeks: number):
     // Keep the local time across daylight-saving changes in Kosovo.
     const out = new Date(d.getTime() + n * day);
     const shift = tzOffsetMinutes(d) - tzOffsetMinutes(out);
-    return new Date(out.getTime() - shift * 60_000);
+    return new Date(out.getTime() + shift * 60_000);
   };
   const out: Date[] = [];
   if (frequency === 'ONCE') return [start];

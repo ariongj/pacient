@@ -301,11 +301,11 @@ export async function runEquipmentWorkerOnce(now = new Date()): Promise<number> 
       name: equipmentItems.name,
       eventId: sql<string | null>`(
         SELECT e.id FROM ${equipmentEvents} e
-        WHERE e.item_id = ${equipmentItems.id} AND e.status = 'OUT_OF_SERVICE'
+        WHERE e.item_id = equipment_items.id AND e.status = 'OUT_OF_SERVICE'
         ORDER BY e.occurred_at DESC LIMIT 1)`,
       since: sql<string | null>`(
         SELECT max(e.occurred_at) FROM ${equipmentEvents} e
-        WHERE e.item_id = ${equipmentItems.id} AND e.status = 'OUT_OF_SERVICE')`,
+        WHERE e.item_id = equipment_items.id AND e.status = 'OUT_OF_SERVICE')`,
     })
     .from(equipmentItems)
     .where(

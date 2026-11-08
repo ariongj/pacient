@@ -8,7 +8,7 @@ import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/htt
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
-import { tr, type Locale } from '../../i18n/index.js';
+import { toLocale, tr } from '../../i18n/index.js';
 import { addDays, daysBetween } from '../scheduling/time.js';
 import {
   DEFAULT_RATIO,
@@ -356,7 +356,7 @@ rostersRouter.get('/mine.ics', readers, async (req, res) => {
     .select({ locale: users.locale })
     .from(users)
     .where(eq(users.id, ctx.userId));
-  const locale = (me?.locale ?? 'sq') as Locale;
+  const locale = toLocale(me?.locale);
   const rows = await db
     .select(shiftColumns)
     .from(rosterShifts)

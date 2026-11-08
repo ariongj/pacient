@@ -391,16 +391,19 @@ export async function staffing(
 
 export type Gap =
   | { type: 'NO_NIGHT_NURSE'; date: string; unitId: string; unitName: string }
-  | { type: 'NO_ON_CALL'; date: string; specialty: string };
+  | { type: 'NO_ON_CALL'; date: string; specialty: string }
+  /** A ward with no nurse rostered at all in the last 28 days or the coming period. */
+  | { type: 'WARD_NOT_ROSTERED'; unitId: string; unitName: string };
 
 /**
- * Gaps in the next `days` days from `today`: wards without a night nurse, and nights when a
- * specialty that normally has on-call cover has nobody at 02:00.
+ * Gaps in the next `days` days from `today`: rostered wards without a night nurse, and nights
+ * when a specialty that normally has on-call cover has nobody at 02:00. Wards whose nurses are not
+ * rostered in Pacient at all are listed once (WARD_NOT_ROSTERED) instead of once per night.
  */
 export async function upcomingGaps(facilityId: string, today: string, days = 7): Promise<Gap[]> {
   const from = localMidnight(today);
   const to = localMidnight(addDays(today, days + 1));
-  const [units, nights, onCall, specialties] = await Promise.all([
+  const [units, nights, onCall, specialties, rosteredWards] = await Promise.all([
     db
       .select({ id: careUnits.id, name: careUnits.name })
       .from(careUnits)
@@ -443,11 +446,28 @@ export async function upcomingGaps(facilityId: string, today: string, days = 7):
         ),
       ),
     coveredSpecialties(facilityId, from),
+    db
+      .selectDistinct({ unitId: rosterShifts.unitId })
+      .from(rosterShifts)
+      .innerJoin(users, eq(users.id, rosterShifts.userId))
+      .where(
+        and(
+          eq(rosterShifts.facilityId, facilityId),
+          eq(rosterShifts.status, 'PLANNED'),
+          eq(users.role, 'NURSE'),
+          gt(rosterShifts.endsAt, new Date(from.getTime() - 28 * 86_400_000)),
+          lt(rosterShifts.startsAt, to),
+        ),
+      ),
   ]);
-  const gaps: Gap[] = [];
+  const rostered = new Set(rosteredWards.map((r) => r.unitId));
+  const gaps: Gap[] = units
+    .filter((u) => !rostered.has(u.id))
+    .map((u) => ({ type: 'WARD_NOT_ROSTERED' as const, unitId: u.id, unitName: u.name }));
   for (let i = 0; i < days; i++) {
     const date = addDays(today, i);
     for (const u of units) {
+      if (!rostered.has(u.id)) continue;
       const has = nights.some((n) => n.unitId === u.id && localDate(n.startsAt) === date);
       if (!has) gaps.push({ type: 'NO_NIGHT_NURSE', date, unitId: u.id, unitName: u.name });
     }

@@ -17,6 +17,7 @@ import {
   patients,
   unitStaff,
   users,
+  isolationOrders,
 } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
@@ -474,8 +475,31 @@ inpatientRouter.get('/board', async (req, res) => {
       .from(unitStaff)
       .where(and(eq(unitStaff.userId, ctx.userId), inArray(unitStaff.unitId, ids))),
   ]);
+  // Isolation precautions are shown to everyone who sees the board (staff must use the right
+  // protection); the organism or reason only where the admission reason is visible.
+  const isolations = stays.length
+    ? await db
+        .select({
+          patientId: isolationOrders.patientId,
+          precaution: isolationOrders.precaution,
+          reason: isolationOrders.reason,
+        })
+        .from(isolationOrders)
+        .where(
+          and(
+            inArray(
+              isolationOrders.patientId,
+              stays.map((s) => s.patientId),
+            ),
+            isNull(isolationOrders.endedAt),
+          ),
+        )
+    : [];
   const now = Date.now();
   const stayView = (s: (typeof stays)[number]) => ({
+    isolation: isolations
+      .filter((i) => i.patientId === s.patientId)
+      .map((i) => ({ precaution: i.precaution, reason: s.reasonVisible ? i.reason : null })),
     admissionId: s.id,
     patientId: s.patientId,
     firstName: s.firstName,

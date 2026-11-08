@@ -18,6 +18,8 @@ import { t } from '../../i18n';
 import { AdmitDialog, BedStatusActions, DischargeDialog, TransferDialog } from './dialogs';
 import { useNewsBoard, type NewsBoardItem } from '../../api/news';
 import { NewsChip } from './EarlyWarningBoard';
+import type { BoardIsolation } from '../../api/infection';
+import { IsolationBadge } from '../infection/IsolationBadge';
 import './hospital.css';
 
 type Action =
@@ -25,6 +27,10 @@ type Action =
   | { kind: 'transfer'; stay: BoardStay; bedId: string | null }
   | { kind: 'discharge'; stay: BoardStay }
   | null;
+
+/** Active isolation precautions on the board (precaution for everyone, reason for the treating team). */
+const isolationOf = (stay: BoardStay) =>
+  (stay as BoardStay & { isolation?: BoardIsolation[] }).isolation ?? [];
 
 /** Latest early warning score (NEWS2 or PEWS) per admission – only filled for doctors and nurses (clinical information). */
 const NewsContext = createContext<Map<string, NewsBoardItem>>(new Map());
@@ -67,6 +73,13 @@ function StayLines({ stay, base }: { stay: BoardStay; base: string | null }) {
         {stay.attendingDoctorName}
         {stay.source !== 'ELECTIVE' ? ` · ${sourceLabel(stay.source)}` : ''}
       </span>
+      {isolationOf(stay).length > 0 && (
+        <span className="bed-meta">
+          {isolationOf(stay).map((i) => (
+            <IsolationBadge key={i.precaution} precaution={i.precaution} reason={i.reason} />
+          ))}
+        </span>
+      )}
       {stay.reason && <span className="bed-meta">{stay.reason}</span>}
       {stay.expectedDischargeAt && (
         <span className="bed-meta">

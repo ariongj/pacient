@@ -83,22 +83,28 @@ export const EQUIPMENT_OPERATIONS: ModuleOperation[] = [
     access: 'DIRECTOR (own facility)',
     body: obj({ reason: str({ minLength: 5, maxLength: 500 }) }, ['reason']),
   }),
-  op('post', '/equipment/items/{id}/events', E, 'Record a service, fault, repair or status change', {
-    access: 'DOCTOR, NURSE, PHARMACIST (faults); DIRECTOR (all kinds)',
-    description:
-      'Append-only history. A service sets the next due date; a fault takes high-criticality equipment out of service automatically; a fault can be linked to a safety incident of the facility by its reference.',
-    body: obj(
-      {
-        kind: enumOf('SERVICE', 'FAULT', 'REPAIR', 'STATUS'),
-        description: str({ minLength: 5, maxLength: 500 }),
-        occurredAt: dateTime,
-        status: enumOf('IN_SERVICE', 'OUT_OF_SERVICE', 'IN_MAINTENANCE'),
-        incidentReference: str({ maxLength: 30 }),
-      },
-      ['kind', 'description'],
-    ),
-    responses: { '201': 'Recorded' },
-  }),
+  op(
+    'post',
+    '/equipment/items/{id}/events',
+    E,
+    'Record a service, fault, repair or status change',
+    {
+      access: 'DOCTOR, NURSE, PHARMACIST (faults); DIRECTOR (all kinds)',
+      description:
+        'Append-only history. A service sets the next due date; a fault takes high-criticality equipment out of service automatically; a fault can be linked to a safety incident of the facility by its reference.',
+      body: obj(
+        {
+          kind: enumOf('SERVICE', 'FAULT', 'REPAIR', 'STATUS'),
+          description: str({ minLength: 5, maxLength: 500 }),
+          occurredAt: dateTime,
+          status: enumOf('IN_SERVICE', 'OUT_OF_SERVICE', 'IN_MAINTENANCE'),
+          incidentReference: str({ maxLength: 30 }),
+        },
+        ['kind', 'description'],
+      ),
+      responses: { '201': 'Recorded' },
+    },
+  ),
   op('post', '/equipment/import', E, 'Import equipment from CSV', {
     access: 'DIRECTOR (own facility)',
     description:

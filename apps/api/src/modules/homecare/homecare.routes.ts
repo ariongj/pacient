@@ -939,7 +939,10 @@ homeCareRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) =>
 
 /* ------------------------------------------------------------------ director -------------- */
 
-/** Team activity without names: visits per week by status, active episodes, episode length. */
+/**
+ * Team activity without names: visits per week by status (the last 8 weeks and the next week's
+ * planned visits), active episodes and the average length of episodes ended in the last 12 months.
+ */
 homeCareRouter.get('/stats', requireRole('DIRECTOR'), async (req, res) => {
   const ctx = requireAuth(req);
   if (!ctx.facilityId) throw forbidden();
@@ -978,7 +981,7 @@ homeCareRouter.get('/stats', requireRole('DIRECTOR'), async (req, res) => {
       sql`, `,
     )})
       AND v.scheduled_for >= date_trunc('week', now()) - interval '7 weeks'
-      AND v.scheduled_for < date_trunc('week', now()) + interval '1 week'
+      AND v.scheduled_for < date_trunc('week', now()) + interval '2 weeks'
     GROUP BY 1, 2 ORDER BY 2`);
   const episodes = await db.execute<{
     team_id: string;

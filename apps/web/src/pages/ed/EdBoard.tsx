@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { EdDirectiveBadges } from '../directives/DirectivesFlag';
+import { IncomingAmbulances } from '../ems/IncomingAmbulances';
 import { api } from '../../api/client';
 import {
   ARRIVAL_MODES,
@@ -119,6 +120,7 @@ export function EdBoard() {
               </Alert>
             )}
             <Counts board={b} />
+            <IncomingAmbulances big={big} />
             <Section
               title={t('Awaiting triage')}
               items={b.items.filter((i) => !i.triageLevel)}

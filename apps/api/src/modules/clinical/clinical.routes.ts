@@ -4,6 +4,11 @@ import { z } from 'zod';
 import { scoreVitalSign } from '../news/news.service.js';
 import { enrolFromDiagnosis } from '../registers/registers.service.js';
 import {
+  AntimicrobialRequestSchema,
+  requestApproval,
+  restrictedAgentFor,
+} from '../infection/infection.service.js';
+import {
   atcOf,
   EPrescriptionRequestSchema,
   eprescriptionTerms,
@@ -148,6 +153,8 @@ const PrescriptionInput = z
      * and validity; see modules/erx).
      */
     ePrescription: EPrescriptionRequestSchema.optional().nullable(),
+    /** Indication and justification, required for a restricted (reserve) antibiotic. */
+    antimicrobial: AntimicrobialRequestSchema.optional().nullable(),
     /** Reasons for proceeding despite blocking safety alerts (one per alert code). */
     overrides: z
       .array(
@@ -624,6 +631,7 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
   const {
     overrides,
     ePrescription,
+    antimicrobial,
     doseAmount,
     doseUnit,
     frequencyCode,
@@ -651,6 +659,20 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
         medication: rxInput.medication,
       })
     : null;
+  // Restricted antibiotics need an approval request (the prescription is not delayed by it).
+  const restrictedAgent = await restrictedAgentFor({
+    medication: rxInput.medication,
+    catalogItemId: rxInput.catalogItemId,
+    route: rxInput.route,
+  });
+  if (restrictedAgent && !antimicrobial) {
+    throw new HttpError(
+      400,
+      'ANTIMICROBIAL_APPROVAL_REQUIRED',
+      'This is a restricted antibiotic: give the indication and the justification for the stewardship team',
+      { agent: restrictedAgent.code, name: restrictedAgent.name },
+    );
+  }
   const safetyAlerts = await checkBeforePrescribing(ctx, {
     patientId,
     medication: rxInput.medication,
@@ -703,6 +725,16 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
       alerts: safetyAlerts,
       overrides,
     });
+    if (restrictedAgent && antimicrobial) {
+      await requestApproval(tx, {
+        ctx,
+        meta: requestMeta(req),
+        prescriptionId: created!.id,
+        patientId,
+        agent: restrictedAgent,
+        request: antimicrobial,
+      });
+    }
     if (erxTerms) {
       // Dispensed by a community pharmacy: the hospital pharmacy is not asked to verify it.
       const issued = await issueEPrescription(tx, created!.id, created!.startDate, erxTerms);
@@ -726,6 +758,9 @@ clinicalRouter.post('/prescriptions', async (req, res) => {
     ...row,
     ePrescriptionCode: row.ePrescriptionCode ? formatCode(row.ePrescriptionCode) : null,
     alerts: safetyAlerts.map((a) => toPublicAlert(a, locale)),
+    antimicrobialApproval: restrictedAgent
+      ? { agent: restrictedAgent.code, status: 'REQUESTED' }
+      : null,
   });
 });
 

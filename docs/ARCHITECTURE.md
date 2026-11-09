@@ -447,4 +447,20 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
 - **Open data** (`modules/opendata`, `/api/v1/open-data`, public): nine national datasets built from
   live tables with primary and complementary small-cell suppression (`opendata/suppression.ts`),
   cached for 10 minutes, rate limited, CSV with formula-injection protection.
+- **Version history** (`modules/history`, `/history`): the trigger `clinical_version_capture()` copies
+  every insert, update and delete of allergies, diagnoses, prescriptions, vital signs, lab results,
+  immunizations and encounters into the append-only `clinical_resource_versions` (BASELINE rows for
+  data that existed before). `audit_logs.tx_id` (default `txid_current()`) attributes a version to the
+  person whose audit entry was written in the same transaction. Read by treating staff only (drafts
+  and unreleased values are in the history); FHIR `_history` and vread.
+- **Access reviews** (`modules/accessreviews`, `/access-reviews`): quarterly recertification per
+  facility and for the Ministry (officials and directors), account snapshots with warnings,
+  keep/change/revoke (revoke deactivates and ends sessions), CSV attestation, overdue reminders.
+- **Terminology** (`modules/terminology`, `/terminology`): `code_systems`, versions (one ACTIVE),
+  `terminology_concepts` with sq/sr displays, versioned `concept_maps`; CSV import as a draft,
+  comparison, atomic activation; FHIR `$lookup`, `$validate-code`, `$translate` under
+  `/terminology/fhir`; `lookupConcept` / `validateCode` / `translateCode` for other modules.
+- **Questionnaires** (`modules/proms`, `/proms`): instruments in code (PHQ-9, GAD-7, WHO-5,
+  AUDIT-C), `prom_assignments` (one active per patient and instrument) and append-only
+  `prom_responses`; PHQ-9 safety flag alerts the care team at once; reminder worker.
 - **Capacity**: see [PERFORMANCE.md](PERFORMANCE.md).

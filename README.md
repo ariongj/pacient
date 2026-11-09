@@ -273,6 +273,12 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
   _Regjistri i kancerit_ – the registry and next week's tumour board; _Dializa_ – the day board by
   shift; _Mbrojtjet në shëndetin mendor_ – legal deadlines of admissions without consent; _Dhuruesit e gjakut_ –
   the testing queue; _Të dhëna të hapura shëndetësore_ (link on the sign-in page) – the public open-data page (`/open-data`, no sign-in).
+- **Records and governance**: in Arta's chart, _Historiku_ on an allergy or medicine shows who
+  changed what (the summary has _Ndryshimet e fundit në këtë kartelë_); _Pyetësorët_ – her PHQ-9
+  improving from 17 to 6 and a GAD-7 due (the patient answers under _Pyetësorët_ in the portal), and
+  one unreviewed safety flag on the review list; the director's _Rishikimi i qasjeve_ – this quarter's
+  review with a dormant account to find; _Terminologjia_ – ICD-10 with a draft version to compare and
+  activate (Ministry), and the local laboratory codes mapped to LOINC.
 - **Video visit** (patient + doctor): the demo patient's video appointment starts about 10 minutes
   after seeding – _Bashkohu në vizitën me video_ in both accounts (use two browsers).
 - **Billing** (reception, director): _Faturimi dhe sigurimi_ – take a co-payment, prepare and

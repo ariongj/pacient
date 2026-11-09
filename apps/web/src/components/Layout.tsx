@@ -31,6 +31,7 @@ const COMMS: NavSection = {
     { to: '/channels', label: 'Team channels', icon: 'hash' },
     { to: '/incidents', label: 'Report an incident', icon: 'alert' },
     { to: '/rosters', label: 'Rosters and on-call', icon: 'calendar' },
+    { to: '/support', label: 'IT support', icon: 'settings' },
   ],
 };
 
@@ -51,6 +52,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/portal/pregnancy', label: 'My pregnancy', icon: 'user' },
         { to: '/portal/home-visits', label: 'Home visits', icon: 'home' },
         { to: '/portal/readings', label: 'Home readings', icon: 'activity' },
+        { to: '/portal/questionnaires', label: 'Questionnaires', icon: 'clipboard' },
         { to: '/portal/blood-donation', label: 'Blood donation', icon: 'flask' },
       ],
     },
@@ -104,6 +106,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/home-care', label: 'Home care', icon: 'home' },
         { to: '/equipment', label: 'Medical equipment', icon: 'settings' },
         { to: '/remote-monitoring', label: 'Remote monitoring', icon: 'activity' },
+        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
         { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
         { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
         { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
@@ -153,6 +156,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/home-care', label: 'Home care', icon: 'home' },
         { to: '/equipment', label: 'Medical equipment', icon: 'settings' },
         { to: '/remote-monitoring', label: 'Remote monitoring', icon: 'activity' },
+        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
         { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
         { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
         { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
@@ -209,6 +213,29 @@ const NAV: Record<Role, NavSection[]> = {
     },
     COMMS,
   ],
+  LAB_TECHNICIAN: [
+    {
+      title: 'Laboratory',
+      items: [
+        { to: '/lab', label: 'Laboratory worklist', icon: 'flask', end: true },
+        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
+      ],
+    },
+    COMMS,
+  ],
+  IT_SUPPORT: [
+    {
+      title: 'IT support',
+      items: [{ to: '/support', label: 'Support desk', icon: 'settings', end: true }],
+    },
+    {
+      title: 'Communication',
+      items: [
+        { to: '/channels', label: 'Team channels', icon: 'hash' },
+        { to: '/incidents', label: 'Report an incident', icon: 'alert' },
+      ],
+    },
+  ],
   DIRECTOR: [
     {
       title: 'Facility',
@@ -216,6 +243,8 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director', label: 'Dashboard', icon: 'chart', end: true },
         { to: '/director/reports', label: 'Reports', icon: 'activity' },
         { to: '/director/staff', label: 'Staff', icon: 'users' },
+        { to: '/access-reviews', label: 'Access reviews', icon: 'shield' },
+        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
         { to: '/director/patients', label: 'Registered patients', icon: 'user' },
         { to: '/director/referrals', label: 'Referrals', icon: 'share' },
         { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
@@ -296,6 +325,8 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/tools/interactions', label: 'Drug interaction database', icon: 'pill' },
         { to: '/privacy', label: 'Data protection', icon: 'shield' },
         { to: '/ministry/system', label: 'System health', icon: 'activity' },
+        { to: '/access-reviews', label: 'Access reviews', icon: 'shield' },
+        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
         { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
         { to: '/developers', label: 'API documentation', icon: 'settings' },
       ],
@@ -326,6 +357,8 @@ const ROLE_LABEL: Record<Role, string> = {
   NURSE: 'Nursing workspace',
   PHARMACIST: 'Pharmacy',
   RECEPTION: 'Front desk',
+  LAB_TECHNICIAN: 'Laboratory',
+  IT_SUPPORT: 'IT support',
   DIRECTOR: 'Facility management',
   MINISTRY: 'Ministry of Health',
 };

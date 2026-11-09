@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   customType,
   date,
@@ -39,6 +40,8 @@ export const roleEnum = pgEnum('role', [
   'NURSE',
   'PHARMACIST',
   'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
 ]);
 export const STAFF_ROLES = [
   'MINISTRY',
@@ -47,6 +50,8 @@ export const STAFF_ROLES = [
   'NURSE',
   'PHARMACIST',
   'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
 ] as const;
 export const FACILITY_ROLES = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'] as const;
 /** Roles that may be members of a patient's care team (and therefore read the clinical record). */
@@ -4317,9 +4322,12 @@ export const auditLogs = pgTable(
     userAgent: varchar('user_agent', { length: 500 }),
     requestId: varchar('request_id', { length: 64 }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    /** Transaction of the event: joins clinical_resource_versions.tx_id to attribute a change. */
+    txId: bigint('tx_id', { mode: 'number' }).default(sql`txid_current()`),
   },
   (t) => [
     index('audit_logs_occurred_idx').on(t.occurredAt),
+    index('audit_logs_tx_idx').on(t.txId),
     index('audit_logs_patient_idx').on(t.patientId, t.occurredAt),
     index('audit_logs_actor_idx').on(t.actorUserId, t.occurredAt),
     index('audit_logs_facility_idx').on(t.actorFacilityId, t.occurredAt),
@@ -4330,3 +4338,387 @@ export type Role = (typeof roleEnum.enumValues)[number];
 export type User = typeof users.$inferSelect;
 export type Patient = typeof patients.$inferSelect;
 export type Facility = typeof facilities.$inferSelect;
+
+/* ------------------------------------------------------------------------------------------------
+ * Version history of clinical records (filled by a database trigger)
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Every insert, update and delete of a versioned clinical table, captured by the trigger
+ * `clinical_version_capture()` (append-only). `txId` matches `audit_logs.tx_id` when the audit
+ * entry was written in the same transaction, which attributes the change to a person. No foreign
+ * key to patients: the history outlives merges and must never be moved or deleted.
+ */
+export const clinicalResourceVersions = pgTable(
+  'clinical_resource_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** allergies, diagnoses, prescriptions, vital_signs, lab_results, immunizations, encounters. */
+    tableName: varchar('table_name', { length: 64 }).notNull(),
+    resourceId: uuid('resource_id').notNull(),
+    patientId: uuid('patient_id'),
+    /** 1 for the first captured state (BASELINE for rows that existed before history began). */
+    version: integer('version').notNull(),
+    /** BASELINE, INSERT, UPDATE or DELETE. */
+    operation: varchar('operation', { length: 8 }).notNull(),
+    /** The row after the change (before it, for DELETE). */
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    /** Columns that changed (UPDATE only; updated_at is ignored). */
+    changedFields: text('changed_fields').array(),
+    txId: bigint('tx_id', { mode: 'number' }).notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('clinical_resource_versions_uq').on(t.tableName, t.resourceId, t.version),
+    index('clinical_resource_versions_patient_idx').on(t.patientId, t.recordedAt),
+    index('clinical_resource_versions_tx_idx').on(t.txId),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Periodic access recertification
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A quarterly review of all staff accounts of one facility (or of the Ministry, facility null). */
+export const accessReviews = pgTable(
+  'access_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'restrict' }),
+    /** e.g. 2026-Q4. */
+    period: varchar('period', { length: 7 }).notNull(),
+    /** OPEN or COMPLETED. */
+    status: varchar('status', { length: 10 }).notNull().default('OPEN'),
+    dueDate: date('due_date').notNull(),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    completedById: uuid('completed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    uniqueIndex('access_reviews_facility_period_uq')
+      .on(t.facilityId, t.period)
+      .where(sql`${t.facilityId} IS NOT NULL`),
+    uniqueIndex('access_reviews_ministry_period_uq')
+      .on(t.period)
+      .where(sql`${t.facilityId} IS NULL`),
+  ],
+);
+
+/** One staff account in a review, with what was seen and what was decided. */
+export const accessReviewItems = pgTable(
+  'access_review_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reviewId: uuid('review_id')
+      .notNull()
+      .references(() => accessReviews.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Role, units, specialty, last sign-in, licence state, MFA, flags at the time of review. */
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    /** KEEP, CHANGE or REVOKE (null while undecided). */
+    decision: varchar('decision', { length: 8 }),
+    note: varchar('note', { length: 500 }),
+    decidedById: uuid('decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('access_review_items_uq').on(t.reviewId, t.userId)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Terminology: code systems, versions, concepts and versioned mappings
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A code system (ICD-10, LOINC, ATC, a facility's local laboratory codes, ...). */
+export const codeSystems = pgTable(
+  'code_systems',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Short key, e.g. ICD-10, LOINC, ATC, LOCAL-LAB-QKUK. */
+    code: varchar('code', { length: 40 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    /** Canonical URL (FHIR CodeSystem.url). */
+    url: varchar('url', { length: 300 }).notNull(),
+    publisher: varchar('publisher', { length: 200 }),
+    /** EXTERNAL (international) or LOCAL. */
+    kind: varchar('kind', { length: 8 }).notNull(),
+    /** Owner of a local code system (null for national/international ones). */
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'restrict' }),
+    description: text('description'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('code_systems_code_uq').on(t.code),
+    uniqueIndex('code_systems_url_uq').on(t.url),
+  ],
+);
+
+/** One version of a code system; exactly one ACTIVE version per system. */
+export const codeSystemVersions = pgTable(
+  'code_system_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    codeSystemId: uuid('code_system_id')
+      .notNull()
+      .references(() => codeSystems.id, { onDelete: 'restrict' }),
+    version: varchar('version', { length: 40 }).notNull(),
+    /** DRAFT, ACTIVE or RETIRED. */
+    status: varchar('status', { length: 8 }).notNull().default('DRAFT'),
+    conceptCount: integer('concept_count').notNull().default(0),
+    notes: text('notes'),
+    importedById: uuid('imported_by_id').references(() => users.id, { onDelete: 'set null' }),
+    importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+    activatedById: uuid('activated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('code_system_versions_uq').on(t.codeSystemId, t.version),
+    uniqueIndex('code_system_versions_active_uq')
+      .on(t.codeSystemId)
+      .where(sql`${t.status} = 'ACTIVE'`),
+  ],
+);
+
+/** A concept (code) in one version of a code system, with Albanian and Serbian displays. */
+export const terminologyConcepts = pgTable(
+  'terminology_concepts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => codeSystemVersions.id, { onDelete: 'cascade' }),
+    code: varchar('code', { length: 40 }).notNull(),
+    display: varchar('display', { length: 400 }).notNull(),
+    displaySq: varchar('display_sq', { length: 400 }),
+    displaySr: varchar('display_sr', { length: 400 }),
+    parentCode: varchar('parent_code', { length: 40 }),
+    active: boolean('active').notNull().default(true),
+    properties: jsonb('properties').$type<Record<string, unknown>>(),
+  },
+  (t) => [
+    uniqueIndex('terminology_concepts_uq').on(t.versionId, t.code),
+    index('terminology_concepts_display_idx').on(t.versionId, t.display),
+  ],
+);
+
+/** A mapping between two code systems (e.g. local lab codes → LOINC, local medicines → ATC). */
+export const conceptMaps = pgTable(
+  'concept_maps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 60 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    url: varchar('url', { length: 300 }).notNull(),
+    sourceSystemId: uuid('source_system_id')
+      .notNull()
+      .references(() => codeSystems.id, { onDelete: 'restrict' }),
+    targetSystemId: uuid('target_system_id')
+      .notNull()
+      .references(() => codeSystems.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('concept_maps_code_uq').on(t.code),
+    uniqueIndex('concept_maps_url_uq').on(t.url),
+  ],
+);
+
+/** One version of a mapping; exactly one ACTIVE version per map. */
+export const conceptMapVersions = pgTable(
+  'concept_map_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mapId: uuid('map_id')
+      .notNull()
+      .references(() => conceptMaps.id, { onDelete: 'restrict' }),
+    version: varchar('version', { length: 40 }).notNull(),
+    /** DRAFT, ACTIVE or RETIRED. */
+    status: varchar('status', { length: 8 }).notNull().default('DRAFT'),
+    entryCount: integer('entry_count').notNull().default(0),
+    notes: text('notes'),
+    importedById: uuid('imported_by_id').references(() => users.id, { onDelete: 'set null' }),
+    importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+    activatedById: uuid('activated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('concept_map_versions_uq').on(t.mapId, t.version),
+    uniqueIndex('concept_map_versions_active_uq')
+      .on(t.mapId)
+      .where(sql`${t.status} = 'ACTIVE'`),
+  ],
+);
+
+/** source code → target code with the FHIR equivalence. */
+export const conceptMapEntries = pgTable(
+  'concept_map_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mapVersionId: uuid('map_version_id')
+      .notNull()
+      .references(() => conceptMapVersions.id, { onDelete: 'cascade' }),
+    sourceCode: varchar('source_code', { length: 40 }).notNull(),
+    sourceDisplay: varchar('source_display', { length: 400 }),
+    /** Null when UNMATCHED. */
+    targetCode: varchar('target_code', { length: 40 }),
+    /** EQUIVALENT, WIDER, NARROWER, RELATEDTO, UNMATCHED. */
+    equivalence: varchar('equivalence', { length: 12 }).notNull(),
+    comment: varchar('comment', { length: 500 }),
+  },
+  (t) => [
+    index('concept_map_entries_source_idx').on(t.mapVersionId, t.sourceCode),
+    uniqueIndex('concept_map_entries_uq').on(t.mapVersionId, t.sourceCode, t.targetCode),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * IT support desk and laboratory specimen tracking (new roles)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A support request about an account or access (handled by IT support, no clinical access). */
+export const supportTickets = pgTable(
+  'support_tickets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reference: varchar('reference', { length: 20 }).notNull(),
+    facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'restrict' }),
+    requesterId: uuid('requester_id').references(() => users.id, { onDelete: 'set null' }),
+    /** The account the request is about (may be the requester). */
+    subjectUserId: uuid('subject_user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** ACCOUNT_LOCKED, MFA_RESET, PASSWORD_RESET, ACCESS_CHANGE, DEVICE, OTHER. */
+    kind: varchar('kind', { length: 16 }).notNull(),
+    description: text('description').notNull(),
+    /** OPEN, IN_PROGRESS, AWAITING_APPROVAL, RESOLVED, REJECTED. */
+    status: varchar('status', { length: 18 }).notNull().default('OPEN'),
+    assignedToId: uuid('assigned_to_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Sensitive actions (MFA reset, access change) need a director's approval first. */
+    approvedById: uuid('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    resolution: text('resolution'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('support_tickets_reference_uq').on(t.reference),
+    index('support_tickets_facility_status_idx').on(t.facilityId, t.status),
+  ],
+);
+
+/** Specimen journey of a laboratory order (append-only). */
+export const labSpecimenEvents = pgTable(
+  'lab_specimen_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => labOrders.id, { onDelete: 'restrict' }),
+    /** COLLECTED, RECEIVED, REJECTED, RESULT_ENTERED, VALIDATED. */
+    event: varchar('event', { length: 16 }).notNull(),
+    /** e.g. a rejection reason (HAEMOLYSED, CLOTTED, MISLABELLED, INSUFFICIENT, OTHER) or a note. */
+    reason: varchar('reason', { length: 300 }),
+    specimenBarcode: varchar('specimen_barcode', { length: 40 }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('lab_specimen_events_order_idx').on(t.orderId, t.occurredAt)],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Patient-reported outcome measures (PROMs)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A questionnaire a clinician asked the patient to complete, once or repeatedly. */
+export const promAssignments = pgTable(
+  'prom_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    assignedById: uuid('assigned_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** PHQ9, GAD7, EQ5D5L, AUDITC, ... (definitions in code). */
+    instrument: varchar('instrument', { length: 12 }).notNull(),
+    /** ONCE, WEEKLY, MONTHLY, QUARTERLY. */
+    frequency: varchar('frequency', { length: 10 }).notNull(),
+    nextDueAt: timestamp('next_due_at', { withTimezone: true }),
+    /** ACTIVE or ENDED. */
+    status: varchar('status', { length: 8 }).notNull().default('ACTIVE'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: varchar('end_reason', { length: 300 }),
+    ...timestamps,
+  },
+  (t) => [
+    index('prom_assignments_patient_idx').on(t.patientId, t.status),
+    index('prom_assignments_due_idx').on(t.status, t.nextDueAt),
+  ],
+);
+
+/** A completed questionnaire (append-only apart from the review fields). */
+export const promResponses = pgTable(
+  'prom_responses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    assignmentId: uuid('assignment_id').references(() => promAssignments.id, {
+      onDelete: 'set null',
+    }),
+    instrument: varchar('instrument', { length: 12 }).notNull(),
+    /** Item code → answer value. */
+    answers: jsonb('answers').$type<Record<string, number>>().notNull(),
+    score: numeric('score', { precision: 8, scale: 3 }),
+    /** e.g. NONE, MILD, MODERATE, MODERATELY_SEVERE, SEVERE (instrument-specific). */
+    severity: varchar('severity', { length: 20 }),
+    /** A safety item needs a clinician today (e.g. PHQ-9 item 9 above zero). */
+    safetyFlag: boolean('safety_flag').notNull().default(false),
+    submittedByUserId: uuid('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNote: varchar('review_note', { length: 500 }),
+  },
+  (t) => [
+    index('prom_responses_patient_idx').on(t.patientId, t.instrument, t.submittedAt),
+    index('prom_responses_review_idx').on(t.safetyFlag, t.reviewedAt),
+  ],
+);
+
+/* ------------------------------------------------------------------------------------------------
+ * Blood donation test results
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Mandatory screening of one donation (staff of the blood bank only). */
+export const donationTestResults = pgTable(
+  'donation_test_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    donationId: uuid('donation_id')
+      .notNull()
+      .references(() => bloodDonations.id, { onDelete: 'restrict' }),
+    /** NEGATIVE or REACTIVE for each marker. */
+    hiv: varchar('hiv', { length: 10 }).notNull(),
+    hbv: varchar('hbv', { length: 10 }).notNull(),
+    hcv: varchar('hcv', { length: 10 }).notNull(),
+    syphilis: varchar('syphilis', { length: 10 }).notNull(),
+    aboGroup: varchar('abo_group', { length: 3 }).notNull(),
+    rhD: varchar('rh_d', { length: 8 }).notNull(),
+    labReference: varchar('lab_reference', { length: 60 }),
+    testedById: uuid('tested_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    testedAt: timestamp('tested_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('donation_test_results_donation_uq').on(t.donationId)],
+);

@@ -18,7 +18,15 @@ import { autoLinkOnInvite, licencesOfUsers } from '../licences/licences.service.
  *  - DIRECTOR onboards the facility team (doctors, nurses, pharmacists, reception, co-directors)
  *    for their own facility only.
  */
-const FACILITY_TEAM: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
+const FACILITY_TEAM: Role[] = [
+  'DIRECTOR',
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
+];
 const INVITABLE_BY: Record<Role, Role[]> = {
   MINISTRY: ['MINISTRY', 'DIRECTOR'],
   DIRECTOR: FACILITY_TEAM,
@@ -26,6 +34,8 @@ const INVITABLE_BY: Record<Role, Role[]> = {
   NURSE: [],
   PHARMACIST: [],
   RECEPTION: [],
+  LAB_TECHNICIAN: [],
+  IT_SUPPORT: [],
   PATIENT: [],
 };
 /** Regulated professions must be registered with their professional licence number. */

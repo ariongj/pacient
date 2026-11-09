@@ -52,6 +52,12 @@ import { dialysis } from './dialysis';
 import { mentalhealth } from './mentalhealth';
 import { donors } from './donors';
 import { opendata } from './opendata';
+import { history } from './history';
+import { accessreviews } from './accessreviews';
+import { terminology } from './terminology';
+import { support } from './support';
+import { labwork } from './labwork';
+import { proms } from './proms';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -108,4 +114,10 @@ export const sq: Record<string, string> = {
   ...mentalhealth,
   ...donors,
   ...opendata,
+  ...history,
+  ...accessreviews,
+  ...terminology,
+  ...support,
+  ...labwork,
+  ...proms,
 };

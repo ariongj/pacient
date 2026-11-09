@@ -234,6 +234,8 @@ export const HOME_BY_ROLE: Record<Profile['role'], string> = {
   NURSE: '/nurse',
   PHARMACIST: '/pharmacy',
   RECEPTION: '/reception',
+  LAB_TECHNICIAN: '/lab',
+  IT_SUPPORT: '/support',
   DIRECTOR: '/director',
   MINISTRY: '/ministry',
 };

@@ -46,6 +46,12 @@ import { srDialysis } from './sr-dialysis.js';
 import { srMentalhealth } from './sr-mentalhealth.js';
 import { srDonors } from './sr-donors.js';
 import { srOpendata } from './sr-opendata.js';
+import { srHistory } from './sr-history.js';
+import { srAccessreviews } from './sr-accessreviews.js';
+import { srTerminology } from './sr-terminology.js';
+import { srSupport } from './sr-support.js';
+import { srLabwork } from './sr-labwork.js';
+import { srProms } from './sr-proms.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -96,4 +102,10 @@ export const sr: Record<string, string> = {
   ...srMentalhealth,
   ...srDonors,
   ...srOpendata,
+  ...srHistory,
+  ...srAccessreviews,
+  ...srTerminology,
+  ...srSupport,
+  ...srLabwork,
+  ...srProms,
 };

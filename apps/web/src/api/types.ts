@@ -1,5 +1,13 @@
 export type Role =
-  'MINISTRY' | 'DIRECTOR' | 'DOCTOR' | 'NURSE' | 'PHARMACIST' | 'RECEPTION' | 'PATIENT';
+  | 'MINISTRY'
+  | 'DIRECTOR'
+  | 'DOCTOR'
+  | 'NURSE'
+  | 'PHARMACIST'
+  | 'RECEPTION'
+  | 'LAB_TECHNICIAN'
+  | 'IT_SUPPORT'
+  | 'PATIENT';
 
 export type StaffRole = Exclude<Role, 'PATIENT'>;
 

@@ -56,6 +56,7 @@ import { RemoteMonitoringTab } from './chart/RemoteMonitoringTab';
 import { OncologyTab } from './chart/OncologyTab';
 import { DialysisTab } from './chart/DialysisTab';
 import { MentalHealthTab } from './chart/MentalHealthTab';
+import { PromsTab } from './chart/PromsTab';
 import { DirectivesBanner } from '../directives/DirectivesFlag';
 import { t } from '../../i18n';
 import { displayName } from '../../api/identity';
@@ -108,6 +109,7 @@ const TAB_IDS = [
   'oncology',
   'dialysis',
   'mentalhealth',
+  'proms',
   'pregnancy',
   'screening',
   'registers',
@@ -370,6 +372,7 @@ export function PatientChart() {
               { id: 'oncology', label: t('Cancer registry') },
               { id: 'dialysis', label: t('Dialysis') },
               { id: 'mentalhealth', label: t('Mental health safeguards') },
+              { id: 'proms', label: t('Questionnaires') },
               { id: 'pregnancy', label: t('Pregnancy') },
               { id: 'screening', label: t('Screening|cancer') },
               { id: 'registers', label: t('Chronic care') },
@@ -411,6 +414,7 @@ export function PatientChart() {
             {tab === 'oncology' && <OncologyTab patientId={patientId} />}
             {tab === 'dialysis' && <DialysisTab patientId={patientId} />}
             {tab === 'mentalhealth' && <MentalHealthTab patientId={patientId} />}
+            {tab === 'proms' && <PromsTab patientId={patientId} />}
             {tab === 'pregnancy' && <PregnancyTab patientId={patientId} />}
             {tab === 'screening' && <ScreeningTab patientId={patientId} />}
             {tab === 'registers' && <RegistersTab patientId={patientId} />}

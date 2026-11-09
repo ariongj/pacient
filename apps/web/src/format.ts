@@ -347,5 +347,18 @@ export const ACTION_LABELS: Record<string, string> = {
   'mentalhealth.restrictive': 'Restrictive intervention recorded',
   'donors.donor': 'Blood donor record changed',
   'donors.donation': 'Blood donation recorded',
+  'access_review.opened': 'Access review opened',
+  'access_review.decided': 'Access review decision',
+  'access_review.completed': 'Access review completed',
+  'terminology.imported': 'Terminology version imported',
+  'terminology.activated': 'Terminology version activated',
+  'support.ticket': 'Support request changed',
+  'support.account_action': 'Account action by IT support',
+  'lab.specimen': 'Specimen tracked',
+  'lab.result_entered': 'Laboratory result entered',
+  'lab.result_validated': 'Laboratory result validated',
+  'prom.assigned': 'Questionnaire assigned',
+  'prom.submitted': 'Questionnaire submitted',
+  'prom.reviewed': 'Questionnaire reviewed',
 };
 export const actionLabel = (a: string) => (ACTION_LABELS[a] ? t(ACTION_LABELS[a]) : humanize(a));

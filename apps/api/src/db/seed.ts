@@ -86,6 +86,12 @@ import { seedDialysis } from './seed-dialysis.js';
 import { seedMentalhealth } from './seed-mentalhealth.js';
 import { seedDonors } from './seed-donors.js';
 import { seedOpendata } from './seed-opendata.js';
+import { seedHistory } from './seed-history.js';
+import { seedAccessreviews } from './seed-accessreviews.js';
+import { seedTerminology } from './seed-terminology.js';
+import { seedSupport } from './seed-support.js';
+import { seedLabwork } from './seed-labwork.js';
+import { seedProms } from './seed-proms.js';
 
 export const DEMO_PASSWORD = 'Pacient-Demo-2026';
 /** Development-only key of the seeded laboratory connection. */
@@ -1267,6 +1273,12 @@ async function main() {
   await seedMentalhealth({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedDonors({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedOpendata({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedHistory({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedAccessreviews({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedTerminology({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedSupport({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedLabwork({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedProms({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   // Last, so clinical accounts created by the other seeds get licences too.
   await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 

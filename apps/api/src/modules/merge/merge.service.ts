@@ -71,6 +71,8 @@ export const PATIENT_TABLES = [
   'patient_documents',
   'payments',
   'pregnancies',
+  'prom_assignments',
+  'prom_responses',
   'prescription_alerts',
   'prescriptions',
   'referrals',
@@ -108,6 +110,8 @@ export const EXCLUDED_REFERENCES = [
 /** Human labels for the counts shown to the director (no clinical content, counts only). */
 export const SECTION_LABELS: Record<PatientTable, string> = {
   blood_donations: 'Blood donations',
+  prom_assignments: 'Questionnaires assigned',
+  prom_responses: 'Questionnaire answers',
   blood_donors: 'Blood donor record',
   cancer_cases: 'Cancer registry',
   dialysis_schedules: 'Dialysis schedule',

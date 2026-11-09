@@ -88,6 +88,12 @@ import { dialysisRouter } from './modules/dialysis/dialysis.routes.js';
 import { mentalHealthRouter } from './modules/mentalhealth/mentalhealth.routes.js';
 import { bloodDonorsRouter } from './modules/donors/donors.routes.js';
 import { openDataRouter } from './modules/opendata/opendata.routes.js';
+import { historyRouter } from './modules/history/history.routes.js';
+import { accessReviewsRouter } from './modules/accessreviews/accessreviews.routes.js';
+import { terminologyRouter } from './modules/terminology/terminology.routes.js';
+import { supportRouter } from './modules/support/support.routes.js';
+import { labWorkRouter } from './modules/lab/work.routes.js';
+import { promsRouter } from './modules/proms/proms.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -196,6 +202,12 @@ export function createApp(): Express {
   api.use('/video', telemedicineRouter);
   api.use('/stock', stockRouter);
   api.use('/partner', partnerRouter);
+  api.use('/history', historyRouter);
+  api.use('/access-reviews', accessReviewsRouter);
+  api.use('/terminology', terminologyRouter);
+  api.use('/support', supportRouter);
+  api.use('/lab-work', labWorkRouter);
+  api.use('/proms', promsRouter);
   api.use('/remote-monitoring', remoteMonitoringRouter);
   api.use('/oncology', oncologyRouter);
   api.use('/dialysis', dialysisRouter);

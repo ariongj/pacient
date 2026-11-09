@@ -24,6 +24,7 @@ import {
 import { formatDateTime, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { t } from '../../../i18n';
+import { RecordHistory } from '../../history/RecordHistory';
 
 const TYPES = ['OUTPATIENT', 'INPATIENT', 'EMERGENCY', 'TELEHEALTH', 'HOME_VISIT'] as const;
 
@@ -218,6 +219,12 @@ function EncounterItem({ patientId, e }: { patientId: string; e: Encounter }) {
             {t('Add addendum')}
           </Button>
         )}
+        <RecordHistory
+          patientId={patientId}
+          table="encounters"
+          resourceId={e.id}
+          label={e.reason}
+        />
         {isDoctor && (
           <Button size="sm" variant="ghost" onClick={() => setConfidentialOpen(true)}>
             {markConfidential ? t('Mark confidential from guardians') : t('Remove confidentiality')}

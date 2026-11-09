@@ -26,6 +26,7 @@ import {
 import { SelectField } from '../../../components/ui';
 import { VaccinationSummary, VaccinationTimeline } from '../../vaccination/VaccinationCard';
 import '../../vaccination/vaccination.css';
+import { RecordHistory } from '../../history/RecordHistory';
 
 /** Local "now" for a datetime-local input's max attribute. */
 function localNow() {
@@ -93,6 +94,12 @@ function RecordedVaccinations({
                     <td>
                       <strong>{i.vaccine}</strong>
                       {i.notes && <div className="muted">{i.notes}</div>}
+                      <RecordHistory
+                        patientId={patientId}
+                        table="immunizations"
+                        resourceId={i.id}
+                        label={i.vaccine}
+                      />
                     </td>
                     <td className="num">{i.doseNumber ?? '—'}</td>
                     <td>{i.lotNumber ?? '—'}</td>

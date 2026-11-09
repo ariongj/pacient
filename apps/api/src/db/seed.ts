@@ -1274,13 +1274,14 @@ async function main() {
   await seedDonors({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedOpendata({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedHistory({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
-  await seedAccessreviews({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedTerminology({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedSupport({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedLabwork({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   await seedProms({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   // Last, so clinical accounts created by the other seeds get licences too.
   await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  // After licences and all staff accounts, so the review snapshots are realistic.
+  await seedAccessreviews({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
@@ -1290,6 +1291,8 @@ Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Nurse      : nurse@pacient.local       (QKUK)
   Pharmacist : pharmacist@pacient.local  (QKUK)
   Reception  : reception@pacient.local   (QKUK)
+  Laboratory : lab@pacient.local         (laboratory technician, QKUK)
+  IT support : it@pacient.local          (QKUK)
   Radiology  : radiologist@pacient.local (Dr. Arben Krasniqi, Radiologji, QKUK)
   Kitchen    : kuzhina@pacient.local     (Kuzhina qendrore, QKUK)
   Patient    : patient@pacient.local     (Arta Krasniqi – also guardian of her daughter Lea, 10)

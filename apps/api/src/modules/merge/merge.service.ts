@@ -414,7 +414,11 @@ export async function mergePatients(
     UNION ALL SELECT 'active dialysis schedule', count(*)::int FROM dialysis_schedules
       WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})
     UNION ALL SELECT 'active involuntary admission', count(*)::int FROM involuntary_admissions
-      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})`);
+      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})
+    UNION ALL SELECT 'active questionnaire request', coalesce(max(c), 0)::int FROM (
+      SELECT count(*)::int AS c FROM prom_assignments
+      WHERE status = 'ACTIVE' AND patient_id IN (${survivor.id}, ${merged.id})
+      GROUP BY instrument) x`);
   const SINGLE_CLASH: Record<string, string> = {
     'blood donor record':
       'Both records have a blood donor record. Contact the blood bank, then merge.',
@@ -424,6 +428,8 @@ export async function mergePatients(
       'Both records have an active dialysis schedule. End one of them, then merge.',
     'active involuntary admission':
       'Both records have an active involuntary admission. End one of them, then merge.',
+    'active questionnaire request':
+      'Both records ask for the same questionnaire. Stop one of the requests, then merge.',
   };
   const clash = single.rows.find((r) => r.n > 1);
   if (clash) throw conflict(SINGLE_CLASH[clash.what]!);

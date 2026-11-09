@@ -174,4 +174,6 @@ export const merge: Record<string, string> = {
     'Të dyja kartelat kanë orar aktiv dialize. Përfundoni njërin, pastaj bashkojini.',
   'Both records have an active involuntary admission. End one of them, then merge.':
     'Të dyja kartelat kanë shtrim aktiv pa pëlqim. Përfundoni njërin, pastaj bashkojini.',
+  'Both records ask for the same questionnaire. Stop one of the requests, then merge.':
+    'Të dy regjistrimet kërkojnë të njëjtin pyetësor. Ndalni njërën nga kërkesat, pastaj bashkojini.',
 };

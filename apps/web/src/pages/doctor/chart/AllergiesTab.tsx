@@ -20,6 +20,7 @@ import { formatDate, humanize } from '../../../format';
 import { useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
+import { RecordHistory } from '../../history/RecordHistory';
 
 const SEVERITIES = ['MILD', 'MODERATE', 'SEVERE', 'LIFE_THREATENING'] as const;
 const VERIFICATION = ['UNCONFIRMED', 'CONFIRMED', 'REFUTED', 'ENTERED_IN_ERROR'] as const;
@@ -125,6 +126,14 @@ export function AllergiesTab({
                   <tr key={a.id}>
                     <td>
                       <strong>{a.substance}</strong>
+                      <div>
+                        <RecordHistory
+                          patientId={patientId}
+                          table="allergies"
+                          resourceId={a.id}
+                          label={a.substance}
+                        />
+                      </div>
                     </td>
                     <td>{a.reaction ?? '—'}</td>
                     <td>

@@ -21,6 +21,7 @@ import { LabOrdersPanel } from './LabOrdersPanel';
 import { EncounterSelect, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
+import { RecordHistory } from '../../history/RecordHistory';
 
 export function ResultsTab({
   patientId,
@@ -108,6 +109,14 @@ export function ResultsTab({
                           {r.source === 'LIS' && (
                             <Badge tone="info">{t('From laboratory system')}</Badge>
                           )}
+                          <div>
+                            <RecordHistory
+                              patientId={patientId}
+                              table="lab_results"
+                              resourceId={r.id}
+                              label={r.testName}
+                            />
+                          </div>
                         </td>
                         <td>
                           {r.value} {r.unit ?? ''}

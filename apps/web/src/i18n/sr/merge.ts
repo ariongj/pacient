@@ -161,4 +161,6 @@ export const merge: Record<string, string> = {
     'Oba kartona imaju aktivan raspored dijalize. Završite jedan, pa ih spojite.',
   'Both records have an active involuntary admission. End one of them, then merge.':
     'Oba kartona imaju aktivan prinudni prijem. Završite jedan, pa ih spojite.',
+  'Both records ask for the same questionnaire. Stop one of the requests, then merge.':
+    'Oba zapisa traže isti upitnik. Zaustavite jedan od zahteva, pa ih spojite.',
 };

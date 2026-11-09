@@ -23,6 +23,7 @@ import { useSection } from './useSection';
 import { t } from '../../../i18n';
 import { Link } from 'react-router-dom';
 import { diseaseName, usePatientCases } from '../../../api/surveillance';
+import { RecordHistory } from '../../history/RecordHistory';
 
 const STATUSES = ['ACTIVE', 'CHRONIC', 'RESOLVED'] as const;
 
@@ -87,6 +88,14 @@ export function ProblemsTab({
                   <tr key={d.id}>
                     <td>
                       <code>{d.icd10Code}</code>
+                      <div>
+                        <RecordHistory
+                          patientId={patientId}
+                          table="diagnoses"
+                          resourceId={d.id}
+                          label={d.description}
+                        />
+                      </div>
                     </td>
                     <td>
                       {d.description}

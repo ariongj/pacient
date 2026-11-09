@@ -2,6 +2,7 @@ import type { ClinicalSummary } from '../../../api/types';
 import { Card, DefinitionList, EmptyState, Grid, Stat, StatusBadge } from '../../../components/ui';
 import { formatDate, formatDateTime, humanize } from '../../../format';
 import { t } from '../../../i18n';
+import { RecentChangesSection } from '../../history/RecordHistory';
 
 export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
   const v = summary.latestVitals;
@@ -136,6 +137,7 @@ export function SummaryTab({ summary }: { summary: ClinicalSummary }) {
           </Card>
         </div>
       </div>
+      <RecentChangesSection patientId={p.id} />
     </div>
   );
 }

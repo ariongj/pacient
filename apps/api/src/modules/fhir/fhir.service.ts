@@ -334,7 +334,17 @@ export async function buildEverythingBundle(patientId: string, opts: BundleOptio
 }
 
 /** CapabilityStatement shared by the staff and partner FHIR endpoints. */
-export function capabilityStatement(security: string) {
+/** Resource types whose versions are kept (see modules/history). */
+const VERSIONED = new Set([
+  'AllergyIntolerance',
+  'Condition',
+  'MedicationRequest',
+  'Observation',
+  'Immunization',
+  'Encounter',
+]);
+
+export function capabilityStatement(security: string, opts: { history?: boolean } = {}) {
   return {
     resourceType: 'CapabilityStatement',
     status: 'active',
@@ -384,11 +394,21 @@ export function capabilityStatement(security: string) {
             'RelatedPerson',
             'Organization',
             'Practitioner',
-          ].map((type) => ({
-            type,
-            interaction: [] as unknown[],
-            documentation: 'Available within Patient/$everything',
-          })),
+          ].map((type) =>
+            opts.history && VERSIONED.has(type)
+              ? {
+                  type,
+                  interaction: [{ code: 'vread' }, { code: 'history-instance' }],
+                  versioning: 'versioned',
+                  documentation:
+                    'Available within Patient/$everything; earlier versions via {type}/{id}/_history (treating staff, audited)',
+                }
+              : {
+                  type,
+                  interaction: [] as unknown[],
+                  documentation: 'Available within Patient/$everything',
+                },
+          ),
         ],
       },
     ],

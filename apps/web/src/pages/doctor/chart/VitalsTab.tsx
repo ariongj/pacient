@@ -29,6 +29,7 @@ import { formatDateTime, formatNumber } from '../../../format';
 import { EncounterSelect, numbers, useChartMutation, useChartRole } from './shared';
 import { useSection } from './useSection';
 import { t } from '../../../i18n';
+import { RecordHistory } from '../../history/RecordHistory';
 
 const FIELDS = [
   'systolic',
@@ -237,6 +238,12 @@ export function VitalsTab({
                     <td>
                       {formatDateTime(v.recordedAt)}
                       <div className="muted">{v.recordedBy}</div>
+                      <RecordHistory
+                        patientId={patientId}
+                        table="vital_signs"
+                        resourceId={v.id}
+                        label={formatDateTime(v.recordedAt)}
+                      />
                     </td>
                     <td className="num">
                       {v.systolic ? `${v.systolic}/${v.diastolic ?? '—'}` : '—'}

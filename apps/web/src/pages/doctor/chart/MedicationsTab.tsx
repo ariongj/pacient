@@ -54,6 +54,7 @@ import {
   ErxStatusBadge,
   ErxSummary,
 } from '../../erx/ErxComponents';
+import { RecordHistory } from '../../history/RecordHistory';
 
 /** Prescription row with the national e-prescription fields. */
 type RxRow = Prescription & {
@@ -292,6 +293,12 @@ export function MedicationsTab({
                       <div className="muted">{p.route}</div>
                       {p.instructions && <div className="muted">{p.instructions}</div>}
                       <StoredAlertSummary alerts={stored.data?.[p.id]} />
+                      <RecordHistory
+                        patientId={patientId}
+                        table="prescriptions"
+                        resourceId={p.id}
+                        label={p.medication}
+                      />
                     </td>
                     <td>
                       {p.dosage} · {p.frequency}

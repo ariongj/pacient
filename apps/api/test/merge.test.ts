@@ -10,6 +10,7 @@ import {
   labResults,
   medicationAdministrations,
   patients,
+  promAssignments,
   prescriptions,
 } from '../src/db/schema.js';
 import {
@@ -385,6 +386,30 @@ describe('merging', () => {
     expect(doctor.status).toBe(403);
     const short = await merges().post('', { survivorId: a.id, mergedId: c.id, reason: 'dup' });
     expect(short.status).toBe(400);
+  });
+
+  it('refuses while both records have an active request for the same questionnaire', async () => {
+    const a = await person('Blerim', 'Gashi');
+    const b = await person('Blerim', 'Gashi');
+    const ask = (patientId: string, instrument: string) =>
+      db.insert(promAssignments).values({
+        patientId,
+        facilityId: w.facility.id,
+        assignedById: w.users.doctor.id,
+        instrument,
+        frequency: 'MONTHLY',
+      });
+    await ask(a.id, 'PHQ9');
+    await ask(b.id, 'GAD7');
+    // Different questionnaires do not clash (checked via the comparison, not a full merge).
+    await ask(b.id, 'PHQ9');
+    const res = await merges().post('', {
+      survivorId: a.id,
+      mergedId: b.id,
+      reason: 'Same person registered twice',
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error?.message ?? res.body.message).toMatch(/questionnaire/);
   });
 });
 

@@ -84,6 +84,7 @@ function Statistics({ stats }: { stats: MortalityStats }) {
         ) : (
           <RankedBars
             label={t('Underlying cause by ICD-10 chapter')}
+            hiddenLabel={t('Hidden|small numbers')}
             rows={stats.byChapter.map((c) => ({
               key: c.chapter,
               label: t(c.label),
@@ -124,6 +125,7 @@ function Statistics({ stats }: { stats: MortalityStats }) {
         <Card title={t('Manner of death')}>
           <RankedBars
             label={t('Manner of death')}
+            hiddenLabel={t('Hidden|small numbers')}
             rows={stats.byManner.map((m) => ({
               key: m.manner,
               label: t(MANNER_LABEL[m.manner]),

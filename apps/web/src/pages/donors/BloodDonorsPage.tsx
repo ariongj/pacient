@@ -341,6 +341,7 @@ function DonorView({ id, onBack }: { id: string; onBack: () => void }) {
   const [visit, setVisit] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [reaction, setReaction] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [deferring, setDeferring] = useState(false);
   return (
     <div className="stack">
@@ -460,6 +461,11 @@ function DonorView({ id, onBack }: { id: string; onBack: () => void }) {
                                 {t('Record tests')}
                               </Button>
                             )}
+                            {x.unitNumber && (
+                              <Button size="sm" variant="ghost" onClick={() => setViewing(x.id)}>
+                                {t('Screening results')}
+                              </Button>
+                            )}
                             {!x.adverseReaction && x.outcome !== 'DEFERRED' && (
                               <Button size="sm" variant="ghost" onClick={() => setReaction(x.id)}>
                                 {t('Add reaction')}
@@ -482,6 +488,7 @@ function DonorView({ id, onBack }: { id: string; onBack: () => void }) {
               />
             )}
             {reaction && <ReactionDialog donationId={reaction} onClose={() => setReaction(null)} />}
+            {viewing && <ResultsDialog donationId={viewing} onClose={() => setViewing(null)} />}
             {deferring && <DeferDialog detail={d} onClose={() => setDeferring(false)} />}
           </>
         )}
@@ -769,6 +776,55 @@ function EligibilityBox({
 
 /* ------------------------------------------------------------------ tests ---------------- */
 
+/** The recorded screening results of one donation (viewing is recorded in the access log). */
+function ResultsDialog({ donationId, onClose }: { donationId: string; onClose: () => void }) {
+  const defs = useDonorDefinitions();
+  const q = useQuery({
+    queryKey: ['blood-donors', 'tests', donationId],
+    queryFn: () =>
+      api<
+        Record<Marker, MarkerResult> & {
+          abo: Abo;
+          rhD: RhD;
+          labReference: string | null;
+          testedAt: string;
+          testedBy: string;
+        }
+      >(`/blood-donors/donations/${donationId}/tests`),
+  });
+  return (
+    <Dialog open onClose={onClose} title={t('Screening results')}>
+      <QueryView query={q}>
+        {(r) => (
+          <div className="stack">
+            <DefinitionList
+              items={[
+                [t('Blood group'), donorGroup(r.abo, r.rhD)],
+                ...(defs.data?.markers ?? []).map(
+                  (m) =>
+                    [
+                      t(m.label),
+                      r[m.code] === 'REACTIVE' ? (
+                        <Badge tone="danger">{t('Reactive')}</Badge>
+                      ) : (
+                        t('Negative')
+                      ),
+                    ] as [string, React.ReactNode],
+                ),
+                [t('Laboratory reference'), r.labReference ?? '—'],
+                [t('Recorded'), `${formatDateTime(r.testedAt)} · ${r.testedBy}`],
+              ]}
+            />
+            <div className="form-actions">
+              <Button onClick={onClose}>{t('Close')}</Button>
+            </div>
+          </div>
+        )}
+      </QueryView>
+    </Dialog>
+  );
+}
+
 function TestsDialog({
   donationId,
   known,
@@ -781,6 +837,7 @@ function TestsDialog({
   const defs = useDonorDefinitions();
   const [group, setGroup] = useState(known ? `${known.abo}|${known.rhD}` : '');
   const [results, setResults] = useState<Partial<Record<Marker, MarkerResult>>>({});
+  const [labReference, setLabReference] = useState('');
   const save = useDonorsAction<
     Record<string, unknown>,
     { released: boolean; unit: { unitNumber: string } }
@@ -817,7 +874,12 @@ function TestsDialog({
           onSubmit={(e) => {
             e.preventDefault();
             const [abo, rhD] = group.split('|');
-            save.mutate({ abo, rhD, ...results });
+            save.mutate({
+              abo,
+              rhD,
+              ...results,
+              ...(labReference.trim() ? { labReference: labReference.trim() } : {}),
+            });
           }}
         >
           <SelectField
@@ -854,6 +916,13 @@ function TestsDialog({
               </span>
             </div>
           ))}
+          <TextField
+            label={t('Laboratory reference')}
+            hint={t('Optional: the screening laboratory’s sample or report number')}
+            maxLength={60}
+            value={labReference}
+            onChange={(e) => setLabReference(e.target.value)}
+          />
           {reactive && (
             <Alert tone="danger" title={t('A reactive result discards the unit')}>
               {t('The donor will be permanently deferred and referred for counselling.')}

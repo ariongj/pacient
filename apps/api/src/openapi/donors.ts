@@ -88,16 +88,27 @@ export const DONORS_OPERATIONS: ModuleOperation[] = [
       description:
         'All markers negative: the whole-blood unit enters stock. Any reactive marker: the unit is ' +
         'discarded, the donor permanently deferred and the blood bank doctors asked to counsel them.',
-      body: obj({ abo: ABO, rhD: RH, hiv: MARKER, hbv: MARKER, hcv: MARKER, syphilis: MARKER }, [
-        'abo',
-        'rhD',
-        'hiv',
-        'hbv',
-        'hcv',
-        'syphilis',
-      ]),
+      body: obj(
+        {
+          abo: ABO,
+          rhD: RH,
+          hiv: MARKER,
+          hbv: MARKER,
+          hcv: MARKER,
+          syphilis: MARKER,
+          labReference: str({ maxLength: 60 }),
+        },
+        ['abo', 'rhD', 'hiv', 'hbv', 'hcv', 'syphilis'],
+      ),
     },
   ),
+  op('get', '/blood-donors/donations/{id}/tests', D, 'Screening results of a donation', {
+    access: STAFF,
+    description:
+      'The individual marker results and the confirmed group (blood bank staff of the facility ' +
+      'only; the view is recorded in the donor’s access log).',
+    responses: { '404': 'No results recorded yet' },
+  }),
   op('get', '/blood-donors/today', D, "Today's donor visits at my blood bank", { access: STAFF }),
   op('get', '/blood-donors/testing-queue', D, 'Donations waiting for their mandatory tests', {
     access: STAFF,

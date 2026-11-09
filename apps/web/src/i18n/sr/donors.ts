@@ -255,4 +255,8 @@ export const donors: Record<string, string> = {
   'Agree or refuse to be asked to donate': 'Prihvati ili odbij pozive za davanje krvi',
   'Donor statistics (months, deferral reasons, retention)':
     'Statistika davalaca (meseci, razlozi odlaganja, zadržavanje)',
+  'Laboratory reference': 'Laboratorijska oznaka',
+  'Optional: the screening laboratory’s sample or report number':
+    'Opciono: broj uzorka ili izveštaja laboratorije za testiranje',
+  'Screening results': 'Rezultati testiranja',
 };

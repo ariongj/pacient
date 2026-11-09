@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import {
@@ -349,6 +349,15 @@ describe('testing and release', () => {
     expect(again.status).toBe(409);
     const detail = await send('get', `/donors/${id}`, nurse.token);
     expect(detail.body.donations[0].testing).toBe('RELEASED');
+    const results = await send('get', `/donations/${don.body.id}/tests`, nurse.token);
+    expect(results.status).toBe(200);
+    expect(results.body).toMatchObject({ hiv: 'NEGATIVE', abo: 'A', rhD: 'NEG' });
+    // Kept as recorded.
+    await expect(
+      db.execute(
+        sql`UPDATE donation_test_results SET hiv = 'REACTIVE' WHERE donation_id = ${don.body.id}`,
+      ),
+    ).rejects.toThrow();
   });
 
   it('asks for a retest when the group differs from the recorded one', async () => {

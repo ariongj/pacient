@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
   bloodDonations,
+  donationTestResults,
   bloodDonors,
   bloodGroupTests,
   bloodUnits,
@@ -591,6 +592,8 @@ const TestInput = z.object({
   hbv: Marker,
   hcv: Marker,
   syphilis: Marker,
+  /** The screening laboratory's own sample or report number. */
+  labReference: z.string().trim().max(60).optional(),
 });
 
 /**
@@ -651,6 +654,19 @@ bloodDonorsRouter.post('/donations/:id/tests', async (req, res) => {
       testedById: ctx.userId,
       testedAt: now,
     });
+    // The individual results, for blood bank staff only (append-only).
+    await tx.insert(donationTestResults).values({
+      donationId: id,
+      hiv: input.hiv,
+      hbv: input.hbv,
+      hcv: input.hcv,
+      syphilis: input.syphilis,
+      aboGroup: input.abo,
+      rhD: input.rhD,
+      labReference: input.labReference ?? null,
+      testedById: ctx.userId,
+      testedAt: now,
+    });
     const donorSet: Partial<typeof bloodDonors.$inferInsert> = { abo: input.abo, rhD: input.rhD };
     if (!passed) {
       donorSet.status = 'PERMANENTLY_DEFERRED';
@@ -698,6 +714,36 @@ bloodDonorsRouter.post('/donations/:id/tests', async (req, res) => {
     released: out.passed && !out.expired,
     unit: { id: out.unit.id, unitNumber: out.unit.unitNumber, status: out.unit.status },
   });
+});
+
+/** The recorded screening results of a donation (blood bank staff of the facility only). */
+bloodDonorsRouter.get('/donations/:id/tests', async (req, res) => {
+  const ctx = requireAuth(req);
+  await assertStaff(ctx);
+  const { id } = parse(IdParam, req.params);
+  const [d] = await db
+    .select({ id: bloodDonations.id, patientId: bloodDonations.patientId })
+    .from(bloodDonations)
+    .where(and(eq(bloodDonations.id, id), eq(bloodDonations.facilityId, ctx.facilityId!)));
+  if (!d) throw notFound('Donation not found');
+  const [r] = await db
+    .select({
+      hiv: donationTestResults.hiv,
+      hbv: donationTestResults.hbv,
+      hcv: donationTestResults.hcv,
+      syphilis: donationTestResults.syphilis,
+      abo: donationTestResults.aboGroup,
+      rhD: donationTestResults.rhD,
+      labReference: donationTestResults.labReference,
+      testedAt: donationTestResults.testedAt,
+      testedBy: users.fullName,
+    })
+    .from(donationTestResults)
+    .innerJoin(users, eq(users.id, donationTestResults.testedById))
+    .where(eq(donationTestResults.donationId, id));
+  if (!r) throw notFound('No test results are recorded for this donation');
+  await auditRecordView(ctx, d.patientId, 'UNIT', 'donation-tests', requestMeta(req));
+  res.json(r);
 });
 
 /* ------------------------------------------------------------------ worklists ------------- */

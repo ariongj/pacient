@@ -262,4 +262,8 @@ export const donors: Record<string, string> = {
   'Agree or refuse to be asked to donate': 'Prano ose refuzo të ftohesh për të dhuruar',
   'Donor statistics (months, deferral reasons, retention)':
     'Statistikat e dhuruesve (muajt, arsyet e shtyrjes, mbajtja)',
+  'Laboratory reference': 'Referenca e laboratorit',
+  'Optional: the screening laboratory’s sample or report number':
+    'Opsionale: numri i mostrës ose i raportit të laboratorit të testimit',
+  'Screening results': 'Rezultatet e testimit',
 };

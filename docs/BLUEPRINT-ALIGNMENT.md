@@ -9,25 +9,25 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Roles and permission model (§3)
 
-| Requirement                                                                            | Status | Where                                                                   |
-| -------------------------------------------------------------------------------------- | :----: | ----------------------------------------------------------------------- |
-| Default deny; contextual authorization enforced on the server                          |   ✅   | `modules/access/policy.ts`                                              |
-| Roles are responsibilities, not a ladder; director/ministry get no record access       |   ✅   | policy + `test/access-control.test.ts`                                  |
-| Doctor access limited to assigned care                                                 |   ✅   | `care_assignments`                                                      |
-| Institution (tenant) isolation incl. search and break-glass                            |   ✅   | patients routes, policy                                                 |
-| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant   |   ✅   | emergency access + director review queue + Ministry compliance view     |
-| Audit of reads, searches, changes, exports, denials, role changes, emergency access    |   ✅   | `modules/audit`                                                         |
-| Prompt leaver revocation (blocks active sessions)                                      |   ✅   | staff status + per-request account check                                |
-| Patient, Doctor, Director (operations/clinical), Ministry roles                        |   ✅   |                                                                         |
-| Nurse role: care team, observations, tasks, medication administration (no prescribing) |   ✅   | `policy.ts` WRITERS, MAR, care tasks                                    |
-| Pharmacist role: medication review/verification/dispensing with necessary context only |   ✅   | `modules/pharmacy`                                                      |
-| Reception role: identity, contact, scheduling; clinical detail hidden                  |   ✅   | patients/appointments routes                                            |
-| Guardian / proxy: verified, explicit, patient-specific, scoped, expiring, revocable    |   ✅   | `modules/guardians`, `X-Acting-For`                                     |
-| Confidential minor records follow applicable law                                       |   🟡   | per-visit "confidential from guardians"; age rules per jurisdiction ⏳  |
-| Lab/radiology, billing, IT support roles                                               |   ⏳   |                                                                         |
-| Purpose/consent and data-sensitivity in policy decisions                               |   🟡   | consent gates cross-facility referral; research consent recorded        |
-| Periodic access review                                                                 |   🟡   | audit review UI and emergency-access reviews; formal recertification ⏳ |
-| Cross-institution sharing only through an explicit arrangement                         |   ✅   | referrals: acceptance creates the care relationship                     |
+| Requirement                                                                               | Status | Where                                                                                 |
+| ----------------------------------------------------------------------------------------- | :----: | ------------------------------------------------------------------------------------- |
+| Default deny; contextual authorization enforced on the server                             |   ✅   | `modules/access/policy.ts`                                                            |
+| Roles are responsibilities, not a ladder; director/ministry get no record access          |   ✅   | policy + `test/access-control.test.ts`                                                |
+| Doctor access limited to assigned care                                                    |   ✅   | `care_assignments`                                                                    |
+| Institution (tenant) isolation incl. search and break-glass                               |   ✅   | patients routes, policy                                                               |
+| Break-glass: eligible clinicians, reason, short duration, review, never cross-tenant      |   ✅   | emergency access + director review queue + Ministry compliance view                   |
+| Audit of reads, searches, changes, exports, denials, role changes, emergency access       |   ✅   | `modules/audit`                                                                       |
+| Prompt leaver revocation (blocks active sessions)                                         |   ✅   | staff status + per-request account check                                              |
+| Patient, Doctor, Director (operations/clinical), Ministry roles                           |   ✅   |                                                                                       |
+| Nurse role: care team, observations, tasks, medication administration (no prescribing)    |   ✅   | `policy.ts` WRITERS, MAR, care tasks                                                  |
+| Pharmacist role: medication review/verification/dispensing with necessary context only    |   ✅   | `modules/pharmacy`                                                                    |
+| Reception role: identity, contact, scheduling; clinical detail hidden                     |   ✅   | patients/appointments routes                                                          |
+| Guardian / proxy: verified, explicit, patient-specific, scoped, expiring, revocable       |   ✅   | `modules/guardians`, `X-Acting-For`                                                   |
+| Confidential minor records follow applicable law                                          |   🟡   | per-visit "confidential from guardians"; age rules per jurisdiction ⏳                |
+| Laboratory technician and IT support roles (radiology by specialty, billing by reception) |   ✅   | `LAB_TECHNICIAN`, `IT_SUPPORT`: no clinical record access; `test/support.test.ts`     |
+| Purpose/consent and data-sensitivity in policy decisions                                  |   🟡   | consent gates cross-facility referral; research consent recorded                      |
+| Periodic access review                                                                    |   ✅   | quarterly recertification per facility and for the Ministry (`modules/accessreviews`) |
+| Cross-institution sharing only through an explicit arrangement                            |   ✅   | referrals: acceptance creates the care relationship                                   |
 
 ## Patient portal (§2, §4)
 
@@ -48,18 +48,18 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 
 ## Clinical record integrity (§5)
 
-| Requirement                                                              |               Status               |
-| ------------------------------------------------------------------------ | :--------------------------------: |
-| Author, effective time and recorded time on every clinical item          |                 ✅                 |
-| Signed notes corrected through attributable addenda; originals preserved |          ✅ (DB trigger)           |
-| Optimistic concurrency for clinical edits                                |        ✅ (encounter notes)        |
-| Distinguish "no known allergies" / "unknown" / "not recorded"            |                 ✅                 |
-| Patient-reported vs clinician-entered information distinguishable        |           ✅ (allergies)           |
-| Duplicate identities go to human review, never auto-merged               |      ✅ (registration check)       |
-| Merge/unmerge workflow with lineage                                      |                 ✅                 |
-| Temporary identities (unidentified patients), newborn registration       |                 ✅                 |
-| Coded values + original text; local code systems; versioned mappings     |   🟡 ICD-10 codes + description    |
-| Version history for every clinical resource                              | 🟡 audit trail; full versioning ⏳ |
+| Requirement                                                              |                                      Status                                       |
+| ------------------------------------------------------------------------ | :-------------------------------------------------------------------------------: |
+| Author, effective time and recorded time on every clinical item          |                                        ✅                                         |
+| Signed notes corrected through attributable addenda; originals preserved |                                  ✅ (DB trigger)                                  |
+| Optimistic concurrency for clinical edits                                |                               ✅ (encounter notes)                                |
+| Distinguish "no known allergies" / "unknown" / "not recorded"            |                                        ✅                                         |
+| Patient-reported vs clinician-entered information distinguishable        |                                  ✅ (allergies)                                   |
+| Duplicate identities go to human review, never auto-merged               |                              ✅ (registration check)                              |
+| Merge/unmerge workflow with lineage                                      |                                        ✅                                         |
+| Temporary identities (unidentified patients), newborn registration       |                                        ✅                                         |
+| Coded values + original text; local code systems; versioned mappings     | 🟡 terminology service (`modules/terminology`); use in lab/clinical validation ⏳ |
+| Version history for every clinical resource                              |       ✅ key clinical records (trigger, `modules/history`, FHIR `_history`)       |
 
 ## Orders and results (§4)
 
@@ -181,6 +181,7 @@ Legend: ✅ implemented · 🟡 partial / foundation in place · ⏳ planned (la
 | Mental health legal safeguards                                                            | ✅ (time limits to confirm)         |
 | Blood donors                                                                              | ✅ (rules to confirm)               |
 | Public open data                                                                          | ✅ (licence to confirm)             |
+| Patient-reported outcome measures (PHQ-9, GAD-7, WHO-5, AUDIT-C)                          | ✅ (translations to validate)       |
 | Load test and capacity baseline                                                           | ✅ (`docs/PERFORMANCE.md`)          |
 
 ## Open decisions (§10) — needed from the project sponsor

@@ -19,6 +19,8 @@ import { assertLicensed } from '../licences/licences.service.js';
  * | NURSE      | care team (reads; writes observations, allergies, vaccines, MAR) | own facility / care team | –            |
  * | PHARMACIST | never in full – medication context only, via the pharmacy queue | via pharmacy queue only | –            |
  * | RECEPTION  | never                                                         | own facility's patients   | –            |
+ * | LAB_TECHNICIAN | never – the laboratory worklist shows identification and the order only (audited) | via the worklist only | lab turnaround |
+ * | IT_SUPPORT | never – staff accounts of their facility only                   | never                     | ticket counts |
  * | PATIENT    | own record (read-only; released results, signed notes)        | own                       | –            |
  * | GUARDIAN   | a PATIENT account acting for a child under a verified, unexpired guardianship: like the
  * |            | patient's own view, minus confidential visits; appointments-only scope sees no clinical data |
@@ -297,7 +299,8 @@ export async function resolveClinicalReadAccess(
         'Pharmacists see the medication context of prescriptions in the pharmacy queue, not the full record',
       );
     default:
-      // Directors, the Ministry and reception run the system; they never see clinical content.
+      // Directors, the Ministry, reception, laboratory technicians and IT support never see
+      // clinical records (laboratory staff work from the laboratory worklist instead).
       throw await deny(
         ctx,
         patientId,

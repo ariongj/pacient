@@ -1,0 +1,54 @@
+/* Laboratory worklist and specimen labels. */
+.lab-flag-critical {
+  color: var(--danger, #b42318);
+  font-weight: 700;
+}
+.lab-row-stat td:first-child {
+  box-shadow: inset 4px 0 0 var(--danger, #b42318);
+}
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+/* A specimen label: about 50 × 25 mm, black on white. */
+.lab-label {
+  width: 50mm;
+  min-height: 25mm;
+  padding: 2mm;
+  border: 1px dashed var(--border);
+  background: #fff;
+  color: #000;
+  font-size: 8pt;
+  line-height: 1.2;
+}
+.lab-label .code39 {
+  display: block;
+  width: 100%;
+  height: 9mm;
+}
+.lab-label-name {
+  font-weight: 700;
+  font-size: 9pt;
+}
+.lab-label-code {
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+@media print {
+  body.printing-lab-label * {
+    visibility: hidden;
+  }
+  body.printing-lab-label .lab-label,
+  body.printing-lab-label .lab-label * {
+    visibility: visible;
+  }
+  body.printing-lab-label .lab-label {
+    position: fixed;
+    top: 0;
+    left: 0;
+    border: none;
+  }
+}

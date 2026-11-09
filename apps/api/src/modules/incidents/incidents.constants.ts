@@ -42,7 +42,15 @@ export const CONTRIBUTING_FACTORS = [
 ] as const;
 
 /** Staff roles that report incidents (the Ministry has no facility). */
-export const REPORTER_ROLES = ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR'] as const;
+export const REPORTER_ROLES = [
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
+  'DIRECTOR',
+] as const;
 
 /** Allowed status changes (reopening a closed review is a director decision with a reason). */
 export const TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {

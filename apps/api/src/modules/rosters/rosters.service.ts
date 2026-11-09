@@ -57,7 +57,14 @@ export const ON_CALL_SPECIALTIES = [
 export type OnCallSpecialty = (typeof ON_CALL_SPECIALTIES)[number];
 
 /** Roles that work rostered shifts (and may read their facility's roster). */
-export const ROSTERED_ROLES = ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR'] as const;
+export const ROSTERED_ROLES = [
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+  'LAB_TECHNICIAN',
+  'DIRECTOR',
+] as const;
 
 /** Wards whose nurse staffing is compared with occupied beds. */
 export const WARD_TYPES = [

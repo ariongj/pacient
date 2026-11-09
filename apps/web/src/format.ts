@@ -123,8 +123,15 @@ export function age(dateOfBirth: string): number {
 }
 
 /** "OUTPATIENT" -> "Outpatient", "NO_KNOWN_ALLERGIES" -> "No known allergies" */
+/** Role codes whose plain wording differs from the code. */
+const ROLE_NAMES: Record<string, string> = {
+  IT_SUPPORT: 'IT support',
+  LAB_TECHNICIAN: 'Laboratory technician',
+};
+
 export function humanize(value: string | null | undefined): string {
   if (!value) return '—';
+  if (ROLE_NAMES[value]) return t(ROLE_NAMES[value]);
   const s = value.replace(/[_.-]+/g, ' ').toLowerCase();
   return t(s.charAt(0).toUpperCase() + s.slice(1));
 }

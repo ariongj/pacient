@@ -243,6 +243,8 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/director', label: 'Dashboard', icon: 'chart', end: true },
         { to: '/director/reports', label: 'Reports', icon: 'activity' },
         { to: '/director/staff', label: 'Staff', icon: 'users' },
+        { to: '/lab', label: 'Laboratory turnaround', icon: 'flask' },
+        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
         { to: '/access-reviews', label: 'Access reviews', icon: 'shield' },
         { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
         { to: '/director/patients', label: 'Registered patients', icon: 'user' },

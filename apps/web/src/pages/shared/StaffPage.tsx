@@ -91,7 +91,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   const isMinistry = user.role === 'MINISTRY';
   const roleOptions: StaffRole[] = isMinistry
     ? ['DIRECTOR', 'MINISTRY']
-    : ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'DIRECTOR'];
+    : ['DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'LAB_TECHNICIAN', 'IT_SUPPORT', 'DIRECTOR'];
   const [role, setRole] = useState<StaffRole>(roleOptions[0]!);
   const licensed = role === 'DOCTOR' || role === 'NURSE' || role === 'PHARMACIST';
   const facilities = useFacilities(isMinistry);
@@ -146,6 +146,20 @@ function InviteForm({ onClose }: { onClose: () => void }) {
           autoComplete="off"
         />
         <TextField label={t('Email')} name="email" type="email" required autoComplete="off" />
+        {role === 'LAB_TECHNICIAN' && (
+          <p className="muted" style={{ gridColumn: '1 / -1' }}>
+            {t(
+              'Laboratory technicians work the laboratory worklist of this facility: specimens, result entry and validation. They cannot open patient records.',
+            )}
+          </p>
+        )}
+        {role === 'IT_SUPPORT' && (
+          <p className="muted" style={{ gridColumn: '1 / -1' }}>
+            {t(
+              'IT support handles account and access requests of this facility. They never see patient data, and role changes stay with the director.',
+            )}
+          </p>
+        )}
         {isMinistry && role === 'DIRECTOR' && (
           <SelectField
             label={t('Facility')}
@@ -284,8 +298,17 @@ export function StaffPage() {
 
   const roleFilterOptions = (
     isMinistry
-      ? ['MINISTRY', 'DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION']
-      : ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION']
+      ? [
+          'MINISTRY',
+          'DIRECTOR',
+          'DOCTOR',
+          'NURSE',
+          'PHARMACIST',
+          'RECEPTION',
+          'LAB_TECHNICIAN',
+          'IT_SUPPORT',
+        ]
+      : ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION', 'LAB_TECHNICIAN', 'IT_SUPPORT']
   ).map((r) => ({
     value: r,
     label: humanize(r),

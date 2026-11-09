@@ -48,6 +48,8 @@ export const DOWNTIME_STATUS_ROLES: Role[] = [
   'NURSE',
   'PHARMACIST',
   'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
 ];
 
 const keys = {

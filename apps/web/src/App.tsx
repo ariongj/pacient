@@ -392,7 +392,7 @@ export function App() {
           path="/lab"
           element={guard(['LAB_TECHNICIAN', 'DOCTOR', 'DIRECTOR'], <LabWorkPage />)}
         />
-        <Route path="/proms" element={guard(['DOCTOR', 'NURSE'], <PromsPage />)} />
+        <Route path="/proms" element={guard(['DOCTOR', 'NURSE', 'DIRECTOR'], <PromsPage />)} />
         <Route
           path="/portal/questionnaires"
           element={guard(['PATIENT'], <PortalQuestionnairesPage />)}

@@ -159,7 +159,7 @@ async function fileResults(
   return { critical, corrected };
 }
 
-async function alertDoctor(
+export async function alertDoctor(
   tx: Executor,
   order: typeof labOrders.$inferSelect,
   critical: boolean,

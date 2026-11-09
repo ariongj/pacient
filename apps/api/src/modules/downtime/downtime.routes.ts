@@ -31,7 +31,15 @@ export const downtimeRouter = Router({ mergeParams: true });
 
 const PACK_ROLES: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'RECEPTION'];
 const BACK_ENTRY_ROLES: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE'];
-const STATUS_ROLES: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
+const STATUS_ROLES: Role[] = [
+  'DIRECTOR',
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
+];
 
 /* ----------------------------------------------------------- sync (ward PC) */
 

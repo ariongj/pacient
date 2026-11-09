@@ -7,7 +7,15 @@ import { useUser } from '../../../auth/AuthContext';
 import { Button, Dialog, ErrorAlert, TextField } from '../../../components/ui';
 import { humanize } from '../../../format';
 
-const FACILITY_ROLES: StaffRole[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
+const FACILITY_ROLES: StaffRole[] = [
+  'DIRECTOR',
+  'DOCTOR',
+  'NURSE',
+  'PHARMACIST',
+  'RECEPTION',
+  'LAB_TECHNICIAN',
+  'IT_SUPPORT',
+];
 const ALL_ROLES: StaffRole[] = ['MINISTRY', ...FACILITY_ROLES];
 
 export function NewChannelDialog({

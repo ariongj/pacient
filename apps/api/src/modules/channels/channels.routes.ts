@@ -28,12 +28,20 @@ const FACILITY_DEFAULTS: { name: string; description: string; roles: Role[] }[] 
   {
     name: 'all-staff',
     description: 'Everyone working at this facility',
-    roles: ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'],
+    roles: [
+      'DIRECTOR',
+      'DOCTOR',
+      'NURSE',
+      'PHARMACIST',
+      'RECEPTION',
+      'LAB_TECHNICIAN',
+      'IT_SUPPORT',
+    ],
   },
   {
     name: 'clinical',
     description: 'Doctors, nurses and pharmacists – clinical coordination',
-    roles: ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST'],
+    roles: ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'LAB_TECHNICIAN'],
   },
   {
     name: 'pharmacy',
@@ -168,7 +176,15 @@ channelsRouter.get('/', async (req, res) => {
 channelsRouter.post('/', requireRole('DIRECTOR', 'MINISTRY'), async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(CreateSchema, req.body);
-  const facilityRoles: Role[] = ['DIRECTOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTION'];
+  const facilityRoles: Role[] = [
+    'DIRECTOR',
+    'DOCTOR',
+    'NURSE',
+    'PHARMACIST',
+    'RECEPTION',
+    'LAB_TECHNICIAN',
+    'IT_SUPPORT',
+  ];
   if (ctx.role === 'DIRECTOR' && input.allowedRoles.some((r) => !facilityRoles.includes(r))) {
     throw badRequest('Facility channels can only include facility staff roles');
   }

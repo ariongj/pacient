@@ -510,6 +510,7 @@ export function Layout() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
+            aria-label={t('Sign out')}
             onClick={async () => {
               await logout();
               navigate('/login', { replace: true });

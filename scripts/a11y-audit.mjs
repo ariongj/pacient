@@ -22,6 +22,7 @@ const arg = (name, fallback) => {
 };
 const BASE = arg('base', 'http://localhost:5173');
 const LOCALE = arg('locale', 'en');
+const WIDTH = Number(arg('width', '1280'));
 const PASSWORD = 'Pacient-Demo-2026';
 const PAGES = {
   'patient@pacient.local': [
@@ -46,6 +47,7 @@ const PAGES = {
     '/portal/home-visits',
     '/portal/readings',
     '/portal/blood-donation',
+    '/portal/questionnaires',
     '/open-data',
   ],
   'doctor@pacient.local': [
@@ -80,6 +82,8 @@ const PAGES = {
     '/oncology',
     '/dialysis',
     '/mental-health',
+    '/proms',
+    '/terminology',
   ],
   'nurse@pacient.local': [
     '/nurse',
@@ -115,6 +119,11 @@ const PAGES = {
     '/dialysis',
     '/mental-health',
     '/blood-donors',
+    '/access-reviews',
+    '/terminology',
+    '/lab',
+    '/support',
+    '/proms',
   ],
   'minister@pacient.local': [
     '/ministry',
@@ -140,13 +149,18 @@ const PAGES = {
     '/dialysis',
     '/mental-health',
     '/blood-donors',
+    '/access-reviews',
+    '/terminology',
+    '/support',
   ],
+  'lab@pacient.local': ['/lab', '/terminology', '/support'],
+  'it@pacient.local': ['/support'],
 };
 
 const browser = await chromium.launch();
 const results = [];
 for (const [email, paths] of Object.entries(PAGES)) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: WIDTH, height: 900 } });
   await ctx.addInitScript((l) => {
     try {
       localStorage.setItem('pacient.locale', l);

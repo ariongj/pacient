@@ -110,7 +110,14 @@ export function ApiDocsPage() {
             )}
           </li>
         </ol>
-        <pre className="note mono" style={{ overflowX: 'auto' }}>
+        {/* Focusable so keyboard users can scroll a long command sideways. */}
+        <pre
+          className="note mono"
+          style={{ overflowX: 'auto' }}
+          tabIndex={0}
+          role="region"
+          aria-label={t('Example request')}
+        >
           {`curl -H "Authorization: Bearer $PACIENT_KEY" \\
      -H "X-Purpose-Of-Use: PAYMENT" \\
      "${base}/partner/fhir/Patient?identifier=urn:pacient:national-id|1234567890"
@@ -223,7 +230,13 @@ function Reference({ doc, filter }: { doc: OpenApiDocument; filter: string }) {
                         {Object.keys(op.requestBody.content).join(', ')}
                       </span>
                       {Object.values(op.requestBody.content)[0]?.schema?.properties ? (
-                        <pre className="note mono" style={{ overflowX: 'auto' }}>
+                        <pre
+                          className="note mono"
+                          style={{ overflowX: 'auto' }}
+                          tabIndex={0}
+                          role="region"
+                          aria-label={t('Request body')}
+                        >
                           {schemaSummary(Object.values(op.requestBody.content)[0]!.schema)}
                         </pre>
                       ) : null}

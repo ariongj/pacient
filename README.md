@@ -331,22 +331,22 @@ account with a one-off script or seed in a non-production environment).
 
 ## Scripts
 
-| Command                            | Purpose                                              |
-| ---------------------------------- | ---------------------------------------------------- |
-| `npm run dev`                      | API (port 4000) and web (port 5173) with hot reload  |
-| `npm test`                         | Integration test suite (uses `pacient_test`)         |
-| `npm run lint`                     | ESLint                                               |
-| `npm run typecheck`                | TypeScript, all workspaces                           |
-| `npm run build`                    | Production builds                                    |
-| `npm run db:migrate`               | Apply migrations                                     |
-| `npm run db:seed`                  | Load synthetic demo data (refuses in production)     |
-| `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`       |
-| `npm run lab:simulate -w apps/api` | Development laboratory system (see above)            |
-| `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                   |
-| `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it      |
-| `deploy/pitr/pitr.sh`              | Point-in-time recovery (pgBackRest)                  |
-| `node scripts/downtime-sync.mjs`   | Copy the latest downtime pack to a ward PC           |
-| `npm run a11y`                     | Accessibility audit (axe, WCAG 2.2 AA) of every page |
+| Command                            | Purpose                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `npm run dev`                      | API (port 4000) and web (port 5173) with hot reload                               |
+| `npm test`                         | Integration test suite (uses `pacient_test`)                                      |
+| `npm run lint`                     | ESLint                                                                            |
+| `npm run typecheck`                | TypeScript, all workspaces                                                        |
+| `npm run build`                    | Production builds                                                                 |
+| `npm run db:migrate`               | Apply migrations                                                                  |
+| `npm run db:seed`                  | Load synthetic demo data (refuses in production)                                  |
+| `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`                                    |
+| `npm run lab:simulate -w apps/api` | Development laboratory system (see above)                                         |
+| `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                                                |
+| `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it                                   |
+| `deploy/pitr/pitr.sh`              | Point-in-time recovery (pgBackRest)                                               |
+| `node scripts/downtime-sync.mjs`   | Copy the latest downtime pack to a ward PC                                        |
+| `npm run a11y`                     | Accessibility audit (axe, WCAG 2.2 AA) of every page; `-- --width 390` for phones |
 
 ## Documentation
 

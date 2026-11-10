@@ -1,6 +1,4 @@
 import { Fragment, createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import { sq } from './sq';
-import { sr } from './sr';
 
 /**
  * Lightweight i18n. Source strings are written in English and wrapped in t(); the Albanian
@@ -40,7 +38,22 @@ export const getLocale = () => current;
 export const intlLocale = () =>
   current === 'sq' ? 'sq-AL' : current === 'sr' ? 'sr-Latn-RS' : 'en-GB';
 
-const DICTIONARIES: Partial<Record<Locale, Record<string, string>>> = { sq, sr };
+const DICTIONARIES: Partial<Record<Locale, Record<string, string>>> = {};
+
+/**
+ * Each language's dictionary is a separate download, fetched only when that language is used
+ * (English needs none). The app waits for the chosen one before its first render.
+ */
+const LOADERS: Partial<Record<Locale, () => Promise<Record<string, string>>>> = {
+  sq: () => import('./sq').then((m) => m.sq),
+  sr: () => import('./sr').then((m) => m.sr),
+};
+
+export async function loadDictionary(l: Locale): Promise<void> {
+  const load = LOADERS[l];
+  if (!load || DICTIONARIES[l]) return;
+  DICTIONARIES[l] = await load();
+}
 
 type Vars = Record<string, string | number | null | undefined>;
 
@@ -74,14 +87,20 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setState] = useState<Locale>(current);
   const setLocale = useCallback((l: Locale) => {
     if (l === current) return;
-    current = l;
-    document.documentElement.lang = l;
-    try {
-      localStorage.setItem(STORAGE_KEY, l);
-    } catch {
-      /* ignore */
-    }
-    setState(l);
+    loadDictionary(l)
+      .then(() => {
+        current = l;
+        document.documentElement.lang = l;
+        try {
+          localStorage.setItem(STORAGE_KEY, l);
+        } catch {
+          /* ignore */
+        }
+        setState(l);
+      })
+      .catch(() => {
+        /* offline: keep the current language */
+      });
   }, []);
   return (
     <LocaleContext.Provider value={{ locale, setLocale }}>

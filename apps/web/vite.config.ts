@@ -11,5 +11,17 @@ export default defineConfig({
       '/api': { target: process.env.API_URL ?? 'http://localhost:4000', changeOrigin: false },
     },
   },
-  build: { sourcemap: false },
+  build: {
+    sourcemap: false,
+    // The language dictionaries are single files by design (one download per language).
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        // Framework code changes rarely: its own file stays cached across releases.
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
+        },
+      },
+    },
+  },
 });

@@ -324,6 +324,7 @@ export const management: Record<string, string> = {
     'Ministria nuk ka qasje në kartela të identifikueshme të pacientëve.',
   'Active facilities': 'Institucione aktive',
   'Portal adoption': 'Përdorimi i portalit',
+  '{count} patient with a portal account': '{count} pacient me llogari në portal',
   '{count} patients with portal accounts': '{count} pacientë me llogari në portal',
   'Encounters by month (national)': 'Vizitat sipas muajve (kombëtare)',
   'National encounters per month, last 12 months': 'Vizitat kombëtare për muaj, 12 muajt e fundit',

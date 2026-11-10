@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import {
   Navigate,
   NavLink,
@@ -16,6 +16,7 @@ import { formatDate, humanize } from '../format';
 import { DOWNTIME_STATUS_ROLES, useDowntimeStatus } from '../api/downtime';
 import { Icon, type IconName } from './icons';
 import { NotificationBell } from './Notifications';
+import { Loading } from './ui';
 
 interface NavItem {
   to: string;
@@ -582,7 +583,9 @@ export function Layout() {
               </p>
             </div>
           ) : (
-            <Outlet key={acting?.patientId ?? 'self'} />
+            <Suspense fallback={<Loading label={t('Loading…')} />}>
+              <Outlet key={acting?.patientId ?? 'self'} />
+            </Suspense>
           )}
         </main>
       </div>

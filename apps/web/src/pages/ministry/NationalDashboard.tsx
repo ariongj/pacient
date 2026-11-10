@@ -1,4 +1,4 @@
-import { t } from '../../i18n';
+import { t, tn } from '../../i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -37,7 +37,9 @@ export function NationalDashboard() {
       <QueryView query={query}>
         {(s) => {
           const tot = s.totals;
-          const adoption = tot.patients ? Math.round((tot.portalUsers / tot.patients) * 100) : 0;
+          const share = tot.patients ? (tot.portalUsers / tot.patients) * 100 : 0;
+          // Below 1 % a rounded "0 %" would hide that anyone uses the portal.
+          const adoption = share > 0 && share < 1 ? '<1' : String(Math.round(share));
           return (
             <div className="stack">
               <Grid min={180}>
@@ -46,9 +48,12 @@ export function NationalDashboard() {
                 <Stat
                   label={t('Portal adoption')}
                   value={`${adoption}%`}
-                  hint={t('{count} patients with portal accounts', {
-                    count: formatNumber(tot.portalUsers),
-                  })}
+                  hint={tn(
+                    tot.portalUsers,
+                    '{count} patient with a portal account',
+                    '{count} patients with portal accounts',
+                    { count: formatNumber(tot.portalUsers) },
+                  )}
                 />
                 <Stat label={t('Active doctors')} value={formatNumber(tot.doctors)} />
                 <Stat label={t('Encounters (30 days)')} value={formatNumber(tot.encounters30d)} />

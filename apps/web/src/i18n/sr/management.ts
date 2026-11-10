@@ -316,6 +316,7 @@ export const management: Record<string, string> = {
     'Ministarstvo nema pristup kartonima pacijenata sa identitetom.',
   'Active facilities': 'Aktivne ustanove',
   'Portal adoption': 'Korišćenje portala',
+  '{count} patient with a portal account': '{count} pacijent sa nalogom na portalu',
   '{count} patients with portal accounts': '{count} pacijenata sa nalogom na portalu',
   'Encounters by month (national)': 'Posete po mesecima (nacionalno)',
   'National encounters per month, last 12 months':

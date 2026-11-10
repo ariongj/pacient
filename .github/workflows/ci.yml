@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # The working branch is checked as well, so what the Pages workflow publishes has passed CI.
+    branches: [main, 'claude/practical-rubin-idyxdo']
   pull_request:
 
 permissions:

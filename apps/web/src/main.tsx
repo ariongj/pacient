@@ -5,7 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ApiError } from './api/client';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { LocaleProvider } from './i18n';
+import { getLocale, loadDictionary, LocaleProvider } from './i18n';
 import { LocaleSync } from './i18n/LanguageSwitcher';
 import './styles.css';
 
@@ -20,20 +20,26 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <AuthProvider>
-          <LocaleProvider>
-            <LocaleSync />
-            <App />
-          </LocaleProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+function render() {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
+          <AuthProvider>
+            <LocaleProvider>
+              <LocaleSync />
+              <App />
+            </LocaleProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+}
+
+// The chosen language's texts are loaded first, so the first screen is never in English by mistake;
+// if that fails (offline), the app still starts.
+loadDictionary(getLocale()).then(render, render);
 
 // Installable app + offline page in production builds. The service worker never caches API data.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

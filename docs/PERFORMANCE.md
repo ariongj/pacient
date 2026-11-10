@@ -67,3 +67,16 @@ Re-run the load test after major changes and before go-live with production-size
 | ----------------------- | ------: | ----------------------------------------------------------- |
 | `RATE_LIMIT_PER_MINUTE` |     600 | API requests per user (or per IP when anonymous) per minute |
 | `DB_POOL_MAX`           |      10 | Database connections per API process                        |
+
+## Web application size
+
+Pages are loaded when first opened (`React.lazy` per route), each language's dictionary is a
+separate download fetched only for that language, and the framework code is its own long-cached
+file. First load, compressed (gzip), measured on the production build:
+
+| Before                     | After: English | After: Albanian or Serbian     |
+| -------------------------- | -------------: | ------------------------------ |
+| 918 kB (one 3.1 MB bundle) |        ≈120 kB | ≈335 kB (app + one dictionary) |
+
+Each further page adds only its own file (most are under 10 kB compressed; the patient chart is
+≈63 kB). Check after changes with `npm run build -w apps/web`.

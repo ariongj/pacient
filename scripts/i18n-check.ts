@@ -5,7 +5,9 @@
  *  2. Albanian and Serbian define the same keys;
  *  3. no key is translated differently in two area files of the same language (the dictionaries
  *     are merged into one object, so the later file would silently win). When the same English
- *     word needs two translations, give one call site a context: t('Open|action').
+ *     word needs two translations, give one call site a context: t('Open|action');
+ *  4. every module title, summary and page label of the navigation registry (modules.ts), which
+ *     is translated where it is shown, has both translations.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -75,9 +77,32 @@ function sourceKeys(): Map<string, string> {
   return keys;
 }
 
+/** Titles, summaries and labels of the navigation registry (translated at render time). */
+async function navigationKeys(): Promise<Map<string, string>> {
+  const { NAVIGATION } = (await import(join(root, 'modules.ts'))) as {
+    NAVIGATION: Record<
+      string,
+      {
+        home: { label: string };
+        modules: { title: string; summary: string; items: { label: string }[] }[];
+      }
+    >;
+  };
+  const keys = new Map<string, string>();
+  for (const nav of Object.values(NAVIGATION)) {
+    keys.set(nav.home.label, 'modules.ts');
+    for (const m of nav.modules) {
+      keys.set(m.title, 'modules.ts');
+      keys.set(m.summary, 'modules.ts');
+      for (const item of m.items) keys.set(item.label, 'modules.ts');
+    }
+  }
+  return keys;
+}
+
 const sq = await load('sq');
 const sr = await load('sr');
-for (const [key, file] of sourceKeys()) {
+for (const [key, file] of [...sourceKeys(), ...(await navigationKeys())]) {
   if (UNTRANSLATED.has(key)) continue;
   if (!(key in sq)) problems.push(`sq: missing "${key}" (${file})`);
   if (!(key in sr)) problems.push(`sr: missing "${key}" (${file})`);

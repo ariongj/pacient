@@ -58,6 +58,7 @@ import { terminology } from './terminology';
 import { support } from './support';
 import { labwork } from './labwork';
 import { proms } from './proms';
+import { navigation } from './navigation';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -120,4 +121,5 @@ export const sq: Record<string, string> = {
   ...support,
   ...labwork,
   ...proms,
+  ...navigation,
 };

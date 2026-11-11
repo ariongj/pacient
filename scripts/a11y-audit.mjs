@@ -48,6 +48,7 @@ const PAGES = {
     '/portal/readings',
     '/portal/blood-donation',
     '/portal/questionnaires',
+    '/modules',
     '/open-data',
   ],
   'doctor@pacient.local': [
@@ -84,6 +85,7 @@ const PAGES = {
     '/mental-health',
     '/proms',
     '/terminology',
+    '/modules',
   ],
   'nurse@pacient.local': [
     '/nurse',

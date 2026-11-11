@@ -9,6 +9,9 @@ import type { Role } from './api/types';
 import { lazy, Suspense, type ReactElement } from 'react';
 
 // Each page is loaded when it is first opened, so nobody downloads the whole application.
+const ModulesPage = lazy(() =>
+  import('./pages/shared/ModulesPage').then((m) => ({ default: m.ModulesPage })),
+);
 const DowntimePage = lazy(() =>
   import('./pages/downtime/DowntimePage').then((m) => ({ default: m.DowntimePage })),
 );
@@ -416,6 +419,7 @@ export function App() {
         >
           <Route path="/account" element={<AccountPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/modules" element={<ModulesPage />} />
 
           <Route
             path="/portal"

@@ -255,8 +255,197 @@ table.sr-only {
   font-weight: 650;
   border-left-color: var(--primary);
 }
-.sidenav a:focus-visible {
+.sidenav a:focus-visible,
+.nav-module-toggle:focus-visible,
+.nav-find input:focus-visible {
   outline-color: #8ab4ff;
+}
+/* Main modules: a row that opens to show the module's pages. */
+.topbar .menu-toggle {
+  display: none;
+}
+.nav-home,
+.nav-single,
+.nav-all {
+  margin-bottom: 2px;
+}
+.nav-all {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--nav-active);
+}
+.nav-module {
+  margin-bottom: 2px;
+}
+.nav-module-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--nav-text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-module-toggle:hover {
+  background: var(--nav-active);
+  color: #fff;
+}
+.nav-module.current > .nav-module-toggle {
+  color: #fff;
+}
+.nav-module-title {
+  flex: 1;
+  min-width: 0;
+}
+.nav-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--nav-muted);
+}
+.nav-chevron {
+  display: inline-flex;
+  color: var(--nav-muted);
+  transition: transform 0.12s ease;
+}
+.nav-chevron.open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-chevron {
+    transition: none;
+  }
+}
+.nav-module > ul {
+  margin: 2px 0 0.4rem 1.05rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--nav-active);
+}
+.sidenav a.nav-sub {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.88rem;
+  font-weight: 450;
+}
+.sidenav a.nav-sub.active {
+  font-weight: 650;
+}
+.nav-find {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.1rem 0.75rem;
+  padding: 0 0.6rem;
+  border: 1px solid #2c4a63;
+  border-radius: var(--radius-sm);
+  background: var(--nav-active);
+  color: var(--nav-muted);
+}
+.nav-find input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0.45rem 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.nav-find input::placeholder {
+  color: var(--nav-text);
+  opacity: 0.75;
+}
+.nav-where {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--nav-muted);
+}
+.nav-empty {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--nav-text);
+}
+/* "Module › Page" above the page. */
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.crumbs li + li::before {
+  content: '›';
+  margin-right: 0.35rem;
+}
+.crumbs a {
+  color: var(--text-muted);
+}
+/* All modules page. */
+.module-search {
+  max-width: 420px;
+  margin-bottom: 1.25rem;
+}
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.module-card:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.module-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+.module-card-icon {
+  display: inline-flex;
+  padding: 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+.module-card p {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+.module-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.module-card li a {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 500;
+}
+.module-card li a:hover {
+  background: var(--surface-2);
+  color: var(--primary-strong);
 }
 .icon {
   flex: none;
@@ -281,26 +470,21 @@ main:focus {
   .body {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* The menu is a panel opened with the Menu button in the top bar. */
   .sidenav {
+    display: none;
     min-width: 0;
-    padding: 0.5rem;
-    overflow-x: auto;
-    display: flex;
-    gap: 0.5rem;
+    padding: 0.75rem 0.65rem 1rem;
   }
-  .nav-section + .nav-section {
-    margin-top: 0;
+  .sidenav.open {
+    display: block;
   }
-  .nav-title,
+  .topbar .menu-toggle {
+    display: inline-flex;
+  }
   .hide-sm,
   .live-text {
     display: none;
-  }
-  .sidenav ul {
-    flex-direction: row;
-  }
-  .sidenav a {
-    white-space: nowrap;
   }
   main {
     padding: 1rem;
@@ -1156,6 +1340,7 @@ th.num {
   }
   .topbar,
   .sidenav,
+  .crumbs,
   .footer,
   .skip-link,
   .no-print,
@@ -1230,17 +1415,7 @@ th.num {
 }
 @media (max-width: 860px) {
   .record-switcher {
-    padding: 0 0.25rem;
-    min-width: 180px;
-  }
-  /* Hidden visually only: the select keeps its name for screen readers. */
-  .record-switcher label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+    padding: 0 0.25rem 0.75rem;
   }
 }
 
@@ -1312,13 +1487,18 @@ th.num {
     padding-inline: 0.75rem;
   }
   .live-text,
-  .brand-sub {
+  .brand-sub,
+  .menu-toggle > span {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  /* The initials are decoration; the menu button needs the room. */
+  .topbar .avatar {
+    display: none;
   }
 }
 

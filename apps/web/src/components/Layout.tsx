@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
   Navigate,
   NavLink,
@@ -14,345 +14,10 @@ import { useAuth, useUser } from '../auth/AuthContext';
 import { useLiveEvents } from '../auth/useLiveEvents';
 import { formatDate, humanize } from '../format';
 import { DOWNTIME_STATUS_ROLES, useDowntimeStatus } from '../api/downtime';
-import { Icon, type IconName } from './icons';
+import { Icon } from './icons';
 import { NotificationBell } from './Notifications';
+import { APPOINTMENT_SCOPE_PATHS, Breadcrumb, SideNav } from './SideNav';
 import { Loading } from './ui';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: IconName;
-  end?: boolean;
-}
-type NavSection = { title?: string; items: NavItem[] };
-
-const COMMS: NavSection = {
-  title: 'Communication',
-  items: [
-    { to: '/channels', label: 'Team channels', icon: 'hash' },
-    { to: '/incidents', label: 'Report an incident', icon: 'alert' },
-    { to: '/rosters', label: 'Rosters and on-call', icon: 'calendar' },
-    { to: '/support', label: 'IT support', icon: 'settings' },
-  ],
-};
-
-const NAV: Record<Role, NavSection[]> = {
-  PATIENT: [
-    {
-      items: [
-        { to: '/portal', label: 'Overview', icon: 'home', end: true },
-        { to: '/portal/history', label: 'Medical history', icon: 'history' },
-        { to: '/portal/results', label: 'Test results', icon: 'flask' },
-        { to: '/portal/appointments', label: 'Appointments', icon: 'calendar' },
-        { to: '/portal/vaccinations', label: 'Vaccinations', icon: 'syringe' },
-        { to: '/portal/billing', label: 'Bills & payments', icon: 'clipboard' },
-        { to: '/portal/certificates', label: 'Medical certificates', icon: 'clipboard' },
-        { to: '/portal/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
-        { to: '/portal/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
-        { to: '/portal/screening', label: 'Cancer screening', icon: 'shield' },
-        { to: '/portal/pregnancy', label: 'My pregnancy', icon: 'user' },
-        { to: '/portal/home-visits', label: 'Home visits', icon: 'home' },
-        { to: '/portal/readings', label: 'Home readings', icon: 'activity' },
-        { to: '/portal/questionnaires', label: 'Questionnaires', icon: 'clipboard' },
-        { to: '/portal/blood-donation', label: 'Blood donation', icon: 'flask' },
-      ],
-    },
-    {
-      title: 'My care',
-      items: [
-        { to: '/portal/messages', label: 'Messages', icon: 'message' },
-        { to: '/portal/referrals', label: 'Referrals', icon: 'share' },
-        { to: '/portal/stays', label: 'Hospital stays', icon: 'building' },
-        { to: '/portal/imaging', label: 'Imaging', icon: 'eye' },
-        { to: '/portal/documents', label: 'Documents', icon: 'clipboard' },
-        { to: '/portal/consents', label: 'Privacy & consent', icon: 'shield' },
-        { to: '/portal/wishes', label: 'Organ donation & wishes', icon: 'user' },
-        { to: '/portal/complaints', label: 'Complaints & feedback', icon: 'message' },
-        { to: '/portal/access-log', label: 'Who viewed my record', icon: 'eye' },
-        { to: '/portal/account', label: 'My details', icon: 'user' },
-      ],
-    },
-  ],
-  DOCTOR: [
-    {
-      title: 'Clinical',
-      items: [
-        { to: '/doctor', label: 'Worklist', icon: 'activity', end: true },
-        { to: '/doctor/patients', label: 'Patients', icon: 'users' },
-        { to: '/tasks', label: 'Care tasks', icon: 'clipboard' },
-        { to: '/doctor/schedule', label: 'Schedule', icon: 'calendar' },
-        { to: '/doctor/referrals', label: 'Referrals', icon: 'share' },
-        { to: '/doctor/cover', label: 'Cover & absence', icon: 'users' },
-        { to: '/doctor/availability', label: 'My consulting hours', icon: 'calendar' },
-        { to: '/certificates', label: 'Medical certificates', icon: 'clipboard' },
-        { to: '/registers', label: 'Disease registers', icon: 'activity' },
-        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
-        { to: '/deaths', label: 'Death certificates', icon: 'clipboard' },
-        { to: '/maternity', label: 'Antenatal care', icon: 'user' },
-        { to: '/screening', label: 'Cancer screening', icon: 'shield' },
-        { to: '/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
-      ],
-    },
-    {
-      title: 'Hospital',
-      items: [
-        { to: '/wards', label: 'Wards & beds', icon: 'building' },
-        { to: '/ed', label: 'Emergency department', icon: 'alert' },
-        { to: '/imaging', label: 'Imaging', icon: 'eye' },
-        { to: '/theatre', label: 'Operating theatres', icon: 'activity' },
-        { to: '/wards/early-warning', label: 'Early warning (NEWS2)', icon: 'alert' },
-        { to: '/sepsis', label: 'Sepsis', icon: 'alert' },
-        { to: '/infection', label: 'Infection prevention', icon: 'shield' },
-        { to: '/ems', label: 'Ambulance service', icon: 'activity' },
-        { to: '/home-care', label: 'Home care', icon: 'home' },
-        { to: '/equipment', label: 'Medical equipment', icon: 'settings' },
-        { to: '/remote-monitoring', label: 'Remote monitoring', icon: 'activity' },
-        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
-        { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
-        { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
-        { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
-        { to: '/blood-donors', label: 'Blood donors', icon: 'flask' },
-        { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
-        { to: '/blood-bank', label: 'Blood bank', icon: 'flask' },
-        { to: '/nutrition', label: 'Nutrition', icon: 'clipboard' },
-        { to: '/tools/interactions', label: 'Interaction checker', icon: 'pill' },
-        { to: '/births', label: 'Births', icon: 'user' },
-        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [
-        { to: '/messages', label: 'Patient messages', icon: 'message' },
-        ...COMMS.items,
-        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
-      ],
-    },
-  ],
-  NURSE: [
-    {
-      title: 'Nursing',
-      items: [
-        { to: '/nurse', label: 'Shift overview', icon: 'activity', end: true },
-        { to: '/tasks', label: 'Care tasks', icon: 'clipboard' },
-        { to: '/nurse/patients', label: 'Patients', icon: 'users' },
-        { to: '/nurse/schedule', label: 'Clinic schedule', icon: 'calendar' },
-        { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
-        { to: '/registers', label: 'Disease registers', icon: 'activity' },
-        { to: '/maternity', label: 'Antenatal care', icon: 'user' },
-        { to: '/screening', label: 'Cancer screening', icon: 'shield' },
-      ],
-    },
-    {
-      title: 'Hospital',
-      items: [
-        { to: '/wards', label: 'Wards & beds', icon: 'building' },
-        { to: '/ed', label: 'Emergency department', icon: 'alert' },
-        { to: '/imaging', label: 'Imaging', icon: 'eye' },
-        { to: '/theatre', label: 'Operating theatres', icon: 'activity' },
-        { to: '/wards/early-warning', label: 'Early warning (NEWS2)', icon: 'alert' },
-        { to: '/sepsis', label: 'Sepsis', icon: 'alert' },
-        { to: '/infection', label: 'Infection prevention', icon: 'shield' },
-        { to: '/ems', label: 'Ambulance service', icon: 'activity' },
-        { to: '/home-care', label: 'Home care', icon: 'home' },
-        { to: '/equipment', label: 'Medical equipment', icon: 'settings' },
-        { to: '/remote-monitoring', label: 'Remote monitoring', icon: 'activity' },
-        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
-        { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
-        { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
-        { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
-        { to: '/blood-donors', label: 'Blood donors', icon: 'flask' },
-        { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
-        { to: '/blood-bank', label: 'Blood bank', icon: 'flask' },
-        { to: '/nutrition', label: 'Nutrition', icon: 'clipboard' },
-        { to: '/tools/interactions', label: 'Interaction checker', icon: 'pill' },
-        { to: '/births', label: 'Births', icon: 'user' },
-        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [
-        { to: '/messages', label: 'Patient messages', icon: 'message' },
-        ...COMMS.items,
-        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
-      ],
-    },
-  ],
-  PHARMACIST: [
-    {
-      title: 'Pharmacy',
-      items: [
-        { to: '/pharmacy', label: 'Verification queue', icon: 'pill', end: true },
-        { to: '/pharmacy/stock', label: 'Stock', icon: 'clipboard' },
-        { to: '/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
-        { to: '/infection', label: 'Restricted antibiotics', icon: 'shield' },
-        { to: '/tools/interactions', label: 'Interaction checker', icon: 'alert' },
-        { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
-      ],
-    },
-    COMMS,
-  ],
-  RECEPTION: [
-    {
-      title: 'Front desk',
-      items: [
-        { to: '/reception', label: 'Today', icon: 'desk', end: true },
-        { to: '/reception/patients', label: 'Patients', icon: 'users' },
-        { to: '/reception/appointments', label: 'Appointments', icon: 'calendar' },
-        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
-        { to: '/complaints', label: 'Complaints', icon: 'message' },
-        { to: '/blood-donors', label: 'Blood donors', icon: 'flask' },
-        { to: '/vaccinations/due', label: 'Vaccinations due', icon: 'syringe' },
-        { to: '/billing', label: 'Billing & insurance', icon: 'clipboard' },
-        { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
-        { to: '/ed', label: 'Emergency arrivals', icon: 'alert' },
-        { to: '/wards', label: 'Wards & beds', icon: 'building' },
-        { to: '/births', label: 'Births', icon: 'user' },
-        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
-      ],
-    },
-    COMMS,
-  ],
-  LAB_TECHNICIAN: [
-    {
-      title: 'Laboratory',
-      items: [
-        { to: '/lab', label: 'Laboratory worklist', icon: 'flask', end: true },
-        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
-      ],
-    },
-    COMMS,
-  ],
-  IT_SUPPORT: [
-    {
-      title: 'IT support',
-      items: [{ to: '/support', label: 'Support desk', icon: 'settings', end: true }],
-    },
-    {
-      title: 'Communication',
-      items: [
-        { to: '/channels', label: 'Team channels', icon: 'hash' },
-        { to: '/incidents', label: 'Report an incident', icon: 'alert' },
-      ],
-    },
-  ],
-  DIRECTOR: [
-    {
-      title: 'Facility',
-      items: [
-        { to: '/director', label: 'Dashboard', icon: 'chart', end: true },
-        { to: '/director/reports', label: 'Reports', icon: 'activity' },
-        { to: '/director/staff', label: 'Staff', icon: 'users' },
-        { to: '/lab', label: 'Laboratory turnaround', icon: 'flask' },
-        { to: '/proms', label: 'Questionnaires', icon: 'clipboard' },
-        { to: '/access-reviews', label: 'Access reviews', icon: 'shield' },
-        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
-        { to: '/director/patients', label: 'Registered patients', icon: 'user' },
-        { to: '/director/referrals', label: 'Referrals', icon: 'share' },
-        { to: '/director/integrations', label: 'Lab connections', icon: 'flask' },
-        { to: '/director/duplicates', label: 'Duplicate records', icon: 'user' },
-        { to: '/director/units', label: 'Wards & units', icon: 'building' },
-        { to: '/pharmacy/stock', label: 'Pharmacy stock', icon: 'pill' },
-        { to: '/director/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
-        { to: '/waiting-lists', label: 'Waiting lists', icon: 'calendar' },
-        { to: '/registers', label: 'Disease registers', icon: 'activity' },
-        { to: '/deaths', label: 'Deaths', icon: 'clipboard' },
-        { to: '/certificates', label: 'Medical certificates', icon: 'clipboard' },
-        { to: '/maternity', label: 'Antenatal care', icon: 'user' },
-        { to: '/screening', label: 'Cancer screening', icon: 'shield' },
-        { to: '/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
-        { to: '/ems', label: 'Ambulance service', icon: 'activity' },
-        { to: '/infection', label: 'Infection prevention', icon: 'shield' },
-        { to: '/sepsis', label: 'Sepsis', icon: 'alert' },
-        { to: '/home-care', label: 'Home care', icon: 'home' },
-        { to: '/equipment', label: 'Medical equipment', icon: 'settings' },
-        { to: '/remote-monitoring', label: 'Remote monitoring', icon: 'activity' },
-        { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
-        { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
-        { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
-        { to: '/blood-donors', label: 'Blood donors', icon: 'flask' },
-        { to: '/billing', label: 'Billing & claims', icon: 'clipboard' },
-        { to: '/surveillance', label: 'Notifiable diseases', icon: 'alert' },
-        { to: '/downtime', label: 'Downtime kit', icon: 'shield' },
-        { to: '/privacy', label: 'Data protection', icon: 'shield' },
-        { to: '/blood-bank', label: 'Blood bank', icon: 'flask' },
-        { to: '/wards', label: 'Bed board', icon: 'desk' },
-        { to: '/identities', label: 'Temporary identities', icon: 'clipboard' },
-      ],
-    },
-    {
-      title: 'Oversight',
-      items: [
-        { to: '/incidents', label: 'Safety incidents', icon: 'alert' },
-        { to: '/complaints', label: 'Complaints & feedback', icon: 'message' },
-        { to: '/licences', label: 'Staff licences', icon: 'shield' },
-        { to: '/director/emergency-access', label: 'Emergency access review', icon: 'alert' },
-        { to: '/director/audit', label: 'Audit review', icon: 'shield' },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [
-        ...COMMS.items,
-        { to: '/director/announcements', label: 'Announcements', icon: 'megaphone' },
-      ],
-    },
-  ],
-  MINISTRY: [
-    {
-      title: 'National',
-      items: [
-        { to: '/ministry', label: 'National overview', icon: 'chart', end: true },
-        { to: '/ministry/reports', label: 'Reports', icon: 'activity' },
-        { to: '/ministry/facilities', label: 'Facilities', icon: 'building' },
-        { to: '/ministry/staff', label: 'Directors & officials', icon: 'users' },
-        { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
-        { to: '/ministry/vaccination', label: 'Vaccination coverage', icon: 'syringe' },
-        { to: '/surveillance', label: 'Disease surveillance', icon: 'alert' },
-        { to: '/deaths', label: 'Mortality', icon: 'chart' },
-        { to: '/registers', label: 'Chronic disease registers', icon: 'activity' },
-        { to: '/waiting-lists', label: 'Waiting times', icon: 'calendar' },
-        { to: '/maternity', label: 'Maternal health', icon: 'user' },
-        { to: '/screening', label: 'Screening coverage', icon: 'shield' },
-        { to: '/e-prescriptions', label: 'E-prescriptions', icon: 'pill' },
-        { to: '/organ-donation', label: 'Organ donation registry', icon: 'user' },
-        { to: '/ems', label: 'Ambulance response times', icon: 'activity' },
-        { to: '/infection', label: 'Healthcare-associated infections', icon: 'shield' },
-        { to: '/equipment', label: 'Critical equipment', icon: 'settings' },
-        { to: '/oncology', label: 'Cancer registry', icon: 'clipboard' },
-        { to: '/dialysis', label: 'Dialysis', icon: 'activity' },
-        { to: '/mental-health', label: 'Mental health safeguards', icon: 'shield' },
-        { to: '/blood-donors', label: 'Blood donors', icon: 'flask' },
-        { to: '/open-data', label: 'Open data (public)', icon: 'chart' },
-        { to: '/tools/interactions', label: 'Drug interaction database', icon: 'pill' },
-        { to: '/privacy', label: 'Data protection', icon: 'shield' },
-        { to: '/ministry/system', label: 'System health', icon: 'activity' },
-        { to: '/access-reviews', label: 'Access reviews', icon: 'shield' },
-        { to: '/terminology', label: 'Terminology', icon: 'clipboard' },
-        { to: '/ministry/partners', label: 'Partner systems (API)', icon: 'share' },
-        { to: '/developers', label: 'API documentation', icon: 'settings' },
-      ],
-    },
-    {
-      title: 'Oversight',
-      items: [
-        { to: '/incidents', label: 'Safety incidents', icon: 'alert' },
-        { to: '/complaints', label: 'Complaints & feedback', icon: 'message' },
-        { to: '/licences', label: 'Professional licences', icon: 'shield' },
-        { to: '/ministry/emergency-access', label: 'Emergency access', icon: 'alert' },
-        { to: '/ministry/audit', label: 'Audit review', icon: 'shield' },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [
-        ...COMMS.items,
-        { to: '/ministry/announcements', label: 'Announcements', icon: 'megaphone' },
-      ],
-    },
-  ],
-};
 
 const ROLE_LABEL: Record<Role, string> = {
   PATIENT: 'Patient portal',
@@ -367,9 +32,6 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 const LIVE_TEXT = { live: 'Live', connecting: 'Connecting…', offline: 'Offline – retrying' };
-
-/** Pages an appointments-only guardian may open. */
-const APPOINTMENT_SCOPE_PATHS = ['/portal/appointments', '/portal/account', '/notifications'];
 
 const RELATIONSHIP: Record<string, string> = {
   PARENT: 'parent',
@@ -431,6 +93,9 @@ export function Layout() {
   const { acting, dependants, setActing } = useAuth();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  // On small screens the menu is a panel opened from the top bar; it closes after navigating.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [location.pathname]);
 
   // Notification links for guardians carry ?for=<patientId>: open that record.
   const forParam = params.get('for');
@@ -452,14 +117,6 @@ export function Layout() {
   ) {
     return <Navigate to="/portal/appointments" replace />;
   }
-  const nav = NAV[user.role]
-    .map((section) => ({
-      ...section,
-      items: appointmentsOnly
-        ? section.items.filter((i) => APPOINTMENT_SCOPE_PATHS.includes(i.to))
-        : section.items,
-    }))
-    .filter((section) => section.items.length);
   const initials = user.fullName
     .replace(/^(Dr\.|Mr\.|Mrs\.|Ms\.)\s*/, '')
     .split(' ')
@@ -473,6 +130,15 @@ export function Layout() {
         {t('Skip to main content')}
       </a>
       <header className="topbar">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm menu-toggle"
+          aria-expanded={menuOpen}
+          aria-controls="sidenav"
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          <Icon name="menu" size={16} /> <span>{t('Menu')}</span>
+        </button>
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             +
@@ -522,25 +188,11 @@ export function Layout() {
         </div>
       </header>
       <div className="body">
-        <nav className="sidenav" aria-label={t('Main')}>
+        <SideNav id="sidenav" open={menuOpen}>
           {user.role === 'PATIENT' && <RecordSwitcher />}
-          {nav.map((section, i) => (
-            <div key={section.title ?? i} className="nav-section">
-              {section.title && <div className="nav-title">{t(section.title)}</div>}
-              <ul>
-                {section.items.map((item) => (
-                  <li key={item.to}>
-                    <NavLink to={item.to} end={item.end}>
-                      <Icon name={item.icon} />
-                      <span>{t(item.label)}</span>
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
+        </SideNav>
         <main id="main" tabIndex={-1}>
+          <Breadcrumb />
           <DowntimeBanner role={user.role} hasFacility={Boolean(user.facility)} />
           {acting && (
             <div className="acting-banner" role="status">

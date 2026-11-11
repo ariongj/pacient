@@ -22,6 +22,10 @@ const PATHS: Record<string, string> = {
   syringe: 'M18 2l4 4M17 7l3-3M19 9 9 19l-4 1 1-4L16 6zM14 8l2 2M11 11l2 2',
   desk: 'M3 7h18M5 7v13M19 7v13M3 13h18M9 3h6v4H9z',
   activity: 'M22 12h-4l-3 8L9 4l-3 8H2',
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  chevron: 'M9 6l6 6-6 6',
+  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   settings:

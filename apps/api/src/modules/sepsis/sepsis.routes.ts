@@ -19,6 +19,7 @@ import {
   presentBundle,
   SEPSIS_STEPS,
   stepsDone,
+  stillInCare,
   suggestedFlags,
   SUSPECTED_SOURCES,
   type SepsisFlag,
@@ -157,6 +158,7 @@ sepsisRouter.get('/board', requireRole('DOCTOR', 'NURSE'), async (req, res) => {
     WHERE s.facility_id = ${ctx.facilityId} AND s.created_at > ${oldest}
       AND (s.status = 'PENDING'
            OR (s.status IN ('RED_FLAG', 'SEPSIS_SUSPECTED') AND s.bundle_completed_at IS NULL))
+      AND ${stillInCare(sql.raw('s'))}
       AND (${status} = 'OPEN' OR s.status = ${status})
       AND (${unitId ?? null}::uuid IS NULL OR COALESCE(a.unit_id, e.unit_id) = ${unitId ?? null}::uuid)
       AND (

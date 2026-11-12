@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, count, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
@@ -15,6 +15,7 @@ import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/htt
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { isValidGtin, normaliseBarcode } from '../bcma/barcode.js';
 import { toCsv } from '../reports/reports.routes.js';
 import {
   alertLowStock,
@@ -50,8 +51,41 @@ const CatalogInput = z.object({
   strength: z.string().trim().max(60).optional().nullable(),
   unit: z.string().trim().min(1).max(30),
   isEssential: z.boolean().default(false),
+  /**
+   * Pack barcode (GTIN/EAN) for barcode-checked administration at the bedside. Without it a pack
+   * can never be confirmed by scanning, and every dose needs an override reason.
+   */
+  barcode: z
+    .string()
+    .trim()
+    .max(64)
+    .transform(normaliseBarcode)
+    .refine(isValidGtin, 'Enter the GTIN/EAN printed under the pack barcode (check digit included)')
+    .optional()
+    .nullable(),
+  /** Active ingredients (INN), used by the interaction, allergy and bedside checks. */
+  ingredients: z
+    .array(z.string().trim().toLowerCase().min(2).max(100))
+    .max(20)
+    .optional()
+    .nullable(),
 });
 const CatalogPatch = CatalogInput.partial().extend({ isActive: z.boolean().optional() });
+
+/** A pack barcode identifies exactly one catalogue item. */
+async function assertBarcodeFree(barcode: string | null | undefined, exceptId?: string) {
+  if (!barcode) return;
+  const [taken] = await db
+    .select({ id: medicationCatalog.id })
+    .from(medicationCatalog)
+    .where(
+      and(
+        eq(medicationCatalog.barcode, barcode),
+        exceptId ? ne(medicationCatalog.id, exceptId) : undefined,
+      ),
+    );
+  if (taken) throw conflict('Another catalogue item already has this barcode');
+}
 
 const ReceiptInput = z.object({
   supplier: z.string().trim().max(200).optional().nullable(),
@@ -162,6 +196,7 @@ stockRouter.post('/catalog', requireRole('MINISTRY'), async (req, res) => {
       ),
     );
   if (dup) throw conflict('This medicine is already in the catalogue');
+  await assertBarcodeFree(input.barcode);
   const row = await db.transaction(async (tx) => {
     const [created] = await tx.insert(medicationCatalog).values(input).returning();
     await audit(
@@ -185,6 +220,7 @@ stockRouter.patch('/catalog/:id', requireRole('MINISTRY'), async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const input = parse(CatalogPatch, req.body);
   if (!Object.keys(input).length) throw badRequest('Nothing to change');
+  await assertBarcodeFree(input.barcode, id);
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(medicationCatalog)

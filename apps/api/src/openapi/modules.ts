@@ -207,11 +207,22 @@ export const MODULE_OPERATIONS: ModuleOperation[] = [
         strength: str(),
         unit: str(),
         isEssential: bool,
+        barcode: str({
+          description:
+            'Pack barcode (GTIN/EAN with check digit) for barcode-checked administration; unique',
+        }),
+        ingredients: arr(str(), { description: 'Active ingredients (INN)' }),
       },
       ['name', 'form', 'unit'],
     ),
+    responses: { '409': 'Already in the catalogue, or the barcode belongs to another item' },
   }),
-  op('patch', '/stock/catalog/{id}', S, 'Change a catalogue item', { access: 'MINISTRY' }),
+  op('patch', '/stock/catalog/{id}', S, 'Change a catalogue item', {
+    access: 'MINISTRY',
+    description:
+      'Any field of the item (name, ATC code, form, strength, unit, essential, barcode, ' +
+      'ingredients) or isActive.',
+  }),
   op('get', '/stock/levels', S, 'Stock levels of my facility', {
     access: 'PHARMACIST, DIRECTOR (read-only)',
     params: [

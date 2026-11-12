@@ -344,6 +344,21 @@ export function presentBundle(bundle: Record<string, string>) {
   }));
 }
 
+/**
+ * A screen is only actionable while the patient is still in the hospital that raised it (admitted,
+ * or in its emergency department). After discharge the prompt must leave the board and must not
+ * be escalated: its ward and bed describe a stay that is over – the bed may hold someone else.
+ * Use with `sepsis_screens` in scope under the given alias.
+ */
+export const stillInCare = (screen: ReturnType<typeof sql.raw>) => sql`(
+  EXISTS (SELECT 1 FROM admissions sa
+          WHERE sa.patient_id = ${screen}.patient_id AND sa.facility_id = ${screen}.facility_id
+            AND sa.status = 'ADMITTED')
+  OR EXISTS (SELECT 1 FROM ed_visits se
+             WHERE se.patient_id = ${screen}.patient_id AND se.facility_id = ${screen}.facility_id
+               AND se.status IN ('WAITING', 'IN_TREATMENT'))
+)`;
+
 /* --------------------------------------------------------------------- worker -------------- */
 
 /**
@@ -364,6 +379,8 @@ export async function escalateOverdueOnce(now = new Date()) {
       and(
         sql`NOT (${sepsisScreens.bundle} ? 'escalatedAt')`,
         gt(sepsisScreens.createdAt, oldest),
+        // Never chase a screen of a patient who has left (see stillInCare).
+        stillInCare(sql.raw('"sepsis_screens"')),
         sql`(
           (${sepsisScreens.bundleStartedAt} IS NOT NULL AND ${sepsisScreens.bundleCompletedAt} IS NULL
              AND ${sepsisScreens.bundleStartedAt} <= ${bundleCutoff})

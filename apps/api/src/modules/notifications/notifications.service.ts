@@ -41,6 +41,18 @@ export function renderTitle(n: NotificationInput, locale: Locale): string {
   return title.slice(0, 200);
 }
 
+/**
+ * Chart links are written for the doctor's workspace (/doctor/patients/…). Nurses open the same
+ * chart under /nurse/patients/…; the doctor's route refuses them, so their copy of a care-team
+ * notification must point to their own workspace.
+ */
+export function linkForRole(link: string | null | undefined, role: Role | undefined) {
+  if (!link) return null;
+  return role === 'NURSE' && link.startsWith('/doctor/patients/')
+    ? `/nurse${link.slice('/doctor'.length)}`
+    : link;
+}
+
 export async function notifyUsers(
   userIds: (string | null | undefined)[],
   n: NotificationInput,
@@ -49,22 +61,21 @@ export async function notifyUsers(
   const ids = [...new Set(userIds.filter((x): x is string => Boolean(x)))];
   if (!ids.length) return;
   // Every recipient gets the notification in their own language.
-  const locales = new Map(
-    (
-      await executor
-        .select({ id: users.id, locale: users.locale })
-        .from(users)
-        .where(inArray(users.id, ids))
-    ).map((u) => [u.id, toLocale(u.locale)]),
-  );
+  const profiles = await executor
+    .select({ id: users.id, locale: users.locale, role: users.role })
+    .from(users)
+    .where(inArray(users.id, ids));
+  const locales = new Map(profiles.map((u) => [u.id, toLocale(u.locale)]));
+  const roles = new Map(profiles.map((u) => [u.id, u.role]));
   const localeOf = (id: string) => locales.get(id) ?? DEFAULT_LOCALE;
+  const linkOf = (id: string) => linkForRole(n.link, roles.get(id));
   await executor.insert(notifications).values(
     ids.map((userId) => ({
       userId,
       type: n.type,
       title: renderTitle(n, localeOf(userId)),
       body: n.body ? tr(localeOf(userId), n.body, n.vars) : null,
-      link: n.link ?? null,
+      link: linkOf(userId),
     })),
   );
   // Delivered live (after commit when inside a transaction).
@@ -103,7 +114,7 @@ export async function notifyUsers(
         locale,
         name: r.fullName,
         title,
-        link: n.link ?? null,
+        link: linkOf(r.id),
       });
     }
   }

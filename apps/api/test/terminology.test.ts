@@ -277,6 +277,15 @@ describe('code system versions', () => {
         and(eq(codeSystemVersions.codeSystemId, systemId), eq(codeSystemVersions.status, 'ACTIVE')),
       );
     expect(after).toHaveLength(1);
+
+    // Which of the two won is a race. The tests below read the content of the second version,
+    // so settle it: activate one more draft with that content.
+    const settled = await upload(`/systems/${systemId}/versions`, V2, ministry(), '?version=3c');
+    expect(
+      (await api().post(`/api/v1/terminology/versions/${settled.body.id}/activate`).set(ministry()))
+        .status,
+    ).toBe(200);
+    expect((await validateCode(code, 'I50')).valid).toBe(true);
   });
 
   it('exports CSV that imports again, and discards drafts only', async () => {

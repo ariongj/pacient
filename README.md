@@ -205,6 +205,15 @@ Then set `SMTP_URL=smtp://localhost:1025` in `apps/api/.env` and open http://loc
 
 ### What to try
 
+The menu on the left is organised in **main modules** (e.g. _Pacientët_, _Repartet e spitalit_,
+_Programet e kujdesit_) that open to show their pages; _Gjej një faqe…_ finds any page by name and
+_Të gjitha modulet_ lists everything. A patient chart is organised the same way: eight areas, each
+with its sections.
+
+- **The whole cycle in one go**: with the app running, `npm run journey` registers a new patient
+  at the front desk and takes them through booking, check-in, the visit, laboratory, pharmacy,
+  admission and discharge, the co-payment and their own portal – in the real pages, in about a
+  minute and a half. Follow the same steps by hand with [the journey map](docs/PATIENT-JOURNEY.md).
 - **Patient** (`patient@`): medical history, results, documents, privacy & consent, and switch to
   the record of daughter Lea with the selector at the top left (guardian access).
 - **Doctor** (`doctor@`): worklist (including results covered for an absent colleague), open Arta
@@ -347,6 +356,7 @@ account with a one-off script or seed in a non-production environment).
 | `deploy/pitr/pitr.sh`              | Point-in-time recovery (pgBackRest)                                               |
 | `node scripts/downtime-sync.mjs`   | Copy the latest downtime pack to a ward PC                                        |
 | `npm run a11y`                     | Accessibility audit (axe, WCAG 2.2 AA) of every page; `-- --width 390` for phones |
+| `npm run journey`                  | Walks the whole patient cycle through the real pages with a new synthetic patient |
 
 ## Documentation
 
@@ -355,6 +365,7 @@ account with a one-off script or seed in a non-production environment).
 - [Blueprint alignment](docs/BLUEPRINT-ALIGNMENT.md) — requirement-by-requirement status and roadmap
 - [Clinical safety case](docs/CLINICAL-SAFETY.md) — hazard log, controls and go-live conditions
 - [Privacy](docs/PRIVACY.md) — data protection, retention and data-subject rights
+- [Patient journey](docs/PATIENT-JOURNEY.md) — the whole cycle step by step: who, where, which API
 - [Performance](docs/PERFORMANCE.md) — load test, baseline and capacity planning
 - [Downtime](docs/DOWNTIME.md) — what to do when the system is unavailable, and recovery
 - [Partner API](docs/API.md) — keys, scopes, purpose of use, OpenAPI and FHIR

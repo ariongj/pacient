@@ -109,7 +109,21 @@ entered-in-error) or are amended by addenda.
 | Reporting    | `GET /stats/facility`, `GET /stats/national`, `GET /audit-logs`                                                                                                                                                                                                                                                                                                                                                  |
 | Health       | `GET /health/live`, `GET /health/ready`                                                                                                                                                                                                                                                                                                                                                                          |
 
+## Navigation: main modules and their pages
+
+`apps/web/src/modules.ts` is the single registry of the menu: for each role a home page and a few
+main modules, each with its pages. The sidebar (collapsible modules, page finder), the breadcrumb
+and the `/modules` overview are drawn from it, and the translation check covers its titles and
+labels – a new page is added there once. The patient chart groups its sections into areas the same
+way (`AREAS` in `pages/doctor/PatientChart.tsx`); links keep using `?tab=<section>`. Doctors and
+nurses share the patient list and chart under their own workspace, and a link written for one
+workspace opens in the other (`components/RequireRole.tsx`).
+
 ## Testing
+
+`test/journey.test.ts` follows one new patient through the whole cycle over real HTTP (41 linked
+steps, see [PATIENT-JOURNEY.md](PATIENT-JOURNEY.md)); `npm run journey` drives the same cycle through
+the real pages of a running instance.
 
 `npm test` drops and recreates the `pacient_test` schema **from the migrations** (so tests exercise
 the real migrations and triggers), then runs integration tests through the HTTP layer. The suite

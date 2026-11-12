@@ -500,9 +500,12 @@ export function PharmacyQueue() {
                           <tr
                             key={it.id}
                             aria-current={selected === it.id ? 'true' : undefined}
-                            style={
-                              selected === it.id ? { background: 'var(--primary-soft)' } : undefined
-                            }
+                            // The whole row selects (the name stays a button for the keyboard).
+                            onClick={() => select({ rx: it.id })}
+                            style={{
+                              cursor: 'pointer',
+                              ...(selected === it.id ? { background: 'var(--primary-soft)' } : {}),
+                            }}
                           >
                             <td>
                               <button

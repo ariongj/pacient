@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
@@ -199,7 +200,8 @@ export function DispenseForm({
                   <Alert tone="danger" title={t('Not enough stock')}>
                     {t('{count} unit(s) are missing. Receive a delivery or dispense less.', {
                       count: allocation.shortBy,
-                    })}
+                    })}{' '}
+                    <Link to="/pharmacy/stock">{t('Open pharmacy stock')}</Link>
                   </Alert>
                 )}
               </>

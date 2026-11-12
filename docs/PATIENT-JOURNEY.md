@@ -29,12 +29,12 @@ label (English source text). Chart tabs are opened with `?tab=<id>` on the chart
 | d   | Vital signs (early-warning score) and a reported allergy    | Nurse                                                                | `/nurse/patients/:id?tab=vitals` → **Record vitals**; `?tab=allergies` → **Add allergy**                                                                            | `POST …/vitals`, `POST …/allergies`                                                                                     | Doctor's Summary shows both; allergy checks work from now on                                                       |
 | e1  | Visit: note, diagnosis, confirm the allergy                 | Doctor                                                               | `?tab=visits` → **New visit** → **Save draft**; `?tab=problems` → **Add diagnosis**; `?tab=allergies` → **Change verification**                                     | `POST …/encounters`, `POST …/diagnoses`, `PATCH …/allergies/:id`, `PATCH …/encounters/:id`                              | Draft is on the doctor's _Worklist_ (_Draft notes awaiting signature_); the patient does not see the note text yet |
 | e2  | Sign the note; amend only by addendum                       | Doctor                                                               | `?tab=visits` → **Sign note**, later **Add addendum**                                                                                                               | `POST …/encounters/:id/sign`, `POST …/addenda`; edit → 409                                                              | Patient sees the signed note under `/portal/history`                                                               |
-| e3  | Complete the appointment                                    | Doctor                                                               | `/doctor/schedule` → **Complete** – **see gap 1**                                                                                                                   | `PATCH /appointments/:id/status` `COMPLETED`                                                                            | Patient: appointment shown as completed                                                                            |
+| e3  | Complete the appointment                                    | Doctor                                                               | `/doctor/schedule` → **Complete**                                                                                                                                   | `PATCH /appointments/:id/status` `COMPLETED`                                                                            | Patient: appointment shown as completed                                                                            |
 | f1  | Order a laboratory test                                     | Doctor                                                               | `?tab=results` → _Laboratory orders_ → **Order test** → **Send order**                                                                                              | `POST /patients/:id/lab-orders`                                                                                         | Laboratory worklist shows the order with identification only                                                       |
 | f2  | Specimen taken and received, result entered                 | Laboratory technician                                                | `/lab` · Laboratory worklist (_To do_) → **Specimen taken** → **Receive** (scan the barcode) → **Enter result** → **Save preliminary result**                       | `POST /lab-work/orders/:id/collect`, `/receive`, `/result`                                                              | Order shows _In lab_ in the chart; result is preliminary                                                           |
 | f3  | Validation by a second person                               | Another technician or a laboratory doctor                            | `/lab` (_To validate_) → **Validate**                                                                                                                               | `POST /lab-work/results/:id/validate` (403 for the person who entered it)                                               | Final result on the ordering doctor's _Worklist_ (_Results awaiting review_) + notification                        |
 | f4  | Acknowledge, then release to the patient                    | Doctor                                                               | `/doctor` · Worklist, or chart `?tab=results` → **Acknowledge** → **Release to patient**                                                                            | `POST …/lab-results/:id/acknowledge`, `/release`                                                                        | Patient: `/portal/results` (nothing before release)                                                                |
-| g0  | Medicine in the catalogue and in stock                      | Ministry; pharmacist                                                 | Catalogue: **no page – see gap 5**. Stock: `/pharmacy/stock` · Pharmacy › Stock → **Receive a delivery**                                                            | `POST /stock/catalog` (with pack `barcode` and `ingredients`), `POST /stock/receipts`                                   | Item can be prescribed, dispensed from stock and scanned at the bedside                                            |
+| g0  | Medicine in the catalogue and in stock                      | Ministry; pharmacist                                                 | Catalogue: `/ministry/catalogue` · Health system › Medicine catalogue. Stock: `/pharmacy/stock` · Pharmacy › Stock → **Receive a delivery**                         | `POST /stock/catalog` (with pack `barcode` and `ingredients`), `POST /stock/receipts`                                   | Item can be prescribed, dispensed from stock and scanned at the bedside                                            |
 | g1  | Prescribe – the allergy stops amoxicillin                   | Doctor                                                               | `?tab=medications` → **Prescribe** (blocking alerts need a reason per alert)                                                                                        | `POST …/prescriptions` → 409 `SAFETY_ALERTS`; safe medicine → 201                                                       | Pharmacy queue (_Awaiting verification_) + notification to pharmacists                                             |
 | g2  | Verify and dispense from stock                              | Pharmacist                                                           | `/pharmacy` · Verification queue → select → **Verify** → (_Ready to dispense_) **Dispense**                                                                         | `GET /pharmacy/queue`, `GET /pharmacy/prescriptions/:id`, `POST …/verify`, `POST …/dispense`                            | Stock drops (first expiry first); patient told the medicine is ready; nurses may now give it                       |
 | g3  | Pharmacy sends a prescription back                          | Pharmacist → doctor → pharmacist                                     | `/pharmacy` → **Return**; doctor: `/doctor` _Returned by pharmacy_ → chart `?tab=medications` → **Resubmit**                                                        | `POST /pharmacy/prescriptions/:id/return`, `POST …/prescriptions/:id/resubmit`                                          | Back in the pharmacy queue with the correction                                                                     |
@@ -65,36 +65,29 @@ label (English source text). Chart tabs are opened with `?tab=<id>` on the chart
 | r2  | Emergency access and its review                             | Colleague; director                                                  | Chart access panel → **Open record in emergency mode**; `/director/emergency-access` · Governance and privacy › Emergency access review                             | `POST /patients/:id/emergency-access`, `GET /emergency-access`, `POST /emergency-access/:id/review`                     | Patient's access log shows the access with its reason                                                              |
 | s   | Notifications                                               | Everyone                                                             | Bell in the top bar; `/notifications`                                                                                                                               | `GET /notifications`                                                                                                    | Titles carry no patient name and no clinical detail; every link opens in the recipient's own workspace             |
 
-## Gaps in the web app found on the way
+## Gaps in the web app found on the way (all closed)
 
-The API allows each of these; the browser does not (yet) lead there.
+The API walk and a browser walk of the same story found these breaks in the cycle. Each is fixed,
+and `scripts/patient-journey.mjs` now drives the whole cycle through the real pages:
 
-1. **A checked-in appointment cannot be completed by the doctor.**
-   `apps/web/src/pages/doctor/DoctorSchedule.tsx` (`ACTIONS`, line 31) has buttons for `REQUESTED`
-   and `CONFIRMED` only. After reception presses _Check in_ the row has no button, although the
-   API allows `CHECKED_IN → COMPLETED / NO_SHOW` for the doctor. Add a `CHECKED_IN` entry
-   (**Complete**, **No-show**).
-2. **The arrived patient disappears from the doctor's home page.**
-   `apps/web/src/pages/doctor/DoctorHome.tsx` line 162 keeps only `CONFIRMED` and `REQUESTED` under
-   _Upcoming appointments_; the notification _Your patient has arrived_ therefore leads to a list
-   without that patient. Include `CHECKED_IN` (ideally first, marked as arrived).
-3. **Registration ends in a dead end for reception.**
-   `apps/web/src/pages/doctor/RegisterPatient.tsx`: the success screen offers only _Back to
-   patients_ / _Register another patient_ – no **Book appointment** for the person just registered –
-   and tells reception _You have been added to the patient's care team_ (also in the page subtitle),
-   which is true for doctors only.
-4. **Chart links that nurses (and pharmacists) cannot open.** These pages are open to nurses but
-   link to the doctor-only route `/doctor/patients/:id`:
-   `pages/nutrition/NutritionPage.tsx` lines 237 and 299; `pages/infection/InfectionPage.tsx` lines
-   562 and 609 (the same file has `patientBase(role)` for its other links). Either use the role's
-   base path (`useChartRole().base`), or let `/doctor/patients/:id` redirect nurses to
-   `/nurse/patients/:id` keeping the query string. (Notification links were fixed in the API, see
-   below.)
-5. **No page for the national medicine catalogue.** The Ministry can only add or change catalogue
-   items through the API (`POST` / `PATCH /stock/catalog`); the web app only reads the catalogue.
-   That includes the pack barcode needed for bedside scanning.
-6. Smaller: on the ward only laboratory staff can mark a specimen as taken (`/lab` → _Specimen
-   taken_); a ward nurse who draws the blood has no button for it.
+| Gap                                                                                          | Fix                                                                                                                                             |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| A checked-in appointment could not be completed by the doctor                                | `/doctor/schedule` offers **Complete** and **No-show** for a checked-in appointment                                                             |
+| The arrived patient disappeared from the doctor's home page                                  | **Patients waiting** at the top of the worklist, with **Open chart**                                                                            |
+| Registration ended in a dead end for reception (and claimed they joined the care team)       | The success screen offers **Book appointment** for the new patient; the text is correct per role                                                |
+| Chart links that nurses could not open (`/doctor/patients/:id` on pages nurses use)          | A doctor-workspace link opens in the nurse's workspace (and the other way round), section included                                              |
+| No page for the national medicine catalogue                                                  | `/ministry/catalogue` · Health system › Medicine catalogue: add and edit medicines, ATC code, ingredients and the pack barcode                  |
+| Only laboratory staff could mark a specimen as taken                                         | A doctor or nurse of the care team presses **Specimen taken** in the chart (Tests and imaging › Results); the laboratory sees when it was taken |
+| Charges appeared up to an hour after the visit (hourly job), so no co-payment at the counter | Opening the patient's account at the front desk captures the charges of the last days first                                                     |
+| The pharmacy queue only selected a prescription when the name itself was clicked             | The whole row selects; the detail stays in view next to a long list                                                                             |
+| The chart had 35 sections in one row                                                         | Eight areas (Clinical record, Medicines, Tests and imaging, Hospital, Care programmes, Specialist units, Documents, Record and access)          |
+
+```bash
+npm run journey
+```
+
+needs the app running with demo data (`npm run dev`); it registers a new synthetic patient and
+prints one line per stage.
 
 ## Defects the journey exposed in the API (fixed, covered by the journey test)
 

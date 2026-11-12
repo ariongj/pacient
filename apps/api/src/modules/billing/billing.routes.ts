@@ -386,6 +386,11 @@ billingRouter.get('/patients/:patientId/charges', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(PatientParam, req.params);
   await assertReadAccess(ctx, patientId);
+  // The front desk opens the account when the patient is at the counter: pick up what today's
+  // care produced now instead of waiting for the hourly job (idempotent, last 7 days only).
+  if (!isOwn(ctx, patientId) && ctx.facilityId) {
+    await captureCharges(ctx.facilityId, new Date(Date.now() - 7 * 86_400_000));
+  }
   const filters: SQL[] = [eq(charges.patientId, patientId)];
   // Staff see their facility's charges; patients see all of their own.
   if (!isOwn(ctx, patientId)) filters.push(eq(charges.facilityId, ctx.facilityId!));

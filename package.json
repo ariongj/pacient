@@ -22,6 +22,7 @@
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "a11y": "node scripts/a11y-audit.mjs",
+    "journey": "node scripts/patient-journey.mjs",
     "i18n:check": "tsx scripts/i18n-check.ts",
     "load-test": "node scripts/load-test.mjs"
   },

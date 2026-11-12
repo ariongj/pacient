@@ -230,6 +230,22 @@ describe('charge capture', () => {
 });
 
 describe('co-payments and receipts', () => {
+  it('opening a patient’s account at the front desk picks up today’s care without waiting', async () => {
+    const p = await createPatient(w.facility.id);
+    await signedEncounter(p.id, w.users.doctor.id);
+    // No hourly job has run and nobody pressed "capture": the account still shows the visit.
+    const account = await api()
+      .get(`/api/v1/billing/patients/${p.id}/charges`)
+      .set(bearer(w.tokens.reception));
+    expect(account.status).toBe(200);
+    expect(account.body.items.length).toBeGreaterThan(0);
+    // Opening it again creates nothing twice.
+    const again = await api()
+      .get(`/api/v1/billing/patients/${p.id}/charges`)
+      .set(bearer(w.tokens.reception));
+    expect(again.body.items).toHaveLength(account.body.items.length);
+  });
+
   it('takes payment for selected co-payments and issues a numbered receipt', async () => {
     const p = await createPatient(w.facility.id);
     await insure(p.id);

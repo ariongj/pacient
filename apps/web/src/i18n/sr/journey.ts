@@ -49,4 +49,5 @@ export const journey: Record<string, string> = {
   'Another catalogue item already has this barcode': 'Druga stavka kataloga već ima ovaj bar-kod',
   'Enter the GTIN/EAN printed under the pack barcode (check digit included)':
     'Unesite GTIN/EAN odštampan ispod bar-koda pakovanja (sa kontrolnom cifrom)',
+  'Open pharmacy stock': 'Otvori zalihe apoteke',
 };

@@ -133,6 +133,7 @@ const PAGES = {
     '/ministry/facilities',
     '/ministry/partners',
     '/ministry/stock',
+    '/ministry/catalogue',
     '/ministry/vaccination',
     '/developers',
     '/privacy',

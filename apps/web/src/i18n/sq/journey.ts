@@ -50,4 +50,5 @@ export const journey: Record<string, string> = {
     'Një artikull tjetër i katalogut e ka tashmë këtë barkod',
   'Enter the GTIN/EAN printed under the pack barcode (check digit included)':
     'Shkruani GTIN/EAN-in e shtypur nën barkodin e paketimit (me shifrën e kontrollit)',
+  'Open pharmacy stock': 'Hap stokun e farmacisë',
 };

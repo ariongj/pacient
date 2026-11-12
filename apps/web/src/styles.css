@@ -214,6 +214,19 @@ table.sr-only {
   color: var(--nav-text);
   padding: 1rem 0.65rem 2rem;
 }
+/* On wide screens the menu stays in view while a long page scrolls. */
+@media (min-width: 861px) {
+  .body {
+    background: linear-gradient(to right, var(--nav-bg) 230px, transparent 230px);
+  }
+  .sidenav {
+    position: sticky;
+    top: 3.6rem;
+    align-self: start;
+    max-height: calc(100vh - 3.6rem);
+    overflow-y: auto;
+  }
+}
 .nav-section + .nav-section {
   margin-top: 1.1rem;
 }
@@ -1342,6 +1355,15 @@ th.num {
     grid-template-columns: 1fr;
   }
 }
+/* The detail next to a long list stays in view while the list scrolls. */
+@media (min-width: 901px) {
+  .split > :nth-child(2) {
+    position: sticky;
+    top: 4.6rem;
+    max-height: calc(100vh - 5.6rem);
+    overflow-y: auto;
+  }
+}
 .alert-list {
   list-style: none;
   padding: 0;
@@ -1367,6 +1389,9 @@ th.num {
     --text: #000;
     --text-muted: #444;
     --border: #bbb;
+  }
+  .body {
+    background: none;
   }
   .topbar,
   .sidenav,

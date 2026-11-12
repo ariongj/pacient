@@ -123,6 +123,54 @@ const TAB_IDS = [
 ] as const;
 type TabId = (typeof TAB_IDS)[number];
 
+/**
+ * The record's sections are grouped into a few areas, like the main modules of the menu: the
+ * first row chooses the area, the second row its sections. Links keep using ?tab=<section>.
+ */
+const AREAS: { id: string; label: () => string; tabs: TabId[] }[] = [
+  {
+    id: 'clinical',
+    label: () => t('Clinical record'),
+    tabs: ['summary', 'visits', 'problems', 'allergies', 'vitals', 'vaccinations', 'tasks'],
+  },
+  { id: 'medicines', label: () => t('Medicines'), tabs: ['medications', 'mar'] },
+  { id: 'tests', label: () => t('Tests and imaging'), tabs: ['results', 'imaging'] },
+  {
+    id: 'hospital',
+    label: () => t('Hospital'),
+    tabs: ['admissions', 'emergency', 'surgery', 'transfusion', 'nutrition', 'sepsis', 'infection'],
+  },
+  {
+    id: 'programmes',
+    label: () => t('Care programmes'),
+    tabs: [
+      'registers',
+      'screening',
+      'pregnancy',
+      'births',
+      'homecare',
+      'remote',
+      'proms',
+      'waiting',
+    ],
+  },
+  {
+    id: 'units',
+    label: () => t('Specialist units'),
+    tabs: ['oncology', 'dialysis', 'mentalhealth'],
+  },
+  {
+    id: 'documents',
+    label: () => t('Documents'),
+    tabs: ['certificates', 'documents', 'directives', 'death'],
+  },
+  {
+    id: 'access',
+    label: () => t('Record and access'),
+    tabs: ['care-team', 'consents', 'corrections'],
+  },
+];
+
 export function PatientChart() {
   const { patientId = '' } = useParams();
   const user = useUser();
@@ -194,6 +242,54 @@ export function PatientChart() {
   const assessment = s?.patient.allergyAssessment;
 
   const setTab = (id: TabId) => setParams({ tab: id }, { replace: true });
+  const allTabs: { id: TabId; label: string; count?: number }[] = s
+    ? [
+        { id: 'summary', label: t('Summary') },
+        { id: 'visits', label: t('Visits'), count: s.counts.encounters },
+        { id: 'problems', label: t('Problems'), count: s.counts.diagnoses },
+        { id: 'medications', label: t('Medications'), count: s.counts.prescriptions },
+        { id: 'mar', label: t('Administration') },
+        { id: 'tasks', label: t('Care tasks') },
+        { id: 'allergies', label: t('Allergies'), count: allergies.length },
+        { id: 'vitals', label: t('Vitals') },
+        { id: 'results', label: t('Results'), count: s.counts.labResults },
+        { id: 'vaccinations', label: t('Vaccinations'), count: s.immunizations.length },
+        { id: 'admissions', label: t('Hospital stays') },
+        { id: 'emergency', label: t('Emergency') },
+        { id: 'imaging', label: t('Imaging') },
+        { id: 'surgery', label: t('Operations') },
+        { id: 'transfusion', label: t('Transfusions') },
+        { id: 'nutrition', label: t('Nutrition') },
+        { id: 'births', label: t('Birth & maternity') },
+        { id: 'directives', label: t('Wishes and directives') },
+        { id: 'sepsis', label: t('Sepsis') },
+        { id: 'infection', label: t('Infection prevention') },
+        { id: 'homecare', label: t('Home care') },
+        { id: 'remote', label: t('Remote monitoring') },
+        { id: 'oncology', label: t('Cancer registry') },
+        { id: 'dialysis', label: t('Dialysis') },
+        { id: 'mentalhealth', label: t('Mental health safeguards') },
+        { id: 'proms', label: t('Questionnaires') },
+        { id: 'pregnancy', label: t('Pregnancy') },
+        { id: 'screening', label: t('Screening|cancer') },
+        { id: 'registers', label: t('Chronic care') },
+        { id: 'waiting', label: t('Waiting lists') },
+        { id: 'certificates', label: t('Certificates') },
+        { id: 'documents', label: t('Documents') },
+        { id: 'consents', label: t('Consent') },
+        {
+          id: 'corrections',
+          label: t('Corrections'),
+          count: s.counts.openCorrectionRequests,
+        },
+        { id: 'care-team', label: t('Care team') },
+        // Doctors may certify; everyone else sees the tab once a death is recorded.
+        ...(user.role === 'DOCTOR' || p.deceasedAt
+          ? [{ id: 'death' as const, label: t('Death certificate') }]
+          : []),
+      ]
+    : [];
+  const area = AREAS.find((a) => a.tabs.includes(tab)) ?? AREAS[0]!;
 
   return (
     <>
@@ -342,55 +438,29 @@ export function PatientChart() {
 
       {s && (
         <>
+          <nav className="area-tabs" aria-label={t('Record areas')}>
+            {AREAS.map((a) => {
+              const first = a.tabs.find((id) => allTabs.some((x) => x.id === id));
+              if (!first) return null;
+              const current = a.id === area.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  className={`area-tab ${current ? 'area-tab-active' : ''}`}
+                  aria-current={current ? 'true' : undefined}
+                  onClick={() => !current && setTab(first)}
+                >
+                  {a.label()}
+                </button>
+              );
+            })}
+          </nav>
           <Tabs<TabId>
             label={t('Patient record sections')}
             active={tab}
             onChange={setTab}
-            tabs={[
-              { id: 'summary', label: t('Summary') },
-              { id: 'visits', label: t('Visits'), count: s.counts.encounters },
-              { id: 'problems', label: t('Problems'), count: s.counts.diagnoses },
-              { id: 'medications', label: t('Medications'), count: s.counts.prescriptions },
-              { id: 'mar', label: t('Administration') },
-              { id: 'tasks', label: t('Care tasks') },
-              { id: 'allergies', label: t('Allergies'), count: allergies.length },
-              { id: 'vitals', label: t('Vitals') },
-              { id: 'results', label: t('Results'), count: s.counts.labResults },
-              { id: 'vaccinations', label: t('Vaccinations'), count: s.immunizations.length },
-              { id: 'admissions', label: t('Hospital stays') },
-              { id: 'emergency', label: t('Emergency') },
-              { id: 'imaging', label: t('Imaging') },
-              { id: 'surgery', label: t('Operations') },
-              { id: 'transfusion', label: t('Transfusions') },
-              { id: 'nutrition', label: t('Nutrition') },
-              { id: 'births', label: t('Birth & maternity') },
-              { id: 'directives', label: t('Wishes and directives') },
-              { id: 'sepsis', label: t('Sepsis') },
-              { id: 'infection', label: t('Infection prevention') },
-              { id: 'homecare', label: t('Home care') },
-              { id: 'remote', label: t('Remote monitoring') },
-              { id: 'oncology', label: t('Cancer registry') },
-              { id: 'dialysis', label: t('Dialysis') },
-              { id: 'mentalhealth', label: t('Mental health safeguards') },
-              { id: 'proms', label: t('Questionnaires') },
-              { id: 'pregnancy', label: t('Pregnancy') },
-              { id: 'screening', label: t('Screening|cancer') },
-              { id: 'registers', label: t('Chronic care') },
-              { id: 'waiting', label: t('Waiting lists') },
-              { id: 'certificates', label: t('Certificates') },
-              { id: 'documents', label: t('Documents') },
-              { id: 'consents', label: t('Consent') },
-              {
-                id: 'corrections',
-                label: t('Corrections'),
-                count: s.counts.openCorrectionRequests,
-              },
-              { id: 'care-team', label: t('Care team') },
-              // Doctors may certify; everyone else sees the tab once a death is recorded.
-              ...(user.role === 'DOCTOR' || p.deceasedAt
-                ? [{ id: 'death' as const, label: t('Death certificate') }]
-                : []),
-            ]}
+            tabs={area.tabs.flatMap((id) => allTabs.filter((x) => x.id === id))}
           />
           <TabPanel id={tab}>
             {tab === 'summary' && <SummaryTab summary={s} />}

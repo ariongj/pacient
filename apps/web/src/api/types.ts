@@ -791,6 +791,8 @@ export interface LabOrder {
   receivedAt: string | null;
   resultedAt: string | null;
   cancelledAt: string | null;
+  /** When the specimen was taken (null: not yet). */
+  specimenCollectedAt?: string | null;
   orderedBy: string;
 }
 

@@ -87,6 +87,32 @@ describe('worklist and specimen', () => {
     );
   });
 
+  it('lets the care team record a specimen taken on the ward, and nobody else', async () => {
+    const o = await order('2345-7');
+    const outsider = await login((await createUser('NURSE', w.facility.id)).email);
+    expect((await post(outsider, `/orders/${o.id}/collect`)).status).toBe(403);
+    expect((await post(itToken, `/orders/${o.id}/collect`)).status).toBe(403);
+    expect((await post(w.tokens.reception, `/orders/${o.id}/collect`)).status).toBe(403);
+    // The ward nurse joins the care team and records that the sample was drawn.
+    const join = await api()
+      .post(`/api/v1/patients/${w.patient.id}/care-team`)
+      .set(bearer(w.tokens.nurse))
+      .send({});
+    expect([201, 409]).toContain(join.status);
+    const taken = await post(w.tokens.nurse, `/orders/${o.id}/collect`);
+    expect(taken.status).toBe(200);
+    expect(taken.body.barcode).toBe(o.placerOrderNumber);
+    // The chart shows it, and the laboratory can receive the sample.
+    const list = await api()
+      .get(`/api/v1/patients/${w.patient.id}/lab-orders`)
+      .set(bearer(w.tokens.doctor));
+    const row = list.body.items.find((x: { id: string }) => x.id === o.id);
+    expect(row.specimenCollectedAt).toBeTruthy();
+    expect(
+      (await post(techToken, `/orders/${o.id}/receive`, { barcode: o.placerOrderNumber })).status,
+    ).toBe(200);
+  });
+
   it('collects, receives with a matching barcode and rejects with a reason', async () => {
     const o = await order();
     expect((await post(techToken, `/orders/${o.id}/receive`, { barcode: 'WRONG-1' })).status).toBe(

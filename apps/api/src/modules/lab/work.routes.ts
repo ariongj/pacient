@@ -14,7 +14,7 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
-import { auditRecordView } from '../access/policy.js';
+import { assertClinicalWriteAccess, auditRecordView, WRITERS } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { catalogByCode, flagFor } from './catalog.js';
@@ -197,13 +197,25 @@ async function loadOrder(id: string, facilityId: string) {
 
 const CollectInput = z.object({ barcode: Barcode.optional() });
 
-/** The specimen was taken (barcode defaults to the order number). */
+/**
+ * The specimen was taken (barcode defaults to the order number): by laboratory staff, or on the
+ * ward by a doctor or nurse of the patient's care team – whoever draws the sample records it.
+ */
 labWorkRouter.post('/orders/:id/collect', async (req, res) => {
   const ctx = requireAuth(req);
-  const facilityId = await assertLabStaff(ctx);
   const { id } = parse(IdParam, req.params);
   const input = parse(CollectInput, req.body ?? {});
-  const order = await loadOrder(id, facilityId);
+  let order;
+  if (await isLabStaff(ctx)) {
+    order = await loadOrder(id, ctx.facilityId!);
+  } else {
+    if (ctx.role !== 'DOCTOR' && ctx.role !== 'NURSE') {
+      throw forbidden('Only laboratory staff or the care team can record the specimen');
+    }
+    if (!ctx.facilityId) throw forbidden();
+    order = await loadOrder(id, ctx.facilityId);
+    await assertClinicalWriteAccess(ctx, order.patientId, requestMeta(req), WRITERS.careTeam);
+  }
   if (order.status !== 'ORDERED') throw conflict('The specimen was already received');
   const barcode = input.barcode ?? order.placerOrderNumber;
   await db.transaction(async (tx) => {

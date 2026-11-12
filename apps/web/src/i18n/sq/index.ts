@@ -59,6 +59,7 @@ import { support } from './support';
 import { labwork } from './labwork';
 import { proms } from './proms';
 import { navigation } from './navigation';
+import { journey } from './journey';
 
 export const sq: Record<string, string> = {
   ...common,
@@ -122,4 +123,5 @@ export const sq: Record<string, string> = {
   ...labwork,
   ...proms,
   ...navigation,
+  ...journey,
 };

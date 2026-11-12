@@ -121,6 +121,8 @@ export function DoctorHome() {
   const appointments = useQuery({
     queryKey: ['appointments', 'upcoming', from],
     queryFn: () => api<{ items: Appointment[] }>('/appointments', { query: { from } }),
+    // Arrivals are also pushed live; this keeps the waiting list right if a push is missed.
+    refetchInterval: 60_000,
   });
 
   const pendingReferrals = useQuery({
@@ -161,6 +163,10 @@ export function DoctorHome() {
   );
   const todayKey = new Date().toDateString();
   const today = upcoming.filter((a) => new Date(a.scheduledAt).toDateString() === todayKey);
+  // Checked in at the front desk and not seen yet: the next thing to do, so it comes first.
+  const waiting = (appointments.data?.items ?? []).filter(
+    (a) => a.status === 'CHECKED_IN' && new Date(a.scheduledAt).toDateString() === todayKey,
+  );
 
   return (
     <>
@@ -170,6 +176,33 @@ export function DoctorHome() {
           name: user.fullName,
         })}
       />
+      {waiting.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <Card title={t('Patients waiting')}>
+            <ul className="list">
+              {waiting.map((a) => (
+                <li key={a.id} className="row-between">
+                  <span>
+                    <strong>{formatTime(a.scheduledAt)}</strong> ·{' '}
+                    <Link to={`/doctor/patients/${a.patientId}`}>{a.patientName}</Link>
+                    {a.reason ? ` · ${a.reason}` : ''}
+                  </span>
+                  <span className="row">
+                    <StatusBadge value={a.status} />
+                    <Link
+                      to={`/doctor/patients/${a.patientId}`}
+                      className="btn btn-primary btn-sm"
+                      aria-label={t('Open chart of {name}', { name: a.patientName })}
+                    >
+                      {t('Open chart')}
+                    </Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
       <QueryView query={worklist}>
         {(w) => (
           <div className="stack">

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { labOrders, labPriorityEnum, labResults, users } from '../../db/schema.js';
@@ -55,6 +55,12 @@ labOrdersRouter.get('/', async (req, res) => {
       resultedAt: labOrders.resultedAt,
       cancelledAt: labOrders.cancelledAt,
       orderedBy: users.fullName,
+      /** When the specimen was taken on the ward or in the laboratory (null: not yet). */
+      specimenCollectedAt: sql<Date | null>`(
+        SELECT max(e.occurred_at) FROM lab_specimen_events e
+        WHERE e.order_id = ${labOrders.id} AND e.event = 'COLLECTED')`.mapWith((v: unknown) =>
+        v ? new Date(String(v)) : null,
+      ),
     })
     .from(labOrders)
     .innerJoin(users, eq(users.id, labOrders.orderedById))

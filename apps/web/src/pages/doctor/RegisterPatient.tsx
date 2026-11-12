@@ -18,6 +18,7 @@ import {
 } from '../../components/ui';
 import { useUser } from '../../auth/AuthContext';
 import { formatDate } from '../../format';
+import { BookAppointmentDialog } from '../reception/BookAppointmentDialog';
 import { t } from '../../i18n';
 
 const SEX = ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN'] as const;
@@ -45,6 +46,7 @@ export function RegisterPatient() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<RegisterResult | null>(null);
+  const [booking, setBooking] = useState(false);
 
   const register = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -83,7 +85,9 @@ export function RegisterPatient() {
               name: `${result.patient.firstName} ${result.patient.lastName}`,
             })}
           >
-            {t('You have been added to the patient’s care team.')}
+            {isReception
+              ? t('The patient is registered at your facility. The next step is an appointment.')
+              : t('You have been added to the patient’s care team.')}
           </Alert>
           {result.activationUrl && (
             <Alert tone="info" title={t('Portal activation link')}>
@@ -96,9 +100,18 @@ export function RegisterPatient() {
             </Alert>
           )}
           <div className="row">
-            <Link to={recordPath(result.patient.id)} className="btn btn-primary btn-md">
-              {isReception ? t('Back to patients') : t('Open chart')}
-            </Link>
+            {isReception ? (
+              <>
+                <Button onClick={() => setBooking(true)}>{t('Book appointment')}</Button>
+                <Link to={listPath} className="btn btn-secondary btn-md">
+                  {t('Back to patients')}
+                </Link>
+              </>
+            ) : (
+              <Link to={recordPath(result.patient.id)} className="btn btn-primary btn-md">
+                {t('Open chart')}
+              </Link>
+            )}
             <Button
               variant="secondary"
               onClick={() => {
@@ -110,6 +123,16 @@ export function RegisterPatient() {
             </Button>
           </div>
         </Card>
+        {isReception && (
+          <BookAppointmentDialog
+            open={booking}
+            onClose={() => setBooking(false)}
+            patient={{
+              id: result.patient.id,
+              name: `${result.patient.firstName} ${result.patient.lastName}`,
+            }}
+          />
+        )}
       </>
     );
   }
@@ -121,7 +144,11 @@ export function RegisterPatient() {
     <>
       <PageHeader
         title={t('Register patient')}
-        subtitle={t('The patient is registered at your facility and you join their care team.')}
+        subtitle={
+          isReception
+            ? t('The patient is registered at your facility.')
+            : t('The patient is registered at your facility and you join their care team.')
+        }
       />
       <Card>
         <form ref={formRef} onSubmit={onSubmit}>

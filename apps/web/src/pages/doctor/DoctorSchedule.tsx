@@ -43,6 +43,11 @@ const ACTIONS: Partial<
     { to: 'NO_SHOW', label: 'No-show', variant: 'secondary' },
     { to: 'CANCELLED', label: 'Cancel', variant: 'ghost' },
   ],
+  // The patient has arrived (checked in at the front desk): the visit can be closed from here.
+  CHECKED_IN: [
+    { to: 'COMPLETED', label: 'Complete', variant: 'primary' },
+    { to: 'NO_SHOW', label: 'No-show', variant: 'secondary' },
+  ],
 };
 
 const toDateInput = (d: Date) => d.toISOString().slice(0, 10);

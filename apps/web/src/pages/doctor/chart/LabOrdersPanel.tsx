@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../api/client';
 import type { Encounter, LabOrder, LabTest } from '../../../api/types';
 import {
@@ -79,6 +79,12 @@ export function LabOrdersPanel({
     path: `/lab-orders/${id}/cancel`,
     method: 'POST',
   }));
+  // Whoever draws the sample on the ward records it, so the laboratory expects it.
+  const qc = useQueryClient();
+  const collect = useMutation({
+    mutationFn: (id: string) => api(`/lab-work/orders/${id}/collect`, { method: 'POST', body: {} }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['patient', patientId] }),
+  });
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,6 +115,7 @@ export function LabOrdersPanel({
       }
     >
       <ErrorAlert error={cancel.error} />
+      <ErrorAlert error={collect.error} />
       <QueryView query={orders}>
         {(items) =>
           items.length === 0 ? (
@@ -157,6 +164,23 @@ export function LabOrdersPanel({
                       <div className="muted">{o.orderedBy}</div>
                     </td>
                     <td>
+                      {o.status === 'ORDERED' &&
+                        (o.specimenCollectedAt ? (
+                          <div className="muted">
+                            {t('Specimen taken {time}', {
+                              time: formatDateTime(o.specimenCollectedAt),
+                            })}
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            loading={collect.isPending && collect.variables === o.id}
+                            onClick={() => collect.mutate(o.id)}
+                            aria-label={t('Specimen taken for {test}', { test: o.testName })}
+                          >
+                            {t('Specimen taken')}
+                          </Button>
+                        ))}{' '}
                       {isDoctor && (o.status === 'ORDERED' || o.status === 'RECEIVED') && (
                         <Button
                           size="sm"

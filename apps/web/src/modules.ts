@@ -510,6 +510,7 @@ export const NAVIGATION: Record<Role, RoleNav> = {
           { to: '/ministry/facilities', label: 'Facilities', icon: 'building' },
           { to: '/ministry/staff', label: 'Directors & officials', icon: 'users' },
           { to: '/ministry/stock', label: 'Medicine availability', icon: 'pill' },
+          { to: '/ministry/catalogue', label: 'Medicine catalogue', icon: 'pill' },
           as(P.waitingLists, 'Waiting times'),
           as(P.ems, 'Ambulance response times'),
           as(P.equipment, 'Critical equipment'),

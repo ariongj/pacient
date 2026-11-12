@@ -960,6 +960,36 @@ th.num {
 }
 
 /* ------------------------------------------------------------------ tabs */
+/* Areas of the patient record (first row above the section tabs). */
+.area-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0 0.6rem;
+}
+.area-tab {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.35rem 0.85rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.area-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+.area-tab-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.area-tab-active:hover {
+  color: var(--on-primary);
+}
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -1346,6 +1376,7 @@ th.num {
   .no-print,
   .page-actions,
   .tabs,
+  .area-tabs,
   .bell,
   .pagination {
     display: none !important;

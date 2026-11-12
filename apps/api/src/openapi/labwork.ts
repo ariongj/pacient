@@ -28,7 +28,7 @@ export const LABWORK_OPERATIONS: ModuleOperation[] = [
     ],
   }),
   op('post', '/lab-work/orders/{id}/collect', T, 'Record that the specimen was taken', {
-    access: LAB,
+    access: `${LAB}; or a DOCTOR or NURSE of the patient’s care team (sample drawn on the ward)`,
     body: obj({ barcode: str({ pattern: '^[A-Z0-9-]{4,40}$' }) }),
     responses: { '409': 'The specimen was already received' },
   }),

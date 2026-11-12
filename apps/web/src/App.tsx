@@ -12,6 +12,9 @@ import { lazy, Suspense, type ReactElement } from 'react';
 const ModulesPage = lazy(() =>
   import('./pages/shared/ModulesPage').then((m) => ({ default: m.ModulesPage })),
 );
+const MedicineCatalogue = lazy(() =>
+  import('./pages/ministry/MedicineCatalogue').then((m) => ({ default: m.MedicineCatalogue })),
+);
 const DowntimePage = lazy(() =>
   import('./pages/downtime/DowntimePage').then((m) => ({ default: m.DowntimePage })),
 );
@@ -512,6 +515,7 @@ export function App() {
             path="/pharmacy/stock"
             element={guard(['PHARMACIST', 'DIRECTOR'], <StockPage />)}
           />
+          <Route path="/ministry/catalogue" element={guard(['MINISTRY'], <MedicineCatalogue />)} />
           <Route path="/ministry/stock" element={guard(['MINISTRY'], <StockOverview />)} />
           <Route
             path="/imaging/viewer/:orderId"

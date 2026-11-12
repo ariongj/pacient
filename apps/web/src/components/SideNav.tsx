@@ -246,18 +246,28 @@ export function Breadcrumb() {
   const { pathname } = useLocation();
   const here = locate(nav, pathname);
   if (!here?.module || here.module.items.length === 1) return null;
+  const onPage = pathname === here.item.to;
+  // "Patients › Patients" says nothing twice: one crumb back to the page is enough.
+  if (t(here.module.title) === t(here.item.label)) {
+    if (onPage) return null;
+    return (
+      <nav className="crumbs" aria-label={t('You are here')}>
+        <ol>
+          <li>
+            <NavLink to={here.item.to}>{t(here.item.label)}</NavLink>
+          </li>
+        </ol>
+      </nav>
+    );
+  }
   return (
     <nav className="crumbs" aria-label={t('You are here')}>
       <ol>
         <li>
           <NavLink to={`/modules#${here.module.id}`}>{t(here.module.title)}</NavLink>
         </li>
-        <li aria-current={pathname === here.item.to ? 'page' : undefined}>
-          {pathname === here.item.to ? (
-            t(here.item.label)
-          ) : (
-            <NavLink to={here.item.to}>{t(here.item.label)}</NavLink>
-          )}
+        <li aria-current={onPage ? 'page' : undefined}>
+          {onPage ? t(here.item.label) : <NavLink to={here.item.to}>{t(here.item.label)}</NavLink>}
         </li>
       </ol>
     </nav>

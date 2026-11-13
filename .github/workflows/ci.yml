@@ -37,5 +37,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Pages artifact would be accepted (same check as the deploy workflow)
+        run: node deploy/prepare-pages.mjs
       - name: Dependency audit (production dependencies)
         run: npm audit --omit=dev --audit-level=high

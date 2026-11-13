@@ -56,7 +56,17 @@ activation handoff. Do not seed the published development passwords or disable s
 The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH` command refuses if any
 account already exists, creates a single-use 72-hour invitation, and writes its URL only to a
 new 0600 file. Run it inside the API image with a temporary private bind mount; do not expose
-that directory through HTTP. The owner chooses their password through the activation page.
+that directory through HTTP. The owner chooses their password through the activation page:
+
+```sh
+install -d -m 700 -o 1000 -g 1000 /root/pacienti-private   # the image runs as uid 1000
+docker compose --env-file .env.vps -f deploy/compose.vps.yml run --rm --no-deps \
+  -v /root/pacienti-private:/private api node dist/ops/bootstrap-admin.js OWNER_EMAIL /private/invite.txt
+cat /root/pacienti-private/invite.txt   # hand the link over privately, then delete the file
+```
+
+Until the owner has set up two-step sign-in, the account can reach only the sign-in and
+enrolment endpoints (`MFA_ENROLLMENT_REQUIRED` everywhere else).
 Email delivery (activation, password reset and notification emails) uses an SMTP relay: add
 `SMTP_URL` (e.g. `smtps://user:password@smtp.example.org:465`) and `EMAIL_FROM` to `.env.vps`,
 keeping the credentials as private as the other secrets. Without `SMTP_URL` the API starts but holds
@@ -68,13 +78,23 @@ delayed. Emails never contain clinical information.
 
 Only after the API is reachable over trusted HTTPS and CORS/session behavior is verified:
 
-1. Enable GitHub Pages with GitHub Actions as the publishing source.
+1. Enable GitHub Pages with GitHub Actions as the publishing source. GitHub then creates the
+   `github-pages` environment, which usually allows deployments from the default branch only:
+   under Settings › Environments › github-pages › Deployment branches, add the branch the
+   workflow runs on (`claude/practical-rubin-idyxdo`), or the deploy job is refused.
 2. Set repository variables `PACIENTI_API_BASE_URL` (HTTPS URL ending `/api/v1`) and
    `PACIENTI_WEB_DOMAIN` (approved frontend hostname).
 3. Set the DNS CNAME for that hostname to `ariongj.github.io` and configure the Pages custom domain.
 4. Set `PACIENTI_DEPLOY_ENABLED=true` and run **Pacient frontend**.
 5. Verify HTTPS, login, MFA, session restoration, role boundaries, SSE, direct-route reload,
    exports, logout and mobile layout on the actual frontend domain.
+
+Dry run of the published artifact (CI runs the same check on every push):
+
+```sh
+VITE_API_BASE_URL=https://pacienti-api.itdks.tech/api/v1 WEB_BASE_PATH=/ npm run build -w @pacient/web
+PAGES_CUSTOM_DOMAIN=pacienti.itdks.tech node deploy/prepare-pages.mjs
+```
 
 The workflow is deliberately disabled until the enable variable is set. It publishes only
 `apps/web/dist`, never the repository root, API code or operational configuration.

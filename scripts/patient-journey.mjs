@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-/* global document */
+/* global document, window */
 /**
  * Walks the whole patient cycle through the real user interface, as each role would:
  * the front desk registers a new patient and books and checks in an appointment; the doctor sees
- * the patient waiting, joins the care team, writes the visit, orders a test and prescribes; the
- * ward nurse takes the sample; the laboratory receives it, enters the result and a second person
- * validates it; the doctor releases it; the pharmacist verifies and dispenses from stock; the
- * patient is admitted and discharged; the front desk takes the co-payment; and the patient
- * activates the portal and finds all of it in their own record.
+ * the patient waiting, joins the care team, writes the visit, orders a test and an X-ray and
+ * prescribes; the ward nurse takes the sample; the laboratory receives it, enters the result and
+ * a second person validates it; the radiologist reports the X-ray; the doctor releases both; the
+ * pharmacist verifies and dispenses from stock; the nurse vaccinates; the doctor issues a
+ * certificate (checked publicly) and refers to another hospital, which accepts; the patient is
+ * admitted, given a dose by scanning wristband and pack (a wrong pack is stopped) and discharged;
+ * a letter is shared and a follow-up task done; the front desk takes the co-payment; and the
+ * patient activates the portal, finds all of it in their own record and writes to the doctor.
  *
  * Needs the app running with demo data (`npm run dev`, web on 5173). Every run registers a new
  * synthetic patient. Usage:
@@ -42,14 +45,24 @@ const patient = {
   id: '',
   activation: '',
   orderNumber: '',
+  certificateCode: '',
 };
+/** Pack barcodes from the national catalogue: the prescribed medicine and a wrong one. */
+const packs = { azithromycin: '', amoxicillin: '' };
+/** A minimal synthetic PDF (the server checks the file signature). */
+const LETTER = Buffer.from(
+  '%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [] /Count 0 >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n',
+  'latin1',
+);
 
 const browser = await chromium.launch();
 const results = [];
 const apiErrors = [];
+/** Denials a step expects, e.g. a record that is closed until a referral is accepted. */
+let expectedDenials = [];
 
-/** Signs in and returns a page that records failed API calls (expected denials aside). */
-async function signIn(email, password = PASSWORD) {
+/** A browser of someone who is not signed in, with the interface in English. */
+async function visitor() {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   await ctx.addInitScript(() => {
     try {
@@ -59,14 +72,22 @@ async function signIn(email, password = PASSWORD) {
       /* storage unavailable */
     }
   });
-  const page = await ctx.newPage();
+  return { ctx, page: await ctx.newPage() };
+}
+
+/** Signs in and returns a page that records failed API calls (expected denials aside). */
+async function signIn(email, password = PASSWORD) {
+  const { ctx, page } = await visitor();
   // A missing button should fail the step quickly, not hold the whole walk up.
   page.setDefaultTimeout(12_000);
   page.on('pageerror', (e) => apiErrors.push(`${email}: page error: ${e.message}`));
   page.on('response', (r) => {
     const path = r.url().replace(/^.*\/api\/v1/, '');
     // 401 before sign-in and the 403 that precedes "Join care team" are part of the design.
-    const expected = r.status() === 401 || (r.status() === 403 && /\/summary$/.test(path));
+    const expected =
+      r.status() === 401 ||
+      (r.status() === 403 &&
+        (/\/summary$/.test(path) || expectedDenials.some((re) => re.test(path))));
     if (r.url().includes('/api/') && r.status() >= 400 && !expected) {
       apiErrors.push(`${email}: ${r.status()} ${r.request().method()} ${path}`);
     }
@@ -95,6 +116,19 @@ async function settle(page, ms = 400) {
 }
 
 const text = async (locator) => (await locator.innerText()).replace(/\s+/g, ' ');
+
+/** Chooses the option matching `pattern`, once the list has loaded. */
+async function pick(select, pattern) {
+  const option = select.locator('option').filter({ hasText: pattern }).first();
+  await option.waitFor({ state: 'attached' });
+  await select.selectOption({ label: (await option.innerText()).trim() });
+}
+
+/** Chooses the first real option (after the placeholder) of a list that loads from the server. */
+async function pickFirst(select) {
+  await select.locator('option').nth(1).waitFor({ state: 'attached' });
+  await select.selectOption({ index: 1 });
+}
 const dialog = (page) => page.getByRole('dialog');
 const panel = (page) => page.locator('main [role=tabpanel]');
 const chart = (role, tab) => `${BASE}/${role}/patients/${patient.id}?tab=${tab}`;
@@ -110,6 +144,7 @@ async function expectClosed(page, what) {
 
 async function step(name, fn) {
   const started = Date.now();
+  expectedDenials = [];
   try {
     await fn();
     results.push({ name, ok: true });
@@ -168,9 +203,7 @@ await as(
     // The natural next step is offered right there.
     await page.getByRole('button', { name: 'Book appointment' }).click();
     const d = dialog(page);
-    const doctor = d.getByLabel('Doctor');
-    const options = await doctor.locator('option').allInnerTexts();
-    await doctor.selectOption({ label: options.find((o) => /Gentiana Bytyqi/.test(o)) });
+    await pick(d.getByLabel('Doctor'), /Gentiana Bytyqi/);
     await d.getByRole('button', { name: 'Other time' }).click();
     const at = new Date(Date.now() + 15 * 60_000);
     const pad = (n) => String(n).padStart(2, '0');
@@ -272,7 +305,7 @@ await as(
     await page.goto(chart('doctor', 'results'));
     await settle(page);
     await page.getByRole('button', { name: 'Order test' }).click();
-    await d.getByLabel('Test').selectOption({ index: 1 });
+    await pickFirst(d.getByLabel('Test'));
     await d.getByLabel('Clinical information for the laboratory').fill('Suspected pneumonia');
     await d.getByRole('button', { name: 'Send order' }).click();
     await expectClosed(page, 'laboratory order');
@@ -308,6 +341,21 @@ await as(
   },
 );
 
+await as('doctor@pacient.local', 'Doctor orders a chest X-ray', async (page) => {
+  const d = dialog(page);
+  await page.goto(chart('doctor', 'imaging'));
+  await settle(page);
+  await page.getByRole('button', { name: 'Order imaging' }).click();
+  await d.getByLabel('Modality').selectOption({ index: 0 });
+  await d.getByLabel('Body part / examination').fill('Chest PA');
+  await d.getByLabel('Clinical question').fill('Pneumonia? Extent of the consolidation.');
+  // Asked before any radiation for women who could be pregnant.
+  const pregnant = d.getByLabel('Could the patient be pregnant?');
+  if (await pregnant.count()) await pregnant.selectOption({ label: 'No' });
+  await d.locator('button[type=submit]').click();
+  await expectClosed(page, 'imaging order');
+});
+
 /* ------------------------------------------------------------------ laboratory ----------- */
 
 await as(
@@ -317,6 +365,8 @@ await as(
     await page.goto(chart('doctor', 'results'));
     await settle(page);
     if (!page.url().includes('/nurse/patients/')) throw new Error(`not redirected: ${page.url()}`);
+    // Offered either because the record is closed, or – for a nurse who also works in radiology
+    // while the X-ray is open – as "Temporary access", which would end with the X-ray.
     await page.getByRole('button', { name: 'Join care team' }).click();
     await settle(page);
     const row = page.locator('tr', { hasText: patient.orderNumber }).first();
@@ -386,6 +436,68 @@ await as(
   },
 );
 
+/* ------------------------------------------------------------------ radiology ------------ */
+
+await as(
+  'radiologist@pacient.local',
+  'Radiologist performs the X-ray, writes and signs the report',
+  async (page) => {
+    const d = dialog(page);
+    await page.goto(`${BASE}/imaging`);
+    await settle(page);
+    const row = () => page.locator('tr', { hasText: patient.lastName }).first();
+    await row().getByRole('button', { name: 'Mark performed' }).click();
+    await settle(page);
+    if (await d.count()) {
+      await d.locator('button[type=submit], .btn-primary').last().click();
+      await settle(page);
+    }
+    await row()
+      .getByRole('button', { name: /Write report/ })
+      .click();
+    await d
+      .getByLabel('Findings')
+      .fill('Consolidation in the right lower lobe. No pleural effusion.');
+    await d.getByLabel('Impression').fill('Right lower lobe pneumonia.');
+    await d.getByRole('button', { name: 'Review and sign' }).click();
+    await page
+      .getByRole('dialog')
+      .last()
+      .getByRole('button', { name: /^Sign report/ })
+      .click();
+    await expectClosed(page, 'imaging report');
+  },
+);
+
+await as(
+  'doctor@pacient.local',
+  'Doctor reviews the X-ray report from the worklist and releases it',
+  async (page) => {
+    const card = page.locator('.card', { hasText: 'Imaging reports to review' });
+    if (!(await card.getByText(patient.lastName).count())) {
+      throw new Error('the signed report is not on the doctor’s worklist');
+    }
+    await page.goto(chart('doctor', 'imaging'));
+    await settle(page);
+    await panel(page)
+      .getByRole('button', { name: /^Acknowledge/ })
+      .first()
+      .click();
+    await settle(page);
+    await panel(page)
+      .getByRole('button', { name: /^Release to patient/ })
+      .first()
+      .click();
+    await settle(page);
+    if (await dialog(page).count()) {
+      await dialog(page).locator('button[type=submit], .btn-primary').last().click();
+      await settle(page);
+    }
+    if (!/Released to patient/.test(await text(panel(page))))
+      throw new Error('the report is not released');
+  },
+);
+
 /* ------------------------------------------------------------------ pharmacy ------------- */
 
 await as(
@@ -436,6 +548,19 @@ await as(
 
 /* ------------------------------------------------------------------ closing the visit ---- */
 
+await as('nurse@pacient.local', 'Nurse gives and records a flu vaccine', async (page) => {
+  const d = dialog(page);
+  await page.goto(chart('nurse', 'vaccinations'));
+  await settle(page);
+  await page.getByRole('button', { name: 'Record vaccination' }).first().click();
+  await d.getByLabel('Vaccine').fill('Influenza (seasonal)');
+  await d.getByLabel('Lot number').fill(`FLU-${stamp.slice(-4)}`);
+  await d.getByLabel('Site').fill('Left deltoid');
+  await d.getByRole('button', { name: 'Save' }).click();
+  await expectClosed(page, 'vaccination');
+  if (!/Influenza/.test(await text(panel(page)))) throw new Error('the vaccination is not listed');
+});
+
 await as('doctor@pacient.local', 'Doctor completes the appointment', async (page) => {
   await page.goto(`${BASE}/doctor/schedule`);
   await settle(page);
@@ -447,17 +572,94 @@ await as('doctor@pacient.local', 'Doctor completes the appointment', async (page
   if (!/Completed/.test(await text(row()))) throw new Error('the appointment is not completed');
 });
 
+await as('doctor@pacient.local', 'Doctor issues a sick-leave certificate', async (page) => {
+  const d = dialog(page);
+  await page.goto(chart('doctor', 'certificates'));
+  await settle(page);
+  await page.getByRole('button', { name: 'Issue a certificate' }).click();
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  await d.getByLabel(/^From/).fill(day(0));
+  await d.getByLabel(/^Until/).fill(day(4));
+  await d.getByLabel(/^Diagnosis/).fill('J18.9');
+  await d.getByRole('button', { name: 'Issue certificate' }).click();
+  await expectClosed(page, 'certificate');
+  await panel(page).getByRole('button', { name: 'Show and print' }).first().click();
+  await settle(page);
+  patient.certificateCode = (await d.locator('.cs-qr > div').last().innerText()).trim();
+  if (!patient.certificateCode) throw new Error('the printed certificate has no verification code');
+});
+
+await step('An employer verifies the certificate without signing in', async () => {
+  const { ctx, page } = await visitor();
+  await page.goto(`${BASE}/verify/${patient.certificateCode}`);
+  await settle(page, 800);
+  const shown = await text(page.locator('body'));
+  await ctx.close();
+  if (!/valid/i.test(shown) || /No certificate matches/.test(shown))
+    throw new Error('the certificate is not shown as valid');
+  // Only initials and the birth year are public – never the name or the diagnosis.
+  if (shown.includes(patient.lastName) || shown.includes('J18'))
+    throw new Error('the public check shows the name or the diagnosis');
+});
+
+/* ------------------------------------------------------------------ referral ------------- */
+
+await as('doctor@pacient.local', 'Doctor refers the patient to Prizren', async (page) => {
+  const d = dialog(page);
+  await page.goto(chart('doctor', 'summary'));
+  await settle(page);
+  await page.getByRole('button', { name: 'Refer', exact: true }).click();
+  await pick(d.getByLabel(/^Receiving facility/), /Prizren/);
+  await d.getByLabel(/^Specialty/).fill('Pulmonology');
+  await d.getByLabel(/^Reason/).fill('Slow recovery after pneumonia');
+  const summary = d.getByLabel(/^Clinical summary/);
+  if (!(await summary.inputValue()).trim())
+    await summary.fill('Pneumonia treated with azithromycin; cough persists.');
+  await d.getByRole('button', { name: 'Send referral' }).click();
+  await settle(page);
+  if (!/Referral sent/.test(await text(d))) throw new Error('the referral was not sent');
+  await d.locator('.form-actions').getByRole('button', { name: 'Close' }).click();
+});
+
+await as(
+  'doctor5@pacient.local',
+  'Receiving doctor in Prizren accepts the referral and opens the record',
+  async (page) => {
+    // Before accepting, the receiving doctor sees the referral summary but not the record.
+    expectedDenials = [new RegExp(`^/patients/${patient.id}$`)];
+    await page.goto(chart('doctor', 'summary'));
+    await settle(page);
+    if (await page.locator('.area-tab').count())
+      throw new Error('the record was open before the referral was accepted');
+    await page.goto(`${BASE}/doctor/referrals`);
+    await settle(page);
+    const item = page.locator('main li').filter({ hasText: patient.lastName }).first();
+    await item.getByRole('button', { name: /^Accept/ }).click();
+    await settle(page);
+    if (await dialog(page).count()) {
+      await dialog(page).locator('button[type=submit], .btn-primary').last().click();
+      await settle(page);
+    }
+    await item.getByRole('link', { name: /Open patient record/ }).click();
+    await settle(page);
+    if ((await page.locator('.area-tab').count()) < 6)
+      throw new Error('the record did not open after acceptance');
+  },
+);
+
 /* ------------------------------------------------------------------ hospital stay -------- */
 
-await as('doctor@pacient.local', 'Doctor admits the patient to a bed', async (page) => {
+await as('doctor@pacient.local', 'Doctor admits the patient to the ward', async (page) => {
   const d = dialog(page);
   await page.goto(chart('doctor', 'admissions'));
   await settle(page);
   await page.getByRole('button', { name: 'Admit to hospital' }).click();
   await page.waitForTimeout(800);
-  await d.getByLabel('Ward').selectOption({ index: 1 });
+  await pickFirst(d.getByLabel('Ward'));
   await page.waitForTimeout(600);
-  await d.getByLabel('Bed').selectOption({ index: 1 });
+  // A full ward still admits: the patient waits for a bed and is listed on the bed board.
+  const bed = d.getByLabel('Bed');
+  if ((await bed.locator('option').count()) > 1) await bed.selectOption({ index: 1 });
   await d
     .getByLabel('Reason for admission')
     .fill('Community-acquired pneumonia, needs IV antibiotics');
@@ -473,6 +675,74 @@ await as('nurse@pacient.local', 'Nurse finds the patient on the bed board', asyn
   await settle(page);
   if (!(await page.getByText(patient.lastName).count())) throw new Error('not on the bed board');
 });
+
+await as(
+  'minister@pacient.local',
+  'The national medicine catalogue holds each pack’s barcode',
+  async (page) => {
+    await page.goto(`${BASE}/ministry/catalogue`);
+    await settle(page);
+    const main = page.locator('main');
+    for (const [key, name, form] of [
+      ['azithromycin', 'Azithromycin', 'tablet'],
+      ['amoxicillin', 'Amoxicillin', 'capsule'],
+    ]) {
+      await main.getByLabel('Search').fill(name);
+      await page.keyboard.press('Enter');
+      await settle(page);
+      const row = main
+        .locator('tbody tr')
+        .filter({ hasText: new RegExp(`^${name}\\b`) })
+        .filter({ hasText: form })
+        .first();
+      packs[key] = (await row.locator('td').nth(3).innerText()).trim();
+      if (!/^\d{8,14}$/.test(packs[key])) throw new Error(`${name} has no pack barcode`);
+    }
+  },
+);
+
+await as(
+  'nurse@pacient.local',
+  'Nurse prints the wristband and gives a dose by scanning (a wrong pack is stopped)',
+  async (page) => {
+    const d = dialog(page);
+    await page.addInitScript(() => {
+      window.print = () => {};
+    });
+    await page.goto(`${BASE}/wristband/${patient.id}`);
+    await settle(page);
+    const [created] = await Promise.all([
+      page.waitForResponse((r) => /wristband/.test(r.url()) && r.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Create and print wristband' }).click(),
+    ]);
+    // What the wristband's QR code holds, as a handheld scanner would type it.
+    const { token } = await created.json();
+
+    await page.goto(chart('nurse', 'mar'));
+    await settle(page);
+    await panel(page)
+      .locator('li', { hasText: 'Azithromycin' })
+      .getByRole('button', { name: 'Scan to give' })
+      .click();
+    const scan = async (code) => {
+      await d.locator('.barcode-scanner input').fill(code);
+      await d.getByRole('button', { name: 'Enter code' }).click();
+      await settle(page, 200);
+    };
+    await scan(token);
+    await scan(packs.amoxicillin);
+    if (!/STOP – do not give/.test(await text(d)))
+      throw new Error('the wrong medicine pack was not stopped');
+    await scan(packs.azithromycin);
+    if (!/Medicine: Azithromycin/.test(await text(d)))
+      throw new Error(`the right pack was not confirmed: ${(await text(d)).slice(0, 300)}`);
+    await d.getByRole('button', { name: 'Confirm dose given' }).click();
+    await expectClosed(page, 'administration');
+    const record = await text(panel(page));
+    if (!/Given .*Scanned/.test(record.slice(record.indexOf('Administration record'))))
+      throw new Error('the dose is not recorded as given with both scans');
+  },
+);
 
 await as('doctor@pacient.local', 'Doctor discharges with a signed summary', async (page) => {
   const d = dialog(page);
@@ -497,6 +767,52 @@ await as('doctor@pacient.local', 'Doctor discharges with a signed summary', asyn
     .click();
   await expectClosed(page, 'discharge');
   if (!/Discharged/.test(await text(panel(page)))) throw new Error('the stay is not discharged');
+});
+
+await as(
+  'doctor@pacient.local',
+  'Doctor shares a letter with the patient and asks the nurses for a follow-up call',
+  async (page) => {
+    const d = dialog(page);
+    await page.goto(chart('doctor', 'documents'));
+    await settle(page);
+    await page.getByRole('button', { name: 'Upload document' }).first().click();
+    await d
+      .locator('input[type=file]')
+      .setInputFiles({ name: 'letter.pdf', mimeType: 'application/pdf', buffer: LETTER });
+    await d.getByLabel('Title').fill('Letter for the employer');
+    await d.getByLabel('Category').selectOption({ index: 1 });
+    await d.locator('input[name=visibleToPatient]').check();
+    await d.locator('button[type=submit]').click();
+    await expectClosed(page, 'document upload');
+    if (!/Letter for the employer/.test(await text(panel(page))))
+      throw new Error('the document is not listed');
+
+    await page.goto(chart('doctor', 'tasks'));
+    await settle(page);
+    await page.getByRole('button', { name: 'New task' }).click();
+    await d.getByLabel('Task').fill(`Phone ${patient.lastName} in three days about the cough`);
+    await d.getByRole('button', { name: 'Create task' }).click();
+    await expectClosed(page, 'care task');
+  },
+);
+
+await as('nurse@pacient.local', 'Nurse makes the call and completes the task', async (page) => {
+  await page.goto(`${BASE}/tasks`);
+  await settle(page);
+  const row = () =>
+    page.locator('li, tr, article', { hasText: `Phone ${patient.lastName}` }).first();
+  await row()
+    .getByRole('button', { name: /^(Complete|Done)/ })
+    .first()
+    .click();
+  await settle(page);
+  if (await dialog(page).count()) {
+    await dialog(page).locator('button[type=submit], .btn-primary').last().click();
+    await settle(page);
+  }
+  if ((await row().count()) && !/Done|Completed/.test(await text(row())))
+    throw new Error('the task is still open');
 });
 
 /* ------------------------------------------------------------------ billing -------------- */
@@ -527,16 +843,7 @@ await as(
 /* ------------------------------------------------------------------ the patient ---------- */
 
 await step('Patient activates the portal account', async () => {
-  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  await ctx.addInitScript(() => {
-    try {
-      localStorage.setItem('pacient.locale', 'en');
-      sessionStorage.setItem('pacient.localeChosen', '1');
-    } catch {
-      /* storage unavailable */
-    }
-  });
-  const page = await ctx.newPage();
+  const { ctx, page } = await visitor();
   await page.goto(patient.activation);
   await settle(page);
   const pw = page.locator('input[type=password]');
@@ -552,22 +859,76 @@ await step('Patient activates the portal account', async () => {
 
 await as(
   patient.email,
-  'Patient finds the visit, result, appointment and who viewed the record',
+  'Patient finds everything the cycle produced in their own record',
   async (page) => {
     for (const [path, needle] of [
       ['/portal/history', /Pneumonia|J18\.9|Cough/],
       ['/portal/results', /Haemoglobin/],
+      ['/portal/imaging', /Right lower lobe pneumonia/],
       ['/portal/appointments', /Bytyqi/],
+      ['/portal/vaccinations', /Influenza/],
+      ['/portal/certificates', /Sick leave/i],
+      ['/portal/referrals', /Prizren/],
       ['/portal/stays', /pneumonia/i],
+      ['/portal/documents', /Letter for the employer/],
       ['/portal/billing', /Haemoglobin|€/],
       ['/portal/access-log', /Bytyqi/],
     ]) {
       await page.goto(BASE + path);
       await settle(page);
       if (!needle.test(await page.locator('main').innerText())) {
-        throw new Error(`${path} does not show what the visit produced`);
+        throw new Error(`${path} does not show what the cycle produced`);
       }
     }
+  },
+  PORTAL_PASSWORD,
+);
+
+/* ------------------------------------------------------------------ messages ------------- */
+
+const SUBJECT = `Cough after the antibiotics (${patient.lastName})`;
+const ANSWER = 'Come on Friday morning for a short check – no appointment needed.';
+
+await as(
+  patient.email,
+  'Patient writes to the doctor',
+  async (page) => {
+    const d = dialog(page);
+    await page.goto(`${BASE}/portal/messages`);
+    await settle(page);
+    await page.getByRole('button', { name: 'New message' }).click();
+    // Only doctors of the patient's care team can be written to.
+    await pick(d.getByLabel('Doctor'), /Bytyqi/);
+    await d.getByLabel('Subject').fill(SUBJECT);
+    await d.getByLabel('Message').fill('The cough is better but not gone. Should I come back?');
+    await d.getByRole('button', { name: 'Send' }).click();
+    await expectClosed(page, 'message');
+  },
+  PORTAL_PASSWORD,
+);
+
+await as('doctor@pacient.local', 'Doctor answers the message', async (page) => {
+  await page.goto(`${BASE}/messages`);
+  await settle(page);
+  await page.locator('li, tr, a, button', { hasText: SUBJECT }).first().click();
+  await settle(page);
+  await page.locator('main textarea[name=reply]').fill(ANSWER);
+  await page.getByRole('button', { name: 'Send' }).last().click();
+  await settle(page);
+  if (!(await page.locator('main').innerText()).includes(ANSWER))
+    throw new Error('the answer is not in the conversation');
+});
+
+await as(
+  patient.email,
+  'Patient reads the answer',
+  async (page) => {
+    await page.goto(`${BASE}/portal/messages`);
+    await settle(page);
+    await page.locator('li, tr, a, button', { hasText: SUBJECT }).first().click();
+    await settle(page);
+    if (!(await page.locator('main').innerText()).includes(ANSWER))
+      throw new Error('the patient does not see the answer');
   },
   PORTAL_PASSWORD,
 );

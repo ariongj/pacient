@@ -153,6 +153,9 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - Unit-based access: staff assigned to a ward, the emergency department, radiology or maternity
   may open a record only while the patient is in that unit (admitted, open ED attendance or
   <24 h after it, imaging order not yet reported, newborn <28 days); audited with `via: UNIT`.
+  The chart marks such reading as _Temporary access_ and offers **Join care team**, so a clinician
+  who keeps caring for the patient becomes a member explicitly (audited, visible to the patient)
+  instead of losing the record without warning when the unit access ends.
   Reception and directors see bed and board data without clinical reasons or triage notes.
 - Signed discharge summaries and signed imaging reports are immutable (database triggers).
 - Partner API keys are scoped, hashed, revocable and rate limited, optionally IP-restricted;

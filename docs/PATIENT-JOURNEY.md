@@ -81,13 +81,40 @@ and `scripts/patient-journey.mjs` now drives the whole cycle through the real pa
 | Charges appeared up to an hour after the visit (hourly job), so no co-payment at the counter | Opening the patient's account at the front desk captures the charges of the last days first                                                     |
 | The pharmacy queue only selected a prescription when the name itself was clicked             | The whole row selects; the detail stays in view next to a long list                                                                             |
 | The chart had 35 sections in one row                                                         | Eight areas (Clinical record, Medicines, Tests and imaging, Hospital, Care programmes, Specialist units, Documents, Record and access)          |
+| A clinician reading through their unit (ward, radiology, …) could not join the care team     | A short _Temporary access_ note above the chart offers **Join care team**; the summary says whether the reader is a member (`inCareTeam`)       |
 
 ```bash
 npm run journey
 ```
 
 needs the app running with demo data (`npm run dev`); it registers a new synthetic patient and
-prints one line per stage.
+prints one line per step – 32 steps, about two and a half minutes:
+
+1. Front desk registers the patient and books a visit; checks them in on arrival.
+2. Doctor sees the patient waiting, joins the care team; records note, diagnosis, allergy and vital
+   signs; orders a blood test, prescribes (the allergy check stops amoxicillin) and orders a chest
+   X-ray.
+3. Ward nurse takes the sample; the laboratory receives it and enters the result, a second
+   technician validates it; the doctor acknowledges and releases it.
+4. Radiologist performs the X-ray, writes and signs the report; the doctor finds it on the
+   worklist, acknowledges and releases it.
+5. Pharmacist verifies, receives stock and dispenses; the nurse gives a flu vaccine; the doctor
+   completes the appointment.
+6. Doctor issues a sick-leave certificate; an employer checks it on the public page (valid,
+   initials only).
+7. Doctor refers the patient to Prizren; the receiving doctor cannot open the record until they
+   accept, then opens it.
+8. Doctor admits the patient; the nurse finds them on the bed board, prints the wristband and gives
+   a dose by scanning wristband and pack – a wrong pack (amoxicillin) is stopped; the doctor
+   discharges with a signed summary.
+9. Doctor shares a letter with the patient and asks the nurses for a follow-up call; the nurse
+   completes the task.
+10. Front desk takes the co-payment and gives a receipt.
+11. The patient activates the portal and finds the visit, result, X-ray report, appointment,
+    vaccination, certificate, referral, stay, letter, bill and who viewed the record; writes to
+    the doctor, who answers, and reads the answer.
+
+`--shots <dir>` saves a screenshot after every step.
 
 ## Defects the journey exposed in the API (fixed, covered by the journey test)
 

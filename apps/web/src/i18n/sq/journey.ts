@@ -51,4 +51,7 @@ export const journey: Record<string, string> = {
   'Enter the GTIN/EAN printed under the pack barcode (check digit included)':
     'Shkruani GTIN/EAN-in e shtypur nën barkodin e paketimit (me shifrën e kontrollit)',
   'Open pharmacy stock': 'Hap stokun e farmacisë',
+  'Temporary access': 'Qasje e përkohshme',
+  'through your unit or a colleague’s cover. It ends on its own, for example when the patient leaves the unit.':
+    'përmes njësisë suaj ose zëvendësimit të një kolegu. Përfundon vetvetiu, për shembull kur pacienti largohet nga njësia.',
 };

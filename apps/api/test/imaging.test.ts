@@ -171,7 +171,10 @@ describe('radiology workflow', () => {
       .body;
     const chart = () =>
       api().get(`/api/v1/patients/${patient.id}/summary`).set(bearer(radiographer.token));
-    expect((await chart()).status).toBe(200);
+    const open = await chart();
+    expect(open.status).toBe(200);
+    // Unit access, not membership: the chart offers to join the care team.
+    expect(open.body.inCareTeam).toBe(false);
     await step(o.id, 'perform', radiographer.token);
     await step(o.id, 'report', radiologist.token, {
       findings: 'Liver, gallbladder and kidneys unremarkable.',

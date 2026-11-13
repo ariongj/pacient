@@ -211,9 +211,11 @@ _Të gjitha modulet_ lists everything. A patient chart is organised the same way
 with its sections.
 
 - **The whole cycle in one go**: with the app running, `npm run journey` registers a new patient
-  at the front desk and takes them through booking, check-in, the visit, laboratory, pharmacy,
-  admission and discharge, the co-payment and their own portal – in the real pages, in about a
-  minute and a half. Follow the same steps by hand with [the journey map](docs/PATIENT-JOURNEY.md).
+  at the front desk and takes them through booking, check-in, the visit, laboratory, X-ray,
+  pharmacy, vaccination, a certificate, a referral to another hospital, admission with a scanned
+  bedside dose, discharge, the co-payment and their own portal and messages – 32 steps in the real
+  pages, in about two and a half minutes. Follow the same steps by hand with
+  [the journey map](docs/PATIENT-JOURNEY.md).
 - **Patient** (`patient@`): medical history, results, documents, privacy & consent, and switch to
   the record of daughter Lea with the selector at the top left (guardian access).
 - **Doctor** (`doctor@`): worklist (including results covered for an absent colleague), open Arta

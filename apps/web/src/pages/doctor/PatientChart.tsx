@@ -17,7 +17,7 @@ import {
   Tabs,
 } from '../../components/ui';
 import { age, formatDate, humanize } from '../../format';
-import { AccessPanel } from './chart/AccessPanel';
+import { AccessPanel, TemporaryAccessNote } from './chart/AccessPanel';
 import { ALLERGY_ASSESSMENT_TEXT, AllergiesTab } from './chart/AllergiesTab';
 import { BookAppointmentDialog } from './chart/BookAppointmentDialog';
 import { CareTeamTab } from './chart/CareTeamTab';
@@ -430,6 +430,10 @@ export function PatientChart() {
             'You are viewing this record under break-glass access. It expires automatically, every view is audited, and the patient and your director can see it.',
           )}
         </Alert>
+      )}
+
+      {s?.accessBasis === 'CARE_TEAM' && s.inCareTeam === false && sameFacility && (
+        <TemporaryAccessNote patientId={patientId} />
       )}
 
       {summary.isPending && <Loading label={t('Loading record…')} />}

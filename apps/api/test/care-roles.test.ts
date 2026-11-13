@@ -16,6 +16,7 @@ describe('nurse', () => {
     const summary = await api().get(`${base()}/summary`).set(bearer(w.tokens.nurse));
     expect(summary.status).toBe(200);
     expect(summary.body.accessBasis).toBe('CARE_TEAM');
+    expect(summary.body.inCareTeam).toBe(true);
 
     expect(
       (

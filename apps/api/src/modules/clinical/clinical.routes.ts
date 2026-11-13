@@ -320,6 +320,11 @@ clinicalRouter.get('/summary', async (req, res) => {
   res.json({
     ...(await clinical.getClinicalSummary(patientId, clinical.viewFor(basis))),
     accessBasis: basis,
+    // Clinicians can also read through their unit, a colleague's cover or break-glass access,
+    // which all end on their own. The chart offers to join the care team when this is false.
+    ...(ctx.role === 'DOCTOR' || ctx.role === 'NURSE'
+      ? { inCareTeam: await hasActiveCareAssignment(ctx.userId, patientId) }
+      : {}),
   });
 });
 

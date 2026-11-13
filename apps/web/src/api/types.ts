@@ -218,6 +218,8 @@ export interface ClinicalSummary {
     openCorrectionRequests: number;
   };
   accessBasis: AccessBasis;
+  /** Doctors and nurses: false when the record is open through a unit, cover or break-glass. */
+  inCareTeam?: boolean;
 }
 
 export interface CareTeamMember {

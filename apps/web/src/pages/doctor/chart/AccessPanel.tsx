@@ -111,3 +111,40 @@ export function AccessPanel({
     </Card>
   );
 }
+
+/**
+ * Shown when a clinician reads the record through their unit (ward, emergency, radiology…) or a
+ * colleague's cover rather than as a member of the care team. That access ends on its own, so a
+ * clinician who keeps caring for the patient joins the care team explicitly – never silently.
+ */
+export function TemporaryAccessNote({ patientId }: { patientId: string }) {
+  const join = useChartMutation(patientId, () => ({
+    path: '/care-team',
+    method: 'POST',
+    body: {},
+  }));
+  return (
+    <Alert tone="info">
+      <div className="row-between" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+        <span>
+          <strong>{t('Temporary access')}</strong> –{' '}
+          {t(
+            'through your unit or a colleague’s cover. It ends on its own, for example when the patient leaves the unit.',
+          )}
+        </span>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => join.mutate(undefined)}
+          loading={join.isPending}
+          title={t(
+            'Joining the care team is recorded in the audit trail and is visible to the patient.',
+          )}
+        >
+          {t('Join care team')}
+        </Button>
+      </div>
+      <ErrorAlert error={join.error} />
+    </Alert>
+  );
+}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { EdDirectiveBadges } from '../directives/DirectivesFlag';
 import { IncomingAmbulances } from '../ems/IncomingAmbulances';
+import { PreHospitalSummary } from '../ems/PreHospitalSummary';
 import { api } from '../../api/client';
 import {
   ARRIVAL_MODES,
@@ -594,6 +595,7 @@ function TriageDialog({ item, onClose }: { item: EdBoardItem | null; onClose: ()
           <p>
             <strong>{edPatientName(item.patient)}</strong> · {item.chiefComplaint}
           </p>
+          {item.ambulance && <PreHospitalSummary incidentId={item.ambulance.incidentId} />}
           <fieldset className="ed-levels">
             <legend>{t('Triage level')}</legend>
             {TRIAGE_LEVELS.map((l) => (

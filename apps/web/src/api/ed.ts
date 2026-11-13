@@ -50,6 +50,8 @@ export interface EdBoardItem {
   minutesInDepartment: number;
   targetMinutes: number;
   breached: boolean;
+  /** Arrived by ambulance: the call whose crew record goes with the patient (clinicians only). */
+  ambulance: { incidentId: string; reference: string } | null;
   vitals: EdVitals | null;
 }
 

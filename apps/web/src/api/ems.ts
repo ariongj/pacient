@@ -76,6 +76,8 @@ export interface EmsIncident {
   dispatchedAt: string | null;
   onSceneAt: string | null;
   leftSceneAt: string | null;
+  /** When the crew expects to arrive (set on leaving the scene). */
+  expectedAt: string | null;
   atHospitalAt: string | null;
   handedOverAt: string | null;
   destinationFacilityId: string | null;
@@ -137,6 +139,8 @@ export interface IncomingAmbulance {
   callSign: string | null;
   level: string | null;
   leftSceneAt: string | null;
+  /** When the crew expects to arrive (set on leaving the scene). */
+  expectedAt: string | null;
   atHospitalAt: string | null;
   sex: string | null;
   ageBand: 'INFANT' | 'CHILD' | 'ADULT' | 'OLDER_ADULT' | null;
@@ -248,6 +252,13 @@ export const useIncident = (id: string | null) =>
     queryFn: () => api<IncidentDetail>(`/ems/incidents/${id}`),
     enabled: Boolean(id),
     refetchInterval: 15_000,
+  });
+
+/** A patient's ambulance calls, for the chart (without the caller's details). */
+export const usePatientCalls = (patientId: string) =>
+  useQuery({
+    queryKey: ['patient', patientId, 'ambulance-calls'],
+    queryFn: () => api<{ items: EmsIncident[] }>(`/ems/patients/${patientId}`).then((r) => r.items),
   });
 
 export const useDestinations = (enabled: boolean) =>

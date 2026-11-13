@@ -933,6 +933,332 @@ await as(
   PORTAL_PASSWORD,
 );
 
+/* ------------------------------------------------------------------ emergency ------------ */
+// A man collapses in the street: 112 call, ambulance, handover of an unidentified patient, triage,
+// treatment, admission and identification. Then the patient of the cycle above comes to the
+// emergency department with a cut hand, is sent home, and finds the advice in the portal.
+
+const ems = { complaint: `Collapsed in the street ${stamp}`, patientId: '' };
+const callPanel = (page) => page.getByRole('dialog').first();
+const subDialog = (page) => page.getByRole('dialog').last();
+async function openCall(page) {
+  if (await page.getByRole('dialog').count()) return;
+  await page.goto(`${BASE}/ems`);
+  await settle(page);
+  await page
+    .locator('tr', { hasText: ems.complaint })
+    .first()
+    .getByRole('button', { name: /Open/ })
+    .click();
+  await settle(page);
+}
+async function crewStep(page, name) {
+  await openCall(page);
+  await callPanel(page).getByRole('button', { name, exact: true }).click();
+  await settle(page);
+}
+async function addCare(page, kind, fill) {
+  await openCall(page);
+  const d = callPanel(page);
+  await d.locator('select[name=kind]').selectOption({ label: kind });
+  await fill(d);
+  await d.getByRole('button', { name: 'Add to the record' }).click();
+  await settle(page);
+}
+const edCard = (page, text) => page.locator('main article.ed-card', { hasText: text }).first();
+
+await as(
+  'nurse@pacient.local',
+  'Ambulance service takes a 112 call and dispatches a vehicle',
+  async (page) => {
+    await page.goto(`${BASE}/ems`);
+    await settle(page);
+    await page.getByRole('button', { name: 'New emergency call' }).click();
+    const d = dialog(page);
+    await d.getByLabel('Caller', { exact: true }).fill('Passer-by');
+    await d.getByLabel('Caller’s phone').fill('+38344000111');
+    await d.getByLabel(/^Address/).fill(`Rr. Nëna Terezë ${stamp.slice(-3)}, Prishtinë`);
+    await d.getByLabel('Municipality').fill('Prishtinë');
+    await d.getByLabel(/^What happened/).fill(ems.complaint);
+    await d.getByLabel(/^Description of the person/).fill('Man about 50, blue jacket');
+    await d.getByLabel('Is the person conscious?').check();
+    await d.getByLabel('Are they breathing normally?').check();
+    await d.getByLabel('Chest pain?').check();
+    await d.getByRole('button', { name: 'Record the call' }).click();
+    await settle(page);
+    await openCall(page);
+    await callPanel(page).getByRole('button', { name: 'Dispatch a vehicle' }).click();
+    await subDialog(page).getByRole('button', { name: 'Dispatch', exact: true }).click();
+    await settle(page);
+    await openCall(page);
+    if (!/Dispatched/.test(await text(callPanel(page)))) throw new Error('no vehicle dispatched');
+  },
+);
+
+await as(
+  'nurse@pacient.local',
+  'Crew on scene: observations, aspirin, leaves for hospital with an arrival time',
+  async (page) => {
+    await crewStep(page, 'Arrived on scene');
+    await addCare(page, 'Observations', async (d) => {
+      for (const [name, value] of [
+        ['systolic', '92'],
+        ['diastolic', '58'],
+        ['heartRate', '118'],
+        ['respiratoryRate', '24'],
+        ['spo2', '91'],
+        ['gcs', '14'],
+        ['temperature', '36.4'],
+      ]) {
+        await d.locator(`input[name=${name}]`).fill(value);
+      }
+      await d.locator('select[name=onOxygen]').selectOption({ label: 'Air' });
+    });
+    await addCare(page, 'Medicine given', async (d) => {
+      await d.locator('input[name=medication]').fill('Aspirin');
+      await d.locator('input[name=dose]').fill('300 mg');
+      await d.locator('input[name=route]').fill('chewed');
+    });
+    await crewStep(page, 'Leave for hospital');
+    await pickFirst(subDialog(page).locator('select[name=destination]'));
+    await subDialog(page).locator('input[name=eta]').fill('8');
+    await subDialog(page).getByRole('button', { name: 'Leave and alert the hospital' }).click();
+    await settle(page);
+    await openCall(page);
+    if (!/Transporting/.test(await text(callPanel(page)))) throw new Error('not transporting');
+  },
+);
+
+await as(
+  'doctor@pacient.local',
+  'Emergency department sees the ambulance coming and when it will arrive',
+  async (page) => {
+    await page.goto(`${BASE}/ed`);
+    await settle(page);
+    const card = page.locator('li', { hasText: ems.complaint }).first();
+    const shown = await text(card);
+    if (!/Expected \d{1,2}:\d{2} · in [78] min/.test(shown))
+      throw new Error(`no expected arrival time: ${shown.slice(0, 200)}`);
+    if (!/NEWS2 \d+/.test(shown)) throw new Error('no early warning score from the crew');
+  },
+);
+
+await as(
+  'nurse@pacient.local',
+  'Crew arrives; the emergency nurse takes the handover of the unidentified man',
+  async (page) => {
+    await crewStep(page, 'Arrived at hospital');
+    await page.goto(`${BASE}/ed`);
+    await settle(page);
+    await page
+      .locator('li', { hasText: ems.complaint })
+      .first()
+      .getByRole('button', { name: /Take handover/ })
+      .click();
+    await subDialog(page).getByLabel(/^Sex/).selectOption('MALE');
+    await subDialog(page)
+      .getByLabel(/^Estimated age/)
+      .fill('50');
+    await subDialog(page).getByRole('button', { name: 'Take handover' }).click();
+    await settle(page);
+    if (!/Unknown patient TMP\d+/.test(await text(edCard(page, ems.complaint))))
+      throw new Error('no temporary record on the board');
+  },
+);
+
+await as(
+  'nurse@pacient.local',
+  'Crew closes the call; the ambulance is available again',
+  async (page) => {
+    await crewStep(page, 'Close the call and make the vehicle available');
+    await page.goto(`${BASE}/ems`);
+    await settle(page);
+    if (await page.locator('tr', { hasText: ems.complaint }).count())
+      throw new Error('the call is still open');
+  },
+);
+
+await as('nurse@pacient.local', 'Triage shows what the crew measured and gave', async (page) => {
+  await page.goto(`${BASE}/ed`);
+  await settle(page);
+  await edCard(page, ems.complaint)
+    .getByRole('button', { name: /^Triage/ })
+    .click();
+  const d = subDialog(page);
+  await d.locator('.prehospital').waitFor();
+  const crew = await text(d.locator('.prehospital'));
+  if (!/BP 92\/58/.test(crew) || !/Aspirin 300 mg/.test(crew))
+    throw new Error(`the crew's record is not shown: ${crew.slice(0, 200)}`);
+  await d.getByLabel(/^2 · Very urgent/).check();
+  for (const [name, value] of [
+    ['systolic', '95'],
+    ['diastolic', '60'],
+    ['heartRate', '115'],
+    ['respiratoryRate', '22'],
+    ['spo2', '93'],
+    ['painScore', '6'],
+  ]) {
+    await d.locator(`input[name=${name}]`).fill(value);
+  }
+  await d.locator('textarea[name=note]').fill('Chest pain, sweaty, pale.');
+  await d.getByRole('button', { name: 'Save triage' }).click();
+  await expectClosed(page, 'triage');
+});
+
+await as(
+  'doctor@pacient.local',
+  'Emergency doctor treats; the chart keeps the ambulance record',
+  async (page) => {
+    await page.goto(`${BASE}/ed`);
+    await settle(page);
+    await edCard(page, ems.complaint)
+      .getByRole('button', { name: /^Start treatment/ })
+      .click();
+    await pick(subDialog(page).getByLabel(/^Treating doctor/), /Bytyqi/);
+    await subDialog(page).locator('button[type=submit]').click();
+    await expectClosed(page, 'start of treatment');
+    await edCard(page, ems.complaint)
+      .getByRole('link', { name: /Open record/ })
+      .click();
+    await page.waitForURL(/\/doctor\/patients\//);
+    await settle(page);
+    ems.patientId = page.url().split('/patients/')[1].split(/[?#]/)[0];
+    const tab = await text(panel(page));
+    if (!/Ambulance calls/.test(tab) || !/Aspirin 300 mg/.test(tab))
+      throw new Error('the chart does not show the ambulance record');
+  },
+);
+
+await as('doctor@pacient.local', 'Emergency doctor admits him to a ward', async (page) => {
+  await page.goto(`${BASE}/ed`);
+  await settle(page);
+  await edCard(page, ems.complaint)
+    .getByRole('button', { name: /^Admit/ })
+    .click();
+  const d = subDialog(page);
+  // A ward with a free bed (the admission itself also works without one).
+  await pick(d.getByLabel(/^Ward/), /– [1-9]\d* of \d+ beds free/);
+  await page.waitForTimeout(600);
+  const bed = d.getByLabel(/^Bed/);
+  if ((await bed.locator('option').count()) > 1) await bed.selectOption({ index: 1 });
+  await d.getByLabel(/^Reason for admission/).fill('Suspected acute coronary syndrome');
+  await d.locator('button[type=submit]').last().click();
+  await expectClosed(page, 'admission from the emergency department');
+  const left = await text(page.locator('main'));
+  if (!new RegExp(`Unknown patient TMP\\d+[^|]*?Admitted`).test(left.replace(/\s+/g, ' ')))
+    throw new Error('not listed as admitted');
+});
+
+await as(
+  'nurse@pacient.local',
+  'Nurse confirms his identity when the family arrives',
+  async (page) => {
+    await page.goto(`${BASE}/nurse/patients/${ems.patientId}`);
+    await settle(page);
+    await page
+      .getByRole('button', { name: /Confirm identity/ })
+      .first()
+      .click();
+    const d = subDialog(page);
+    await d.getByLabel(/^National ID/).fill(`1975${stamp.slice(-6)}`);
+    await d.getByLabel(/^Sex/).selectOption('MALE');
+    await d.getByLabel(/^First name/).fill('Besnik');
+    await d.getByLabel(/^Last name/).fill(`Emergency${stamp.slice(-5)}`);
+    await d.getByLabel(/^Date of birth/).fill('1975-06-02');
+    await d.getByRole('button', { name: 'Confirm identity' }).click();
+    await expectClosed(page, 'identity');
+    if (!(await text(page.locator('.patient-banner'))).includes(`Emergency${stamp.slice(-5)}`))
+      throw new Error('the record still shows the temporary identity');
+  },
+);
+
+const CUT = `Cut on the left hand ${stamp.slice(-4)}`;
+const ADVICE = 'Four sutures. Have them removed in 10 days at your family doctor.';
+
+await as(
+  'reception@pacient.local',
+  'Walk-in: the patient comes back with a cut hand and the front desk registers the arrival',
+  async (page) => {
+    await page.goto(`${BASE}/ed`);
+    await settle(page);
+    await page.getByRole('button', { name: 'Register arrival' }).click();
+    const d = dialog(page);
+    await d.getByLabel(/^Find patient/).fill(patient.nationalId);
+    await d.getByRole('button', { name: 'Search' }).click();
+    await d.getByRole('radio', { name: new RegExp(patient.lastName) }).check();
+    await d.locator('textarea[name=chiefComplaint]').fill(CUT);
+    await d.getByRole('button', { name: 'Register arrival' }).click();
+    await expectClosed(page, 'arrival');
+  },
+);
+
+await as('nurse@pacient.local', 'Nurse triages the cut hand', async (page) => {
+  await page.goto(`${BASE}/ed`);
+  await settle(page);
+  await edCard(page, CUT)
+    .getByRole('button', { name: /^Triage/ })
+    .click();
+  await subDialog(page)
+    .getByLabel(/^4 · Standard/)
+    .check();
+  await subDialog(page).locator('input[name=painScore]').fill('4');
+  await subDialog(page).getByRole('button', { name: 'Save triage' }).click();
+  await expectClosed(page, 'triage');
+});
+
+await as(
+  'doctor2@pacient.local',
+  'Emergency doctor sutures and sends the patient home with advice',
+  async (page) => {
+    await page.goto(`${BASE}/ed`);
+    await settle(page);
+    await edCard(page, CUT)
+      .getByRole('button', { name: /^Start treatment/ })
+      .click();
+    await pick(subDialog(page).getByLabel(/^Treating doctor/), /Musliu/);
+    await subDialog(page).locator('button[type=submit]').click();
+    await expectClosed(page, 'start of treatment');
+    await edCard(page, CUT)
+      .getByRole('button', { name: /^Departure/ })
+      .click();
+    await subDialog(page)
+      .getByLabel(/^Outcome/)
+      .selectOption('DISCHARGED');
+    await subDialog(page).locator('textarea').first().fill(ADVICE);
+    await subDialog(page).getByRole('button', { name: 'Confirm departure' }).click();
+    await expectClosed(page, 'departure');
+  },
+);
+
+await as(
+  'doctor@pacient.local',
+  'The family doctor is told about the emergency visit',
+  async (page) => {
+    await page.goto(`${BASE}/notifications`);
+    await settle(page);
+    const item = page
+      .locator('main li', { hasText: 'A patient in your care attended the emergency department' })
+      .first();
+    await item.waitFor();
+    await page.goto(chart('doctor', 'emergency'));
+    await settle(page);
+    if (!(await text(panel(page))).includes(ADVICE)) throw new Error('no advice in the chart');
+  },
+);
+
+await as(
+  patient.email,
+  'Patient finds the emergency visit and the advice in the portal',
+  async (page) => {
+    await page.goto(`${BASE}/portal/emergency`);
+    await settle(page);
+    const main = await text(page.locator('main'));
+    if (!main.includes(CUT) || !main.includes(ADVICE))
+      throw new Error('the emergency visit or the advice is missing');
+  },
+  PORTAL_PASSWORD,
+);
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);

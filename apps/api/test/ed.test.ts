@@ -280,6 +280,47 @@ describe('treatment, departure and record access', () => {
     expect(other.status).toBe(403);
   });
 
+  it('tells the family doctor and the patient, who reads the outcome and advice', async () => {
+    // The world patient has a portal account and the world doctor as family doctor.
+    const visit = (await arrive(w.tokens.reception, w.patient.id, { chiefComplaint: 'Cut hand' }))
+      .body;
+    await api().post(`/api/v1/ed/visits/${visit.id}/start`).set(bearer(edDoctorToken)).send({});
+    const advice = 'Four sutures; remove them in 10 days at your family doctor.';
+    const done = await api()
+      .post(`/api/v1/ed/visits/${visit.id}/depart`)
+      .set(bearer(edDoctorToken))
+      .send({ status: 'DISCHARGED', note: advice });
+    expect(done.status).toBe(200);
+    const noticesOf = (userId: string) =>
+      db
+        .select()
+        .from(notifications)
+        .where(and(eq(notifications.userId, userId), eq(notifications.type, 'ed.departed')));
+    const familyDoctor = await noticesOf(w.users.doctor.id);
+    expect(familyDoctor).toHaveLength(1);
+    expect(familyDoctor[0]!.link).toBe(`/doctor/patients/${w.patient.id}?tab=emergency`);
+    // Titles carry no clinical detail (they may be sent by e-mail or SMS).
+    expect(familyDoctor[0]!.title).not.toContain('Cut');
+    const patientNotices = await noticesOf(w.users.patientUser.id);
+    expect(patientNotices[0]!.link).toBe('/portal/emergency');
+    // The departing doctor is not notified about their own patient.
+    expect(await noticesOf(edDoctor.id)).toHaveLength(0);
+
+    const own = await api()
+      .get(`/api/v1/ed/patients/${w.patient.id}/visits`)
+      .set(bearer(w.tokens.patient));
+    expect(own.status).toBe(200);
+    expect(own.body.items[0]).toMatchObject({
+      chiefComplaint: 'Cut hand',
+      status: 'DISCHARGED',
+      dispositionNote: advice,
+    });
+    const someoneElse = await api()
+      .get(`/api/v1/ed/patients/${w.patient.id}/visits`)
+      .set(bearer(w.tokens.otherPatient));
+    expect(someoneElse.status).toBe(403);
+  });
+
   it('only assigns doctors who work in the emergency department', async () => {
     const p = await createPatient(w.facility.id);
     const visit = (await arrive(w.tokens.reception, p.id)).body;

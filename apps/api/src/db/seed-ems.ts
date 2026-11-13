@@ -216,6 +216,7 @@ export async function seedEms(opts: { facilityId: string; demoDoctorId: string }
     dispatchedAt: new Date(now - 29 * MIN),
     onSceneAt: new Date(now - 19 * MIN),
     leftSceneAt: new Date(now - 6 * MIN),
+    expectedAt: new Date(now + 5 * MIN),
     destinationFacilityId: facilityId,
   });
   await db.insert(emsCareRecords).values([

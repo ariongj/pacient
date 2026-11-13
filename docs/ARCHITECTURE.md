@@ -123,8 +123,9 @@ workspace opens in the other (`components/RequireRole.tsx`).
 
 `test/journey.test.ts` follows one new patient through the whole cycle over real HTTP (41 linked
 steps, see [PATIENT-JOURNEY.md](PATIENT-JOURNEY.md)); `npm run journey` drives the same cycle through
-the real pages of a running instance (32 steps across ten roles, including the public certificate
-check, a cross-facility referral and a scanned bedside dose).
+the real pages of a running instance (46 steps across ten roles, including the public certificate
+check, a cross-facility referral, a scanned bedside dose and the emergency path from the 112 call
+to admission).
 
 `npm test` drops and recreates the `pacient_test` schema **from the migrations** (so tests exercise
 the real migrations and triggers), then runs integration tests through the HTTP layer. The suite

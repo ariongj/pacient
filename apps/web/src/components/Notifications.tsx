@@ -92,6 +92,8 @@ export function NotificationBell() {
   }, [open]);
 
   const unread = count.data?.unreadCount ?? 0;
+  // The label repeats exactly what the badge shows ("99+"), so speech matches the screen.
+  const shown = unread > 99 ? '99+' : String(unread);
   return (
     <div className="bell" ref={ref}>
       <button
@@ -101,13 +103,13 @@ export function NotificationBell() {
         aria-haspopup="true"
         onClick={() => setOpen((v) => !v)}
         aria-label={
-          unread ? t('Notifications, {count} unread', { count: unread }) : t('Notifications')
+          unread ? t('Notifications, {count} unread', { count: shown }) : t('Notifications')
         }
       >
         <span aria-hidden="true">🔔</span>
         {unread > 0 && (
           <span className="bell-count" aria-hidden="true">
-            {unread > 99 ? '99+' : unread}
+            {shown}
           </span>
         )}
       </button>

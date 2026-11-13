@@ -6,9 +6,11 @@ import {
   useEdHistory,
   type EdHistoryItem,
 } from '../../../api/ed';
+import { priorityLabel, usePatientCalls } from '../../../api/ems';
 import { Badge, Card, EmptyState, QueryView, Table } from '../../../components/ui';
 import { formatDateTime } from '../../../format';
 import { t } from '../../../i18n';
+import { PreHospitalSummary } from '../../ems/PreHospitalSummary';
 import '../../ed/ed.css';
 
 const minutes = (from: string, to: string | null) =>
@@ -27,6 +29,50 @@ function Level({ v }: { v: EdHistoryItem }) {
 /** The patient's emergency department attendances: triage, waiting time and outcome. */
 export function EmergencyTab({ patientId }: { patientId: string }) {
   const visits = useEdHistory(patientId);
+  return (
+    <div className="stack">
+      <EdVisitsCard visits={visits} />
+      <AmbulanceCalls patientId={patientId} />
+    </div>
+  );
+}
+
+/**
+ * Ambulance calls of the patient. After the handover the crew's record stays with the patient,
+ * so the ward sees what was measured and given before hospital.
+ */
+function AmbulanceCalls({ patientId }: { patientId: string }) {
+  const calls = usePatientCalls(patientId);
+  const items = calls.data ?? [];
+  if (!items.length) return null;
+  return (
+    <Card title={t('Ambulance calls')}>
+      <ul className="list">
+        {items.map((c) => (
+          <li key={c.id} className="ed">
+            <p className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', margin: '0 0 0.5rem' }}>
+              <Badge
+                tone={c.priority === 'P1' ? 'danger' : c.priority === 'P2' ? 'warning' : 'info'}
+              >
+                {priorityLabel(c.priority)}
+              </Badge>
+              <span>{formatDateTime(c.receivedAt)}</span>
+              <span>{c.complaint}</span>
+              {c.municipality && <span className="muted">{c.municipality}</span>}
+            </p>
+            {c.edVisitId ? (
+              <PreHospitalSummary incidentId={c.id} />
+            ) : (
+              <p className="muted">{t('Not brought to an emergency department.')}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function EdVisitsCard({ visits }: { visits: ReturnType<typeof useEdHistory> }) {
   return (
     <Card title={t('Emergency department visits')}>
       <QueryView query={visits}>

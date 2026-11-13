@@ -397,6 +397,48 @@ describe('handover to the emergency department', () => {
     expect(handover).toHaveLength(1);
   });
 
+  it('tells the emergency department when the ambulance is expected', async () => {
+    const id = await transporting();
+    const incoming = await api().get('/api/v1/ems/incoming').set(bearer(edNurse));
+    const item = incoming.body.items.find((i: { id: string }) => i.id === id);
+    const minutes =
+      (new Date(item.expectedAt).getTime() - new Date(item.leftSceneAt).getTime()) / 60_000;
+    expect(minutes).toBe(12);
+  });
+
+  it('keeps the crew record with the patient after the handover, without the caller', async () => {
+    const p = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
+    const id = await transporting({ callerName: 'Thirrësi', callerPhone: '+38344123456' });
+    await post(crew, `${id}/patient`, { nationalId: p.nationalId, dateOfBirth: p.dateOfBirth });
+    await post(crew, `${id}/care`, {
+      kind: 'MEDICATION',
+      medication: 'Aspirinë',
+      dose: '300 mg',
+      route: 'oral',
+    });
+    const read = (token: string) => api().get(`/api/v1/ems/incidents/${id}`).set(bearer(token));
+    // Before the handover only the crew and the receiving ED see the call.
+    expect((await read(w.tokens.doctor)).status).toBe(404);
+    expect((await post(edNurse, `${id}/handover`)).status).toBe(200);
+    // Afterwards the patient's care team (e.g. the ward that admits) sees what was given.
+    const doctorView = await read(w.tokens.doctor);
+    expect(doctorView.status).toBe(200);
+    expect(doctorView.body.careRecords.map((r: { text: string }) => r.text)).toContain(
+      'Aspirinë 300 mg (oral)',
+    );
+    expect(doctorView.body).toMatchObject({ callerName: null, callerPhone: null, address: null });
+    expect(doctorView.body.canAct).toBe(false);
+    expect((await read(w.tokens.outsideDoctor)).status).toBe(403);
+    // The chart's list of calls carries no caller details either.
+    const list = await api().get(`/api/v1/ems/patients/${p.id}`).set(bearer(w.tokens.doctor));
+    expect(list.status).toBe(200);
+    expect(list.body.items[0]).toMatchObject({ id, callerName: null, callerPhone: null });
+    // The ED board links the attendance to the call.
+    const board = await api().get('/api/v1/ed/board').set(bearer(edNurse));
+    const visit = board.body.items.find((v: { patient: { id: string } }) => v.patient.id === p.id);
+    expect(visit.ambulance).toMatchObject({ incidentId: id });
+  });
+
   it('registers an unidentified patient when the crew linked nobody', async () => {
     const id = await transporting({ patientDescription: 'Burrë rreth 60 vjeç, pa dokumente' });
     expect((await post(edNurse, `${id}/handover`)).status).toBe(400);

@@ -31,6 +31,8 @@ const PAGES = {
     '/portal/results',
     '/portal/appointments',
     '/portal/vaccinations',
+    '/portal/stays',
+    '/portal/emergency',
     '/portal/billing',
     '/portal/documents',
     '/portal/consents',

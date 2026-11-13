@@ -1,0 +1,1 @@
+ALTER TABLE "ems_incidents" ADD COLUMN "expected_at" timestamp with time zone;

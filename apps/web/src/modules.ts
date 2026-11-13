@@ -129,7 +129,8 @@ export const NAVIGATION: Record<Role, RoleNav> = {
         id: 'record',
         title: 'My record',
         icon: 'history',
-        summary: 'Your history, results, images, vaccinations, documents and hospital stays.',
+        summary:
+          'Your history, results, images, vaccinations, documents, hospital stays and emergency visits.',
         items: [
           { to: '/portal/history', label: 'Medical history', icon: 'history' },
           { to: '/portal/results', label: 'Test results', icon: 'flask' },
@@ -137,6 +138,7 @@ export const NAVIGATION: Record<Role, RoleNav> = {
           { to: '/portal/vaccinations', label: 'Vaccinations', icon: 'syringe' },
           { to: '/portal/documents', label: 'Documents', icon: 'clipboard' },
           { to: '/portal/stays', label: 'Hospital stays', icon: 'building' },
+          { to: '/portal/emergency', label: 'Emergency visits', icon: 'alert' },
         ],
       },
       {

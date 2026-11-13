@@ -19,6 +19,7 @@ import {
   SelectField,
   TextField,
 } from '../../components/ui';
+import { formatTime } from '../../format';
 import { t } from '../../i18n';
 import { IncidentPanel } from './IncidentPanel';
 
@@ -27,6 +28,22 @@ const sexLabel = (s: string | null) =>
 
 const since = (iso: string | null) =>
   iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)) : null;
+
+/** "Expected 11:49 · in 8 min" – or "due now" / late, so the team is ready when the crew arrives. */
+function ExpectedArrival({ at }: { at: string }) {
+  const minutes = Math.round((new Date(at).getTime() - Date.now()) / 60_000);
+  const time = formatTime(at);
+  if (minutes > 0) {
+    return <Badge tone="info">{t('Expected {time} · in {minutes} min', { time, minutes })}</Badge>;
+  }
+  if (minutes === 0)
+    return <Badge tone="warning">{t('Expected {time} · due now', { time })}</Badge>;
+  return (
+    <Badge tone="warning">
+      {t('Expected {time} · {minutes} min late', { time, minutes: -minutes })}
+    </Badge>
+  );
+}
 
 /**
  * Pre-alert strip on the emergency department board: ambulances on their way. Names are never
@@ -75,6 +92,7 @@ export function IncomingAmbulances({ big }: { big: boolean }) {
                       ? t('Left the scene {minutes} min ago', { minutes: left })
                       : ''}
                 </span>
+                {!i.atHospitalAt && i.expectedAt && <ExpectedArrival at={i.expectedAt} />}
               </span>
               {canAct && (
                 <span className="row">

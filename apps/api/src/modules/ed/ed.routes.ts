@@ -7,6 +7,7 @@ import { db } from '../../db/client.js';
 import {
   edArrivalModeEnum,
   edVisits,
+  emsIncidents,
   facilities,
   patients,
   users,
@@ -17,7 +18,11 @@ import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/htt
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { assertNotMerged, resolveAndAuditRead } from '../access/policy.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
-import { notifyUsers } from '../notifications/notifications.service.js';
+import {
+  notifyCareTeam,
+  notifyPatient,
+  notifyUsers,
+} from '../notifications/notifications.service.js';
 import {
   assertCanRegister,
   assertCanViewBoard,
@@ -337,6 +342,29 @@ edRouter.post('/visits/:id/depart', async (req, res) => {
       },
       tx,
     );
+    // Continuity: the family doctor learns of the attendance (and any advice for follow-up), and
+    // the patient finds the outcome and advice in their record. No clinical detail in the titles.
+    await notifyCareTeam(
+      visit.patientId,
+      {
+        type: 'ed.departed',
+        title: 'A patient in your care attended the emergency department',
+        link: `/doctor/patients/${visit.patientId}?tab=emergency`,
+      },
+      tx,
+      ctx.userId,
+    );
+    if (input.status !== 'LEFT_WITHOUT_BEING_SEEN') {
+      await notifyPatient(
+        visit.patientId,
+        {
+          type: 'ed.departed',
+          title: 'Your emergency department visit is in your record',
+          link: '/portal/emergency',
+        },
+        tx,
+      );
+    }
     return row;
   });
   res.json(updated);
@@ -431,6 +459,22 @@ edRouter.get('/board', async (req, res) => {
     }
   }
 
+  // Arrivals by ambulance: the call whose crew record goes with the patient (clinicians only).
+  const ambulanceOf = new Map<string, { incidentId: string; reference: string }>();
+  const openIds = open.map((o) => o.visit.id);
+  if (clinical && openIds.length) {
+    const calls = await db
+      .select({
+        id: emsIncidents.id,
+        reference: emsIncidents.reference,
+        edVisitId: emsIncidents.edVisitId,
+      })
+      .from(emsIncidents)
+      .where(inArray(emsIncidents.edVisitId, openIds));
+    for (const c of calls)
+      ambulanceOf.set(c.edVisitId!, { incidentId: c.id, reference: c.reference });
+  }
+
   const counts = { awaitingTriage: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, waiting: 0, inTreatment: 0 };
   const items = open.map(({ visit, patient, doctorName }) => {
     const level = visit.triageLevel as TriageLevel | null;
@@ -463,6 +507,7 @@ edRouter.get('/board', async (req, res) => {
       minutesInDepartment: minutesBetween(visit.arrivedAt, now),
       targetMinutes,
       breached,
+      ambulance: ambulanceOf.get(visit.id) ?? null,
       vitals:
         clinical && vitals
           ? {
@@ -492,8 +537,14 @@ edRouter.get('/board', async (req, res) => {
 
 /* ------------------------------------------------------------------ chart ----------------------- */
 
-/** A patient's emergency attendances, for the chart (clinical access required). */
-edRouter.get('/patients/:patientId/visits', async (req, res) => {
+/**
+ * A patient's emergency attendances: for the chart (care team / unit access) and for the patient
+ * (or a guardian with full access) in the portal – the outcome and the advice given at departure.
+ * On its own router because the board and every action are for emergency staff only.
+ */
+export const edHistoryRouter = Router();
+edHistoryRouter.use(authenticate);
+edHistoryRouter.get('/patients/:patientId/visits', async (req, res) => {
   const ctx = requireAuth(req);
   const { patientId } = parse(z.object({ patientId: z.string().uuid() }), req.params);
   await resolveAndAuditRead(ctx, patientId, requestMeta(req), 'emergency-visits');

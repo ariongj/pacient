@@ -231,3 +231,17 @@
 .ed-big .ed-meta {
   font-size: 1rem;
 }
+
+/* What the ambulance crew found and gave (triage dialog, chart). */
+.prehospital {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius-sm);
+  background: var(--info-soft);
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 1rem;
+}
+.prehospital-given {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}

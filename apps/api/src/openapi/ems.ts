@@ -86,7 +86,9 @@ export const EMS_OPERATIONS: ModuleOperation[] = [
     ),
   }),
   op('get', '/ems/incidents/{id}', E, 'A call with its pre-hospital care record', {
-    access: `${CREW}; DOCTOR, NURSE of the destination emergency department`,
+    access: `${CREW}; DOCTOR, NURSE of the destination emergency department; after the handover, whoever may read the patient’s record`,
+    description:
+      'Everyone but the crew gets the record without the caller’s name and phone or the exact address of the scene.',
   }),
   op('post', '/ems/incidents/{id}/patient', E, 'Link the patient to the call', {
     access: CREW,
@@ -163,7 +165,8 @@ export const EMS_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/ems/incoming', E, 'Ambulances on their way to my emergency department', {
     access: 'DOCTOR, NURSE of the emergency department, RECEPTION',
-    description: 'No names before the handover: priority, complaint, sex, age band, early warning.',
+    description:
+      'No names before the handover: priority, complaint, sex, age band, early warning, and when the crew expects to arrive (expectedAt).',
   }),
   op('post', '/ems/incidents/{id}/handover', E, 'Take the handover and open the attendance', {
     access: 'DOCTOR, NURSE of the destination emergency department',
@@ -175,6 +178,7 @@ export const EMS_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/ems/patients/{patientId}', E, 'A patient’s ambulance calls', {
     access: 'care team',
+    description: 'For the chart: without the caller’s details or the exact address of the scene.',
   }),
   op('get', '/ems/stats', E, 'Ambulance statistics (small cells suppressed)', {
     access: 'DIRECTOR (own facility), MINISTRY',

@@ -3535,6 +3535,8 @@ export const emsIncidents = pgTable(
     dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
     onSceneAt: timestamp('on_scene_at', { withTimezone: true }),
     leftSceneAt: timestamp('left_scene_at', { withTimezone: true }),
+    /** When the crew expects to reach the hospital (set on leaving the scene). */
+    expectedAt: timestamp('expected_at', { withTimezone: true }),
     atHospitalAt: timestamp('at_hospital_at', { withTimezone: true }),
     handedOverAt: timestamp('handed_over_at', { withTimezone: true }),
     destinationFacilityId: uuid('destination_facility_id').references(() => facilities.id, {

@@ -54,4 +54,25 @@ export const journey: Record<string, string> = {
   'Temporary access': 'Qasje e përkohshme',
   'through your unit or a colleague’s cover. It ends on its own, for example when the patient leaves the unit.':
     'përmes njësisë suaj ose zëvendësimit të një kolegu. Përfundon vetvetiu, për shembull kur pacienti largohet nga njësia.',
+  'Ambulance calls': 'Thirrjet për ambulancë',
+  'Not brought to an emergency department.': 'Nuk u dërgua në emergjencë.',
+  'Expected {time} · in {minutes} min': 'Pritet në {time} · për {minutes} min',
+  'Expected {time} · due now': 'Pritet në {time} · tani',
+  'Expected {time} · {minutes} min late': 'Pritej në {time} · vonesë {minutes} min',
+  'From the ambulance crew': 'Nga ekipi i ambulancës',
+  'No observations recorded by the crew.': 'Ekipi nuk ka regjistruar matje.',
+  'Emergency department visits of your family member and the advice given.':
+    'Vizitat në emergjencë të anëtarit të familjes dhe këshillat e dhëna.',
+  'Your emergency department visits, how they ended and the advice you were given.':
+    'Vizitat tuaja në emergjencë, si përfunduan dhe këshillat që ju janë dhënë.',
+  'If you are seen in an emergency department, the visit appears here.':
+    'Nëse trajtoheni në emergjencë, vizita shfaqet këtu.',
+  'Left the department': 'Doli nga emergjenca',
+  'Advice from the emergency department': 'Këshilla nga emergjenca',
+  'Your history, results, images, vaccinations, documents, hospital stays and emergency visits.':
+    'Historia, rezultatet, imazhet, vaksinat, dokumentet, shtrimet në spital dhe vizitat në emergjencë.',
+  'A patient in your care attended the emergency department':
+    'Një pacient nën kujdesin tuaj u paraqit në emergjencë',
+  'Your emergency department visit is in your record':
+    'Vizita juaj në emergjencë është në kartelën tuaj',
 };

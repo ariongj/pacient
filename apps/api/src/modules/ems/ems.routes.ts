@@ -304,6 +304,7 @@ function summary(r: Incident) {
     dispatchedAt: r.dispatchedAt,
     onSceneAt: r.onSceneAt,
     leftSceneAt: r.leftSceneAt,
+    expectedAt: r.expectedAt,
     atHospitalAt: r.atHospitalAt,
     handedOverAt: r.handedOverAt,
     destinationFacilityId: r.destinationFacilityId,
@@ -425,9 +426,16 @@ emsRouter.get('/incidents/:id', requireRole('DOCTOR', 'NURSE'), async (req, res)
       row.status === 'HANDED_OVER' ||
       (row.status === 'CLOSED' && row.edVisitId !== null)) &&
     (await isEdClinicianAt(ctx, row.destinationFacilityId));
-  if (!staff && !edView) throw notFound('Ambulance call not found');
   const meta = requestMeta(req);
-  if (row.patientId) await auditRecordView(ctx, row.patientId, 'UNIT', 'ems_incident', meta);
+  if (!staff && !edView) {
+    // After the handover the crew's record belongs to the patient's record: anyone who may read
+    // the chart (e.g. the ward that admitted the patient) sees what was given before hospital.
+    const handedOver = row.status === 'HANDED_OVER' || (row.status === 'CLOSED' && row.edVisitId);
+    if (!row.patientId || !handedOver) throw notFound('Ambulance call not found');
+    await resolveAndAuditRead(ctx, row.patientId, meta, 'ems_incident');
+  } else if (row.patientId) {
+    await auditRecordView(ctx, row.patientId, 'UNIT', 'ems_incident', meta);
+  }
   res.json(await present(row, staff));
 });
 
@@ -684,6 +692,7 @@ emsRouter.post('/incidents/:id/status', requireRole('DOCTOR', 'NURSE'), async (r
           ? {
               status: 'TRANSPORTING',
               leftSceneAt: now,
+              expectedAt: new Date(now.getTime() + input.etaMinutes! * 60_000),
               destinationFacilityId: input.destinationFacilityId!,
             }
           : { atHospitalAt: now };
@@ -992,6 +1001,7 @@ emsRouter.get('/incoming', requireRole('DOCTOR', 'NURSE', 'RECEPTION'), async (r
       callSign: vehicle?.callSign ?? null,
       level: vehicle?.level ?? null,
       leftSceneAt: incident.leftSceneAt,
+      expectedAt: incident.expectedAt,
       atHospitalAt: incident.atHospitalAt,
       // No names before the handover: sex and age band only.
       sex: patient?.sex ?? null,
@@ -1157,7 +1167,17 @@ emsRouter.get('/patients/:patientId', requireRole('DOCTOR', 'NURSE'), async (req
     .where(and(eq(emsIncidents.patientId, patientId), ne(emsIncidents.status, 'CANCELLED')))
     .orderBy(desc(emsIncidents.receivedAt))
     .limit(50);
-  res.json({ items: rows.map(summary) });
+  // The chart needs the clinical story, not who called or the exact address of the scene.
+  res.json({
+    items: rows.map((r) => ({
+      ...summary(r),
+      callerName: null,
+      callerPhone: null,
+      address: null,
+      latitude: null,
+      longitude: null,
+    })),
+  });
 });
 
 /* ------------------------------------------------------------------ statistics ------------ */

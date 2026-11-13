@@ -866,7 +866,9 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
     },
   ),
   op('get', '/ed/patients/{patientId}/visits', ED, 'Emergency visits of a patient', {
-    access: 'DOCTOR, NURSE, RECEPTION',
+    access: 'care team or emergency staff with unit access; the PATIENT (or a full guardian)',
+    description:
+      'Arrival, triage, treating doctor, outcome and the advice given at departure. The portal shows these to the patient.',
   }),
 
   // Imaging

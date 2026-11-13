@@ -105,6 +105,9 @@ const ApiDocsPage = lazy(() =>
 const PortalStays = lazy(() =>
   import('./pages/patient/PortalStays').then((m) => ({ default: m.PortalStays })),
 );
+const PortalEmergency = lazy(() =>
+  import('./pages/patient/PortalEmergency').then((m) => ({ default: m.PortalEmergency })),
+);
 const PortalImaging = lazy(() =>
   import('./pages/patient/PortalImaging').then((m) => ({ default: m.PortalImaging })),
 );
@@ -510,6 +513,7 @@ export function App() {
           />
           <Route path="/portal/stays" element={guard(['PATIENT'], <PortalStays />)} />
           <Route path="/portal/imaging" element={guard(['PATIENT'], <PortalImaging />)} />
+          <Route path="/portal/emergency" element={guard(['PATIENT'], <PortalEmergency />)} />
           <Route path="/theatre" element={guard(['DOCTOR', 'NURSE'], <TheatreSchedule />)} />
           <Route
             path="/pharmacy/stock"

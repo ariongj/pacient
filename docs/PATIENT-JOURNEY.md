@@ -82,13 +82,18 @@ and `scripts/patient-journey.mjs` now drives the whole cycle through the real pa
 | The pharmacy queue only selected a prescription when the name itself was clicked             | The whole row selects; the detail stays in view next to a long list                                                                             |
 | The chart had 35 sections in one row                                                         | Eight areas (Clinical record, Medicines, Tests and imaging, Hospital, Care programmes, Specialist units, Documents, Record and access)          |
 | A clinician reading through their unit (ward, radiology, …) could not join the care team     | A short _Temporary access_ note above the chart offers **Join care team**; the summary says whether the reader is a member (`inCareTeam`)       |
+| The emergency department did not know when an ambulance would arrive                         | The crew's arrival time is stored; the incoming card shows "Expected 11:49 · in 8 min" (or late)                                                |
+| Triage started blank although the crew had measured minutes before                           | The triage form shows the crew's latest observations, early warning score and everything given before hospital                                  |
+| After the handover the ambulance record disappeared from view                                | The chart's Emergency tab lists the ambulance calls with the crew's record (without the caller's details); the admitting ward sees it too       |
+| The patient could not see an emergency visit or the advice given at departure                | Portal › My record › **Emergency visits**: reason, treating doctor, outcome and the advice; the patient is notified                             |
+| The family doctor was not told that their patient attended the emergency department          | The care team is notified on departure (title without clinical detail), linking to the chart's Emergency tab                                    |
 
 ```bash
 npm run journey
 ```
 
 needs the app running with demo data (`npm run dev`); it registers a new synthetic patient and
-prints one line per step – 32 steps, about two and a half minutes:
+prints one line per step – 46 steps, about three and a half minutes:
 
 1. Front desk registers the patient and books a visit; checks them in on arrival.
 2. Doctor sees the patient waiting, joins the care team; records note, diagnosis, allergy and vital
@@ -113,6 +118,20 @@ prints one line per step – 32 steps, about two and a half minutes:
 11. The patient activates the portal and finds the visit, result, X-ray report, appointment,
     vaccination, certificate, referral, stay, letter, bill and who viewed the record; writes to
     the doctor, who answers, and reads the answer.
+
+The emergency path follows:
+
+12. A man collapses in the street: the ambulance service takes the 112 call and dispatches; the
+    crew records observations and aspirin given and leaves for hospital with an arrival time.
+13. The emergency department sees the ambulance coming, with its early warning score and expected
+    arrival; the crew arrives and the emergency nurse takes the handover of the unidentified man
+    (a temporary record); the crew closes the call, which frees the ambulance.
+14. Triage shows what the crew measured and gave; the emergency doctor treats him – the chart
+    keeps the ambulance record – and admits him to a ward; a nurse confirms his identity when the
+    family arrives.
+15. The patient of the first part comes back with a cut hand: the front desk registers the
+    arrival, the nurse triages, another emergency doctor sutures and sends them home with advice.
+    The family doctor is notified, and the patient finds the visit and the advice in the portal.
 
 `--shots <dir>` saves a screenshot after every step.
 

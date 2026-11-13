@@ -53,4 +53,25 @@ export const journey: Record<string, string> = {
   'Temporary access': 'Privremeni pristup',
   'through your unit or a colleague’s cover. It ends on its own, for example when the patient leaves the unit.':
     'preko vaše jedinice ili zamene kolege. Prestaje sam od sebe, na primer kada pacijent napusti jedinicu.',
+  'Ambulance calls': 'Pozivi hitne pomoći',
+  'Not brought to an emergency department.': 'Nije dovezen u urgentni centar.',
+  'Expected {time} · in {minutes} min': 'Očekuje se u {time} · za {minutes} min',
+  'Expected {time} · due now': 'Očekuje se u {time} · upravo stiže',
+  'Expected {time} · {minutes} min late': 'Očekivano u {time} · kasni {minutes} min',
+  'From the ambulance crew': 'Od ekipe hitne pomoći',
+  'No observations recorded by the crew.': 'Ekipa nije zabeležila merenja.',
+  'Emergency department visits of your family member and the advice given.':
+    'Posete urgentnom centru člana vaše porodice i dati saveti.',
+  'Your emergency department visits, how they ended and the advice you were given.':
+    'Vaše posete urgentnom centru, kako su se završile i saveti koje ste dobili.',
+  'If you are seen in an emergency department, the visit appears here.':
+    'Ako budete pregledani u urgentnom centru, poseta će se pojaviti ovde.',
+  'Left the department': 'Napustio urgentni centar',
+  'Advice from the emergency department': 'Savet iz urgentnog centra',
+  'Your history, results, images, vaccinations, documents, hospital stays and emergency visits.':
+    'Vaša istorija, rezultati, snimci, vakcine, dokumenti, bolnička lečenja i posete urgentnom centru.',
+  'A patient in your care attended the emergency department':
+    'Pacijent o kome brinete bio je u urgentnom centru',
+  'Your emergency department visit is in your record':
+    'Vaša poseta urgentnom centru je u vašem kartonu',
 };

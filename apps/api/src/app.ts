@@ -24,7 +24,7 @@ import { announcementsRouter } from './modules/announcements/announcements.route
 import { emergencyRouter } from './modules/emergency/emergency.routes.js';
 import { messagingRouter } from './modules/messaging/messaging.routes.js';
 import { consentRouter } from './modules/consent/consent.routes.js';
-import { edRouter } from './modules/ed/ed.routes.js';
+import { edHistoryRouter, edRouter } from './modules/ed/ed.routes.js';
 import { identityRouter } from './modules/identity/identity.routes.js';
 import { imagingRouter } from './modules/imaging/imaging.routes.js';
 import { inpatientRouter } from './modules/inpatient/inpatient.routes.js';
@@ -185,7 +185,7 @@ export function createApp(): Express {
   api.use('/patients/:id/guardians', guardiansRouter);
   api.use('/identity', identityRouter);
   api.use('/hospital', inpatientRouter);
-  api.use('/ed', edRouter);
+  api.use('/ed', edHistoryRouter, edRouter);
   api.use('/imaging', imagingRouter);
   api.use('/theatre', theatreRouter);
   api.use('/scheduling', schedulingRouter);

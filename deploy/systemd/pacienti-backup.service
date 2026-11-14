@@ -1,0 +1,20 @@
+# Nightly encrypted backup of the Pacient database (see deploy/README.md, "Backups").
+# Adjust the paths and the age public key, then:
+#   sudo cp deploy/systemd/pacienti-backup.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pacienti-backup.timer
+# Check: systemctl list-timers pacienti-backup.timer; journalctl -u pacienti-backup
+[Unit]
+Description=Pacient encrypted database backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/codex/Pacienti
+Environment=PACIENT_COMPOSE=deploy/compose.vps.yml
+Environment=PACIENT_ENV_FILE=/home/codex/Pacienti/.env.vps
+Environment=BACKUP_DIR=/var/backups/pacient
+Environment=BACKUP_RETENTION_DAYS=14
+# Public key only; the private key stays off this server.
+Environment=BACKUP_AGE_RECIPIENT=age1REPLACE-WITH-YOUR-PUBLIC-KEY
+ExecStart=/home/codex/Pacienti/deploy/backup.sh

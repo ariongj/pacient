@@ -14,6 +14,7 @@
 # Settings (environment):
 #   PACIENT_COMPOSE   base compose file (default deploy/compose.vps.yml)
 #   PITR_COMPOSE      PITR override (default deploy/compose.pitr.yml)
+#   PACIENT_ENV_FILE  private settings (default .env.vps in the repository, if present)
 #   PITR_MAX_WAL_AGE  `check`: newest archived WAL must be younger than this many seconds (900)
 #   PITR_CONFIRM      must be "RESTORE-LIVE" for restore-to-time (no interactive prompt in cron)
 #   PITR_KEEP_VERIFY  verify-restore: keep the scratch volume for inspection when set to 1
@@ -28,7 +29,11 @@ PITR=${PITR_COMPOSE:-$ROOT/deploy/compose.pitr.yml}
 STANZA=pacient
 MAX_WAL_AGE=${PITR_MAX_WAL_AGE:-900}
 
-compose() { docker compose -f "$BASE" -f "$PITR" "$@"; }
+# The deployment's compose file needs its private settings (.env.vps) even to address the db.
+ENV_FILE=${PACIENT_ENV_FILE:-$ROOT/.env.vps}
+ENV_ARGS=()
+[[ -f "$ENV_FILE" ]] && ENV_ARGS=(--env-file "$ENV_FILE")
+compose() { docker compose ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} -f "$BASE" -f "$PITR" "$@"; }
 # pgBackRest inside the running db container, as the postgres OS user.
 pgbr() { compose exec -T --user postgres db pgbackrest --stanza="$STANZA" "$@"; }
 # pgBackRest in a one-off db container (the database must be stopped or a different data dir used).

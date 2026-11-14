@@ -58,9 +58,13 @@ FAIL=0
 for t in users facilities patients encounters lab_results audit_logs; do
   n=$(q "SELECT count(*) FROM $t")
   printf '  %-14s %8s rows\n' "$t" "$n"
-  if [[ "$t" =~ ^(users|facilities|audit_logs)$ && "$n" -eq 0 ]]; then
+  # Every installation has its first administrator and the audit trail of that sign-in. A new
+  # installation may not have facilities yet: worth knowing, but not a broken backup.
+  if [[ "$t" =~ ^(users|audit_logs)$ && "$n" -eq 0 ]]; then
     echo "✗ $t is empty – this does not look like a Pacient database" >&2
     FAIL=1
+  elif [[ $t == facilities && "$n" -eq 0 ]]; then
+    echo "  ! no facilities yet – fine for a new installation, not for one in use" >&2
   fi
 done
 

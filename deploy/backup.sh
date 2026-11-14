@@ -7,6 +7,7 @@
 # Settings (environment):
 #   DATABASE_URL          database to dump with the local pg_dump, or
 #   PACIENT_COMPOSE       compose file whose `db` service is dumped with `docker compose exec`
+#   PACIENT_ENV_FILE      its private settings (default: .env.vps in the repository, if present)
 #   BACKUP_DIR            where dumps are written (default /var/backups/pacient)
 #   BACKUP_RETENTION_DAYS delete dumps older than this (default 14)
 #   BACKUP_METRICS_FILE   optional .prom file for node_exporter's textfile collector
@@ -36,11 +37,16 @@ fi
 
 mkdir -p "$BACKUP_DIR"
 
+# The deployment's compose file needs its private settings (.env.vps) even to address the db.
+ENV_FILE=${PACIENT_ENV_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env.vps}
+ENV_ARGS=()
+[[ -f "$ENV_FILE" ]] && ENV_ARGS=(--env-file "$ENV_FILE")
+
 dump() {
   # --format=custom: compressed, restorable selectively with pg_restore. A single pg_dump runs in
   # one repeatable-read snapshot, so the dump is consistent while the API keeps running.
   if [[ -n "${PACIENT_COMPOSE:-}" ]]; then
-    docker compose -f "$PACIENT_COMPOSE" exec -T db \
+    docker compose ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} -f "$PACIENT_COMPOSE" exec -T db \
       pg_dump --format=custom --compress=6 --no-owner --no-privileges -U pacient -d pacient
   elif [[ -n "${DATABASE_URL:-}" ]]; then
     pg_dump --format=custom --compress=6 --no-owner --no-privileges --dbname="$DATABASE_URL"

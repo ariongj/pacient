@@ -1,0 +1,19 @@
+# HTTPS for the Pacient API with Caddy (certificates are obtained automatically).
+# Replace the host name and add this block to the existing Caddyfile, then: caddy reload
+# The API listens on 127.0.0.1:18840 only; this is its only public entrance.
+
+pacienti-api.itdks.tech {
+	# Documents are up to 10 MB; the API checks the real limit.
+	request_body {
+		max_size 12MB
+	}
+
+	# Metrics are for the monitoring on this host (or with METRICS_TOKEN), never public.
+	@metrics path /metrics
+	respond @metrics 404
+
+	# Live updates (Server-Sent Events) are flushed at once.
+	reverse_proxy 127.0.0.1:18840 {
+		flush_interval -1
+	}
+}

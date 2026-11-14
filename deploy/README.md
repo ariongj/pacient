@@ -1,6 +1,8 @@
 # GitHub Pages frontend + VPS API
 
 This is a controlled pilot, not an approved clinical production system. Do not enter real patient data.
+
+**Start with the step-by-step [go-live checklist](../docs/GO-LIVE.md)**; this file has the details.
 Deploy only the compiled frontend to Pages. Database contents, server settings, secrets and backend
 runtime stay on the VPS. The source repository's existing visibility is not changed by this workflow.
 
@@ -31,8 +33,14 @@ Tests recreate only its schema. Never point these tests at a production database
 
 ## VPS deployment
 
-Check port 18840 and existing service state before deploying. Do not start the root development
-Compose file: use this isolated deployment instead.
+Do not start the root development Compose file: use this isolated deployment instead. One command
+installs or upgrades it (server checks, private settings, image build, migrations, readiness):
+
+```sh
+deploy/go-live.sh --web-url https://pacienti.itdks.tech --api-url https://pacienti-api.itdks.tech
+```
+
+It runs the equivalent of these steps, which can still be run by hand:
 
 ```sh
 python3 deploy/init-env.py --web-url https://pacienti.itdks.tech
@@ -40,6 +48,12 @@ docker compose --env-file .env.vps -f deploy/compose.vps.yml build migrate
 docker compose --env-file .env.vps -f deploy/compose.vps.yml up -d
 curl --fail http://127.0.0.1:18840/health/ready
 ```
+
+`go-live.sh` refuses to continue when Docker is missing, disk space is short, port 18840 is taken
+by another program or `.env.vps` is readable by others; with `BACKUP_AGE_RECIPIENT` set it takes an
+encrypted backup before an upgrade. HTTPS route examples: `deploy/proxy/nginx-pacienti-api.conf`
+and `deploy/proxy/Caddyfile`. After go-live, `node deploy/smoke-test.mjs --web … --api …` checks
+the installation from outside without touching data.
 
 `init-env.py` creates fresh private secrets with permissions 0600 and refuses to replace an
 existing file. Do not print, commit, upload or include `.env.vps` in a public package. Keep a
@@ -56,13 +70,11 @@ activation handoff. Do not seed the published development passwords or disable s
 The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH` command refuses if any
 account already exists, creates a single-use 72-hour invitation, and writes its URL only to a
 new 0600 file. Run it inside the API image with a temporary private bind mount; do not expose
-that directory through HTTP. The owner chooses their password through the activation page:
+that directory through HTTP. The owner chooses their password through the activation page.
+`deploy/first-admin.sh OWNER_EMAIL` does all of this (private folder 0700, file 0600, runs as you):
 
 ```sh
-install -d -m 700 -o 1000 -g 1000 /root/pacienti-private   # the image runs as uid 1000
-docker compose --env-file .env.vps -f deploy/compose.vps.yml run --rm --no-deps \
-  -v /root/pacienti-private:/private api node dist/ops/bootstrap-admin.js OWNER_EMAIL /private/invite.txt
-cat /root/pacienti-private/invite.txt   # hand the link over privately, then delete the file
+deploy/first-admin.sh owner@example.org   # link in ~/pacienti-private/invite.txt; delete it after use
 ```
 
 Until the owner has set up two-step sign-in, the account can reach only the sign-in and
@@ -123,8 +135,10 @@ PACIENT_COMPOSE=deploy/compose.vps.yml BACKUP_DIR=/var/backups/pacient \
   BACKUP_AGE_RECIPIENT=age1… deploy/backup.sh
 ```
 
-Schedule it (for example a nightly systemd timer or cron entry) and copy the files off-server. The
-script exits non-zero on any failure so the scheduler can alert.
+It reads the deployment's private settings from `.env.vps` in the repository (or the file named in
+`PACIENT_ENV_FILE`). Schedule it with the ready-made nightly timer in `deploy/systemd/` (set the
+paths and the public key, then `systemctl enable --now pacienti-backup.timer`) and copy the files
+off-server. The script exits non-zero on any failure so the scheduler can alert.
 
 `deploy/restore-verify.sh` proves a backup is usable: it checks the checksum, decrypts, restores
 into a throw-away database, checks the migration history, row counts of key tables and that the

@@ -355,6 +355,9 @@ account with a one-off script or seed in a non-production environment).
 | `npm run db:seed`                  | Load synthetic demo data (refuses in production)                                  |
 | `npm run db:generate -w apps/api`  | Generate a migration after editing `schema.ts`                                    |
 | `npm run lab:simulate -w apps/api` | Development laboratory system (see above)                                         |
+| `deploy/go-live.sh`                | Install or upgrade the API on the server in one command                           |
+| `deploy/first-admin.sh EMAIL`      | Invite the first Ministry administrator (private link file)                       |
+| `node deploy/smoke-test.mjs`       | Check a live installation from outside (`--web`, `--api`)                         |
 | `deploy/backup.sh`                 | Encrypted `pg_dump` with retention                                                |
 | `deploy/restore-verify.sh`         | Restore a backup into a scratch DB and check it                                   |
 | `deploy/pitr/pitr.sh`              | Point-in-time recovery (pgBackRest)                                               |
@@ -373,6 +376,8 @@ account with a one-off script or seed in a non-production environment).
 - [Performance](docs/PERFORMANCE.md) — load test, baseline and capacity planning
 - [Downtime](docs/DOWNTIME.md) — what to do when the system is unavailable, and recovery
 - [Partner API](docs/API.md) — keys, scopes, purpose of use, OpenAPI and FHIR
+- [Go-live checklist](docs/GO-LIVE.md) — server, HTTPS, first administrator, GitHub Pages, checks and
+  backups, step by step (rehearsed end to end)
 - [Deployment](deploy/README.md) — production setup, backups, PITR and monitoring
 
 ## Status

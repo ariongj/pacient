@@ -238,6 +238,7 @@ export const HOME_BY_ROLE: Record<Profile['role'], string> = {
   IT_SUPPORT: '/support',
   DIRECTOR: '/director',
   MINISTRY: '/ministry',
+  ADMIN: '/admin',
 };
 
 /** Staff who must enrol in two-step sign-in are sent here before anything else. */

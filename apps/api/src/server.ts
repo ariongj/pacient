@@ -43,6 +43,10 @@ import {
   stopMentalHealthWorker,
 } from './modules/mentalhealth/mentalhealth.service.js';
 import { startLicencesWorker, stopLicencesWorker } from './modules/licences/licences.service.js';
+import {
+  startSubscriptionsWorker,
+  stopSubscriptionsWorker,
+} from './modules/subscriptions/subscriptions.service.js';
 import { startSepsisWorker, stopSepsisWorker } from './modules/sepsis/sepsis.service.js';
 import {
   startInfectionWorker,
@@ -78,6 +82,7 @@ startWaitingWorker();
 startRegistersWorker();
 startComplaintsWorker();
 startLicencesWorker();
+startSubscriptionsWorker();
 startMaternityWorker();
 startScreeningWorker();
 startSepsisWorker();
@@ -111,6 +116,7 @@ function shutdown(signal: string) {
   stopRegistersWorker();
   stopComplaintsWorker();
   stopLicencesWorker();
+  stopSubscriptionsWorker();
   stopMaternityWorker();
   stopScreeningWorker();
   stopSepsisWorker();

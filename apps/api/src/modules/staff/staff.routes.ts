@@ -36,6 +36,8 @@ const INVITABLE_BY: Record<Role, Role[]> = {
   RECEPTION: [],
   LAB_TECHNICIAN: [],
   IT_SUPPORT: [],
+  // The platform administrator invites through the admin portal (/admin/users).
+  ADMIN: [],
   PATIENT: [],
 };
 /** Regulated professions must be registered with their professional licence number. */

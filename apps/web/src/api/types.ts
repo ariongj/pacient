@@ -7,6 +7,7 @@ export type Role =
   | 'RECEPTION'
   | 'LAB_TECHNICIAN'
   | 'IT_SUPPORT'
+  | 'ADMIN'
   | 'PATIENT';
 
 export type StaffRole = Exclude<Role, 'PATIENT'>;

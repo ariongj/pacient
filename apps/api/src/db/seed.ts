@@ -88,6 +88,8 @@ import { seedDonors } from './seed-donors.js';
 import { seedOpendata } from './seed-opendata.js';
 import { seedHistory } from './seed-history.js';
 import { seedAccessreviews } from './seed-accessreviews.js';
+import { seedSubscriptions } from './seed-subscriptions.js';
+import { seedPlatform } from './seed-platform.js';
 import { seedTerminology } from './seed-terminology.js';
 import { seedSupport } from './seed-support.js';
 import { seedLabwork } from './seed-labwork.js';
@@ -339,6 +341,17 @@ async function main() {
       email: 'minister@pacient.local',
       fullName: 'Dr. Albana Hyseni',
       role: 'MINISTRY',
+      facilityId: null,
+      ...activeAccount,
+    })
+    .returning();
+  // The operator of the service: accounts, subscriptions, invoices, terms and privacy notice.
+  const [platformAdmin] = await db
+    .insert(users)
+    .values({
+      email: 'admin@pacient.local',
+      fullName: 'Liridon Berisha',
+      role: 'ADMIN',
       facilityId: null,
       ...activeAccount,
     })
@@ -1282,10 +1295,13 @@ async function main() {
   await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   // After licences and all staff accounts, so the review snapshots are realistic.
   await seedAccessreviews({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
+  await seedSubscriptions({ adminId: platformAdmin!.id });
+  await seedPlatform({ adminId: platformAdmin!.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})
   Ministry   : minister@pacient.local   (Ministria e Shëndetësisë)
+  Platform   : admin@pacient.local      (administrator of the service: users, subscriptions)
   Director   : director@pacient.local    (Qendra Klinike Universitare e Kosovës, QKUK)
   Doctor     : doctor@pacient.local      (Mjekësi familjare, QKUK)
   Nurse      : nurse@pacient.local       (QKUK)

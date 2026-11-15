@@ -247,6 +247,25 @@ export const AuditAction = {
   PROM_ASSIGNED: 'prom.assigned',
   PROM_SUBMITTED: 'prom.submitted',
   PROM_REVIEWED: 'prom.reviewed',
+  // Operator (platform administrator, subscriptions, terms and privacy)
+  ADMIN_USER_INVITED: 'admin.user.invited',
+  ADMIN_USER_UPDATED: 'admin.user.updated',
+  ADMIN_USER_DISABLED: 'admin.user.disabled',
+  ADMIN_USER_ENABLED: 'admin.user.enabled',
+  ADMIN_USER_UNLOCKED: 'admin.user.unlocked',
+  ADMIN_PASSWORD_RESET_SENT: 'admin.user.password_reset_sent',
+  ADMIN_MFA_RESET: 'admin.user.mfa_reset',
+  ADMIN_SESSIONS_REVOKED: 'admin.user.sessions_revoked',
+  ADMIN_INVITATION_RESENT: 'admin.user.invitation_resent',
+  PLAN_SAVED: 'billing.plan.saved',
+  SUBSCRIPTION_CHANGED: 'billing.subscription.changed',
+  INVOICE_ISSUED: 'billing.invoice.issued',
+  INVOICE_PAID: 'billing.invoice.paid',
+  INVOICE_VOIDED: 'billing.invoice.voided',
+  PLATFORM_SETTINGS_UPDATED: 'platform.settings.updated',
+  LEGAL_DOCUMENT_SAVED: 'legal.document.saved',
+  LEGAL_DOCUMENT_PUBLISHED: 'legal.document.published',
+  LEGAL_ACCEPTED: 'legal.accepted',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

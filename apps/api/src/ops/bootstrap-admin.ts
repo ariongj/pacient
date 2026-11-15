@@ -10,7 +10,15 @@ import { oneTimeTokens, users } from '../db/schema.js';
 import { generateOpaqueToken, hashToken } from '../lib/tokens.js';
 import { audit, AuditAction } from '../modules/audit/audit.service.js';
 
-export async function bootstrapAdmin(email: string, outputPath: string): Promise<void> {
+/**
+ * The first account of a new installation: the platform administrator (default), who then invites
+ * the Ministry and facility directors – or, for a Ministry-run installation, a Ministry official.
+ */
+export async function bootstrapAdmin(
+  email: string,
+  outputPath: string,
+  role: 'ADMIN' | 'MINISTRY' = 'ADMIN',
+): Promise<void> {
   const normalized = z.email().parse(email).toLowerCase();
   // Reserve a protected destination before creating the account. Never overwrite a handoff.
   const output = await open(outputPath, 'wx', 0o600);
@@ -24,8 +32,8 @@ export async function bootstrapAdmin(email: string, outputPath: string): Promise
         .insert(users)
         .values({
           email: normalized,
-          fullName: 'Administrator',
-          role: 'MINISTRY',
+          fullName: role === 'ADMIN' ? 'Platform administrator' : 'Administrator',
+          role,
           facilityId: null,
         })
         .returning();
@@ -41,7 +49,7 @@ export async function bootstrapAdmin(email: string, outputPath: string): Promise
       await audit(
         {
           action: AuditAction.USER_INVITED,
-          actor: { userId: user.id, role: 'MINISTRY', facilityId: null },
+          actor: { userId: user.id, role, facilityId: null },
           resourceType: 'user',
           resourceId: user.id,
           metadata: { source: 'owner-authorized-first-install' },
@@ -59,14 +67,15 @@ export async function bootstrapAdmin(email: string, outputPath: string): Promise
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const [email, outputPath] = process.argv.slice(2);
-  if (!email || !outputPath) {
-    console.error('Usage: bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH');
+  const [email, outputPath, roleArg = 'ADMIN'] = process.argv.slice(2);
+  const role = roleArg.toUpperCase();
+  if (!email || !outputPath || (role !== 'ADMIN' && role !== 'MINISTRY')) {
+    console.error('Usage: bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH [ADMIN|MINISTRY]');
     process.exitCode = 1;
     await pool.end();
   } else {
     try {
-      await bootstrapAdmin(email, outputPath);
+      await bootstrapAdmin(email, outputPath, role);
       console.log('First administrator invited; private activation file saved. No email sent.');
     } catch {
       // Never include the token, database connection string or query details in command output.

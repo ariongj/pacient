@@ -408,10 +408,12 @@ export const NAVIGATION: Record<Role, RoleNav> = {
         id: 'management',
         title: 'Facility management',
         icon: 'building',
-        summary: 'Reports, staff, units, rosters, billing, stock, equipment and the laboratory.',
+        summary:
+          'Reports, staff, units, rosters, billing, stock, equipment, the laboratory and the subscription.',
         items: [
           { to: '/director/reports', label: 'Reports', icon: 'activity' },
           { to: '/director/staff', label: 'Staff', icon: 'users' },
+          { to: '/director/subscription', label: 'Subscription and invoices', icon: 'card' },
           { to: '/director/units', label: 'Wards & units', icon: 'building' },
           P.rosters,
           as(P.billing, 'Billing & claims'),
@@ -499,6 +501,43 @@ export const NAVIGATION: Record<Role, RoleNav> = {
     ],
   },
 
+  ADMIN: {
+    home: { to: '/admin', label: 'Overview', icon: 'home', end: true },
+    modules: [
+      {
+        id: 'customers',
+        title: 'Customers and subscriptions',
+        icon: 'card',
+        summary:
+          'Facilities, their subscriptions and history, invoices and payments, and the plans.',
+        items: [
+          { to: '/admin/organizations', label: 'Facilities and subscriptions', icon: 'building' },
+          { to: '/admin/invoices', label: 'Invoices and payments', icon: 'receipt' },
+          { to: '/admin/plans', label: 'Plans', icon: 'card' },
+        ],
+      },
+      {
+        id: 'accounts',
+        title: 'Users',
+        icon: 'users',
+        summary: 'Every account: invite, disable, unlock, reset sign-in, sign out everywhere.',
+        items: [{ to: '/admin/users', label: 'Users', icon: 'users' }],
+      },
+      {
+        id: 'platform',
+        title: 'Platform',
+        icon: 'settings',
+        summary:
+          'Operator details, notice to users, terms of use and privacy notice, health and audit.',
+        items: [
+          { to: '/admin/settings', label: 'Operator settings', icon: 'settings' },
+          { to: '/admin/legal', label: 'Terms and privacy', icon: 'scale' },
+          { to: '/admin/health', label: 'System health', icon: 'activity' },
+          { to: '/admin/audit', label: 'Administrative audit', icon: 'history' },
+        ],
+      },
+    ],
+  },
   MINISTRY: {
     home: { to: '/ministry', label: 'National overview', icon: 'chart', end: true },
     modules: [

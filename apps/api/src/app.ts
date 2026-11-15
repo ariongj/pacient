@@ -92,6 +92,10 @@ import { historyRouter } from './modules/history/history.routes.js';
 import { accessReviewsRouter } from './modules/accessreviews/accessreviews.routes.js';
 import { terminologyRouter } from './modules/terminology/terminology.routes.js';
 import { supportRouter } from './modules/support/support.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
+import { subscriptionRouter } from './modules/subscriptions/subscriptions.routes.js';
+import { legalRouter } from './modules/platform/legal.routes.js';
+import { platformRouter } from './modules/platform/platform.routes.js';
 import { labWorkRouter } from './modules/lab/work.routes.js';
 import { promsRouter } from './modules/proms/proms.routes.js';
 
@@ -206,6 +210,11 @@ export function createApp(): Express {
   api.use('/access-reviews', accessReviewsRouter);
   api.use('/terminology', terminologyRouter);
   api.use('/support', supportRouter);
+  // Operator of the service: platform administrator, subscriptions, terms and privacy notice.
+  api.use('/admin', adminRouter);
+  api.use('/subscription', subscriptionRouter);
+  api.use('/legal', legalRouter);
+  api.use('/platform', platformRouter);
   api.use('/lab-work', labWorkRouter);
   api.use('/proms', promsRouter);
   api.use('/remote-monitoring', remoteMonitoringRouter);

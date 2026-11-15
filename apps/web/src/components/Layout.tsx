@@ -2,6 +2,7 @@ import { t } from '../i18n';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import { Suspense, useEffect, useState } from 'react';
 import {
+  Link,
   Navigate,
   NavLink,
   Outlet,
@@ -17,6 +18,9 @@ import { DOWNTIME_STATUS_ROLES, useDowntimeStatus } from '../api/downtime';
 import { Icon } from './icons';
 import { NotificationBell } from './Notifications';
 import { APPOINTMENT_SCOPE_PATHS, Breadcrumb, SideNav } from './SideNav';
+import { LegalGate } from './LegalGate';
+import { PlatformNotice } from './PlatformNotice';
+import { SubscriptionNotice } from './SubscriptionNotice';
 import { Loading } from './ui';
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -29,6 +33,7 @@ const ROLE_LABEL: Record<Role, string> = {
   IT_SUPPORT: 'IT support',
   DIRECTOR: 'Facility management',
   MINISTRY: 'Ministry of Health',
+  ADMIN: 'Platform administration',
 };
 
 const LIVE_TEXT = { live: 'Live', connecting: 'Connecting…', offline: 'Offline – retrying' };
@@ -194,6 +199,8 @@ export function Layout() {
         <main id="main" tabIndex={-1}>
           <Breadcrumb />
           <DowntimeBanner role={user.role} hasFacility={Boolean(user.facility)} />
+          <PlatformNotice />
+          {user.role === 'DIRECTOR' && <SubscriptionNotice />}
           {acting && (
             <div className="acting-banner" role="status">
               <div>
@@ -235,14 +242,18 @@ export function Layout() {
               </p>
             </div>
           ) : (
-            <Suspense fallback={<Loading label={t('Loading…')} />}>
-              <Outlet key={acting?.patientId ?? 'self'} />
-            </Suspense>
+            <LegalGate>
+              <Suspense fallback={<Loading label={t('Loading…')} />}>
+                <Outlet key={acting?.patientId ?? 'self'} />
+              </Suspense>
+            </LegalGate>
           )}
         </main>
       </div>
       <footer className="footer muted">
-        Pacient · {t('Access to health records is logged and audited.')}
+        Pacient · {t('Access to health records is logged and audited.')}{' '}
+        <Link to="/terms">{t('Terms of use')}</Link> ·{' '}
+        <Link to="/privacy">{t('Privacy notice')}</Link>
         {user.role === 'PATIENT' &&
           ` ${t('In an emergency call 112 — this portal is not monitored around the clock.')}`}
       </footer>

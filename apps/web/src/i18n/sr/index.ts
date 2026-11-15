@@ -60,6 +60,10 @@ import { labwork } from './labwork';
 import { proms } from './proms';
 import { navigation } from './navigation';
 import { journey } from './journey';
+import { admin } from './admin';
+import { adminusers } from './adminusers';
+import { subscriptions } from './subscriptions';
+import { platform } from './platform';
 
 export const sr: Record<string, string> = {
   ...common,
@@ -124,4 +128,8 @@ export const sr: Record<string, string> = {
   ...proms,
   ...navigation,
   ...journey,
+  ...admin,
+  ...adminusers,
+  ...subscriptions,
+  ...platform,
 };

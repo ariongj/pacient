@@ -13,6 +13,9 @@ import { HISTORY_OPERATIONS, HISTORY_TAGS } from './history.js';
 import { ACCESSREVIEWS_OPERATIONS, ACCESSREVIEWS_TAGS } from './accessreviews.js';
 import { TERMINOLOGY_OPERATIONS, TERMINOLOGY_TAGS } from './terminology.js';
 import { SUPPORT_OPERATIONS, SUPPORT_TAGS } from './support.js';
+import { ADMINUSERS_OPERATIONS, ADMINUSERS_TAGS } from './adminusers.js';
+import { SUBSCRIPTIONS_OPERATIONS, SUBSCRIPTIONS_TAGS } from './subscriptions.js';
+import { PLATFORM_OPERATIONS, PLATFORM_TAGS } from './platform.js';
 import { LABWORK_OPERATIONS, LABWORK_TAGS } from './labwork.js';
 import { PROMS_OPERATIONS, PROMS_TAGS } from './proms.js';
 import { REMOTE_OPERATIONS, REMOTE_TAGS } from './remote.js';
@@ -130,6 +133,9 @@ export const TAGS: { name: string; description: string }[] = [
   ...ACCESSREVIEWS_TAGS,
   ...TERMINOLOGY_TAGS,
   ...SUPPORT_TAGS,
+  ...ADMINUSERS_TAGS,
+  ...SUBSCRIPTIONS_TAGS,
+  ...PLATFORM_TAGS,
   ...LABWORK_TAGS,
   ...PROMS_TAGS,
   ...REMOTE_TAGS,
@@ -867,6 +873,9 @@ OPERATIONS.push(
   ...ACCESSREVIEWS_OPERATIONS,
   ...TERMINOLOGY_OPERATIONS,
   ...SUPPORT_OPERATIONS,
+  ...ADMINUSERS_OPERATIONS,
+  ...SUBSCRIPTIONS_OPERATIONS,
+  ...PLATFORM_OPERATIONS,
   ...LABWORK_OPERATIONS,
   ...PROMS_OPERATIONS,
   ...REMOTE_OPERATIONS,

@@ -3,6 +3,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   customType,
   date,
   index,
@@ -42,6 +43,12 @@ export const roleEnum = pgEnum('role', [
   'RECEPTION',
   'LAB_TECHNICIAN',
   'IT_SUPPORT',
+  /**
+   * Platform administrator (the operator of the service): users, facilities' subscriptions and
+   * invoices, operator settings, terms and privacy notice. No clinical or patient-record access.
+   * Deliberately not in STAFF_ROLES, so no staff endpoint is opened to it by accident.
+   */
+  'ADMIN',
 ]);
 export const STAFF_ROLES = [
   'MINISTRY',
@@ -4723,4 +4730,290 @@ export const donationTestResults = pgTable(
     testedAt: timestamp('tested_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('donation_test_results_donation_uq').on(t.donationId)],
+);
+
+/* ------------------------------------------------------------------ operator: subscriptions -- */
+
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'TRIAL',
+  'ACTIVE',
+  'PAST_DUE',
+  'SUSPENDED',
+  'CANCELLED',
+  'EXPIRED',
+]);
+export const billingCycleEnum = pgEnum('billing_cycle', ['MONTHLY', 'YEARLY']);
+export const invoiceStatusEnum = pgEnum('invoice_status', ['OPEN', 'PAID', 'VOID']);
+export const subscriptionEventTypeEnum = pgEnum('subscription_event_type', [
+  'CREATED',
+  'TRIAL_STARTED',
+  'ACTIVATED',
+  'PLAN_CHANGED',
+  'SEATS_CHANGED',
+  'PRICE_CHANGED',
+  'CYCLE_CHANGED',
+  'RENEWED',
+  'INVOICE_ISSUED',
+  'PAYMENT_RECORDED',
+  'INVOICE_VOIDED',
+  'MARKED_PAST_DUE',
+  'SUSPENDED',
+  'REACTIVATED',
+  'CANCELLATION_SCHEDULED',
+  'CANCELLATION_WITHDRAWN',
+  'CANCELLED',
+  'EXPIRED',
+  'REMINDER_SENT',
+  'NOTE',
+]);
+
+/** What a facility can subscribe to. Prices in cents of `currency`; null seat limit = unlimited. */
+export const subscriptionPlans = pgTable(
+  'subscription_plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 40 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    description: varchar('description', { length: 1000 }),
+    monthlyPriceCents: integer('monthly_price_cents').notNull(),
+    yearlyPriceCents: integer('yearly_price_cents').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+    /** Staff accounts (seats) included; null = unlimited. Patients never count. */
+    seatLimit: integer('seat_limit'),
+    /** Short selling points shown with the plan (plain text lines). */
+    features: jsonb('features').$type<string[]>().notNull().default([]),
+    isActive: boolean('is_active').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('subscription_plans_code_uq').on(t.code),
+    check(
+      'subscription_plans_prices_ck',
+      sql`${t.monthlyPriceCents} >= 0 AND ${t.yearlyPriceCents} >= 0`,
+    ),
+    check('subscription_plans_seats_ck', sql`${t.seatLimit} IS NULL OR ${t.seatLimit} > 0`),
+  ],
+);
+
+/**
+ * A facility's subscription to the service: one row per facility, kept current. Every change is
+ * also written to subscription_events (append-only), which is the subscription history.
+ * The status never restricts clinical access: it governs onboarding of new staff and reminders.
+ */
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => subscriptionPlans.id, { onDelete: 'restrict' }),
+    status: subscriptionStatusEnum('status').notNull(),
+    billingCycle: billingCycleEnum('billing_cycle').notNull().default('MONTHLY'),
+    /** Price per billing cycle in cents (copied from the plan, may be negotiated). */
+    priceCents: integer('price_cents').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+    /** Seats purchased; null = the plan's limit. */
+    seats: integer('seats'),
+    trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    currentPeriodStart: timestamp('current_period_start', { withTimezone: true }).notNull(),
+    currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }).notNull(),
+    cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+    pastDueSince: timestamp('past_due_since', { withTimezone: true }),
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    notes: varchar('notes', { length: 2000 }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('subscriptions_facility_uq').on(t.facilityId),
+    index('subscriptions_status_idx').on(t.status, t.currentPeriodEnd),
+    check('subscriptions_price_ck', sql`${t.priceCents} >= 0`),
+    check('subscriptions_seats_ck', sql`${t.seats} IS NULL OR ${t.seats} > 0`),
+    check('subscriptions_period_ck', sql`${t.currentPeriodEnd} > ${t.currentPeriodStart}`),
+  ],
+);
+
+/** Subscription history: append-only (database trigger). actor_id null = the system. */
+export const subscriptionEvents = pgTable(
+  'subscription_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    type: subscriptionEventTypeEnum('type').notNull(),
+    fromStatus: subscriptionStatusEnum('from_status'),
+    toStatus: subscriptionStatusEnum('to_status'),
+    fromPlanId: uuid('from_plan_id').references(() => subscriptionPlans.id, {
+      onDelete: 'restrict',
+    }),
+    toPlanId: uuid('to_plan_id').references(() => subscriptionPlans.id, { onDelete: 'restrict' }),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    note: varchar('note', { length: 1000 }),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('subscription_events_subscription_idx').on(t.subscriptionId, t.createdAt),
+    index('subscription_events_facility_idx').on(t.facilityId, t.createdAt),
+  ],
+);
+
+/** Gapless invoice numbers per year (row-locked counter). */
+export const invoiceCounters = pgTable('invoice_counters', {
+  year: integer('year').primaryKey(),
+  last: integer('last').notNull().default(0),
+});
+
+/**
+ * Invoices to facilities. Number, amounts, period and the issuer/customer snapshots are fixed once
+ * issued (database trigger); only payment and voiding change an invoice afterwards.
+ */
+export const invoices = pgTable(
+  'invoices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: varchar('number', { length: 30 }).notNull(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'restrict' }),
+    periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+    periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+    description: varchar('description', { length: 300 }).notNull(),
+    /** Net amount in cents; tax at tax_rate_bp basis points (1800 = 18 %). */
+    netCents: integer('net_cents').notNull(),
+    taxRateBp: integer('tax_rate_bp').notNull().default(0),
+    taxCents: integer('tax_cents').notNull().default(0),
+    totalCents: integer('total_cents').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+    status: invoiceStatusEnum('status').notNull().default('OPEN'),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    paymentMethod: varchar('payment_method', { length: 40 }),
+    paymentReference: varchar('payment_reference', { length: 120 }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidReason: varchar('void_reason', { length: 500 }),
+    /** Operator details at the time of issue (name, address, fiscal number, IBAN, …). */
+    issuer: jsonb('issuer').$type<Record<string, string | null>>().notNull(),
+    /** Customer (facility) details at the time of issue. */
+    customer: jsonb('customer').$type<Record<string, string | null>>().notNull(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('invoices_number_uq').on(t.number),
+    index('invoices_facility_idx').on(t.facilityId, t.issuedAt),
+    index('invoices_status_due_idx').on(t.status, t.dueAt),
+    check(
+      'invoices_amounts_ck',
+      sql`${t.netCents} >= 0 AND ${t.taxCents} >= 0 AND ${t.totalCents} = ${t.netCents} + ${t.taxCents}`,
+    ),
+  ],
+);
+
+/* ------------------------------------------------------------------ operator: platform ------- */
+
+/**
+ * The operator of the service and its rules (one row, id = 1): shown on invoices, the legal
+ * pages and the footer; billing rules for the subscription worker; an optional notice to all users.
+ */
+export const platformSettings = pgTable(
+  'platform_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    operatorName: varchar('operator_name', { length: 200 }).notNull().default(''),
+    operatorAddress: varchar('operator_address', { length: 500 }).notNull().default(''),
+    /** Business registration / fiscal number (NUI in Kosovo). */
+    operatorFiscalNumber: varchar('operator_fiscal_number', { length: 40 }),
+    operatorVatNumber: varchar('operator_vat_number', { length: 40 }),
+    operatorIban: varchar('operator_iban', { length: 40 }),
+    operatorBank: varchar('operator_bank', { length: 120 }),
+    supportEmail: varchar('support_email', { length: 254 }),
+    supportPhone: varchar('support_phone', { length: 40 }),
+    /** Data protection officer / privacy contact for the privacy notice. */
+    privacyEmail: varchar('privacy_email', { length: 254 }),
+    invoicePrefix: varchar('invoice_prefix', { length: 10 }).notNull().default('PAC'),
+    paymentTermsDays: integer('payment_terms_days').notNull().default(14),
+    /** VAT in basis points (0 = not VAT-registered; 1800 = 18 %). */
+    vatRateBp: integer('vat_rate_bp').notNull().default(0),
+    trialDays: integer('trial_days').notNull().default(30),
+    /** Days an invoice may stay unpaid after its due date before the subscription is suspended. */
+    graceDays: integer('grace_days').notNull().default(30),
+    /** Notice shown to every signed-in user (e.g. planned maintenance) until notice_until. */
+    noticeText: varchar('notice_text', { length: 300 }),
+    noticeTone: varchar('notice_tone', { length: 10 }).notNull().default('INFO'),
+    noticeUntil: timestamp('notice_until', { withTimezone: true }),
+    updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('platform_settings_single_ck', sql`${t.id} = 1`),
+    check(
+      'platform_settings_rules_ck',
+      sql`${t.paymentTermsDays} BETWEEN 0 AND 120 AND ${t.vatRateBp} BETWEEN 0 AND 5000 AND ${t.trialDays} BETWEEN 0 AND 365 AND ${t.graceDays} BETWEEN 0 AND 365`,
+    ),
+    check('platform_settings_tone_ck', sql`${t.noticeTone} IN ('INFO', 'WARNING')`),
+  ],
+);
+
+export const legalDocumentKindEnum = pgEnum('legal_document_kind', ['TERMS', 'PRIVACY']);
+
+/**
+ * Terms of use and privacy notice, versioned per language. A draft (published_at null) can be
+ * edited; once published, title and body are fixed (database trigger). The current version of a
+ * kind is the newest published version.
+ */
+export const legalDocuments = pgTable(
+  'legal_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: legalDocumentKindEnum('kind').notNull(),
+    version: varchar('version', { length: 20 }).notNull(),
+    locale: varchar('locale', { length: 5 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    /** Markdown-like plain text: paragraphs, "# " headings, "- " list items. */
+    body: text('body').notNull(),
+    /** Users must accept this version at their next sign-in. */
+    requiresAcceptance: boolean('requires_acceptance').notNull().default(true),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('legal_documents_version_uq').on(t.kind, t.version, t.locale),
+    index('legal_documents_published_idx').on(t.kind, t.publishedAt),
+  ],
+);
+
+/** Who accepted which version, when (append-only). */
+export const legalAcceptances = pgTable(
+  'legal_acceptances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    kind: legalDocumentKindEnum('kind').notNull(),
+    version: varchar('version', { length: 20 }).notNull(),
+    locale: varchar('locale', { length: 5 }).notNull(),
+    ip: varchar('ip', { length: 64 }),
+    userAgent: varchar('user_agent', { length: 300 }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('legal_acceptances_user_version_uq').on(t.userId, t.kind, t.version),
+    index('legal_acceptances_kind_version_idx').on(t.kind, t.version),
+  ],
 );

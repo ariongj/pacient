@@ -9,6 +9,44 @@ import type { Role } from './api/types';
 import { lazy, Suspense, type ReactElement } from 'react';
 
 // Each page is loaded when it is first opened, so nobody downloads the whole application.
+// Operator of the service: platform administrator, subscriptions, terms and privacy notice.
+const AdminHome = lazy(() =>
+  import('./pages/admin/AdminHome').then((m) => ({ default: m.AdminHome })),
+);
+const AdminUsers = lazy(() =>
+  import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })),
+);
+const AdminUser = lazy(() =>
+  import('./pages/admin/AdminUser').then((m) => ({ default: m.AdminUser })),
+);
+const Organizations = lazy(() =>
+  import('./pages/admin/Organizations').then((m) => ({ default: m.Organizations })),
+);
+const Organization = lazy(() =>
+  import('./pages/admin/Organization').then((m) => ({ default: m.Organization })),
+);
+const Plans = lazy(() => import('./pages/admin/Plans').then((m) => ({ default: m.Plans })));
+const Invoices = lazy(() =>
+  import('./pages/admin/Invoices').then((m) => ({ default: m.Invoices })),
+);
+const InvoiceView = lazy(() =>
+  import('./pages/admin/InvoiceView').then((m) => ({ default: m.InvoiceView })),
+);
+const PlatformSettings = lazy(() =>
+  import('./pages/admin/PlatformSettings').then((m) => ({ default: m.PlatformSettings })),
+);
+const LegalAdmin = lazy(() =>
+  import('./pages/admin/LegalAdmin').then((m) => ({ default: m.LegalAdmin })),
+);
+const AdminAudit = lazy(() =>
+  import('./pages/admin/AdminAudit').then((m) => ({ default: m.AdminAudit })),
+);
+const SubscriptionPage = lazy(() =>
+  import('./pages/director/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })),
+);
+const LegalPage = lazy(() =>
+  import('./pages/public/LegalPage').then((m) => ({ default: m.LegalPage })),
+);
 const ModulesPage = lazy(() =>
   import('./pages/shared/ModulesPage').then((m) => ({ default: m.ModulesPage })),
 );
@@ -413,6 +451,8 @@ export function App() {
         <Route path="/setup-two-step" element={<MfaSetupPage />} />
         <Route path="/verify" element={<VerifyCertificatePage />} />
         <Route path="/open-data" element={<OpenDataPage />} />
+        <Route path="/terms" element={<LegalPage />} />
+        <Route path="/privacy" element={<LegalPage />} />
         <Route path="/verify/:code" element={<VerifyCertificatePage />} />
         <Route path="/" element={<HomeRedirect />} />
 
@@ -666,6 +706,29 @@ export function App() {
             )}
           />
           <Route path="/support" element={guard(STAFF, <SupportPage />)} />
+          <Route path="/admin" element={guard(['ADMIN'], <AdminHome />)} />
+          <Route path="/admin/users" element={guard(['ADMIN'], <AdminUsers />)} />
+          <Route path="/admin/users/:id" element={guard(['ADMIN'], <AdminUser />)} />
+          <Route path="/admin/organizations" element={guard(['ADMIN'], <Organizations />)} />
+          <Route
+            path="/admin/organizations/:facilityId"
+            element={guard(['ADMIN'], <Organization />)}
+          />
+          <Route path="/admin/plans" element={guard(['ADMIN'], <Plans />)} />
+          <Route path="/admin/invoices" element={guard(['ADMIN'], <Invoices />)} />
+          <Route path="/admin/invoices/:id" element={guard(['ADMIN'], <InvoiceView />)} />
+          <Route path="/admin/settings" element={guard(['ADMIN'], <PlatformSettings />)} />
+          <Route path="/admin/legal" element={guard(['ADMIN'], <LegalAdmin />)} />
+          <Route path="/admin/health" element={guard(['ADMIN'], <SystemHealth />)} />
+          <Route path="/admin/audit" element={guard(['ADMIN'], <AdminAudit />)} />
+          <Route
+            path="/director/subscription"
+            element={guard(['DIRECTOR'], <SubscriptionPage />)}
+          />
+          <Route
+            path="/director/subscription/invoices/:id"
+            element={guard(['DIRECTOR'], <InvoiceView />)}
+          />
           <Route
             path="/lab"
             element={guard(['LAB_TECHNICIAN', 'DOCTOR', 'DIRECTOR'], <LabWorkPage />)}

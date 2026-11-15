@@ -122,8 +122,11 @@ export async function metricsHandler(req: Request, res: Response) {
 export const monitoringRouter = Router();
 monitoringRouter.use(authenticate);
 
-/** Health summary for the System health page (Ministry: national, director: own facility). */
-monitoringRouter.get('/health', requireRole('MINISTRY', 'DIRECTOR'), async (req, res) => {
+/**
+ * Health summary for the System health page (Ministry and the platform administrator: national;
+ * director: own facility). Counts only, never patient data.
+ */
+monitoringRouter.get('/health', requireRole('MINISTRY', 'DIRECTOR', 'ADMIN'), async (req, res) => {
   const ctx = requireAuth(req);
   const facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId : null;
   if (ctx.role === 'DIRECTOR' && !facilityId) throw forbidden();

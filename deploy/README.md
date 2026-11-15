@@ -65,13 +65,15 @@ the approved API DNS record resolves, add a dedicated HTTPS route to the existin
 its verified network path, validate it, and perform a graceful reload (not a service restart).
 Preserve all existing routes and keep a protected copy of the prior proxy configuration.
 
-Create the first Ministry account only for the owner's confirmed email and with a private
+Create the first account – the platform administrator, who then invites the Ministry and onboards
+facilities from the admin portal – only for the owner's confirmed email and with a private
 activation handoff. Do not seed the published development passwords or disable staff MFA.
-The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH` command refuses if any
-account already exists, creates a single-use 72-hour invitation, and writes its URL only to a
-new 0600 file. Run it inside the API image with a temporary private bind mount; do not expose
-that directory through HTTP. The owner chooses their password through the activation page.
-`deploy/first-admin.sh OWNER_EMAIL` does all of this (private folder 0700, file 0600, runs as you):
+The included `dist/ops/bootstrap-admin.js EMAIL PRIVATE_OUTPUT_PATH [ADMIN|MINISTRY]` command
+refuses if any account already exists, creates a single-use 72-hour invitation, and writes its URL
+only to a new 0600 file. Run it inside the API image with a temporary private bind mount; do not
+expose that directory through HTTP. The owner chooses their password through the activation page.
+`deploy/first-admin.sh OWNER_EMAIL [ADMIN|MINISTRY]` does all of this (private folder 0700, file
+0600, runs as you; default ADMIN):
 
 ```sh
 deploy/first-admin.sh owner@example.org   # link in ~/pacienti-private/invite.txt; delete it after use

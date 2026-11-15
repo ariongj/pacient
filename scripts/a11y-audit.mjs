@@ -105,6 +105,7 @@ const PAGES = {
     '/director',
     '/director/reports',
     '/director/staff',
+    '/director/subscription',
     '/director/units',
     '/director/duplicates',
     '/director/integrations',
@@ -160,6 +161,18 @@ const PAGES = {
   ],
   'lab@pacient.local': ['/lab', '/terminology', '/support'],
   'it@pacient.local': ['/support'],
+  'admin@pacient.local': [
+    '/admin',
+    '/admin/users',
+    '/admin/organizations',
+    '/admin/invoices',
+    '/admin/plans',
+    '/admin/settings',
+    '/admin/legal',
+    '/admin/health',
+    '/admin/audit',
+    '/modules',
+  ],
 };
 
 const browser = await chromium.launch();

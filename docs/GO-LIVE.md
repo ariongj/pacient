@@ -48,10 +48,24 @@ restart, a proxy that serves other sites.
 deploy/first-admin.sh owner@example.org
 ```
 
+This creates the **platform administrator** – the operator of the service, who manages accounts,
+facilities' subscriptions and invoices, and the terms of use and privacy notice, but never sees
+patient records. (For a Ministry-run installation without an operator, add `MINISTRY`.)
+
 The single-use activation link (valid 72 hours) is written only to
 `~/pacienti-private/invite.txt` – never printed or e-mailed. Open it, choose a password, set up
 two-step sign-in with an authenticator app and store the recovery codes. Then delete the file.
-The administrator adds facilities and staff from the Ministry workspace.
+
+Then, in the administrator's portal (see [OPERATOR.md](OPERATOR.md)):
+
+1. **Platform › Operator settings**: company name, address, fiscal number, IBAN, support and privacy
+   contacts, payment terms and VAT – they appear on invoices and the legal pages.
+2. **Platform › Terms and privacy**: start from the draft templates, **have them reviewed by a
+   lawyer**, then publish. Every user accepts them at their next sign-in.
+3. **Customers and subscriptions › Plans**: check the plans and prices.
+4. **Users**: invite the Ministry officials; **Customers and subscriptions**: add each facility as a
+   customer with its first director and a trial or paid subscription. Directors then invite their
+   own staff.
 
 ## 4. Frontend on GitHub Pages
 

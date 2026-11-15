@@ -180,6 +180,7 @@ choice is saved, and notifications, emails and SMS follow it. Sign in with any d
 
 | Role       | Email                       |
 | ---------- | --------------------------- |
+| Platform   | `admin@pacient.local`       |
 | Ministry   | `minister@pacient.local`    |
 | Director   | `director@pacient.local`    |
 | Doctor     | `doctor@pacient.local`      |

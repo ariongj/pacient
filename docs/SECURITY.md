@@ -14,6 +14,7 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 | Reception  | Never                                                                                                       | Own facility's registered patients | –                               |
 | Director   | Never                                                                                                       | Own facility's registered patients | Own facility                    |
 | Ministry   | Never                                                                                                       | Never                              | National, small-cell suppressed |
+| Platform   | Never                                                                                                       | Never                              | Operational counts only         |
 
 - **Institution boundaries.** Patient search, care-team assignment and emergency access never cross
   facilities. A national ID match at another facility is not disclosed.
@@ -23,6 +24,18 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - **Chain of command for accounts.** The Ministry appoints directors and Ministry officials;
   directors onboard doctors for their own facility only (a facility in the request body is
   ignored). Nobody can grant themselves a role, and nobody can deactivate their own account.
+- **Platform administrator (operator of the service).** Manages accounts of every role (invite,
+  disable, unlock, password reset e-mail, two-step reset, sign out everywhere, role or facility
+  change), facilities' subscriptions and invoices, operator settings, and the terms of use and
+  privacy notice – never a patient record: the role is not a staff role, the access policy denies
+  it every record and demographics, and responses about patient accounts carry account data only.
+  Every action needs a reason where it can lock someone out, is audited (administrative audit
+  view) and cannot target one's own account; the last active administrator cannot be removed; a
+  two-step reset notifies the person. The first account of an installation is this
+  administrator, invited through a private file (`deploy/first-admin.sh`).
+- **Subscriptions never gate care.** A facility's subscription status (unpaid, suspended,
+  cancelled) never affects sign-in, existing accounts or record access; it only stops new staff
+  accounts (clinical safety case H74).
 - **Patients never edit clinical content.** They submit correction requests that a clinician reviews.
 - **Referrals are the only cross-institution path.** A pending referral shares only the written
   summary and minimal demographics with the receiving facility; accepting it creates a care

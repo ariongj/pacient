@@ -458,7 +458,7 @@ export function App() {
 
         <Route
           element={
-            <RequireRole roles={[...STAFF, 'PATIENT']}>
+            <RequireRole roles={[...STAFF, 'PATIENT', 'ADMIN']}>
               <Layout />
             </RequireRole>
           }

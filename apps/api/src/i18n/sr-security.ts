@@ -6,4 +6,6 @@ export const srSecurity: Record<string, string> = {
   'A passkey was added to your account': 'Na Vaš nalog je dodat pristupni ključ',
   'Passkey "{name}". If you did not add it, remove it under Account › Security and change your password.':
     'Pristupni ključ „{name}”. Ako ga niste Vi dodali, uklonite ga u odeljku Nalog › Bezbednost i promenite lozinku.',
+  'Your two-step sign-in was reset by the administrator':
+    'Administrator je resetovao vašu prijavu u dva koraka',
 };

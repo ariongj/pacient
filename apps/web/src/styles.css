@@ -847,6 +847,8 @@ textarea {
 }
 .search-bar {
   display: flex;
+  /* Also on a <form class="search-bar">, which would otherwise keep the column layout of forms. */
+  flex-direction: row;
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: flex-end;

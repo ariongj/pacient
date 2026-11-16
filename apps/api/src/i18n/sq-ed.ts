@@ -4,4 +4,8 @@ export const sqEd: Record<string, string> = {
     'Pacient shumë urgjent në emergjencë (niveli {level})',
   'A patient in the emergency department was assigned to you':
     'Ju është caktuar një pacient në emergjencë',
+  'A patient in your care attended the emergency department':
+    'Një pacient nën kujdesin tuaj u paraqit në emergjencë',
+  'Your emergency department visit is in your record':
+    'Vizita juaj në emergjencë është në kartelën tuaj',
 };

@@ -56,6 +56,24 @@ The single-use activation link (valid 72 hours) is written only to
 `~/pacienti-private/invite.txt` – never printed or e-mailed. Open it, choose a password, set up
 two-step sign-in with an authenticator app and store the recovery codes. Then delete the file.
 
+**Before inviting anyone, set up e-mail.** On a real installation activation links, password
+resets and notifications go out only by e-mail (the first administrator is the one exception, via
+the private file). Open `.env.vps` in an editor (e.g. `nano .env.vps` – typing the password into
+a command would leave it in the shell history) and add your provider's relay:
+
+```
+SMTP_URL=smtps://user:password@smtp.example.org:465
+EMAIL_FROM=Pacient <no-reply@pacienti.itdks.tech>
+```
+
+Then apply it:
+
+```bash
+deploy/go-live.sh
+```
+
+**Platform › System health** shows e-mail that is waiting or failed.
+
 Then, in the administrator's portal (see [OPERATOR.md](OPERATOR.md)):
 
 1. **Platform › Operator settings**: company name, address, fiscal number, IBAN, support and privacy
@@ -123,8 +141,6 @@ frontend redeploys by itself when the branch changes.
 
 ## Optional, any time
 
-- **E-mail** (activation, password reset, notifications): add `SMTP_URL` and `EMAIL_FROM` to
-  `.env.vps`, then run `deploy/go-live.sh` again. Until then e-mail waits in the outbox.
 - **SMS**, **document malware scanning**, **radiology images (PACS)**, **object storage**,
   **point-in-time recovery** and **monitoring**: see [deploy/README.md](../deploy/README.md).
 

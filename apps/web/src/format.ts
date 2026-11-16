@@ -127,6 +127,7 @@ export function age(dateOfBirth: string): number {
 const ROLE_NAMES: Record<string, string> = {
   IT_SUPPORT: 'IT support',
   LAB_TECHNICIAN: 'Laboratory technician',
+  ADMIN: 'Platform administrator',
 };
 
 export function humanize(value: string | null | undefined): string {

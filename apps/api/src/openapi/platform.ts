@@ -1,6 +1,6 @@
-import type { ModuleOperation } from './modules.js';
+import { bool, dateTime, enumOf, int, obj, op, q, str, type ModuleOperation } from './modules.js';
 
-/** OpenAPI entries: Operator settings, the administrator’s overview, terms of use and privacy notice. */
+/** OpenAPI entries: operator settings, the administrator's overview, terms of use and privacy notice. */
 export const PLATFORM_TAGS = [
   {
     name: 'Platform',
@@ -9,4 +9,139 @@ export const PLATFORM_TAGS = [
   },
 ];
 
-export const PLATFORM_OPERATIONS: ModuleOperation[] = [];
+const T = 'Platform';
+const ADMIN = 'ADMIN (platform administrator); never clinical data';
+const kindEnum = enumOf('TERMS', 'PRIVACY');
+const localeEnum = enumOf('sq', 'sr', 'en');
+const version = str({ pattern: '^[0-9A-Za-z][0-9A-Za-z._-]{0,19}$' });
+
+/** The public legal text is addressed by its kind ("terms" or "privacy"), not by an id. */
+const legalByKind: ModuleOperation = {
+  ...op('get', '/legal/{kind}', T, 'The current terms of use or privacy notice', {
+    auth: 'none',
+    access: 'Public',
+    description:
+      'Newest published version in the requested language (fallback Albanian, then English), with the operator details filled in. 404 while nothing is published.',
+    params: [q('locale', localeEnum)],
+  }),
+  params: [
+    { name: 'kind', in: 'path', required: true, schema: enumOf('terms', 'privacy') },
+    q('locale', localeEnum),
+  ],
+};
+
+const settingsBody = obj({
+  operatorName: str({ maxLength: 200 }),
+  operatorAddress: str({ maxLength: 500 }),
+  operatorFiscalNumber: str({ maxLength: 40, nullable: true }),
+  operatorVatNumber: str({ maxLength: 40, nullable: true }),
+  operatorIban: str({ maxLength: 40, nullable: true }),
+  operatorBank: str({ maxLength: 120, nullable: true }),
+  supportEmail: str({ format: 'email', nullable: true }),
+  supportPhone: str({ maxLength: 40, nullable: true }),
+  privacyEmail: str({ format: 'email', nullable: true }),
+  invoicePrefix: str({ pattern: '^[A-Z0-9-]{1,10}$' }),
+  paymentTermsDays: int({ minimum: 0, maximum: 120 }),
+  vatRateBp: int({ minimum: 0, maximum: 5000, description: 'Basis points: 1800 = 18 %' }),
+  trialDays: int({ minimum: 0, maximum: 365 }),
+  graceDays: int({ minimum: 0, maximum: 365 }),
+  noticeText: str({ maxLength: 300, nullable: true }),
+  noticeTone: enumOf('INFO', 'WARNING'),
+  noticeUntil: { ...dateTime, nullable: true },
+});
+
+export const PLATFORM_OPERATIONS: ModuleOperation[] = [
+  op('get', '/platform/info', T, 'Who runs the service, how to reach them, the notice to users', {
+    auth: 'none',
+    access: 'Public',
+    description:
+      'Operator name and address, support and privacy contacts, and the notice to all users while it is valid.',
+  }),
+  op('get', '/legal/status', T, 'Terms and privacy versions the caller still has to accept', {
+    access: 'Any signed-in user',
+    params: [q('locale', localeEnum)],
+  }),
+  op('post', '/legal/accept', T, 'Accept the current version', {
+    access: 'Any signed-in user (for their own account)',
+    description:
+      'Only the current version can be accepted; accepting twice is harmless. Recorded with time, IP address and browser, and audited.',
+    body: obj({ kind: kindEnum, version: str({ maxLength: 20 }) }, ['kind', 'version']),
+    responses: { '200': 'Accepted; the versions still pending', '409': 'Not the current version' },
+  }),
+  legalByKind,
+
+  op('get', '/admin/overview', T, 'The administrator’s overview', {
+    access: ADMIN,
+    description:
+      'Facilities and subscriptions by status, accounts (active staff, pending activations, locked, staff without two-step sign-in, patient accounts), monthly recurring revenue, open and overdue invoices, renewals in the next 30 days, recent subscription events and administrative actions.',
+  }),
+  op('get', '/admin/settings', T, 'Operator settings', { access: ADMIN }),
+  op('put', '/admin/settings', T, 'Change operator settings', {
+    access: ADMIN,
+    description: 'Only the fields sent are changed; the changed field names are audited.',
+    body: settingsBody,
+  }),
+  op('get', '/admin/legal', T, 'Terms of use and privacy notice: every version and language', {
+    access: ADMIN,
+    description:
+      'Drafts and published documents, the current version of each kind, acceptance counts against active accounts, and operator details the texts need that are still empty.',
+  }),
+  op('get', '/admin/legal/templates', T, 'Starting text for a new version (draft)', {
+    access: ADMIN,
+    description: 'A draft to be reviewed by a lawyer before publishing; {placeholders} are kept.',
+    params: [q('kind', kindEnum), q('locale', localeEnum)],
+  }),
+  op('get', '/admin/legal/acceptances', T, 'Who accepted a version', {
+    access: ADMIN,
+    params: [q('kind', kindEnum), q('version', version)],
+  }),
+  op('get', '/admin/legal/{id}', T, 'One document with its text', { access: ADMIN }),
+  op('post', '/admin/legal', T, 'Create a draft', {
+    access: ADMIN,
+    body: obj(
+      {
+        kind: kindEnum,
+        version,
+        locale: localeEnum,
+        title: str({ minLength: 2, maxLength: 200 }),
+        body: str({ minLength: 20, maxLength: 100000 }),
+        requiresAcceptance: bool,
+      },
+      ['kind', 'version', 'locale', 'title', 'body'],
+    ),
+    responses: { '201': 'Draft created', '409': 'This version already exists in this language' },
+  }),
+  op('patch', '/admin/legal/{id}', T, 'Edit a draft', {
+    access: ADMIN,
+    body: obj({
+      title: str({ minLength: 2, maxLength: 200 }),
+      body: str({ minLength: 20, maxLength: 100000 }),
+      requiresAcceptance: bool,
+    }),
+    responses: { '200': 'Saved', '409': 'Published documents cannot be changed' },
+  }),
+  op('delete', '/admin/legal/{id}', T, 'Delete a draft', {
+    access: ADMIN,
+    responses: { '204': 'Deleted', '409': 'Published documents cannot be deleted' },
+  }),
+  op('post', '/admin/legal/{id}/publish', T, 'Publish a draft', {
+    access: ADMIN,
+    description:
+      'The text is fixed from now on (database trigger). When it asks for acceptance, every user accepts it at their next sign-in. The operator details the text refers to must be filled in first.',
+    responses: {
+      '200': 'Published',
+      '400': 'Operator settings missing',
+      '409': 'Already published',
+    },
+  }),
+  op('get', '/admin/audit', T, 'Administrative audit trail', {
+    access: ADMIN,
+    description:
+      'Actions on accounts (including invitations and status changes by directors and the Ministry), subscriptions and invoices, operator settings and legal texts, with actor and target names.',
+    params: [
+      q('category', enumOf('all', 'users', 'billing', 'platform')),
+      q('page', int({ minimum: 1 })),
+      q('pageSize', int({ minimum: 1, maximum: 100 })),
+    ],
+  }),
+];

@@ -58,6 +58,8 @@ const LETTER = Buffer.from(
 const browser = await chromium.launch();
 const results = [];
 const apiErrors = [];
+/** How many legal texts each account accepted at sign-in during this run. */
+const accepted = new Map();
 /** Denials a step expects, e.g. a record that is closed until a referral is accepted. */
 let expectedDenials = [];
 
@@ -98,6 +100,15 @@ async function signIn(email, password = PASSWORD) {
   await page.locator('button[type=submit]').click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20_000 });
   await settle(page);
+  // A new account accepts the current terms of use and privacy notice at its first sign-in.
+  for (let i = 0; i < 3; i++) {
+    const accept = page.getByRole('button', { name: 'Accept and continue' });
+    if (!(await accept.count())) break;
+    await page.getByLabel('I have read and accept this text').check();
+    await accept.click();
+    accepted.set(email, (accepted.get(email) ?? 0) + 1);
+    await settle(page);
+  }
   return { ctx, page };
 }
 
@@ -859,8 +870,11 @@ await step('Patient activates the portal account', async () => {
 
 await as(
   patient.email,
-  'Patient finds everything the cycle produced in their own record',
+  'Patient accepts the terms and finds everything the cycle produced in their record',
   async (page) => {
+    if (!accepted.get(patient.email)) {
+      throw new Error('the new account was not asked to accept the terms of use');
+    }
     for (const [path, needle] of [
       ['/portal/history', /Pneumonia|J18\.9|Cough/],
       ['/portal/results', /Haemoglobin/],

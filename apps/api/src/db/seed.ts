@@ -1295,8 +1295,9 @@ async function main() {
   await seedLicences({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
   // After licences and all staff accounts, so the review snapshots are realistic.
   await seedAccessreviews({ facilityId: ucc!.id, demoDoctorId: demoDoctor.id });
-  await seedSubscriptions({ adminId: platformAdmin!.id });
+  // Platform first: invoices copy the operator's details and VAT when they are issued.
   await seedPlatform({ adminId: platformAdmin!.id });
+  await seedSubscriptions({ adminId: platformAdmin!.id });
 
   console.log(`
 Seed complete. Demo accounts (password: ${DEMO_PASSWORD})

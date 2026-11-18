@@ -93,6 +93,13 @@ describe('catalogue', () => {
       .patch(`/api/v1/stock/catalog/${para}`)
       .set(bearer(w.tokens.ministry))
       .send({ isEssential: true });
+    // A change that does not mention "essential" leaves it as it is.
+    const renamed = await api()
+      .patch(`/api/v1/stock/catalog/${para}`)
+      .set(bearer(w.tokens.ministry))
+      .send({ strength: '500 mg' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.isEssential).toBe(true);
   });
 });
 

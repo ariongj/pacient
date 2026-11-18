@@ -52,6 +52,7 @@ import { srTerminology } from './sr-terminology.js';
 import { srSupport } from './sr-support.js';
 import { srLabwork } from './sr-labwork.js';
 import { srProms } from './sr-proms.js';
+import { srSubscriptions } from '../modules/subscriptions/messages.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -108,4 +109,5 @@ export const sr: Record<string, string> = {
   ...srSupport,
   ...srLabwork,
   ...srProms,
+  ...srSubscriptions,
 };

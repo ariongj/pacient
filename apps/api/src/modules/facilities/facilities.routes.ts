@@ -9,7 +9,7 @@ import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { ensureDefaultChannels } from '../channels/channels.routes.js';
 
-const FacilityInput = z.object({
+export const FacilityInput = z.object({
   code: z
     .string()
     .trim()

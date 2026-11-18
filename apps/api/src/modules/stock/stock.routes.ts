@@ -70,7 +70,11 @@ const CatalogInput = z.object({
     .optional()
     .nullable(),
 });
-const CatalogPatch = CatalogInput.partial().extend({ isActive: z.boolean().optional() });
+// No defaults on a change: a field that is not sent stays as it is (a .partial() keeps the
+// default, which would reset "essential" to false on every edit that does not mention it).
+const CatalogPatch = CatalogInput.extend({ isEssential: z.boolean() })
+  .partial()
+  .extend({ isActive: z.boolean().optional() });
 
 /** A pack barcode identifies exactly one catalogue item. */
 async function assertBarcodeFree(barcode: string | null | undefined, exceptId?: string) {

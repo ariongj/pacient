@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, max } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import {
@@ -66,6 +66,30 @@ describe('operator settings and the notice to users', () => {
     ];
     for (const body of bad) expect((await putSettings(body)).status).toBe(400);
 
+    // Other test files share this database and may have set the same values: start from empty.
+    await db
+      .update(platformSettings)
+      .set({
+        operatorName: '',
+        operatorAddress: '',
+        operatorIban: null,
+        invoicePrefix: 'PAC',
+        supportEmail: null,
+        privacyEmail: null,
+        vatRateBp: 0,
+      })
+      .where(eq(platformSettings.id, 1));
+    const settingsAudits = () =>
+      db
+        .select()
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.action, AuditAction.PLATFORM_SETTINGS_UPDATED),
+            eq(auditLogs.actorUserId, admin.id),
+          ),
+        );
+
     const res = await putSettings({
       operatorName: 'Operator Test SH.P.K.',
       operatorAddress: 'Rr. Testi 1, Prishtinë',
@@ -83,20 +107,13 @@ describe('operator settings and the notice to users', () => {
       vatRateBp: 1800,
       updatedById: admin.id,
     });
-    const [row] = await db
-      .select()
-      .from(auditLogs)
-      .where(eq(auditLogs.action, AuditAction.PLATFORM_SETTINGS_UPDATED));
+    const [row] = await settingsAudits();
     expect((row!.metadata as { fields: string[] }).fields).toEqual(
       expect.arrayContaining(['operatorName', 'operatorIban', 'invoicePrefix', 'vatRateBp']),
     );
     // Sending the same values again changes nothing and is not audited again.
     expect((await putSettings({ vatRateBp: 1800 })).status).toBe(200);
-    const rows = await db
-      .select()
-      .from(auditLogs)
-      .where(eq(auditLogs.action, AuditAction.PLATFORM_SETTINGS_UPDATED));
-    expect(rows).toHaveLength(1);
+    expect(await settingsAudits()).toHaveLength(1);
   });
 
   it('shows the operator and the notice publicly, only while the notice is valid', async () => {
@@ -395,12 +412,17 @@ describe('overview', () => {
     await db
       .insert(invoices)
       .values([invoice(`T-${now}-1`, 5000, -3), invoice(`T-${now}-2`, 7000, 10)]);
+    // The newest entry of the history, whatever other test files wrote (some simulate later dates).
+    const [newest] = await db
+      .select({ at: max(subscriptionEvents.createdAt) })
+      .from(subscriptionEvents);
     await db.insert(subscriptionEvents).values({
       subscriptionId: active!.id,
       facilityId: facility.id,
       type: 'ACTIVATED',
       toStatus: 'ACTIVE',
       actorId: admin.id,
+      createdAt: new Date(Math.max(now, newest?.at?.getTime() ?? 0) + 1000),
     });
     await createUser('NURSE', facility.id, { passwordHash: null });
     await createUser('DOCTOR', facility.id, { mfaEnabledAt: null });
@@ -480,10 +502,17 @@ describe('administrative audit', () => {
     });
 
     const billing = (await get('billing')).body;
-    expect(billing.items.map((i: { action: string }) => i.action)).toEqual([
-      AuditAction.INVOICE_PAID,
-    ]);
-    expect(billing.items[0].targetName).toBe(w.facility.name);
+    expect(
+      billing.items.every((i: { action: string }) =>
+        /^billing\.(plan|subscription|invoice)\./.test(i.action),
+      ),
+    ).toBe(true);
+    expect(
+      billing.items.some(
+        (i: { action: string; targetName: string | null }) =>
+          i.action === AuditAction.INVOICE_PAID && i.targetName === w.facility.name,
+      ),
+    ).toBe(true);
 
     const platform = (await get('platform')).body.items.map((i: { action: string }) => i.action);
     expect(platform).toEqual(
@@ -498,7 +527,7 @@ describe('administrative audit', () => {
     expect(all.items.some((i: { action: string }) => i.action === AuditAction.LEGAL_ACCEPTED)).toBe(
       false,
     );
-    expect(all.total).toBe(all.items.length);
+    expect(all.items.length).toBe(Math.min(all.total, 100));
     expect(
       all.items.some((i: { action: string }) => i.action === AuditAction.PAYMENT_RECEIVED),
     ).toBe(false);

@@ -11,6 +11,7 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
 import { revokeAllSessions } from '../auth/auth.service.js';
 import { autoLinkOnInvite, licencesOfUsers } from '../licences/licences.service.js';
+import { assertSeatAvailable } from '../subscriptions/subscriptions.service.js';
 
 /**
  * Staff management follows the chain of command:
@@ -165,6 +166,8 @@ staffRouter.post('/invitations', async (req, res) => {
   }
 
   const result = await db.transaction(async (tx) => {
+    // The facility's subscription may limit its staff accounts (never existing ones).
+    if (facilityId) await assertSeatAvailable(facilityId, tx);
     const invited = await createInvitedUser(
       tx,
       {
@@ -218,13 +221,22 @@ staffRouter.patch('/:id/status', async (req, res) => {
   if (id === ctx.userId) throw badRequest('You cannot change the status of your own account');
 
   const [target] = await db
-    .select({ id: users.id, role: users.role, facilityId: users.facilityId })
+    .select({
+      id: users.id,
+      role: users.role,
+      facilityId: users.facilityId,
+      isActive: users.isActive,
+    })
     .from(users)
     .where(and(eq(users.id, id), ne(users.role, 'PATIENT')));
   if (!target) throw notFound('Staff member not found');
   if (!canManage(ctx, target)) throw forbidden();
 
   await db.transaction(async (tx) => {
+    // Re-enabling an account takes a seat of the facility's subscription again.
+    if (isActive && !target.isActive && target.facilityId) {
+      await assertSeatAvailable(target.facilityId, tx);
+    }
     await tx.update(users).set({ isActive }).where(eq(users.id, id));
     await audit(
       {

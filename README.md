@@ -377,6 +377,8 @@ account with a one-off script or seed in a non-production environment).
 - [Performance](docs/PERFORMANCE.md) — load test, baseline and capacity planning
 - [Downtime](docs/DOWNTIME.md) — what to do when the system is unavailable, and recovery
 - [Partner API](docs/API.md) — keys, scopes, purpose of use, OpenAPI and FHIR
+- [Operator guide](docs/OPERATOR.md) — the administrator's portal: accounts, subscriptions,
+  invoices, operator settings, terms and privacy
 - [Go-live checklist](docs/GO-LIVE.md) — server, HTTPS, first administrator, GitHub Pages, checks and
   backups, step by step (rehearsed end to end)
 - [Deployment](deploy/README.md) — production setup, backups, PITR and monitoring

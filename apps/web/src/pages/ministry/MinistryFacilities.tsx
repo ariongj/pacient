@@ -68,7 +68,7 @@ function FacilityForm({ facility, onDone }: { facility?: Facility; onDone: () =>
           name="code"
           required
           defaultValue={facility?.code}
-          pattern="[A-Za-z0-9-]{2,32}"
+          pattern="[A-Za-z0-9\-]{2,32}"
           hint={t('Letters, digits and dashes, e.g. RH-FE')}
         />
         <TextField

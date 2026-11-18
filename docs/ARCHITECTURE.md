@@ -480,3 +480,28 @@ style, 1 hour) when `WEBRTC_TURN_*` are set. Calls are never recorded.
   AUDIT-C), `prom_assignments` (one active per patient and instrument) and append-only
   `prom_responses`; PHQ-9 safety flag alerts the care team at once; reminder worker.
 - **Capacity**: see [PERFORMANCE.md](PERFORMANCE.md).
+
+## Operator layer: administration, subscriptions and legal texts
+
+The service operator works in its own portal (role `ADMIN`, see [OPERATOR.md](OPERATOR.md)). `ADMIN`
+is not a staff role: no clinical or facility endpoint accepts it, and `/admin/*` accepts nothing
+else.
+
+- **Accounts** (`modules/admin`, `/admin/users`): search, invite, change, disable/enable, unlock,
+  password reset, two-step reset, sign out, resend invitation. Account data only; guardrails (not
+  on yourself, never the last administrator, patients handed over before a role change); every
+  action audited in the same transaction.
+- **Subscriptions** (`modules/subscriptions`, `/admin/plans`, `/admin/organizations`,
+  `/admin/subscriptions/:id/*`, `/admin/invoices`, and `/subscription` for directors):
+  `subscription_plans`, `subscriptions` (one per facility), append-only `subscription_events`
+  (the history), `invoices` with gapless numbers per year (`invoice_counters`) and issuer, customer
+  and VAT frozen at issue (trigger `invoices_guard()` allows only payment or voiding afterwards).
+  A worker runs the lifecycle every six hours – trial end, renewal, overdue, grace period,
+  reminders – one subscription per transaction under an advisory lock, idempotent.
+  **The status never restricts sign-in or clinical access**; it only stops new staff accounts
+  (`assertSeatAvailable` in staff invitations) and shows notices to directors.
+- **Platform** (`modules/platform`, `/admin/overview`, `/admin/settings`, `/admin/legal`,
+  `/admin/audit`; `/legal/*` and `/platform/info` for everyone): the single `platform_settings`
+  row, `legal_documents` (versions per language, immutable once published – trigger
+  `legal_documents_guard()`), append-only `legal_acceptances`. The web app's legal gate asks for
+  acceptance after sign-in and fails open.

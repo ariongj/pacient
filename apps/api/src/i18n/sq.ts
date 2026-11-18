@@ -52,6 +52,7 @@ import { sqTerminology } from './sq-terminology.js';
 import { sqSupport } from './sq-support.js';
 import { sqLabwork } from './sq-labwork.js';
 import { sqProms } from './sq-proms.js';
+import { sqSubscriptions } from '../modules/subscriptions/messages.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -108,4 +109,5 @@ export const sq: Record<string, string> = {
   ...sqSupport,
   ...sqLabwork,
   ...sqProms,
+  ...sqSubscriptions,
 };

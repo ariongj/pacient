@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { legalAcceptances, legalDocuments, platformSettings } from '../../db/schema.js';
 import type { LegalKind, LegalLocale } from './legal-templates.js';
@@ -108,34 +108,61 @@ export async function currentDocument(
   return { doc, version, requiresAcceptance: docs.some((d) => d.requiresAcceptance) };
 }
 
-/** Current versions this user still has to accept, in their language. */
+/**
+ * Whether the user has accepted the latest version of a kind that asked for acceptance, or a
+ * version published after it. Versions are ordered by their first publication, as for the current
+ * version. True when no version ever asked for acceptance.
+ */
+async function acceptedLatestRequired(
+  userId: string,
+  kind: LegalKind,
+  executor: Executor,
+): Promise<boolean> {
+  const { rows } = await executor.execute<{ satisfied: boolean }>(sql`
+    WITH versions AS (
+      SELECT version, min(published_at) AS first, bool_or(requires_acceptance) AS requires
+        FROM ${legalDocuments}
+       WHERE kind = ${kind} AND published_at IS NOT NULL
+       GROUP BY version
+    ), required AS (
+      SELECT max(first) AS since FROM versions WHERE requires
+    )
+    SELECT (SELECT since FROM required) IS NULL OR EXISTS (
+      SELECT 1
+        FROM ${legalAcceptances} a
+        JOIN versions v ON v.version = a.version
+       WHERE a.user_id = ${userId} AND a.kind = ${kind}
+         AND v.first >= (SELECT since FROM required)
+    ) AS satisfied
+  `);
+  return Boolean(rows[0]?.satisfied);
+}
+
+/**
+ * Current versions this user still has to accept, in their language. A current version that asks
+ * for acceptance is pending until it is accepted. One that does not (say, a typo correction) is
+ * still pending for a user who never accepted the latest version that did, e.g. an account
+ * created since: otherwise nobody new would ever agree to the terms. Accepting the current
+ * version satisfies both.
+ */
 export async function pendingDocuments(
   userId: string,
   locale: string,
   executor: Executor = db,
 ): Promise<CurrentDocument[]> {
-  const current = (
-    await Promise.all(LEGAL_KINDS.map((kind) => currentDocument(kind, locale, executor)))
-  ).filter((c): c is CurrentDocument => Boolean(c?.requiresAcceptance));
-  if (!current.length) return [];
-  const accepted = await executor
-    .select({ kind: legalAcceptances.kind, version: legalAcceptances.version })
-    .from(legalAcceptances)
-    .where(
-      and(
-        eq(legalAcceptances.userId, userId),
-        inArray(
-          legalAcceptances.kind,
-          current.map((c) => c.doc.kind),
-        ),
-      ),
-    );
-  return current.filter(
-    (c) => !accepted.some((a) => a.kind === c.doc.kind && a.version === c.version),
-  );
+  const pending: CurrentDocument[] = [];
+  for (const kind of LEGAL_KINDS) {
+    const current = await currentDocument(kind, locale, executor);
+    if (current && !(await acceptedLatestRequired(userId, kind, executor))) pending.push(current);
+  }
+  return pending;
 }
 
-/** A legal document as shown to readers: placeholders filled. */
+/**
+ * A legal document as shown to readers. Publishing writes the operator details into the text, so
+ * a published text reads as it was accepted whatever the settings say today; only texts published
+ * before that still hold placeholders, which are filled from the current settings.
+ */
 export function presentDocument(c: CurrentDocument, s: Settings) {
   return {
     id: c.doc.id,

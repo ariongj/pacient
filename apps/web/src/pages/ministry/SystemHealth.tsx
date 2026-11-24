@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useUser } from '../../auth/AuthContext';
 import { t, tn } from '../../i18n';
 import {
   downloadAuditExport,
@@ -239,6 +240,9 @@ function AuditExport() {
 
 export function SystemHealth() {
   const q = useSystemHealth();
+  // The page is shared with the platform administrator (/admin/health), but the audit export
+  // carries patient identifiers and is the Ministry's alone: the API refuses everyone else.
+  const canExportAudit = useUser().role === 'MINISTRY';
   return (
     <>
       <PageHeader
@@ -322,7 +326,7 @@ export function SystemHealth() {
                 ]}
               />
             </Card>
-            <AuditExport />
+            {canExportAudit && <AuditExport />}
           </div>
         )}
       </QueryView>

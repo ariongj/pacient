@@ -10,12 +10,12 @@ import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import { LegalText } from '../admin/platform/LegalText';
 
 /**
- * Public terms of use (/terms) and privacy notice (/privacy): the current published version in
- * the reader's language, with the operator's contact details. No sign-in needed.
+ * Public terms of use (/legal/terms) and privacy notice (/legal/privacy): the current published
+ * version in the reader's language, with the operator's contact details. No sign-in needed.
  */
 export function LegalPage() {
   const { pathname } = useLocation();
-  const kind: LegalKind = pathname.startsWith('/privacy') ? 'PRIVACY' : 'TERMS';
+  const kind: LegalKind = pathname.startsWith(kindPath('PRIVACY')) ? 'PRIVACY' : 'TERMS';
   const other: LegalKind = kind === 'TERMS' ? 'PRIVACY' : 'TERMS';
   const { locale } = useLocale();
   const { user } = useAuth();

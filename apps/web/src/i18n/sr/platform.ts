@@ -37,8 +37,8 @@ export const platform: Record<string, string> = {
     'Broj dana koliko faktura može ostati neplaćena posle roka. Suspenzija nikada ne blokira pristup kartonima pacijenata.',
   'Delete draft': 'Obriši nacrt',
   'Delete this draft?': 'Obrisati ovaj nacrt?',
-  'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is shown.':
-    'Podaci kao što su {operatorName} ili {privacyEmail} popunjavaju se iz podešavanja operatera kada se tekst prikaže.',
+  'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is published.':
+    'Podaci kao što su {operatorName} ili {privacyEmail} popunjavaju se iz podešavanja operatera kada se tekst objavi.',
   'Draft|legal document': 'Nacrt',
   'E-mail and SMS queues, integrations, response times.':
     'Redovi e-pošte i SMS-a, integracije, vremena odziva.',
@@ -199,4 +199,19 @@ export const platform: Record<string, string> = {
   'Use 1–10 letters, digits or dashes': 'Koristite 1–10 slova, cifara ili crtica',
   'Use a short version such as 1.0 or 2026-11':
     'Koristite kratku oznaku verzije, npr. 1.0 ili 2026-11',
+  'This IBAN is not valid: check its length and digits':
+    'Ovaj IBAN nije ispravan: proverite dužinu i cifre',
+  'With the operator details filled in, the title is too long':
+    'Sa popunjenim podacima operatera naslov je predugačak',
+  // Legal gate, publishing and acceptances (operator review fixes).
+  'The operator details it refers to are written into the text now: changing the operator settings later does not change this version.':
+    'Podaci operatera na koje tekst upućuje sada se upisuju u njega: kasnija promena podešavanja operatera ne menja ovu verziju.',
+  'Patient account|user account': 'Nalog pacijenta',
+  'Patients are not named: only that a patient account accepted, and when.':
+    'Pacijenti se ne navode po imenu: vidi se samo da je nalog pacijenta prihvatio tekst i kada.',
+  'Customers and billing': 'Klijenti i naplata',
+  'Your acceptance could not be recorded. You can work as usual; you will be asked again the next time you sign in.':
+    'Vaše prihvatanje nije moglo da se zabeleži. Možete da radite kao i obično; ponovo će vam biti zatraženo pri sledećoj prijavi.',
+  'Continue – you will be asked again next time':
+    'Nastavi – ponovo će vam biti zatraženo sledeći put',
 };

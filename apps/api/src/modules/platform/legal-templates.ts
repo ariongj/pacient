@@ -2,7 +2,7 @@
  * Starting texts for the terms of use and the privacy notice, in Albanian, Serbian (Latin) and
  * English. They describe how Pacient actually works, but they are DRAFTS: the operator's lawyer
  * must review them before they are published. Placeholders such as {operatorName} are filled from
- * the operator settings when the text is shown.
+ * the operator settings when the text is published.
  *
  * Format: plain text; "# " starts a heading, "- " a list item, a blank line separates paragraphs.
  */

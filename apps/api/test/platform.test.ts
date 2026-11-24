@@ -6,13 +6,22 @@ import {
   invoices,
   legalAcceptances,
   legalDocuments,
+  patients,
   platformSettings,
   subscriptionEvents,
   subscriptionPlans,
   subscriptions,
 } from '../src/db/schema.js';
 import { audit, AuditAction } from '../src/modules/audit/audit.service.js';
-import { api, bearer, createFacility, createUser, createWorld, login } from './helpers.js';
+import {
+  api,
+  bearer,
+  createFacility,
+  createPatient,
+  createUser,
+  createWorld,
+  login,
+} from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
 let admin: { id: string; token: string };
@@ -58,6 +67,11 @@ describe('operator settings and the notice to users', () => {
     const bad = [
       { supportEmail: 'not-an-email' },
       { operatorIban: '12 3456' },
+      // Too short for Kosovo, a swapped pair of digits, one digit missing: all caught.
+      { operatorIban: 'XK00 1' },
+      { operatorIban: 'XK05 1212 0123 4567 8960' },
+      { operatorIban: 'XK05 1212 0123 4567 890' },
+      { operatorIban: 'DE89 3704 0044 0532 0130 01' },
       { invoicePrefix: 'P A C' },
       { vatRateBp: 6000 },
       { paymentTermsDays: -1 },
@@ -114,6 +128,10 @@ describe('operator settings and the notice to users', () => {
     // Sending the same values again changes nothing and is not audited again.
     expect((await putSettings({ vatRateBp: 1800 })).status).toBe(200);
     expect(await settingsAudits()).toHaveLength(1);
+    // Other countries' IBANs pass with their own length and check digits.
+    const albanian = await putSettings({ operatorIban: 'AL47 2121 1009 0000 0002 3569 8741' });
+    expect(albanian.status).toBe(200);
+    expect((await putSettings({ operatorIban: 'XK05 1212 0123 4567 8906' })).status).toBe(200);
   });
 
   it('shows the operator and the notice publicly, only while the notice is valid', async () => {
@@ -332,6 +350,44 @@ describe('terms of use and privacy notice', () => {
     expect((await status(w.tokens.doctor)).body.pending).toEqual([]);
   });
 
+  it('writes the operator details into a text when it is published', async () => {
+    const privacy = await api().get('/api/v1/legal/privacy');
+    const [stored] = await db
+      .select()
+      .from(legalDocuments)
+      .where(eq(legalDocuments.id, privacy.body.id));
+    expect(stored!.body).toContain('Contact: privacy@example.org.');
+    expect(stored!.body).not.toMatch(/\{\w+\}/);
+
+    // Changing (or clearing) the operator details later does not change what users read and
+    // accepted, and cannot undo the "fill in first" rule for a published text.
+    expect((await putSettings({ privacyEmail: null, operatorName: 'Someone Else' })).status).toBe(
+      200,
+    );
+    const after = await api().get('/api/v1/legal/privacy');
+    expect(after.body).toMatchObject({ version: '1.0', body: privacy.body.body });
+    expect(after.body.body).toContain('privacy@example.org');
+    expect(after.body.body).not.toContain('—');
+    // The contact block next to the text is the operator as of today.
+    expect(after.body.operator).toMatchObject({ name: 'Someone Else', privacyEmail: null });
+    await putSettings({
+      privacyEmail: 'privacy@example.org',
+      operatorName: 'Operator Test SH.P.K.',
+    });
+
+    // A title that no longer fits once the details are filled in is refused, not cut.
+    const long = await createDoc({
+      kind: 'PRIVACY',
+      version: '1.1-draft',
+      locale: 'sq',
+      title: `${'T'.repeat(186)}{operatorName}`,
+      body: LONG,
+    });
+    expect(long.status).toBe(201);
+    expect((await publish(long.body.id)).status).toBe(400);
+    await api().delete(`/api/v1/admin/legal/${long.body.id}`).set(asAdmin());
+  });
+
   it('keeps acceptances append-only and counts them for the administrator', async () => {
     await expect(
       db
@@ -357,6 +413,63 @@ describe('terms of use and privacy notice', () => {
     expect(who.body).toMatchObject({ accepted: 1 });
     expect(who.body.latest[0]).toMatchObject({ userName: w.users.doctor.fullName, role: 'DOCTOR' });
     expect(who.body.activeAccounts).toBeGreaterThan(5);
+
+    // Patient accounts are listed by role and time only: no name.
+    expect((await accept(w.tokens.patient, 'TERMS', '2.0')).status).toBe(200);
+    const withPatient = await api()
+      .get('/api/v1/admin/legal/acceptances')
+      .query({ kind: 'TERMS', version: '2.0' })
+      .set(asAdmin());
+    expect(withPatient.body.accepted).toBe(2);
+    const patientRow = withPatient.body.latest.find((a: { role: string }) => a.role === 'PATIENT');
+    expect(patientRow).toMatchObject({ userName: null, acceptedAt: expect.any(String) });
+    expect(JSON.stringify(withPatient.body)).not.toContain(w.users.patientUser.fullName);
+  });
+
+  it('keeps asking users who never accepted when a newer version needs no acceptance', async () => {
+    // 2.1 only corrects a typo and does not ask for acceptance.
+    const v21 = await createDoc({
+      kind: 'TERMS',
+      version: '2.1',
+      locale: 'sq',
+      title: 'Kushtet e përdorimit 2.1',
+      body: LONG,
+      requiresAcceptance: false,
+    });
+    expect((await publish(v21.body.id)).status).toBe(200);
+    const terms = async (token: string) =>
+      ((await status(token)).body.pending as { kind: string; version: string }[]).filter(
+        (p) => p.kind === 'TERMS',
+      );
+
+    // Accepted 2.0, the latest version that asked: nothing more to do.
+    expect(await terms(w.tokens.doctor)).toEqual([]);
+    // Never accepted any version, or only one older than 2.0: asked to accept the current one.
+    expect(await terms(w.tokens.nurse)).toMatchObject([{ version: '2.1' }]);
+    const newcomer = await createUser('DOCTOR', w.facility.id);
+    const newcomerToken = await login(newcomer.email);
+    expect(await terms(newcomerToken)).toMatchObject([{ version: '2.1' }]);
+    const oldTimer = await createUser('NURSE', w.facility.id);
+    await db
+      .insert(legalAcceptances)
+      .values({ userId: oldTimer.id, kind: 'TERMS', version: '1.0', locale: 'sq' });
+    expect(await terms(await login(oldTimer.email))).toMatchObject([{ version: '2.1' }]);
+
+    // Accepting the current version satisfies it, also for later versions without acceptance.
+    expect((await accept(w.tokens.nurse, 'TERMS', '2.1')).status).toBe(200);
+    expect(await terms(w.tokens.nurse)).toEqual([]);
+    const v22 = await createDoc({
+      kind: 'TERMS',
+      version: '2.2',
+      locale: 'sq',
+      title: 'Kushtet e përdorimit 2.2',
+      body: LONG,
+      requiresAcceptance: false,
+    });
+    await publish(v22.body.id);
+    expect(await terms(w.tokens.nurse)).toEqual([]);
+    expect(await terms(w.tokens.doctor)).toEqual([]);
+    expect(await terms(newcomerToken)).toMatchObject([{ version: '2.2' }]);
   });
 });
 
@@ -501,10 +614,11 @@ describe('administrative audit', () => {
       targetName: w.users.nurse.fullName,
     });
 
+    // Customers (facilities the administrator created) and the operator's billing.
     const billing = (await get('billing')).body;
     expect(
       billing.items.every((i: { action: string }) =>
-        /^billing\.(plan|subscription|invoice)\./.test(i.action),
+        /^(billing\.(plan|subscription|invoice)|facility)\./.test(i.action),
       ),
     ).toBe(true);
     expect(
@@ -536,5 +650,87 @@ describe('administrative audit', () => {
     expect(recent).toContain(AuditAction.INVOICE_PAID);
     expect(recent).not.toContain(AuditAction.PAYMENT_RECEIVED);
     expect((await get('nonsense')).status).toBe(400);
+  });
+
+  it('never shows what facility staff did, so never who is whose patient', async () => {
+    // A doctor invites their patient to the portal: the row names the patient and the doctor.
+    const patient = await createPatient(w.facility.id, { doctorId: w.users.doctor.id });
+    await db
+      .update(patients)
+      .set({ email: `p-${patient.id.slice(0, 8)}@test.local` })
+      .where(eq(patients.id, patient.id));
+    const invited = await api()
+      .post(`/api/v1/patients/${patient.id}/portal-invitation`)
+      .set(bearer(w.tokens.doctor))
+      .send({});
+    expect(invited.status).toBe(201);
+    const [linked] = await db
+      .select({ userId: patients.userId })
+      .from(patients)
+      .where(eq(patients.id, patient.id));
+    // A director closing a colleague's account, the Ministry registering a facility.
+    await audit({
+      action: AuditAction.USER_DEACTIVATED,
+      actor: { userId: w.users.director.id, role: 'DIRECTOR', facilityId: w.facility.id },
+      resourceType: 'user',
+      resourceId: w.users.colleague.id,
+    });
+    await audit({
+      action: AuditAction.FACILITY_CREATED,
+      actor: { userId: w.users.ministry.id, role: 'MINISTRY', facilityId: null },
+      resourceType: 'facility',
+      resourceId: w.otherFacility.id,
+    });
+
+    const get = (category: string) =>
+      api().get('/api/v1/admin/audit').query({ category, pageSize: 100 }).set(asAdmin());
+    type Item = { action: string; actorId: string | null; actorRole: string | null };
+    for (const category of ['all', 'users', 'billing']) {
+      const items: Item[] = (await get(category)).body.items;
+      expect(items.every((i) => i.actorRole === 'ADMIN' || i.actorId === null)).toBe(true);
+    }
+    const overview = (await api().get('/api/v1/admin/overview').set(asAdmin())).body;
+    const shown = [...(await get('all')).body.items, ...overview.recentActions];
+    const text = JSON.stringify(shown);
+    expect(text).not.toContain(linked!.userId!);
+    expect(text).not.toContain(patient.lastName);
+    const staff = [w.users.doctor.id, w.users.director.id, w.users.ministry.id];
+    expect(shown.filter((i: Item) => staff.includes(i.actorId ?? ''))).toEqual([]);
+    // The invitation is audited all the same, for the patient's access log and the facility.
+    const rows = await db.select().from(auditLogs).where(eq(auditLogs.resourceId, linked!.userId!));
+    expect(rows.map((r) => r.action)).toContain(AuditAction.USER_INVITED);
+  });
+
+  it('lists the facilities the administrator creates for a customer', async () => {
+    const code = `C-${Date.now()}`;
+    const created = await api()
+      .post('/api/v1/admin/organizations')
+      .set(asAdmin())
+      .send({
+        facility: {
+          code,
+          name: `Customer ${code}`,
+          type: 'REGIONAL_HOSPITAL',
+          region: 'Prishtinë',
+          municipality: 'Prishtinë',
+        },
+      });
+    expect(created.status).toBe(201);
+    for (const category of ['all', 'billing']) {
+      const items = (
+        await api().get('/api/v1/admin/audit').query({ category, pageSize: 100 }).set(asAdmin())
+      ).body.items as { action: string; targetName: string | null; actorId: string }[];
+      expect(items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: AuditAction.FACILITY_CREATED,
+            actorId: admin.id,
+            targetName: `Customer ${code}`,
+          }),
+        ]),
+      );
+    }
+    const recent = (await api().get('/api/v1/admin/overview').set(asAdmin())).body.recentActions;
+    expect(recent.map((i: { action: string }) => i.action)).toContain(AuditAction.FACILITY_CREATED);
   });
 });

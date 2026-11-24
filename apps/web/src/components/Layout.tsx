@@ -10,6 +10,7 @@ import {
   useNavigate,
   useSearchParams,
 } from 'react-router-dom';
+import { kindPath } from '../api/platform';
 import type { Role } from '../api/types';
 import { useAuth, useUser } from '../auth/AuthContext';
 import { useLiveEvents } from '../auth/useLiveEvents';
@@ -252,8 +253,8 @@ export function Layout() {
       </div>
       <footer className="footer muted">
         Pacient · {t('Access to health records is logged and audited.')}{' '}
-        <Link to="/terms">{t('Terms of use')}</Link> ·{' '}
-        <Link to="/privacy">{t('Privacy notice')}</Link>
+        <Link to={kindPath('TERMS')}>{t('Terms of use')}</Link> ·{' '}
+        <Link to={kindPath('PRIVACY')}>{t('Privacy notice')}</Link>
         {user.role === 'PATIENT' &&
           ` ${t('In an emergency call 112 — this portal is not monitored around the clock.')}`}
       </footer>

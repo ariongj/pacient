@@ -38,8 +38,8 @@ export const platform: Record<string, string> = {
     'Ditët që një faturë mund të mbetet e papaguar pas afatit. Pezullimi nuk e bllokon kurrë qasjen në kartelat e pacientëve.',
   'Delete draft': 'Fshi draftin',
   'Delete this draft?': 'Ta fshini këtë draft?',
-  'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is shown.':
-    'Të dhënat si {operatorName} ose {privacyEmail} plotësohen nga cilësimet e operatorit kur shfaqet teksti.',
+  'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is published.':
+    'Të dhënat si {operatorName} ose {privacyEmail} plotësohen nga cilësimet e operatorit kur publikohet teksti.',
   'Draft|legal document': 'Draft',
   'E-mail and SMS queues, integrations, response times.':
     'Radhët e e-mailit dhe SMS-ve, integrimet, kohët e përgjigjes.',
@@ -198,4 +198,18 @@ export const platform: Record<string, string> = {
   'Use 1–10 letters, digits or dashes': 'Përdorni 1–10 shkronja, shifra ose viza',
   'Use a short version such as 1.0 or 2026-11':
     'Përdorni një version të shkurtër si 1.0 ose 2026-11',
+  'This IBAN is not valid: check its length and digits':
+    'Ky IBAN nuk është i vlefshëm: kontrolloni gjatësinë dhe shifrat',
+  'With the operator details filled in, the title is too long':
+    'Me të dhënat e operatorit të plotësuara, titulli është shumë i gjatë',
+  // Legal gate, publishing and acceptances (operator review fixes).
+  'The operator details it refers to are written into the text now: changing the operator settings later does not change this version.':
+    'Të dhënat e operatorit që përmend shkruhen tani në tekst: ndryshimi i mëvonshëm i cilësimeve të operatorit nuk e ndryshon këtë version.',
+  'Patient account|user account': 'Llogari pacienti',
+  'Patients are not named: only that a patient account accepted, and when.':
+    'Pacientët nuk emërtohen: shihet vetëm se një llogari pacienti e ka pranuar, dhe kur.',
+  'Customers and billing': 'Klientët dhe faturimi',
+  'Your acceptance could not be recorded. You can work as usual; you will be asked again the next time you sign in.':
+    'Pranimi juaj nuk u regjistrua dot. Mund të punoni si zakonisht; do t’ju kërkohet përsëri herën e ardhshme që hyni.',
+  'Continue – you will be asked again next time': 'Vazhdo – do t’ju kërkohet përsëri herën tjetër',
 };

@@ -375,7 +375,7 @@ function NewVersionForm({
       </label>
       <p className="muted">
         {t(
-          'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is shown.',
+          'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is published.',
         )}
       </p>
       <ErrorAlert error={error} />
@@ -516,6 +516,11 @@ function PublishConfirm({ doc, onClose }: { doc: LegalDocumentSummary; onClose: 
       </p>
       <p>{t('Once published, the text cannot be changed. A later change is a new version.')}</p>
       <p>
+        {t(
+          'The operator details it refers to are written into the text now: changing the operator settings later does not change this version.',
+        )}
+      </p>
+      <p>
         {doc.requiresAcceptance
           ? t('Every user is asked to accept this version the next time they sign in.')
           : t('The text is shown on the public page; users are not asked to accept it.')}
@@ -589,7 +594,11 @@ function WhoAccepted({ kind, version }: { kind: LegalKind; version: string }) {
               <tbody>
                 {s.latest.map((a) => (
                   <tr key={a.id}>
-                    <td>{a.userName}</td>
+                    <td>
+                      {a.userName ?? (
+                        <span className="muted">{t('Patient account|user account')}</span>
+                      )}
+                    </td>
                     <td>{humanize(a.role)}</td>
                     <td>{languageLabel(a.locale)}</td>
                     <td>{formatDateTime(a.acceptedAt)}</td>
@@ -598,7 +607,10 @@ function WhoAccepted({ kind, version }: { kind: LegalKind; version: string }) {
               </tbody>
             </Table>
           )}
-          <p className="muted">{t('The latest 50 acceptances are listed.')}</p>
+          <p className="muted">
+            {t('The latest 50 acceptances are listed.')}{' '}
+            {t('Patients are not named: only that a patient account accepted, and when.')}
+          </p>
         </div>
       )}
     </QueryView>

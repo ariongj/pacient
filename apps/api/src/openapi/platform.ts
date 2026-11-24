@@ -21,7 +21,7 @@ const legalByKind: ModuleOperation = {
     auth: 'none',
     access: 'Public',
     description:
-      'Newest published version in the requested language (fallback Albanian, then English), with the operator details filled in. 404 while nothing is published.',
+      'Newest published version in the requested language (fallback Albanian, then English), with the operator details as they were when it was published. 404 while nothing is published.',
     params: [q('locale', localeEnum)],
   }),
   params: [
@@ -59,6 +59,8 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/legal/status', T, 'Terms and privacy versions the caller still has to accept', {
     access: 'Any signed-in user',
+    description:
+      'The current version when it asks for acceptance and the caller has not accepted it, or when it does not but the caller never accepted the latest version that did (or a later one).',
     params: [q('locale', localeEnum)],
   }),
   op('post', '/legal/accept', T, 'Accept the current version', {
@@ -78,7 +80,8 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/settings', T, 'Operator settings', { access: ADMIN }),
   op('put', '/admin/settings', T, 'Change operator settings', {
     access: ADMIN,
-    description: 'Only the fields sent are changed; the changed field names are audited.',
+    description:
+      'Only the fields sent are changed; the changed field names are audited. The IBAN must have its country’s length and valid check digits. Published legal texts keep the details they were published with.',
     body: settingsBody,
   }),
   op('get', '/admin/legal', T, 'Terms of use and privacy notice: every version and language', {
@@ -93,6 +96,8 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/admin/legal/acceptances', T, 'Who accepted a version', {
     access: ADMIN,
+    description:
+      'The count against active accounts and the latest 50 acceptances; patient accounts by role and time only (no name).',
     params: [q('kind', kindEnum), q('version', version)],
   }),
   op('get', '/admin/legal/{id}', T, 'One document with its text', { access: ADMIN }),
@@ -127,17 +132,17 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/legal/{id}/publish', T, 'Publish a draft', {
     access: ADMIN,
     description:
-      'The text is fixed from now on (database trigger). When it asks for acceptance, every user accepts it at their next sign-in. The operator details the text refers to must be filled in first.',
+      'The text is fixed from now on (database trigger), with the operator details it refers to written into it. When it asks for acceptance, every user accepts it at their next sign-in. The operator details must be filled in first.',
     responses: {
       '200': 'Published',
-      '400': 'Operator settings missing',
+      '400': 'Operator settings missing, or the title too long with them filled in',
       '409': 'Already published',
     },
   }),
   op('get', '/admin/audit', T, 'Administrative audit trail', {
     access: ADMIN,
     description:
-      'Actions on accounts (including invitations and status changes by directors and the Ministry), subscriptions and invoices, operator settings and legal texts, with actor and target names.',
+      'What administrators and the system did to accounts, customers (facilities), subscriptions and invoices, operator settings and legal texts, with actor and target names. Actions by facility staff and rows about a patient are never listed.',
     params: [
       q('category', enumOf('all', 'users', 'billing', 'platform')),
       q('page', int({ minimum: 1 })),

@@ -153,27 +153,38 @@ and invoices**, and can print every invoice.
 ## Operator settings
 
 Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts –
-printed on invoices and referred to by the legal texts. Payment terms (days until an invoice is
-due), VAT rate (0 when not VAT-registered), trial length and grace period apply to invoices and
-subscriptions from then on; issued invoices do not change.
+printed on invoices and referred to by the legal texts. The IBAN is checked before it is saved
+(its country's length – 20 characters for Kosovo – and its check digits), because every invoice
+issued afterwards keeps it. Payment terms (days until an invoice is due), VAT rate (0 when not
+VAT-registered), trial length and grace period apply to invoices and subscriptions from then on;
+issued invoices and published legal texts do not change.
 
 **Notice to users** shows one line to everyone who is signed in, for example planned maintenance,
-until the time you set.
+until the time you set. Open sessions pick up a new or changed notice within a few minutes (or
+when the window gets focus), the line disappears at its end time, and it is never printed.
 
 ## Terms of use and privacy notice
 
 Each text has versions, each version one text per language (Albanian, Serbian, English). Start a
 draft from the built-in template, edit it, and publish. **The templates are drafts: have a lawyer
 review them before you publish.** The operator's details must be filled in first, because the texts
-refer to them.
+refer to them: on publishing, `{operatorName}`, `{privacyEmail}` and the other details are written
+into the text, so a later change to the operator settings never changes a published version – what
+users read is what they accepted.
 
 A published version cannot be changed or deleted – publish a new version instead. When a version
 asks for acceptance, every user accepts it at their next sign-in before continuing; the acceptance
-(who, which version, when) is stored and listed under the version. Administrators are not asked.
-The public pages `/terms` and `/privacy` always show the current version.
+(who, which version, when) is stored and listed under the version (patient accounts by role and
+time only, without a name). Administrators are not asked. A later version for information only
+(for example a typo correction) does not ask those who accepted already, but whoever never
+accepted the latest version that asked – a new account, say – accepts the current one.
+The public pages `/legal/terms` and `/legal/privacy` always show the current version (`/terms`
+leads there too; `/privacy` is the directors' and the Ministry's data protection workspace).
 
-If the check for pending texts cannot be reached, the user is let in and asked next time: the
-legal gate never stands between a clinician and a patient (hazard H75).
+If the check for pending texts cannot be reached or is slow, or the acceptance cannot be recorded,
+the user is let in (**Continue – you will be asked again next time**), and once the workspace is
+open it stays open until the next sign-in or page load, when the text is shown again: the legal
+gate never stands between a clinician and a patient (hazard H75).
 
 ## Administrative actions and system health
 

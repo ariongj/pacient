@@ -52,6 +52,8 @@ const PAGES = {
     '/portal/questionnaires',
     '/modules',
     '/open-data',
+    '/legal/terms',
+    '/legal/privacy',
   ],
   'doctor@pacient.local': [
     '/doctor',

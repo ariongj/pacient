@@ -37,8 +37,9 @@ function details(meta: AuditItem['metadata']) {
 }
 
 /**
- * Every administrative action – on accounts (also by directors and the Ministry), subscriptions
- * and invoices, operator settings and legal texts – with who did it, when and to what.
+ * What the operator's administrators (and the system) did – to accounts, customers,
+ * subscriptions and invoices, operator settings and legal texts – with who did it, when and to
+ * what. What facility staff do stays out: it could tell who is whose patient.
  */
 export function AdminAudit() {
   const [category, setCategory] = useState<Category>('all');
@@ -61,7 +62,7 @@ export function AdminAudit() {
         tabs={[
           { id: 'all', label: t('All') },
           { id: 'users', label: t('Accounts') },
-          { id: 'billing', label: t('Subscriptions and invoices') },
+          { id: 'billing', label: t('Customers and billing') },
           { id: 'platform', label: t('Settings and legal texts') },
         ]}
       />

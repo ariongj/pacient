@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './client';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, ApiError } from './client';
 import type { Role } from './types';
 import { intlLocale } from '../i18n';
 
@@ -162,7 +162,8 @@ export interface AcceptanceStats {
   version: string;
   accepted: number;
   activeAccounts: number;
-  latest: { id: string; userName: string; role: Role; locale: string; acceptedAt: string }[];
+  /** userName is null for patient accounts: they are listed by role and time only. */
+  latest: { id: string; userName: string | null; role: Role; locale: string; acceptedAt: string }[];
 }
 
 export interface Paged<T> {
@@ -179,19 +180,26 @@ export interface Paged<T> {
 export const formatMoney = (cents: number, currency = 'EUR') =>
   new Intl.NumberFormat(intlLocale(), { style: 'currency', currency }).format(cents / 100);
 
-export const kindPath = (kind: LegalKind) => (kind === 'TERMS' ? '/terms' : '/privacy');
+/** The public page of a text (/privacy itself is the directors' data protection workspace). */
+export const kindPath = (kind: LegalKind) => (kind === 'TERMS' ? '/legal/terms' : '/legal/privacy');
 
 /* ------------------------------------------------------------------ public + signed-in ------- */
 
 export const PLATFORM_KEY = ['platform'] as const;
 export const LEGAL_STATUS_KEY = ['legal', 'status'] as const;
 
-/** Operator details and the notice to all users (public). */
+/**
+ * Operator details and the notice to all users (public). Workstations stay signed in for a whole
+ * shift: the notice is asked for again every few minutes and when the window gets focus, so a
+ * maintenance notice set during the day reaches them.
+ */
 export function usePlatformInfo() {
   return useQuery({
     queryKey: [...PLATFORM_KEY, 'info'],
     queryFn: () => api<PlatformInfo>('/platform/info'),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 }
@@ -215,6 +223,8 @@ export function useLegalStatus(userId: string | undefined, locale: string) {
     queryFn: () => api<{ pending: LegalText[] }>('/legal/status', { query: { locale } }),
     enabled: Boolean(userId),
     staleTime: 5 * 60_000,
+    // Switching the language keeps the text on screen until its translation arrives.
+    placeholderData: keepPreviousData,
     retry: false,
   });
 }
@@ -225,6 +235,12 @@ export function useAcceptLegal() {
     mutationFn: (v: { kind: LegalKind; version: string }) =>
       api<{ accepted: true; pending: LegalText[] }>('/legal/accept', { method: 'POST', body: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: LEGAL_STATUS_KEY }),
+    onError: (err) => {
+      // A newer version was published meanwhile: show it at once instead of asking for a reload.
+      if (err instanceof ApiError && err.status === 409) {
+        void qc.invalidateQueries({ queryKey: LEGAL_STATUS_KEY });
+      }
+    },
   });
 }
 

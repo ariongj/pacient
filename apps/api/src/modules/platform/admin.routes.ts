@@ -5,6 +5,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   like,
   lte,
   ne,
@@ -35,6 +36,7 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { LEGAL_TEMPLATES } from './legal-templates.js';
 import {
   currentVersion,
+  fillPlaceholders,
   getSettings,
   LEGAL_KINDS,
   LEGAL_LOCALES,
@@ -63,8 +65,10 @@ const SUBSCRIPTION_STATUSES = [
   'EXPIRED',
 ] as const;
 
-/** Administrative actions shown on the overview and in the audit view. */
-const CATEGORY_FILTERS: Record<'users' | 'billing' | 'platform', SQL> = {
+type AuditCategory = 'users' | 'billing' | 'platform';
+
+/** Administrative actions shown on the overview and in the audit view, by kind. */
+const CATEGORY_FILTERS: Record<AuditCategory, SQL> = {
   users: or(
     like(auditLogs.action, 'admin.user.%'),
     inArray(auditLogs.action, [
@@ -73,9 +77,11 @@ const CATEGORY_FILTERS: Record<'users' | 'billing' | 'platform', SQL> = {
       AuditAction.USER_REACTIVATED,
     ]),
   )!,
-  // Only the operator's billing (plans, subscriptions, invoices): the facilities' own patient
-  // billing (co-payments, claims) also writes billing.* actions and is not administration.
+  // The operator's customers and their billing (facilities created for a customer, plans,
+  // subscriptions, invoices): the facilities' own patient billing (co-payments, claims) also
+  // writes billing.* actions and is not administration.
   billing: or(
+    like(auditLogs.action, 'facility.%'),
     like(auditLogs.action, 'billing.plan.%'),
     like(auditLogs.action, 'billing.subscription.%'),
     like(auditLogs.action, 'billing.invoice.%'),
@@ -83,6 +89,25 @@ const CATEGORY_FILTERS: Record<'users' | 'billing' | 'platform', SQL> = {
   // Acceptances by users (legal.accepted) are not administrative actions: see /legal/acceptances.
   platform: or(like(auditLogs.action, 'platform.%'), like(auditLogs.action, 'legal.document.%'))!,
 };
+
+/**
+ * Only what the operator's administrators or the system (no actor) did. Facility staff write the
+ * same generic actions (a clinician inviting a patient to the portal, a director managing staff);
+ * such a row names a patient together with their clinician and so their facility, which the
+ * administrator must never learn. Rows about a patient never belong here either.
+ */
+const BY_OPERATOR = and(
+  or(eq(auditLogs.actorRole, 'ADMIN'), isNull(auditLogs.actorUserId)),
+  isNull(auditLogs.patientId),
+)!;
+
+const auditWhere = (category: AuditCategory | 'all') =>
+  and(
+    category === 'all'
+      ? or(CATEGORY_FILTERS.users, CATEGORY_FILTERS.billing, CATEGORY_FILTERS.platform)
+      : CATEGORY_FILTERS[category],
+    BY_OPERATOR,
+  )!;
 
 adminPlatformRouter.get('/overview', async (_req, res) => {
   const now = new Date();
@@ -190,10 +215,7 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
     },
     renewals,
     recentEvents,
-    recentActions: await auditItems(
-      or(CATEGORY_FILTERS.users, CATEGORY_FILTERS.billing, CATEGORY_FILTERS.platform)!,
-      { limit: 10, offset: 0 },
-    ),
+    recentActions: await auditItems(auditWhere('all'), { limit: 10, offset: 0 }),
   });
 });
 
@@ -213,6 +235,59 @@ const email = z
   .optional();
 const int = (min: number, max: number) => z.number().int().min(min).max(max).optional();
 
+/** IBAN lengths of the countries customers and operators are likely to bank in (ISO 13616). */
+const IBAN_LENGTH: Record<string, number> = {
+  XK: 20,
+  AL: 28,
+  RS: 22,
+  MK: 19,
+  ME: 22,
+  BA: 20,
+  HR: 21,
+  SI: 19,
+  BG: 22,
+  RO: 24,
+  GR: 27,
+  TR: 26,
+  HU: 28,
+  AT: 20,
+  CH: 21,
+  DE: 22,
+  IT: 27,
+  FR: 27,
+  BE: 16,
+  NL: 18,
+  LU: 20,
+  GB: 22,
+  IE: 22,
+  ES: 24,
+  PT: 25,
+  SE: 24,
+  NO: 15,
+  DK: 18,
+  FI: 18,
+  PL: 28,
+  CZ: 24,
+  SK: 24,
+};
+
+/**
+ * The country's IBAN length (15–34 for countries not in the table) and the ISO 13616 check
+ * digits: the first four characters moved to the end, letters as numbers (A = 10 … Z = 35), the
+ * whole number modulo 97 must be 1. This catches a mistyped character or two swapped neighbours.
+ */
+function validIban(iban: string): boolean {
+  const s = iban.replace(/ /g, '');
+  const expected = IBAN_LENGTH[s.slice(0, 2)];
+  if (expected ? s.length !== expected : s.length < 15 || s.length > 34) return false;
+  let rest = 0;
+  for (const ch of s.slice(4) + s.slice(0, 4)) {
+    const value = /\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55);
+    for (const d of value) rest = (rest * 10 + Number(d)) % 97;
+  }
+  return rest === 1;
+}
+
 const SettingsInput = z
   .object({
     operatorName: text(200).optional(),
@@ -223,12 +298,13 @@ const SettingsInput = z
       .union([z.string(), z.null()])
       .transform((v) => (v ? v.toUpperCase().replace(/\s+/g, ' ').trim() : null))
       .refine(
-        (v) =>
-          !v ||
-          (/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) &&
-            v.replace(/ /g, '').length <= 34 &&
-            v.length <= 40),
+        (v) => !v || (/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) && v.length <= 40),
         'Enter the IBAN as printed by the bank, e.g. XK05 1212 0123 4567 8906',
+      )
+      // Printed on every invoice and frozen there: a mistyped account must not get that far.
+      .refine(
+        (v) => !v || !/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) || validIban(v),
+        'This IBAN is not valid: check its length and digits',
       )
       .optional(),
     operatorBank: nullableText(120),
@@ -300,7 +376,8 @@ const Version = z
   .string()
   .trim()
   .regex(/^[0-9A-Za-z][0-9A-Za-z._-]{0,19}$/, 'Use a short version such as 1.0 or 2026-11');
-const Title = z.string().trim().min(2).max(200);
+const TITLE_MAX = 200;
+const Title = z.string().trim().min(2).max(TITLE_MAX);
 const Body = z.string().trim().min(20).max(100_000);
 
 const DocInput = z.object({
@@ -396,7 +473,11 @@ adminPlatformRouter.get('/legal/templates', async (req, res) => {
 
 const AcceptanceQuery = z.object({ kind: Kind, version: Version });
 
-/** Who accepted a version: count against active accounts, and the latest 50 acceptances. */
+/**
+ * Who accepted a version: count against active accounts, and the latest 50 acceptances. Patient
+ * accounts are listed by role and time only: the administrator has no reason to see who among the
+ * population uses the portal.
+ */
 adminPlatformRouter.get('/legal/acceptances', async (req, res) => {
   const { kind, version } = parse(AcceptanceQuery, req.query);
   const where = and(
@@ -412,7 +493,9 @@ adminPlatformRouter.get('/legal/acceptances', async (req, res) => {
   const latest = await db
     .select({
       id: legalAcceptances.id,
-      userName: users.fullName,
+      userName: sql<
+        string | null
+      >`CASE WHEN ${users.role} = 'PATIENT' THEN NULL ELSE ${users.fullName} END`,
       role: users.role,
       locale: legalAcceptances.locale,
       acceptedAt: legalAcceptances.acceptedAt,
@@ -530,7 +613,9 @@ adminPlatformRouter.delete('/legal/:id', async (req, res) => {
 /**
  * Publish a draft. From now on the text is fixed (also by a database trigger); when it asks for
  * acceptance, every user accepts it at their next sign-in. The operator details the text refers
- * to must be filled in first, so nobody reads an empty "operator" or contact address.
+ * to must be filled in first, so nobody reads an empty "operator" or contact address, and they
+ * are written into the text now: a later change to the operator settings must not change what
+ * users read and accepted (a new version does).
  */
 adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
   const ctx = requireAuth(req);
@@ -543,16 +628,22 @@ adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
       .for('update');
     if (!doc) throw notFound('Document not found');
     if (doc.publishedAt) throw conflict('This document is already published');
-    const missing = missingPlaceholders(`${doc.title}\n${doc.body}`, await getSettings(tx));
+    const settings = await getSettings(tx);
+    const missing = missingPlaceholders(`${doc.title}\n${doc.body}`, settings);
     if (missing.length) {
       throw badRequest(
         'Fill in the operator settings this text refers to before publishing it',
         missing.map((path) => ({ path, message: 'Not set' })),
       );
     }
+    const title = fillPlaceholders(doc.title, settings);
+    if (title.length > TITLE_MAX) {
+      throw badRequest('With the operator details filled in, the title is too long');
+    }
+    // Same statement as publishedAt: the trigger that fixes published texts still lets it through.
     const [row] = await tx
       .update(legalDocuments)
-      .set({ publishedAt: new Date() })
+      .set({ title, body: fillPlaceholders(doc.body, settings), publishedAt: new Date() })
       .where(eq(legalDocuments.id, id))
       .returning();
     await audit(
@@ -691,13 +782,13 @@ async function targetNames(rows: { resourceType: string | null; resourceId: stri
   return names;
 }
 
-/** Administrative actions on accounts, subscriptions and invoices, settings and legal texts. */
+/**
+ * What administrators (and the system) did to accounts, customers, subscriptions and invoices,
+ * settings and legal texts.
+ */
 adminPlatformRouter.get('/audit', async (req, res) => {
   const q = parse(AuditQuery, req.query);
-  const where =
-    q.category === 'all'
-      ? or(CATEGORY_FILTERS.users, CATEGORY_FILTERS.billing, CATEGORY_FILTERS.platform)!
-      : CATEGORY_FILTERS[q.category];
+  const where = auditWhere(q.category);
   const [count] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(auditLogs)

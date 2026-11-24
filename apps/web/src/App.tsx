@@ -2,6 +2,7 @@ import { t } from './i18n';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { HOME_BY_ROLE, useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
+import { LegalGateReset } from './components/LegalGate';
 import { RequireRole } from './components/RequireRole';
 import { EmptyState, Loading } from './components/ui';
 import { NotificationsPage } from './components/Notifications';
@@ -443,6 +444,7 @@ function HomeRedirect() {
 export function App() {
   return (
     <Suspense fallback={<Loading label={t('Loading…')} />}>
+      <LegalGateReset />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/activate" element={<ActivatePage />} />
@@ -451,8 +453,10 @@ export function App() {
         <Route path="/setup-two-step" element={<MfaSetupPage />} />
         <Route path="/verify" element={<VerifyCertificatePage />} />
         <Route path="/open-data" element={<OpenDataPage />} />
-        <Route path="/terms" element={<LegalPage />} />
-        <Route path="/privacy" element={<LegalPage />} />
+        {/* The public texts live under /legal: /privacy is the data protection workspace. */}
+        <Route path="/legal/terms" element={<LegalPage />} />
+        <Route path="/legal/privacy" element={<LegalPage />} />
+        <Route path="/terms" element={<Navigate to="/legal/terms" replace />} />
         <Route path="/verify/:code" element={<VerifyCertificatePage />} />
         <Route path="/" element={<HomeRedirect />} />
 

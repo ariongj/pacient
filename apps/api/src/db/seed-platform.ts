@@ -6,6 +6,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { LEGAL_TEMPLATES } from '../modules/platform/legal-templates.js';
+import { fillPlaceholders, getSettings } from '../modules/platform/platform.service.js';
 import { db } from './client.js';
 import { legalAcceptances, legalDocuments, platformSettings, users } from './schema.js';
 
@@ -38,6 +39,8 @@ export async function seedPlatform(opts: { adminId: string }) {
     .where(eq(legalDocuments.version, VERSION));
   if ((existing?.count ?? 0) > 0) return;
 
+  // Published as the API publishes: with the operator details written into the text.
+  const settings = await getSettings();
   const publishedAt = new Date();
   await db.insert(legalDocuments).values(
     KINDS.flatMap((kind) =>
@@ -45,8 +48,8 @@ export async function seedPlatform(opts: { adminId: string }) {
         kind,
         version: VERSION,
         locale,
-        title: LEGAL_TEMPLATES[kind][locale].title,
-        body: LEGAL_TEMPLATES[kind][locale].body,
+        title: fillPlaceholders(LEGAL_TEMPLATES[kind][locale].title, settings),
+        body: fillPlaceholders(LEGAL_TEMPLATES[kind][locale].body, settings),
         requiresAcceptance: true,
         publishedAt,
         createdById: opts.adminId,

@@ -56,6 +56,12 @@ The single-use activation link (valid 72 hours) is written only to
 `~/pacienti-private/invite.txt` – never printed or e-mailed. Open it, choose a password, set up
 two-step sign-in with an authenticator app and store the recovery codes. Then delete the file.
 
+An administrator who later loses both the password and the authenticator (and no other
+administrator can sign in) is recovered the same way: `deploy/recover-admin.sh admin@example.org`
+writes a 24-hour reset link to `~/pacienti-private/recover.txt`, ends the account's sessions and
+removes its second factors; see
+[OPERATOR.md › Recovering an administrator](OPERATOR.md#recovering-an-administrator).
+
 **Before inviting anyone, set up e-mail.** On a real installation activation links, password
 resets and notifications go out only by e-mail (the first administrator is the one exception, via
 the private file). Open `.env.vps` in an editor (e.g. `nano .env.vps` – typing the password into

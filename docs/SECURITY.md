@@ -143,6 +143,38 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   consumed token revokes the entire token family. Logout and password change revoke sessions.
 - Every authenticated request re-checks the account in the database, so deactivation takes effect
   immediately.
+- **Re-authentication for sensitive actions** (`requireRecentAuth`, `middleware/recent-auth.ts`):
+  the password again in the `X-Reauth-Password` header (checked, never stored or logged), or a
+  sign-in within the last 10 minutes (the refresh-token family, via the cookie); otherwise 401
+  `REAUTH_REQUIRED`, and with a wrong password the same code with "Password is incorrect". A wrong
+  password counts toward the account lockout like one at sign-in (five lock sign-in and this check
+  for 15 minutes, 429 meanwhile), so a stolen access token cannot be used to guess the password;
+  a confirmed one clears the count. The web app asks for the password in
+  one shared dialog and sends the request once more; the cookie reaches only `/api/v1/auth`, so
+  outside it the browser always asks. Confirmations and wrong passwords are audited
+  (`auth.reauthenticated`). It guards what would hand someone the operator's powers or its
+  customers' money: inviting an administrator, any change to an administrator's account or making
+  someone one, resetting two-step sign-in, disabling an account, signing an account out
+  everywhere, changing the IBAN, bank, VAT rate or number or invoice prefix, publishing a legal
+  text, and the billing corrections and exports. It is asked before anything is checked or
+  changed, so a stolen session cannot even probe.
+- **Platform administrators' sessions** end `ADMIN_SESSION_HOURS` (default 12) after signing in,
+  however active: the refresh tokens of the family, the cookie and the last access token all
+  expire at that moment, and refreshing never moves it (the sign-in time is the family's first
+  token). In the browser an administrator is signed out after 30 minutes without keyboard, mouse
+  or touch input in any of their tabs, with a warning and "Stay signed in" at 25 minutes. Other
+  roles keep `REFRESH_TOKEN_TTL_DAYS` (7 days, extended by each refresh) and no idle sign-out: a
+  clinician is never thrown out in the middle of care.
+- **Bank details changed**: a new IBAN or bank in the operator settings is announced to every other
+  active administrator (important notification and e-mail, unless they switched e-mail off
+  altogether) in the transaction of the change, and the platform overview shows "Bank details
+  changed on …", by whom, for 14 days.
+- **Recovering an administrator** who lost both the password and the authenticator:
+  `deploy/recover-admin.sh` on the server (the owner of the installation) – the old password stops
+  working, the second factors are removed, every session ends and a 24-hour reset link is written
+  only to a private file (0600), never printed, logged or e-mailed; audited as
+  `owner-authorized-recovery` and announced to the other administrators. See
+  [OPERATOR.md](OPERATOR.md#recovering-an-administrator).
 
 ## Audit trail
 

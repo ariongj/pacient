@@ -75,32 +75,66 @@ async function buildContext(userId: string): Promise<AuthContext> {
   return { userId: row.id, role: row.role, facilityId: row.facilityId, patientId: row.patientId };
 }
 
+/**
+ * When a session (refresh-token family) ends at the latest, or null when each refresh extends it.
+ * A platform administrator's session ends ADMIN_SESSION_HOURS after signing in, however active it
+ * is: the operator's accounts change bank details, administrators and published texts, so a
+ * session left open on a shared computer, or stolen, must not be kept alive for days by refreshing.
+ * The sign-in time is the first token of the family, so rotation cannot move it.
+ */
+async function sessionDeadline(ctx: AuthContext, familyId: string | null): Promise<Date | null> {
+  if (ctx.role !== 'ADMIN') return null;
+  let startedAt = Date.now();
+  if (familyId) {
+    const [first] = await db
+      .select({ at: sql<string | Date | null>`min(${refreshTokens.createdAt})` })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.familyId, familyId));
+    if (first?.at) startedAt = new Date(first.at).getTime();
+  }
+  return new Date(startedAt + env.ADMIN_SESSION_HOURS * 3_600_000);
+}
+
+/** A new session (sign-in), or the next token of an existing one (`familyId`, on refresh). */
 async function issueSession(
   ctx: AuthContext,
   meta: RequestMeta,
-  familyId: string = randomUUID(),
+  familyId?: string,
 ): Promise<Session & { refreshTokenId: string }> {
+  const now = Date.now();
+  const deadline = await sessionDeadline(ctx, familyId ?? null);
+  // Also catches a session started before the limit applied (its tokens expire later).
+  if (deadline && deadline.getTime() <= now) throw unauthorized('Session expired');
   const refreshToken = generateOpaqueToken();
-  const refreshTokenExpiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
+  const refreshTokenExpiresAt = new Date(
+    Math.min(now + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000, deadline?.getTime() ?? Infinity),
+  );
+  // Nor does the access token outlive the session.
+  const accessTokenExpiresIn = deadline
+    ? Math.min(env.ACCESS_TOKEN_TTL_SECONDS, Math.ceil((deadline.getTime() - now) / 1000))
+    : env.ACCESS_TOKEN_TTL_SECONDS;
   const [row] = await db
     .insert(refreshTokens)
     .values({
       userId: ctx.userId,
       tokenHash: hashToken(refreshToken),
-      familyId,
+      familyId: familyId ?? randomUUID(),
       expiresAt: refreshTokenExpiresAt,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     })
     .returning({ id: refreshTokens.id });
   return {
-    accessToken: signAccessToken({
-      sub: ctx.userId,
-      role: ctx.role,
-      facilityId: ctx.facilityId,
-      patientId: ctx.patientId,
-    }),
-    accessTokenExpiresIn: env.ACCESS_TOKEN_TTL_SECONDS,
+    accessToken: signAccessToken(
+      {
+        sub: ctx.userId,
+        role: ctx.role,
+        facilityId: ctx.facilityId,
+        patientId: ctx.patientId,
+      },
+      accessTokenExpiresIn,
+    ),
+    accessTokenExpiresIn,
     refreshToken,
     refreshTokenExpiresAt,
     refreshTokenId: row!.id,

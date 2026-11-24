@@ -79,6 +79,12 @@ expose that directory through HTTP. The owner chooses their password through the
 deploy/first-admin.sh owner@example.org   # link in ~/pacienti-private/invite.txt; delete it after use
 ```
 
+An administrator who lost both the password and the second factor is recovered the same way
+(`dist/ops/recover-admin.js EMAIL PRIVATE_OUTPUT_PATH`, wrapped by `deploy/recover-admin.sh
+ADMIN_EMAIL`): the old password and second factors are removed, sessions end, and a single-use
+24-hour reset link goes only to a new 0600 file (`~/pacienti-private/recover.txt`); audited as an
+owner-authorized recovery.
+
 Until the owner has set up two-step sign-in, the account can reach only the sign-in and
 enrolment endpoints (`MFA_ENROLLMENT_REQUIRED` everywhere else).
 Email delivery (activation, password reset and notification emails) uses an SMTP relay: add

@@ -32,10 +32,18 @@ import {
   subscriptions,
   users,
 } from '../../db/schema.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound, reauthRequired } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
+import { ensureRecentAuth, requireRecentAuth } from '../../middleware/recent-auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import {
+  BANK_SETTINGS,
+  changedAmong,
+  notifyBankDetailsChanged,
+  recentBankChange,
+  REAUTH_SETTINGS,
+} from './bank-change.js';
 import { hasReviewNote, LEGAL_TEMPLATES } from './legal-templates.js';
 import {
   currentVersion,
@@ -405,9 +413,23 @@ adminPlatformRouter.get('/settings', async (_req, res) => {
   res.json(presentSettings(await getSettings()));
 });
 
+/**
+ * "Bank details changed on …" on the platform overview: the latest change of the IBAN or bank in
+ * the last 14 days, by whom, with the details now (null when there was none).
+ */
+adminPlatformRouter.get('/settings/bank-change', async (_req, res) => {
+  res.json({ change: await recentBankChange() });
+});
+
 adminPlatformRouter.put('/settings', async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(SettingsInput, req.body);
+  // A new IBAN or bank, VAT rate or number, or invoice prefix changes where customers pay and what
+  // every invoice says from now on: the password again first (or a sign-in in the last 10
+  // minutes), before anything is changed. Other settings, sent back unchanged with them by the
+  // page, ask for nothing.
+  const reauthenticated = changedAmong(REAUTH_SETTINGS, input, await getSettings()).length > 0;
+  if (reauthenticated) await ensureRecentAuth(req);
   const updated = await db.transaction(async (tx) => {
     const before = await getSettings(tx);
     const patch = Object.fromEntries(
@@ -416,6 +438,11 @@ adminPlatformRouter.put('/settings', async (req, res) => {
     const changed = Object.keys(patch).filter(
       (k) => comparable(patch[k as keyof Settings]) !== comparable(before[k as keyof Settings]),
     );
+    // Another administrator changed them in the meantime, so this request now changes them after
+    // all: ask for the password rather than let it through unconfirmed.
+    if (!reauthenticated && changedAmong(REAUTH_SETTINGS, patch, before).length) {
+      throw reauthRequired(401);
+    }
     // The page sends every field. An IBAN stored before the check was stricter is sent back
     // unchanged and must not block another change (say, an urgent notice to all users); a new
     // IBAN is checked.
@@ -459,6 +486,10 @@ adminPlatformRouter.put('/settings', async (req, res) => {
       },
       tx,
     );
+    // The other administrators hear of a new IBAN or bank at once, in the same transaction.
+    if (changedAmong(BANK_SETTINGS, patch, before).length) {
+      await notifyBankDetailsChanged(tx, ctx, row!.updatedAt);
+    }
     return row!;
   });
   res.json(presentSettings(updated));
@@ -716,9 +747,10 @@ adminPlatformRouter.delete('/legal/:id', async (req, res) => {
  * users read and accepted (a new version does). Each value is written as it is, in one pass: a
  * value that looks like a {placeholder} stays as typed. The text as written, with its
  * placeholders, is kept beside it, so that a new version started from this one picks up the
- * operator details of its own publication.
+ * operator details of its own publication. What every user must accept is published only after
+ * the administrator confirmed the password again (or signed in within the last 10 minutes).
  */
-adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
+adminPlatformRouter.post('/legal/:id/publish', requireRecentAuth(), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const published = await db.transaction(async (tx) => {

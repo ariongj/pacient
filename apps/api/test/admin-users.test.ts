@@ -43,11 +43,14 @@ const tag = `zeta${randomUUID().slice(0, 6)}`;
 const NEW_PASSWORD = 'Activated-Passw0rd-2026!';
 
 const base = '/api/v1/admin/users';
+// Disabling, two-step resets, signing out and changes to administrators ask for the password
+// again (requireRecentAuth): these tests always confirm it; admin-security.test.ts tests asking.
+const REAUTH = { 'X-Reauth-Password': PASSWORD };
 const get = (path = '', token = adminToken) => api().get(`${base}${path}`).set(bearer(token));
 const post = (path: string, body: object = {}, token = adminToken) =>
-  api().post(`${base}${path}`).set(bearer(token)).send(body);
+  api().post(`${base}${path}`).set(bearer(token)).set(REAUTH).send(body);
 const patch = (path: string, body: object, token = adminToken) =>
-  api().patch(`${base}${path}`).set(bearer(token)).send(body);
+  api().patch(`${base}${path}`).set(bearer(token)).set(REAUTH).send(body);
 const tokenOf = (url: string) => new URL(url).searchParams.get('token')!;
 
 async function auditRows(action: string, userId: string) {

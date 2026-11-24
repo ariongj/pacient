@@ -13,7 +13,14 @@ export interface AccessTokenClaims {
 const ISSUER = 'pacient-api';
 const AUDIENCE = 'pacient-web';
 
-export function signAccessToken(claims: AccessTokenClaims): string {
+/**
+ * `ttlSeconds` shortens the lifetime (never beyond ACCESS_TOKEN_TTL_SECONDS), so an access token
+ * does not outlive the administrator's session it was issued for.
+ */
+export function signAccessToken(
+  claims: AccessTokenClaims,
+  ttlSeconds = env.ACCESS_TOKEN_TTL_SECONDS,
+): string {
   return jwt.sign(
     { role: claims.role, facilityId: claims.facilityId, patientId: claims.patientId },
     env.JWT_ACCESS_SECRET,
@@ -22,7 +29,7 @@ export function signAccessToken(claims: AccessTokenClaims): string {
       subject: claims.sub,
       issuer: ISSUER,
       audience: AUDIENCE,
-      expiresIn: env.ACCESS_TOKEN_TTL_SECONDS,
+      expiresIn: Math.max(1, Math.min(ttlSeconds, env.ACCESS_TOKEN_TTL_SECONDS)),
     },
   );
 }

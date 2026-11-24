@@ -7,6 +7,12 @@ const EnvSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
+  /**
+   * A platform administrator's session ends this many hours after signing in, however active it
+   * is (other roles keep REFRESH_TOKEN_TTL_DAYS): the operator's accounts can change bank details,
+   * administrators and published texts, so a forgotten or stolen session must not live for days.
+   */
+  ADMIN_SESSION_HOURS: z.coerce.number().int().min(1).max(72).default(12),
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:5173')

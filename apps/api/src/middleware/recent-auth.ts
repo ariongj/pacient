@@ -1,8 +1,12 @@
+import { eq } from 'drizzle-orm';
 import type { Request, RequestHandler } from 'express';
-import { HttpError, reauthRequired, unauthorized } from '../lib/errors.js';
+import { db } from '../db/client.js';
+import { users } from '../db/schema.js';
+import { HttpError, reauthRequired, tooManyRequests, unauthorized } from '../lib/errors.js';
 import { requestMeta } from '../lib/http.js';
 import { AuditAction, auditSafe } from '../modules/audit/audit.service.js';
 import { REFRESH_COOKIE } from '../modules/auth/auth.routes.js';
+import { recordFailedAttempt } from '../modules/auth/auth.service.js';
 import { assertRecentAuthentication } from '../modules/security/passkeys.js';
 
 /** Header the web client sends, once, after asking for the password again (ReauthDialog). */
@@ -23,12 +27,39 @@ export const REAUTH_HEADER = 'X-Reauth-Password';
  * client recognises the code, asks for the password in one shared dialog and retries the request
  * once with the header. Must run after `authenticate`. A confirmed password is audited
  * (auth.reauthenticated), a wrong one as a failure.
+ *
+ * A wrong password counts like one at sign-in: after five the account is locked for 15 minutes
+ * (sign-in and this check alike, 429 meanwhile), so whoever holds a stolen access token cannot use
+ * the header to guess the password. A confirmed password clears the count, as a sign-in does.
  */
 export async function ensureRecentAuth(req: Request): Promise<void> {
   const ctx = req.auth;
   if (!ctx) throw unauthorized();
   const password = req.get(REAUTH_HEADER) || undefined;
   const refreshToken = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
+  const [account] = password
+    ? await db
+        .select({
+          id: users.id,
+          failedLoginAttempts: users.failedLoginAttempts,
+          lockedUntil: users.lockedUntil,
+        })
+        .from(users)
+        .where(eq(users.id, ctx.userId))
+    : [];
+  if (account?.lockedUntil && account.lockedUntil > new Date()) {
+    await auditSafe({
+      action: AuditAction.AUTH_REAUTHENTICATED,
+      actor: ctx,
+      outcome: 'DENIED',
+      resourceType: 'user',
+      resourceId: ctx.userId,
+      meta: requestMeta(req),
+      metadata: { path: req.baseUrl + req.path, reason: 'locked' },
+    });
+    // The lockout of sign-in (LOCKOUT_MINUTES).
+    throw tooManyRequests('Too many wrong passwords. Try again in 15 minutes.');
+  }
   try {
     await assertRecentAuthentication(ctx, { password, refreshToken });
   } catch (err) {
@@ -36,6 +67,7 @@ export async function ensureRecentAuth(req: Request): Promise<void> {
     if (err.code === 'REAUTH_REQUIRED') throw reauthRequired(401);
     if (!password || err.status !== 400) throw err;
     // A wrong password: the same answer, so the dialog stays open and asks again.
+    const locked = account ? await recordFailedAttempt(account) : false;
     await auditSafe({
       action: AuditAction.AUTH_REAUTHENTICATED,
       actor: ctx,
@@ -43,9 +75,12 @@ export async function ensureRecentAuth(req: Request): Promise<void> {
       resourceType: 'user',
       resourceId: ctx.userId,
       meta: requestMeta(req),
-      metadata: { path: req.baseUrl + req.path },
+      metadata: { path: req.baseUrl + req.path, locked },
     });
     throw new HttpError(401, 'REAUTH_REQUIRED', 'Password is incorrect');
+  }
+  if (account?.failedLoginAttempts) {
+    await db.update(users).set({ failedLoginAttempts: 0 }).where(eq(users.id, account.id));
   }
   if (password) {
     await auditSafe({

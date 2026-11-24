@@ -38,6 +38,8 @@ const SOURCE_LABEL: Record<string, () => string> = {
   death_registration: () => t('Closed when a death was registered'),
   death_registration_withdrawn: () => t('Reopened when the death registration was withdrawn'),
   access_review: () => t('Revoked in an access review'),
+  // deploy/recover-admin.sh: an administrator who lost the password and the authenticator.
+  'owner-authorized-recovery': () => t('Recovered on the server by the owner of the installation'),
 };
 
 /** Sessions listed before "Show all": a busy account can have dozens on many devices. */

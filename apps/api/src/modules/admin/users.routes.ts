@@ -7,6 +7,7 @@ import { facilities, patients, users, type Role } from '../../db/schema.js';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
+import { ensureRecentAuth, requireRecentAuth } from '../../middleware/recent-auth.js';
 import { audit, AuditAction, type AuditActionValue } from '../audit/audit.service.js';
 import { createInvitedUser, renewInvitation } from '../auth/invitations.js';
 import { sendPasswordResetLink } from '../auth/mfa.service.js';
@@ -60,6 +61,11 @@ import {
  * until the person's patients, result cover, pending results, draft notes and returned
  * prescriptions are handed over, new facility staff need a free seat. Every change is audited in
  * the same transaction.
+ *
+ * What would hand someone the operator's powers, or lock its people out, asks for the password
+ * again (or a sign-in in the last 10 minutes; see middleware/recent-auth.ts): inviting an
+ * administrator, any change to an administrator's account or making someone one, resetting
+ * two-step sign-in, disabling an account and signing it out everywhere.
  */
 export const adminUsersRouter = Router();
 
@@ -222,6 +228,8 @@ adminUsersRouter.get('/:id', async (req, res) => {
 adminUsersRouter.post('/', async (req, res) => {
   const ctx = requireAuth(req);
   const input = parse(InviteSchema, req.body);
+  // Whoever holds a stolen session must not be able to add an administrator of their own.
+  if (input.role === 'ADMIN') await ensureRecentAuth(req);
   const facilityRole = FACILITY_ROLES.includes(input.role);
   if (facilityRole && !input.facilityId) {
     throw badRequest('Choose the facility this person works at');
@@ -297,6 +305,8 @@ adminUsersRouter.patch('/:id', async (req, res) => {
   }
 
   const role = input.role ?? target.role;
+  // Making someone an administrator, demoting one, or changing an administrator's account.
+  if (role === 'ADMIN' || target.role === 'ADMIN') await ensureRecentAuth(req);
   const facilityRole = FACILITY_ROLES.includes(role);
   if (NATIONAL_ROLES.includes(role) && input.facilityId) {
     throw badRequest('Ministry officials and platform administrators do not belong to a facility');
@@ -443,7 +453,7 @@ adminUsersRouter.patch('/:id', async (req, res) => {
   });
 });
 
-adminUsersRouter.post('/:id/disable', async (req, res) => {
+adminUsersRouter.post('/:id/disable', requireRecentAuth(), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(ReasonBody, req.body ?? {});
@@ -539,7 +549,7 @@ adminUsersRouter.post('/:id/password-reset', async (req, res) => {
   res.json(await presentAccount(id));
 });
 
-adminUsersRouter.post('/:id/mfa-reset', async (req, res) => {
+adminUsersRouter.post('/:id/mfa-reset', requireRecentAuth(), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(ReasonBody, req.body ?? {});
@@ -572,7 +582,7 @@ adminUsersRouter.post('/:id/mfa-reset', async (req, res) => {
   res.json(await presentAccount(id));
 });
 
-adminUsersRouter.post('/:id/revoke-sessions', async (req, res) => {
+adminUsersRouter.post('/:id/revoke-sessions', requireRecentAuth(), async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   notOnYourself(ctx, id, 'Use your own security page to sign out your other devices');

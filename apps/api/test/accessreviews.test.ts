@@ -326,8 +326,13 @@ describe('accounts that moved since the review opened', () => {
     // The platform administrator makes one a platform administrator and moves the other.
     const admin = await createUser('ADMIN');
     const adminAuth = bearer(await login(admin.email));
+    // Making someone an administrator asks for the password again (requireRecentAuth).
     const change = (id: string, body: Record<string, unknown>) =>
-      api().patch(`/api/v1/admin/users/${id}`).set(adminAuth).send(body);
+      api()
+        .patch(`/api/v1/admin/users/${id}`)
+        .set(adminAuth)
+        .set('X-Reauth-Password', PASSWORD)
+        .send(body);
     expect(
       (await change(promoted.id, { role: 'ADMIN', reason: 'Joins the operator' })).status,
     ).toBe(200);

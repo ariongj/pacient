@@ -16,6 +16,9 @@ const kindEnum = enumOf('TERMS', 'PRIVACY', 'SERVICE_AGREEMENT', 'DPA');
 const userKindEnum = enumOf('TERMS', 'PRIVACY');
 const localeEnum = enumOf('sq', 'sr', 'en');
 const version = str({ pattern: '^[0-9A-Za-z][0-9A-Za-z._-]{0,19}$' });
+/** requireRecentAuth: the password in X-Reauth-Password, or a sign-in in the last 10 minutes. */
+const REAUTH =
+  'REAUTH_REQUIRED: confirm the password (header X-Reauth-Password) or sign in again; “Password is incorrect” for a wrong one';
 
 /** The public legal text is addressed by its kind ("terms", "privacy", …), not by an id. */
 const legalByKind: ModuleOperation = {
@@ -90,11 +93,18 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
     description:
       'The settings, and operatorIbanValid: false when the stored IBAN does not pass the check (one stored before the check was stricter).',
   }),
-  op('put', '/admin/settings', T, 'Change operator settings', {
+  op('get', '/admin/settings/bank-change', T, 'Bank details changed in the last 14 days', {
     access: ADMIN,
     description:
-      'Only the fields sent are changed; the changed field names are audited. A new IBAN must have its country’s length and valid check digits (02–98); the stored one sent back unchanged is not checked again, so it never blocks other changes. Published legal texts keep the details they were published with.',
+      '`change`: the latest change of the IBAN or bank in the last 14 days (time, the administrator who made it, which of the two changed, and the IBAN and bank now), or null. Shown on the platform overview.',
+  }),
+  op('put', '/admin/settings', T, 'Change operator settings', {
+    access: `${ADMIN}; a new IBAN, bank, VAT rate or number, or invoice prefix needs the password again`,
+    description:
+      'Only the fields sent are changed; the changed field names are audited. Changing the IBAN, bank, VAT rate, VAT number or invoice prefix asks for the password again first (401 REAUTH_REQUIRED; values sent back unchanged ask for nothing). A new IBAN or bank is announced to every other active administrator (important notification and e-mail, in the same transaction). A new IBAN must have its country’s length and valid check digits (02–98); the stored one sent back unchanged is not checked again, so it never blocks other changes. Published legal texts keep the details they were published with.',
     body: settingsBody,
+    params: [{ name: 'X-Reauth-Password', in: 'header', schema: str() }],
+    responses: { '200': 'Saved', '400': 'Invalid values', '401': REAUTH },
   }),
   op('get', '/admin/legal', T, 'Legal texts: every version and language', {
     access: ADMIN,
@@ -146,13 +156,15 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
     responses: { '204': 'Deleted', '409': 'Published documents cannot be deleted' },
   }),
   op('post', '/admin/legal/{id}/publish', T, 'Publish a draft', {
-    access: ADMIN,
+    access: `${ADMIN}; needs the password again`,
+    params: [{ name: 'X-Reauth-Password', in: 'header', schema: str() }],
     description:
       'The text is fixed from now on (database trigger), with the operator details it refers to written into it (each value as typed, in one pass) and the text as written kept in titleSource and bodySource. When it asks for acceptance, every user accepts it at their next sign-in. The operator details must be filled in first.',
     responses: {
       '200': 'Published',
       '400':
         'Operator settings missing, the title too long with them filled in, or the draft note of an agreement template still in the text',
+      '401': REAUTH,
       '409': 'Already published',
     },
   }),

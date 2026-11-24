@@ -33,6 +33,8 @@ services:
       CORS_ORIGINS: ${WEB_ORIGIN:?Set the exact HTTPS frontend origin}
       WEB_APP_URL: ${WEB_APP_URL:?Set the public HTTPS frontend URL}
       REQUIRE_STAFF_MFA: 'true'
+      # A platform administrator's session ends this many hours after signing in (default 12).
+      ADMIN_SESSION_HOURS: ${ADMIN_SESSION_HOURS:-12}
       # Email delivery (activation, password reset, notifications). Without SMTP_URL the API starts
       # but holds email in its outbox until SMTP is configured.
       SMTP_URL: ${SMTP_URL:-}

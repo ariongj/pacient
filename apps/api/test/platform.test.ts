@@ -21,6 +21,7 @@ import {
   createUser,
   createWorld,
   login,
+  PASSWORD,
 } from './helpers.js';
 
 let w: Awaited<ReturnType<typeof createWorld>>;
@@ -33,12 +34,15 @@ beforeAll(async () => {
 });
 
 const asAdmin = () => bearer(admin.token);
+// Bank details, VAT, the invoice prefix and publishing ask for the password again
+// (requireRecentAuth): these tests always confirm it; admin-security.test.ts tests asking.
+const REAUTH = { 'X-Reauth-Password': PASSWORD };
 const putSettings = (body: Record<string, unknown>, token = admin.token) =>
-  api().put('/api/v1/admin/settings').set(bearer(token)).send(body);
+  api().put('/api/v1/admin/settings').set(bearer(token)).set(REAUTH).send(body);
 const createDoc = (body: Record<string, unknown>) =>
   api().post('/api/v1/admin/legal').set(asAdmin()).send(body);
 const publish = (id: string) =>
-  api().post(`/api/v1/admin/legal/${id}/publish`).set(asAdmin()).send({});
+  api().post(`/api/v1/admin/legal/${id}/publish`).set(asAdmin()).set(REAUTH).send({});
 const status = (token: string, locale?: string) =>
   api()
     .get('/api/v1/legal/status')

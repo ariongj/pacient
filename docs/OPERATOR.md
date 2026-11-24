@@ -9,6 +9,15 @@ The first administrator is created on the server with `deploy/first-admin.sh` (s
 [GO-LIVE.md](GO-LIVE.md)); further administrators are invited under **Users**. Two-step sign-in is
 required. Keep at least two administrators: the last active one cannot be disabled or changed.
 
+An administrator's session ends 12 hours after signing in, however busy the day
+(`ADMIN_SESSION_HOURS`), and the browser signs an administrator out after 30 minutes without
+input, with a warning and **Stay signed in** five minutes before. What would hand someone the
+operator's powers or its customers' money asks for your password again first (**Confirm it is
+you**): inviting or changing an administrator, resetting two-step sign-in, disabling an account or
+signing it out everywhere, a new IBAN, bank, VAT rate or number or invoice prefix, publishing a
+legal text, payment reversals, credit notes and exports. Five wrong passwords there lock your
+account for 15 minutes, as at sign-in.
+
 Demo sign-in (synthetic data only): `admin@pacient.local`.
 
 ## The portal
@@ -45,7 +54,9 @@ address (a support case), never by name or by browsing.
   **sign out everywhere**, **send the invitation again**.
 
 Every action asks for a reason where it matters, is written to the audit trail together with the
-change, and appears in the account's history. An administrator cannot act on their own account
+change, and appears in the account's history. Inviting an administrator, any change to an
+administrator or making someone one, resetting two-step sign-in, disabling and signing out
+everywhere ask for your password again first. An administrator cannot act on their own account
 (use **Settings › Security**). For patient accounts only disable, enable, unlock, sign out and
 password reset are offered; their personal details are kept by their facility. A patient whose
 invitation link expired, or who lost their authenticator and recovery codes, goes to their
@@ -314,7 +325,12 @@ export and its period (nothing else). A period is at most one year.
 ## Operator settings
 
 Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts and the
-support hours – printed on invoices, referred to by the legal texts and shown to users. A new IBAN is checked before it is saved
+support hours – printed on invoices, referred to by the legal texts and shown to users. A new IBAN
+or bank, VAT rate or number, or invoice prefix asks for your password again before it is saved,
+and a new IBAN or bank is announced at once to every other administrator (in the app and by
+e-mail, with who and when); the overview shows **Bank details changed on …** for 14 days. If nobody
+expected it, correct the details before the next invoice goes out and change the passwords of the
+administrators. A new IBAN is checked before it is saved
 (its country's length – 20 characters for Kosovo – and its check digits, which are always 02–98),
 because every invoice issued afterwards keeps it. An IBAN saved before the check was this strict
 is not checked again when you save other settings (an urgent notice is never held up by it), but
@@ -441,7 +457,27 @@ To be written.
 
 ## Recovering an administrator
 
-To be written.
+An administrator who lost the password **and** the authenticator app and recovery codes cannot be
+helped in the portal by themselves; another administrator can reset their two-step sign-in under
+**Users** (after making sure, in person or on a known phone number, that it is really them) and
+they then use **Forgot your password?**. When there is no other administrator who can sign in, the
+owner of the installation recovers the account on the server:
+
+```bash
+deploy/recover-admin.sh admin@example.org
+```
+
+For an existing, activated and enabled administrator only (a disabled one is enabled by another
+administrator first; one who never activated gets the invitation again). In one step the old
+password stops working, the authenticator app, recovery codes and passkeys are removed, earlier
+reset links and every session end, and a single-use password reset link, valid 24 hours, is
+written only to `~/pacienti-private/recover.txt` (folder 0700, file 0600) – never printed, logged
+or e-mailed. Make sure who you are giving it to, hand it over privately, then delete the file. The
+administrator chooses a new password with it and sets up two-step sign-in again at the next
+sign-in. The recovery is audited as an owner-authorized recovery (by the system, in the account's
+history and under **Administrative actions**), and every other active administrator is told in
+the app and by e-mail. It is refused for any other account, and then nothing changes and no file
+is left behind; an earlier `recover.txt` is never overwritten.
 
 ## Before the first customer
 

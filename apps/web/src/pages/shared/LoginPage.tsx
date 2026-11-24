@@ -20,6 +20,7 @@ import {
   signInWithPasskey,
 } from '../../api/security';
 import { ContactOperator } from '../../components/ContactOperator';
+import { IdleSignOutNotice } from '../../components/AdminIdleSignOut';
 
 const DEMO = import.meta.env.DEV
   ? [
@@ -260,6 +261,7 @@ export function LoginPage() {
           'Patients, clinicians, pharmacy and front-desk teams, facility directors and the Ministry.',
         )}
       </p>
+      <IdleSignOutNotice />
       <form onSubmit={onPassword}>
         <TextField
           label={t('Email')}

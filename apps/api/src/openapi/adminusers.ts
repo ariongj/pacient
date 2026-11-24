@@ -26,6 +26,10 @@ const ROLES = [
 const reason = (required: boolean) =>
   obj({ reason: str({ minLength: 5, maxLength: 500 }) }, required ? ['reason'] : []);
 const account = 'The account page: user, active sessions, sign-ins and administrative history';
+/** requireRecentAuth: the password in X-Reauth-Password, or a sign-in in the last 10 minutes. */
+const REAUTH =
+  'REAUTH_REQUIRED: confirm the password (header X-Reauth-Password) or sign in again; “Password is incorrect” for a wrong one';
+const reauthHeader = [{ name: 'X-Reauth-Password', in: 'header' as const, schema: str() }];
 
 export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/users', T, 'Accounts', {
@@ -46,9 +50,10 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   }),
   op('get', '/admin/users/{id}', T, 'One account', { access: ADMIN, description: account }),
   op('post', '/admin/users', T, 'Invite an account', {
-    access: ADMIN,
+    access: `${ADMIN}; inviting an administrator needs the password again`,
     description:
-      'Staff of a facility (facility required, seats of its subscription checked), Ministry officials and administrators (no facility). Never patients – facilities register them. Doctors, nurses and pharmacists need their licence number. The activation e-mail is queued; outside production the single-use link (72 hours) is also returned.',
+      'Staff of a facility (facility required, seats of its subscription checked), Ministry officials and administrators (no facility). Never patients – facilities register them. Doctors, nurses and pharmacists need their licence number. Inviting an administrator asks for the password again first (401 REAUTH_REQUIRED). The activation e-mail is queued; outside production the single-use link (72 hours) is also returned.',
+    params: reauthHeader,
     body: obj(
       {
         email: str({ format: 'email', maxLength: 254 }),
@@ -63,13 +68,16 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
     responses: {
       '201': 'Invited',
       '400': 'Invalid role, facility or licence',
+      '401': REAUTH,
       '409': 'E-mail in use or no free seat',
     },
   }),
   op('patch', '/admin/users/{id}', T, 'Change name, role, facility, specialty or licence', {
-    access: `${ADMIN}; role and facility ${SELF}`,
+    access: `${ADMIN}; role and facility ${SELF}; an administrator’s account, or making someone one, needs the password again`,
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH },
     description:
-      'A role or facility change needs a reason, waits until the person is in no care team (their patients handed over), has no result cover (active or to come, as covering or absent doctor), no results they ordered awaiting review, no notes in draft and no prescriptions the pharmacy returned to them, checks the new facility’s seats and signs the person out everywhere. A change of role unlinks a licence of the old profession (audited); `licenceLinked` says whether a licence of the new profession is linked, `licenceUnlinked` whether one was unlinked. Patient accounts are not changed here.',
+      'Any change to an administrator’s account, or to the administrator role, asks for the password again first (401 REAUTH_REQUIRED). A role or facility change needs a reason, waits until the person is in no care team (their patients handed over), has no result cover (active or to come, as covering or absent doctor), no results they ordered awaiting review, no notes in draft and no prescriptions the pharmacy returned to them, checks the new facility’s seats and signs the person out everywhere. A change of role unlinks a licence of the old profession (audited); `licenceLinked` says whether a licence of the new profession is linked, `licenceUnlinked` whether one was unlinked. Patient accounts are not changed here.',
     body: obj({
       fullName: str({ minLength: 2, maxLength: 200 }),
       role: enumOf(...ROLES),
@@ -80,9 +88,11 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
     }),
   }),
   op('post', '/admin/users/{id}/disable', T, 'Disable an account', {
-    access: `${ADMIN}; ${SELF}; never the last active administrator (serialised with every change of an administrator)`,
+    access: `${ADMIN}; ${SELF}; never the last active administrator (serialised with every change of an administrator); needs the password again`,
     description: 'Signs the person out everywhere. ' + account + '.',
     body: reason(true),
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH },
   }),
   op('post', '/admin/users/{id}/enable', T, 'Enable an account', {
     access: ADMIN,
@@ -97,13 +107,17 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
       'The usual reset e-mail goes to the account’s own address; the administrator never sees the link. Link, e-mail and audit entry (the administrator as actor) are one transaction. Activated, enabled accounts only.',
   }),
   op('post', '/admin/users/{id}/mfa-reset', T, 'Reset two-step sign-in', {
-    access: `${ADMIN}; ${SELF}`,
+    access: `${ADMIN}; ${SELF}; needs the password again`,
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH },
     description:
       'Removes the authenticator app, recovery codes and passkeys, signs the person out everywhere and tells them (in the app and by e-mail). They set it up again at the next sign-in. Not for patient accounts (400): reception or a director of their facility verifies their identity in person and resets it (`POST /patients/{id}/portal-account/two-step-reset`).',
     body: reason(true),
   }),
   op('post', '/admin/users/{id}/revoke-sessions', T, 'Sign out everywhere', {
-    access: `${ADMIN}; ${SELF} (use your own security page)`,
+    access: `${ADMIN}; ${SELF} (use your own security page); needs the password again`,
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH },
   }),
   op('post', '/admin/users/{id}/resend-invitation', T, 'Renew the activation link', {
     access: ADMIN,

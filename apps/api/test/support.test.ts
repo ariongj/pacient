@@ -1,8 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import {
   auditLogs,
+  emailOutbox,
   mfaRecoveryCodes,
   notifications,
   oneTimeTokens,
@@ -138,6 +139,94 @@ describe('account actions', () => {
     expect(n.some((x) => x.title === `Your IT support request ${t.reference} was resolved`)).toBe(
       true,
     );
+  });
+
+  it('sends a reset link in IT support’s name, audited in the same transaction', async () => {
+    const pharmacist = await createUser('PHARMACIST', w.facility.id);
+    const t = await ticket(w.tokens.doctor, 'PASSWORD_RESET', pharmacist.id);
+    const reset = await post(itToken, `/tickets/${t.id}/password-reset`);
+    expect(reset.status).toBe(200);
+    const [token, ...more] = await db
+      .select()
+      .from(oneTimeTokens)
+      .where(eq(oneTimeTokens.userId, pharmacist.id));
+    expect(more).toHaveLength(0);
+    expect(token).toMatchObject({ purpose: 'PASSWORD_RESET', createdById: it1.id });
+    expect(
+      await db
+        .select()
+        .from(emailOutbox)
+        .where(
+          and(eq(emailOutbox.userId, pharmacist.id), eq(emailOutbox.template, 'password_reset')),
+        ),
+    ).toHaveLength(1);
+    // Recorded as IT support's action on the account, never as the person's own request.
+    const trail = await db.select().from(auditLogs).where(eq(auditLogs.resourceId, pharmacist.id));
+    expect(trail.map((a) => [a.action, a.actorUserId])).toEqual([
+      ['support.account_action', it1.id],
+    ]);
+    expect(
+      await db
+        .select()
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.action, 'auth.password.reset_requested'),
+            eq(auditLogs.actorUserId, pharmacist.id),
+          ),
+        ),
+    ).toHaveLength(0);
+
+    // The audit entry fails: nothing of the reset may remain.
+    await db.execute(
+      sql.raw(`CREATE OR REPLACE FUNCTION test_fail_support_audit() RETURNS trigger AS $$
+        BEGIN
+          IF NEW.action = 'support.account_action' AND NEW.resource_id = '${pharmacist.id}' THEN
+            RAISE EXCEPTION 'audit unavailable';
+          END IF;
+          RETURN NEW;
+        END; $$ LANGUAGE plpgsql`),
+    );
+    await db.execute(
+      sql.raw(`CREATE TRIGGER test_fail_support_audit BEFORE INSERT ON audit_logs
+        FOR EACH ROW EXECUTE FUNCTION test_fail_support_audit()`),
+    );
+    try {
+      expect((await post(itToken, `/tickets/${t.id}/password-reset`)).status).toBe(500);
+    } finally {
+      await db.execute(sql.raw('DROP TRIGGER test_fail_support_audit ON audit_logs'));
+      await db.execute(sql.raw('DROP FUNCTION test_fail_support_audit()'));
+    }
+    expect(
+      await db.select().from(oneTimeTokens).where(eq(oneTimeTokens.userId, pharmacist.id)),
+    ).toHaveLength(1);
+    expect(
+      await db.select().from(emailOutbox).where(eq(emailOutbox.userId, pharmacist.id)),
+    ).toHaveLength(1);
+
+    // No reset for an account that cannot use one (and nothing recorded as sent).
+    const pending = await createUser('NURSE', w.facility.id, { passwordHash: null });
+    const forPending = await ticket(w.tokens.doctor, 'PASSWORD_RESET', pending.id);
+    const refused = await post(itToken, `/tickets/${forPending.id}/password-reset`);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.message).toBe(
+      'This account is not activated yet, so it has no password to reset',
+    );
+    const disabled = await createUser('NURSE', w.facility.id, { isActive: false });
+    const forDisabled = await ticket(w.tokens.doctor, 'PASSWORD_RESET', disabled.id);
+    expect((await post(itToken, `/tickets/${forDisabled.id}/password-reset`)).status).toBe(409);
+    expect(
+      await db
+        .select()
+        .from(oneTimeTokens)
+        .where(inArray(oneTimeTokens.userId, [pending.id, disabled.id])),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(auditLogs)
+        .where(inArray(auditLogs.resourceId, [pending.id, disabled.id])),
+    ).toHaveLength(0);
   });
 
   it('resets two-step sign-in only after a director (not the subject) approved', async () => {

@@ -34,16 +34,27 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   data, the link to a record, or who at a facility invited or treated the patient (the account's
   history shows only what administrators and the system did). For a patient account the
   administrator can only disable, enable, unlock, sign out and send a password reset e-mail; the
-  two-step reset and a new invitation stay with the facility, which verifies identity, and an
-  activation link of a patient is never returned to the administrator. A portal account closed by
-  a death registration is reopened only by withdrawing that registration.
+  two-step reset and a new invitation stay with the facility: reception or a director of the
+  patient's facility verifies the patient's identity in person and, on the patient's page, sends
+  the invitation again (only while the account was never activated; earlier links stop working,
+  the link goes to the address on record) or resets the two-step sign-in (reason required; every
+  second factor removed, the patient signed out everywhere and notified). Both are audited in the
+  same transaction with the patient, so the patient sees them in their access log and the
+  administrator's account history does not. The facility's patient list shows only the account
+  state these actions need (invitation accepted or not; two-step on, to reception and directors).
+  An activation link of a patient is never returned to the administrator. A portal account closed
+  by a death registration is reopened only by withdrawing that registration (an invitation is not
+  sent again for a closed account).
   Every action needs a reason where it can lock someone out, is audited in the same transaction
   (administrative audit view) and cannot target one's own account; the last active administrator
   cannot be removed (concurrent changes are serialised); a two-step reset notifies the person. A
-  role or facility change waits until the person's patients, result cover and results awaiting
-  review are handed over, unlinks a licence of the old profession, and takes effect at the next
-  sign-in; result cover never reaches beyond the covering doctor's current facility, and an access
-  review never changes or revokes an account that has moved out of it. The first account of an
+  role or facility change waits until the person's patients, result cover, results awaiting
+  review, notes in draft and prescriptions the pharmacy returned to them are handed over, unlinks
+  a licence of the old profession, and takes effect at the next sign-in (as defence in depth, a
+  doctor's worklist lists drafts, returned prescriptions and results only of their current
+  facility, keeping a result whose facility is unknown rather than hiding it); result cover never
+  reaches beyond the covering doctor's current facility, and an access review never changes or
+  revokes an account that has moved out of it. The first account of an
   installation is this administrator, invited through a private file (`deploy/first-admin.sh`;
   `--existing-installation` adds one to an installation that has none).
 - **Subscriptions never gate care.** A facility's subscription status (unpaid, suspended,

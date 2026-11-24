@@ -211,6 +211,7 @@ describe('a. registration at the front desk', () => {
     expect(res.status).toBe(200);
     const row = res.body.items.find((p: { id: string }) => p.id === j.patientId);
     expect(row).toMatchObject({ nationalId: j.nationalId, hasPortalAccount: true });
+    // Plus the portal account's state that the invitation and two-step reset actions need.
     expect(Object.keys(row).sort()).toEqual(
       [
         'dateOfBirth',
@@ -220,6 +221,8 @@ describe('a. registration at the front desk', () => {
         'inMyCare',
         'lastName',
         'nationalId',
+        'portalAccount',
+        'portalTwoStep',
         'primaryFacilityId',
         'sex',
         'temporaryIdentity',

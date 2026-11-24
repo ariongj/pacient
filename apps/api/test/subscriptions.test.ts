@@ -15,6 +15,7 @@ import {
   invoiceDescription,
   issueInvoice,
   localInstant,
+  restoreStanding,
   runSubscriptionLifecycle,
   yearStartOf,
 } from '../src/modules/subscriptions/subscriptions.service.js';
@@ -313,6 +314,36 @@ describe('lifecycle', () => {
     expect(await eventTypes(s.id)).toEqual(
       expect.arrayContaining(['PAYMENT_RECORDED', 'REACTIVATED']),
     );
+  });
+
+  it('tells the directors of the overdue invoice before a suspension in the same run', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    await subscribe(f.id, { trial: false });
+    const s = await subOf(f.id);
+    const [inv] = await invoicesOf(f.id);
+    // The worker was down for longer than the grace period: past due and suspended in one run.
+    const r = await run(new Date(inv!.dueAt.getTime() + 31 * DAY), f.id);
+    expect(r).toMatchObject({ pastDue: 1, suspended: 1, reminders: 2 });
+    const titles = await titlesOf(director.id);
+    expect(titles).toContain('Your facility’s subscription has an overdue invoice');
+    expect(titles).toContain(
+      'Your facility’s subscription is suspended – new staff accounts cannot be added',
+    );
+    // First the overdue invoice, then the suspension.
+    const order = (
+      await db
+        .select({ type: subscriptionEvents.type, data: subscriptionEvents.data })
+        .from(subscriptionEvents)
+        .where(eq(subscriptionEvents.subscriptionId, s.id))
+        .orderBy(asc(subscriptionEvents.createdAt))
+    )
+      .filter((e) => e.type === 'REMINDER_SENT' || e.type === 'SUSPENDED')
+      .map((e) =>
+        e.type === 'SUSPENDED' ? e.type : String((e.data as { key: string }).key).split(':')[0],
+      );
+    expect(order).toEqual(['past-due', 'SUSPENDED', 'suspended']);
+    expect((await run(new Date(inv!.dueAt.getTime() + 31 * DAY), f.id)).reminders).toBe(0);
   });
 
   it('reminds the directors once before the end of a trial', async () => {
@@ -738,12 +769,27 @@ describe('a cancellation scheduled before a suspension', () => {
       currentPeriodStart: new Date(now - 40 * DAY),
       currentPeriodEnd: new Date(now - 10 * DAY),
     });
-    const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
+    const back = await adminPost(`/subscriptions/${id}/reactivate`, { note: 'Dispute settled' });
     expect(back.status).toBe(200);
+    // The answer says the subscription ended instead of being reactivated.
+    expect(back.body.outcome).toBe('ENDED');
     expect(back.body.subscription).toMatchObject({ status: 'CANCELLED', cancelAtPeriodEnd: false });
     expect(back.body.invoices).toHaveLength(1);
     const cancelled = back.body.events.find((e: { type: string }) => e.type === 'CANCELLED');
     expect(cancelled.data).toMatchObject({ reason: 'cancelled at the end of the period' });
+    // The administrator's note is kept in the history and in the audit entry.
+    expect(cancelled.note).toBe('Dispute settled');
+    const [entry, ...more] = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.resourceId, id), sql`${auditLogs.metadata}->>'event' = 'CANCELLED'`));
+    expect(more).toHaveLength(0);
+    expect(entry!.actorUserId).toBe(adminId);
+    expect(entry!.metadata).toMatchObject({
+      event: 'CANCELLED',
+      reason: 'cancelled at the end of the period',
+      note: 'Dispute settled',
+    });
   });
 });
 
@@ -871,6 +917,7 @@ describe('suspensions', () => {
 
     const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
     expect(back.body.subscription).toMatchObject({ status: 'ACTIVE', suspensionCause: null });
+    expect(back.body.outcome).toBe('REACTIVATED');
   });
 
   it('counts the grace period from the oldest invoice still overdue after a payment', async () => {
@@ -908,6 +955,92 @@ describe('suspensions', () => {
     await run(new Date(newer.dueAt.getTime() + 30 * DAY + HOUR), f.id);
     after = await subOf(f.id);
     expect(after).toMatchObject({ status: 'SUSPENDED', suspensionCause: 'NON_PAYMENT' });
+  });
+
+  it('tells the directors an invoice is still overdue, never "active again", until it is', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    await subscribe(f.id, { trial: false });
+    const s = await subOf(f.id);
+    const now = Date.now();
+    const issued = [];
+    for (const daysAgo of [64, 24]) {
+      issued.push(
+        await db.transaction((tx) =>
+          issueInvoice(
+            tx,
+            s,
+            { start: new Date(now - (daysAgo + 30) * DAY), end: new Date(now - daysAgo * DAY) },
+            { actor: null, now: new Date(now - daysAgo * DAY) },
+          ),
+        ),
+      );
+    }
+    const [older, newer] = issued as [(typeof issued)[0], (typeof issued)[0]];
+    expect(await run(new Date(), f.id)).toMatchObject({ pastDue: 1, suspended: 1, reminders: 2 });
+    const OVERDUE = 'Your facility’s subscription has an overdue invoice';
+    const LIFTED = 'Your facility’s subscription is no longer suspended, but an invoice is overdue';
+    const ACTIVE_AGAIN = 'Your facility’s subscription is active again';
+    const count = async (title: string) =>
+      (await titlesOf(director.id)).filter((t) => t === title).length;
+
+    // A payment leaves the newer invoice overdue: payment overdue, not active.
+    expect((await pay(older.id)).status).toBe(200);
+    expect((await subOf(f.id)).status).toBe('PAST_DUE');
+    expect(await count(LIFTED)).toBe(1);
+    expect(await count(ACTIVE_AGAIN)).toBe(0);
+    // That notice told them of the overdue invoice: the worker does not repeat it.
+    expect(await run(new Date(), f.id)).toMatchObject(NOTHING);
+    expect(await count(OVERDUE)).toBe(1);
+
+    // Nothing overdue any more: active again.
+    expect((await pay(newer.id)).status).toBe(200);
+    expect((await subOf(f.id)).status).toBe('ACTIVE');
+    expect(await count(ACTIVE_AGAIN)).toBe(1);
+
+    // The same when the administrator reactivates with an invoice still overdue.
+    await db.transaction((tx) =>
+      issueInvoice(
+        tx,
+        s,
+        { start: new Date(now - 50 * DAY), end: new Date(now - 20 * DAY) },
+        { actor: null, now: new Date(now - 20 * DAY) },
+      ),
+    );
+    await adminPost(`/subscriptions/${s.id}/suspend`, { reason: 'Contract dispute' });
+    const back = await adminPost(`/subscriptions/${s.id}/reactivate`, {});
+    expect(back.body.subscription.status).toBe('PAST_DUE');
+    expect(await count(LIFTED)).toBe(2);
+    expect(await count(ACTIVE_AGAIN)).toBe(1);
+    expect(await run(new Date(), f.id)).toMatchObject(NOTHING);
+    expect(await count(OVERDUE)).toBe(1);
+  });
+
+  it('lifts on payment only a suspension recorded as for non-payment', async () => {
+    const f = await createFacility();
+    await subscribe(f.id, { trial: false });
+    const s = await subOf(f.id);
+    await setSub(s.id, {
+      status: 'SUSPENDED',
+      suspensionCause: 'NON_PAYMENT',
+      suspendedAt: new Date(),
+    });
+    const suspended = await subOf(f.id);
+    const restore = (sub: typeof suspended) =>
+      db.transaction((tx) => restoreStanding(tx, sub, { actor: null, reason: 'paid' }));
+    // A suspension without a recorded cause is treated like the administrator's: it stays.
+    await restore({ ...suspended, suspensionCause: null });
+    expect(await subOf(f.id)).toMatchObject({
+      status: 'SUSPENDED',
+      suspensionCause: 'NON_PAYMENT',
+    });
+    expect(await eventTypes(s.id)).not.toContain('REACTIVATED');
+    await restore({ ...suspended, suspensionCause: 'MANUAL' });
+    expect((await subOf(f.id)).status).toBe('SUSPENDED');
+    // For non-payment, with nothing overdue, it is lifted.
+    await restore(suspended);
+    expect(await subOf(f.id)).toMatchObject({ status: 'ACTIVE', suspensionCause: null });
+    expect(await eventTypes(s.id)).toContain('REACTIVATED');
   });
 });
 

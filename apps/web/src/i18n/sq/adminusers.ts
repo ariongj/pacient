@@ -126,8 +126,8 @@ export const adminusers: Record<string, string> = {
     'Hyrja juaj me dy hapa u rivendos nga administratori',
   'Patient accounts are found by their exact e-mail address.':
     'Llogaritë e pacientëve gjenden vetëm me adresën e saktë të e-mailit.',
-  'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.':
-    'Hyrja e tyre me dy hapa dhe ftesa për portal trajtohen nga institucioni i tyre, i cili verifikon identitetin e tyre.',
+  'If their invitation link expired or they lost their two-step sign-in, reception or a director of their facility verifies their identity in person and, on the patient’s page, sends the invitation again or resets the two-step sign-in.':
+    'Nëse lidhja e ftesës ka skaduar ose kanë humbur hyrjen me dy hapa, recepsioni ose një drejtor i institucionit të tyre ua verifikon identitetin personalisht dhe, në faqen e pacientit, e dërgon sërish ftesën ose e rivendos hyrjen me dy hapa.',
   'Closed when a death was registered': 'U mbyll kur u regjistrua një vdekje',
   'Reopened when the death registration was withdrawn':
     'U rihap kur u tërhoq regjistrimi i vdekjes',
@@ -140,8 +140,12 @@ export const adminusers: Record<string, string> = {
     'Fillimisht bëni dorëzimin: rezultatet që ka porositur ky person ende presin të shqyrtohen. Ato duhet të shqyrtohen para se të ndryshojë roli ose institucioni.',
   'This account was closed when a death was registered. It comes back only if the death registration is withdrawn.':
     'Kjo llogari u mbyll kur u regjistrua një vdekje. Rikthehet vetëm nëse tërhiqet regjistrimi i vdekjes.',
-  'A patient’s two-step sign-in is reset by their facility, which verifies their identity.':
-    'Hyrjen me dy hapa të pacientit e rivendos institucioni i tij, i cili verifikon identitetin e tij.',
-  'A patient’s portal invitation is renewed by their facility, which verifies their identity.':
-    'Ftesën për portal të pacientit e rinovon institucioni i tij, i cili verifikon identitetin e tij.',
+  'A patient’s two-step sign-in is reset by reception or a director of their facility, who verify the patient’s identity in person.':
+    'Hyrjen me dy hapa të pacientit e rivendos recepsioni ose një drejtor i institucionit të tij, të cilët e verifikojnë identitetin e pacientit personalisht.',
+  'A patient’s portal invitation is sent again by reception or a director of their facility, who verify the patient’s identity in person.':
+    'Ftesën për portal të pacientit e dërgon sërish recepsioni ose një drejtor i institucionit të tij, të cilët e verifikojnë identitetin e pacientit personalisht.',
+  'Hand over first: this person has notes still in draft. They must be signed before the role or facility changes.':
+    'Fillimisht bëni dorëzimin: ky person ka shënime ende në draft. Ato duhet të nënshkruhen para se të ndryshojë roli ose institucioni.',
+  'Hand over first: the pharmacy returned prescriptions this person wrote. They must be resubmitted or cancelled before the role or facility changes.':
+    'Fillimisht bëni dorëzimin: farmacia ka kthyer receta që ka shkruar ky person. Ato duhet të ridërgohen ose të anulohen para se të ndryshojë roli ose institucioni.',
 };

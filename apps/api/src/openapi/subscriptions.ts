@@ -152,7 +152,7 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/subscriptions/{id}/reactivate', T, 'Reactivate a suspended subscription', {
     access: ADMIN,
     description:
-      'Active again – or past due with a fresh grace period while invoices are still overdue; a trial suspended before it ended is a trial again. A period that ended while suspended starts again now, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled, without a new invoice.',
+      'Active again – or past due with a fresh grace period while invoices are still overdue; a trial whose end date has not passed is a trial again, one whose trial ended while suspended starts its first paid period on the day of reactivation, with its invoice. A period that ended while suspended starts again now, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled, without a new invoice, with the note in the history, and `outcome` is `ENDED` instead of `REACTIVATED`.',
     body: obj({ note: str({ maxLength: 1000 }) }),
   }),
   op('post', '/admin/subscriptions/{id}/cancel', T, 'Cancel now or at the end of the period', {

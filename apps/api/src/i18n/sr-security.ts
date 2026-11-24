@@ -8,4 +8,6 @@ export const srSecurity: Record<string, string> = {
     'Pristupni ključ „{name}”. Ako ga niste Vi dodali, uklonite ga u odeljku Nalog › Bezbednost i promenite lozinku.',
   'Your two-step sign-in was reset by the administrator':
     'Administrator je resetovao vašu prijavu u dva koraka',
+  'Your two-step sign-in was reset by your facility':
+    'Vaša ustanova je resetovala vašu prijavu u dva koraka',
 };

@@ -335,4 +335,14 @@ export const subscriptions: Record<string, string> = {
     'Kalon në faturim vjetor me periudhën e radhës: {price} në vit',
   'Changes to monthly with the next period: {price} per month':
     'Kalon në faturim mujor me periudhën e radhës: {price} në muaj',
+  'Your facility’s subscription is no longer suspended, but an invoice is overdue':
+    'Abonimi i institucionit tuaj nuk është më i pezulluar, por ka një faturë me afat të kaluar',
+  'The trial continues if reactivated before {date}':
+    'Periudha provuese vazhdon nëse riaktivizohet para {date}',
+  'Renews on {date} if reactivated before then':
+    'Rinovohet më {date} nëse riaktivizohet para kësaj date',
+  'The cancellation date has passed: the subscription ends as scheduled instead of being reactivated.':
+    'Data e anulimit ka kaluar: abonimi përfundon siç ishte planifikuar, në vend që të riaktivizohet.',
+  'The subscription was not reactivated: its cancellation date had passed, so it ended as scheduled.':
+    'Abonimi nuk u riaktivizua: data e anulimit kishte kaluar, prandaj përfundoi siç ishte planifikuar.',
 };

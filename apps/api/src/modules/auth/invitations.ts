@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { env, isProd } from '../../config/env.js';
 import { toLocale, type Locale } from '../../i18n/index.js';
 import type { Executor } from '../../db/client.js';
@@ -70,4 +70,44 @@ export async function createInvitedUser(tx: Executor, account: NewAccount, invit
     // Outside production the link is returned so the system can be used without an email server.
     activationUrl: isProd ? undefined : activationUrl,
   };
+}
+
+/**
+ * A new activation link for an account that was never activated, in the caller's transaction:
+ * earlier links stop working (only the newest one activates the account) and the activation
+ * e-mail is queued. Returns the link; the caller decides whether it may be shown.
+ */
+export async function renewInvitation(
+  tx: Executor,
+  user: { id: string; email: string; fullName: string; locale: string | null },
+  invitedById: string,
+) {
+  await tx
+    .update(oneTimeTokens)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(oneTimeTokens.userId, user.id),
+        eq(oneTimeTokens.purpose, 'ACCOUNT_ACTIVATION'),
+        isNull(oneTimeTokens.usedAt),
+      ),
+    );
+  const token = generateOpaqueToken();
+  await tx.insert(oneTimeTokens).values({
+    userId: user.id,
+    purpose: 'ACCOUNT_ACTIVATION',
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + ACTIVATION_TTL_HOURS * 3_600_000),
+    createdById: invitedById,
+  });
+  const activationUrl = `${env.WEB_APP_URL}/activate?token=${encodeURIComponent(token)}`;
+  await enqueueEmail(tx, {
+    to: user.email,
+    userId: user.id,
+    template: 'activation',
+    locale: toLocale(user.locale),
+    name: user.fullName,
+    url: activationUrl,
+  });
+  return activationUrl;
 }

@@ -15,15 +15,17 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, type Executor } from '../../db/client.js';
+import { db, type Database, type Executor } from '../../db/client.js';
 import {
   auditLogs,
   careAssignments,
   coverArrangements,
+  encounters,
   facilities,
   imagingOrders,
   labResults,
   mfaRecoveryCodes,
+  prescriptions,
   refreshTokens,
   users,
   webauthnCredentials,
@@ -220,10 +222,16 @@ export async function assertActiveFacility(facilityId: string, executor: Executo
 }
 
 /**
+ * A transaction, never the root db: a transaction-scoped advisory lock taken outside one is
+ * released as soon as its single statement ends, so it would serialise nothing.
+ */
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/**
  * Serialises every change that can add or remove a platform administrator (until the caller's
  * transaction ends). The same lock guards the first-administrator set-up (ops/bootstrap-admin).
  */
-export async function lockPlatformAdmins(executor: Executor) {
+export async function lockPlatformAdmins(executor: Transaction) {
   await executor.execute(sql`SELECT pg_advisory_xact_lock(4180271)`);
 }
 
@@ -233,7 +241,7 @@ export async function lockPlatformAdmins(executor: Executor) {
  * the change: the lock makes two administrators who disable or demote each other at the same
  * moment wait for one another, so the second sees the first's change and is refused.
  */
-export async function assertAnotherActiveAdmin(exceptUserId: string, executor: Executor = db) {
+export async function assertAnotherActiveAdmin(exceptUserId: string, executor: Transaction) {
   await lockPlatformAdmins(executor);
   const [row] = await executor
     .select({ n: sql<number>`count(*)::int` })
@@ -264,9 +272,10 @@ export async function activeCareTeams(userId: string, executor: Executor = db) {
 
 /**
  * What else ties the person to their current role and facility, besides care teams: result cover
- * (covering a colleague, or covered while away – active or still to come) and results they
- * ordered that nobody has reviewed yet. A role or facility change waits until both are cleared,
- * so nobody keeps reaching the old facility's patients or results.
+ * (covering a colleague, or covered while away – active or still to come), results they ordered
+ * that nobody has reviewed yet, notes they left as drafts and prescriptions of theirs that the
+ * pharmacy returned for them to act on. All of these are on their worklist, so a role or facility
+ * change waits until they are cleared: nobody keeps reaching the old facility's patients.
  */
 export async function pendingHandover(userId: string, executor: Executor = db) {
   const [cover] = await executor
@@ -299,7 +308,26 @@ export async function pendingHandover(userId: string, executor: Executor = db) {
         isNull(imagingOrders.acknowledgedAt),
       ),
     );
-  return { coverArrangements: cover?.n ?? 0, pendingResults: (lab?.n ?? 0) + (imaging?.n ?? 0) };
+  const [drafts] = await executor
+    .select({ n: sql<number>`count(*)::int` })
+    .from(encounters)
+    .where(and(eq(encounters.doctorId, userId), eq(encounters.noteStatus, 'DRAFT')));
+  const [returned] = await executor
+    .select({ n: sql<number>`count(*)::int` })
+    .from(prescriptions)
+    .where(
+      and(
+        eq(prescriptions.doctorId, userId),
+        eq(prescriptions.pharmacyStatus, 'RETURNED'),
+        eq(prescriptions.status, 'ACTIVE'),
+      ),
+    );
+  return {
+    coverArrangements: cover?.n ?? 0,
+    pendingResults: (lab?.n ?? 0) + (imaging?.n ?? 0),
+    draftNotes: drafts?.n ?? 0,
+    returnedPrescriptions: returned?.n ?? 0,
+  };
 }
 
 /** Signs the account out everywhere; returns how many sessions (devices) were open. */

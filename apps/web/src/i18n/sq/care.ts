@@ -317,4 +317,25 @@ export const care: Record<string, string> = {
   'Clinical summary and response': 'Përmbledhja klinike dhe përgjigjja',
   'Response:': 'Përgjigjja:',
   'Open patient record': 'Hap kartelën e pacientit',
+  'Invitation not accepted yet': 'Ftesa ende nuk është pranuar',
+  'Send the invitation again': 'Dërgo sërish ftesën',
+  'A new invitation was sent.': 'U dërgua një ftesë e re.',
+  '{name} has not activated their portal account yet. A new single-use link replaces the earlier ones, which stop working.':
+    '{name} ende nuk e ka aktivizuar llogarinë në portal. Një lidhje e re njëpërdorimshe zëvendëson të mëparshmet, të cilat nuk funksionojnë më.',
+  'Check the patient’s identity and email address before sending it.':
+    'Verifikoni identitetin dhe adresën e e-mailit të pacientit para se ta dërgoni.',
+  'Two-step sign-in was reset.': 'Hyrja me dy hapa u rivendos.',
+  '{name} was signed out everywhere and sets up two-step sign-in again at the next sign-in.':
+    '{name} u çkyç kudo dhe e konfiguron sërish hyrjen me dy hapa në kyçjen e ardhshme.',
+  'Verify the patient’s identity in person first.':
+    'Fillimisht verifikoni personalisht identitetin e pacientit.',
+  'For a patient who lost their authenticator app and recovery codes. Every second factor of the portal account of {name} is removed; they are signed out everywhere, are told, and set up two-step sign-in again at their next sign-in.':
+    'Për një pacient që ka humbur aplikacionin e vërtetimit dhe kodet e rikuperimit. Hiqet çdo faktor i dytë i llogarisë në portal të {name}; çkyçet kudo, njoftohet dhe e konfiguron sërish hyrjen me dy hapa në kyçjen e ardhshme.',
+  'For example, how the identity was verified. Kept in the audit trail.':
+    'Për shembull, si u verifikua identiteti. Ruhet në gjurmën e auditimit.',
+  'This patient’s portal account is closed': 'Llogaria në portal e këtij pacienti është e mbyllur',
+  'This patient has no portal account': 'Ky pacient nuk ka llogari në portal',
+  'Your two-step sign-in was reset by your facility':
+    'Hyrja juaj me dy hapa u rivendos nga institucioni juaj',
+  'Two-step sign-in reset by the facility': 'Hyrja me dy hapa u rivendos nga institucioni',
 };

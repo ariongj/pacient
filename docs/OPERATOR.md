@@ -36,15 +36,19 @@ address (a support case), never by name or by browsing.
   activation link by e-mail (valid 72 hours). Doctors, nurses and pharmacists need their licence
   number. Patients are never invited here – their facility registers them.
 - **Change** name, role, facility, specialty or licence number. A role or facility change is refused
-  while the person still has patients in their care, result cover or results awaiting review; these
-  are handed over first.
+  while the person still has patients in their care, result cover, results awaiting review, notes
+  in draft or prescriptions the pharmacy returned to them; these are handed over (or signed,
+  resubmitted or cancelled) first.
 - **Disable / enable**, **unlock** after too many failed sign-ins, **send a password reset**,
   **reset two-step sign-in** (the person sets it up again at the next sign-in and is notified), **sign out everywhere**, **send the invitation again**.
 
 Every action asks for a reason where it matters, is written to the audit trail together with the
 change, and appears in the account's history. An administrator cannot act on their own account
 (use **Settings › Security**). For patient accounts only disable, enable, unlock, sign out and
-password reset are offered; their personal details are kept by their facility.
+password reset are offered; their personal details are kept by their facility. A patient whose
+invitation link expired, or who lost their authenticator and recovery codes, goes to their
+facility: reception or a director verifies their identity in person and, on the patient's page,
+sends the invitation again or resets their two-step sign-in.
 
 Directors keep inviting and managing their own staff, as before.
 
@@ -80,8 +84,9 @@ What happens by itself (checked every six hours):
 - a cancellation scheduled for the end of the period takes effect then – also when the
   subscription was suspended in the meantime;
 - directors are told a week before a trial ends or a renewal, when an invoice is issued, overdue,
-  and when the status changes. A reminder that finds no active director (for example before the
-  first director is invited) is sent at a later check, once there is one.
+  and when the status changes – of an overdue invoice always before a suspension, also when both
+  happen at one check. A reminder that finds no active director (for example before the first
+  director is invited) is sent at a later check, once there is one.
 
 By hand, on the facility's page: change plan, billing cycle, number of staff accounts (seats) or an
 agreed price; start the paid subscription before the trial ends; suspend and reactivate; cancel
@@ -97,13 +102,17 @@ agreed price; start the paid subscription before the trial ends; suspend and rea
 - **Start the paid subscription now** is refused while a cancellation is scheduled: withdraw the
   cancellation first.
 - **Suspend** by hand: only **Reactivate** lifts it – a payment does not. A suspension for
-  non-payment ends by itself when the overdue invoices are paid. The facility's page shows since
-  when and why a subscription is suspended. A scheduled cancellation stays and ends the
-  subscription at the end of the period.
-- **Reactivate**: a trial suspended before it ended is a trial again. With invoices still overdue,
-  the subscription is overdue again with a new grace period. A period that ended while suspended
-  starts again on the day of reactivation, with its invoice – unless a cancellation was scheduled
-  for its end: then the subscription ends as scheduled, without a new invoice.
+  non-payment ends by itself when the overdue invoices are paid (a suspension whose cause is not
+  recorded is treated as one by hand). The facility's page shows since when and why a
+  subscription is suspended, and what reactivating would do next. A scheduled cancellation stays
+  and ends the subscription at the end of the period.
+- **Reactivate**: a trial whose end date has not passed is a trial again; one whose trial ended
+  while suspended starts its first paid period on the day of reactivation, with its invoice. With
+  invoices still overdue, the subscription is overdue again with a new grace period. A period
+  that ended while suspended starts again on the day of reactivation, with its invoice; a period
+  still running keeps its renewal date. If a cancellation was scheduled and its date has passed,
+  the subscription ends as scheduled instead, without a new invoice: the page says so, and your
+  note is kept in the history.
 - **Cancel now** leaves the open invoices – also the one of the current period – open: record
   their payment, or void an invoice the facility does not owe. A new subscription for the facility
   can be started only when none of its invoices is open.
@@ -140,7 +149,9 @@ the reference, and the administrator **records the payment** (date, method, refe
 nothing else is overdue, an overdue subscription, or one suspended for non-payment, is active again
 at once; a suspension made by hand stays until it is reactivated. When other invoices are still
 overdue, the grace period counts from the oldest of them – a subscription suspended because of the
-invoice just paid is overdue again if that invoice's grace period has not ended. An invoice issued
+invoice just paid is overdue again if that invoice's grace period has not ended, and its directors
+are told that it is no longer suspended but an invoice is still overdue (never that it is active
+again). An invoice issued
 by mistake is **voided** with a reason; it keeps its number, and the subscription is checked as
 after a payment.
 

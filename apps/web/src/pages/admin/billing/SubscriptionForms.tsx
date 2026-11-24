@@ -15,6 +15,7 @@ import {
   type OrganizationDetail,
   type Plan,
   type SubscriptionAction,
+  type SubscriptionActionResult,
   type SubscriptionSummary,
 } from '../../../api/subscriptions';
 import {
@@ -320,6 +321,7 @@ export function ReasonForm({
   submit,
   danger,
   extra,
+  onResult,
   onDone,
 }: {
   subscriptionId: string;
@@ -332,6 +334,8 @@ export function ReasonForm({
   submit: string;
   danger?: boolean;
   extra?: (v: Record<string, string>) => Record<string, unknown>;
+  /** Sees the answer before the form closes (e.g. what reactivating did). */
+  onResult?: (result: SubscriptionActionResult) => void;
   onDone: () => void;
 }) {
   const mutation = useBillingMutation(subscriptionAction);
@@ -340,7 +344,15 @@ export function ReasonForm({
     const v = formValues(e.currentTarget);
     const body: Record<string, unknown> = { ...(extra?.(v) ?? {}) };
     if (v[field]) body[field] = v[field];
-    mutation.mutate({ id: subscriptionId, action, body }, { onSuccess: onDone });
+    mutation.mutate(
+      { id: subscriptionId, action, body },
+      {
+        onSuccess: (result) => {
+          onResult?.(result);
+          onDone();
+        },
+      },
+    );
   }
   return (
     <form onSubmit={onSubmit}>

@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
+import type { PatientWithPortal } from '../../api/patients';
 import type { Page, PatientListItem } from '../../api/types';
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Dialog,
@@ -20,6 +20,12 @@ import {
 } from '../../components/ui';
 import { age, formatDate, fullName, humanize } from '../../format';
 import { GuardiansPanel } from '../shared/GuardiansPanel';
+import {
+  PortalActions,
+  PortalBadge,
+  PortalInviteDialog,
+  TwoStepResetDialog,
+} from '../shared/PortalAccount';
 import { BookAppointmentDialog, type PatientRef } from './BookAppointmentDialog';
 import { t } from '../../i18n';
 import { UnknownPatientDialog } from '../births/IdentityDialogs';
@@ -105,62 +111,13 @@ function ContactDialog({ patientId, onClose }: { patientId: string; onClose: () 
   );
 }
 
-function InviteDialog({ patientId, onClose }: { patientId: string; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: () =>
-      api<{ activationUrl?: string }>(`/patients/${patientId}/portal-invitation`, {
-        method: 'POST',
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patients'] }),
-  });
-  return (
-    <div className="stack">
-      {mutation.isSuccess ? (
-        <Alert tone="success" title={t('Portal invitation created')}>
-          {mutation.data.activationUrl ? (
-            <>
-              <p>
-                {t(
-                  'Activation link (development only – in production it is sent to the patient by email):',
-                )}
-              </p>
-              <code style={{ wordBreak: 'break-all' }}>{mutation.data.activationUrl}</code>
-            </>
-          ) : (
-            <p>{t('The patient will receive an email with a link to activate the account.')}</p>
-          )}
-        </Alert>
-      ) : (
-        <>
-          <p>
-            {t(
-              'The patient receives a single-use link to set their own password. An email address must be on file.',
-            )}
-          </p>
-          <ErrorAlert error={mutation.error} />
-        </>
-      )}
-      <div className="form-actions">
-        <Button variant="secondary" onClick={onClose}>
-          {mutation.isSuccess ? t('Close') : t('Cancel')}
-        </Button>
-        {!mutation.isSuccess && (
-          <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
-            {t('Send invitation')}
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function ReceptionPatients() {
   const [search, setSearch] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<string | null>(null);
-  const [inviting, setInviting] = useState<string | null>(null);
+  const [inviting, setInviting] = useState<PatientWithPortal | null>(null);
+  const [twoStepFor, setTwoStepFor] = useState<PatientWithPortal | null>(null);
   const [booking, setBooking] = useState<PatientRef | null>(null);
   const [guardiansFor, setGuardiansFor] = useState<PatientListItem | null>(null);
   const [registeringUnknown, setRegisteringUnknown] = useState(false);
@@ -168,7 +125,7 @@ export function ReceptionPatients() {
   const q = useQuery({
     queryKey: ['patients', 'facility', submitted, page],
     queryFn: () =>
-      api<Page<PatientListItem>>('/patients', {
+      api<Page<PatientWithPortal>>('/patients', {
         query: { scope: 'facility', search: submitted || undefined, page, pageSize: 20 },
       }),
   });
@@ -253,11 +210,7 @@ export function ReceptionPatients() {
                         </td>
                         <td>{humanize(p.sex)}</td>
                         <td>
-                          {p.hasPortalAccount ? (
-                            <Badge tone="success">{t('Active')}</Badge>
-                          ) : (
-                            <Badge tone="neutral">{t('None')}</Badge>
-                          )}
+                          <PortalBadge patient={p} />
                         </td>
                         <td>
                           <div className="row">
@@ -279,11 +232,11 @@ export function ReceptionPatients() {
                             >
                               {t('Guardians')}
                             </Button>
-                            {!p.hasPortalAccount && (
-                              <Button size="sm" variant="ghost" onClick={() => setInviting(p.id)}>
-                                {t('Invite to portal')}
-                              </Button>
-                            )}
+                            <PortalActions
+                              patient={p}
+                              onInvite={() => setInviting(p)}
+                              onResetTwoStep={() => setTwoStepFor(p)}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -309,13 +262,8 @@ export function ReceptionPatients() {
       >
         {editing && <ContactDialog patientId={editing} onClose={() => setEditing(null)} />}
       </Dialog>
-      <Dialog
-        open={inviting !== null}
-        onClose={() => setInviting(null)}
-        title={t('Invite to patient portal')}
-      >
-        {inviting && <InviteDialog patientId={inviting} onClose={() => setInviting(null)} />}
-      </Dialog>
+      <PortalInviteDialog patient={inviting} onClose={() => setInviting(null)} />
+      <TwoStepResetDialog patient={twoStepFor} onClose={() => setTwoStepFor(null)} />
       <Dialog
         open={guardiansFor !== null}
         onClose={() => setGuardiansFor(null)}

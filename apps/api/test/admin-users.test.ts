@@ -11,6 +11,7 @@ import {
   careAssignments,
   coverArrangements,
   emailOutbox,
+  encounters,
   facilities,
   imagingOrders,
   labResults,
@@ -18,6 +19,7 @@ import {
   notifications,
   oneTimeTokens,
   patients,
+  prescriptions,
   refreshTokens,
   users,
 } from '../src/db/schema.js';
@@ -298,7 +300,7 @@ describe('patient accounts', () => {
     const reset = await post(`/${patientUser.id}/mfa-reset`, { reason: 'Caller says lost phone' });
     expect(reset.status).toBe(400);
     expect(reset.body.error.message).toBe(
-      'A patient’s two-step sign-in is reset by their facility, which verifies their identity.',
+      'A patient’s two-step sign-in is reset by reception or a director of their facility, who verify the patient’s identity in person.',
     );
     const [u] = await db.select().from(users).where(eq(users.id, patientUser.id));
     expect(u!.mfaEnabledAt).not.toBeNull();
@@ -307,7 +309,7 @@ describe('patient accounts', () => {
     const renew = await post(`/${pending.id}/resend-invitation`);
     expect(renew.status).toBe(400);
     expect(renew.body.error.message).toBe(
-      'A patient’s portal invitation is renewed by their facility, which verifies their identity.',
+      'A patient’s portal invitation is sent again by reception or a director of their facility, who verify the patient’s identity in person.',
     );
     expect(renew.body.activationUrl).toBeUndefined();
     const tokens = await db
@@ -420,7 +422,9 @@ describe('disable and enable', () => {
     // Through the API the acting administrator is always another active one; the guard also
     // holds on its own (e.g. two administrators disabling each other at the same moment).
     const other = await createUser('ADMIN');
-    await expect(assertAnotherActiveAdmin(other.id)).resolves.toBeUndefined();
+    await expect(
+      db.transaction((tx) => assertAnotherActiveAdmin(other.id, tx)),
+    ).resolves.toBeUndefined();
     await expect(
       db.transaction(async (tx) => {
         await tx.update(users).set({ isActive: false }).where(eq(users.role, 'ADMIN'));
@@ -529,9 +533,11 @@ describe('sign-in help', () => {
       .from(emailOutbox)
       .where(and(eq(emailOutbox.userId, reception.id), eq(emailOutbox.template, 'password_reset')));
     expect(mail).toBeTruthy();
-    const [sent] = await auditRows('admin.user.password_reset_sent', reception.id);
-    // The administrator asked for it: recorded as theirs, never as the person's own request.
-    expect(sent!.actorUserId).toBe(admin.id);
+    const sent = await auditRows('admin.user.password_reset_sent', reception.id);
+    // Exactly one entry, and the administrator asked for it: recorded as theirs, never as the
+    // person's own request.
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.actorUserId).toBe(admin.id);
     expect(token!.createdById).toBe(admin.id);
     const own = await db
       .select()
@@ -761,6 +767,67 @@ describe('role and facility', () => {
     expect(moved.status).toBe(200);
     expect(moved.body.user.facilityId).toBe(other.id);
     expect((await move(away.id)).status).toBe(200);
+  });
+
+  it('waits until draft notes and returned prescriptions are handed over', async () => {
+    const doctor = await staff('DOCTOR', w.facility.id);
+    const other = await createFacility();
+    const move = () =>
+      patch(`/${doctor.id}`, { facilityId: other.id, reason: 'Moves to another hospital' });
+    const patient = await createPatient(w.facility.id);
+
+    // A note left as a draft: it is on the doctor's worklist at this facility.
+    const [draft] = await db
+      .insert(encounters)
+      .values({
+        patientId: patient.id,
+        doctorId: doctor.id,
+        facilityId: w.facility.id,
+        type: 'OUTPATIENT',
+        reason: 'Follow-up of hypertension',
+      })
+      .returning();
+    const drafting = await move();
+    expect(drafting.status).toBe(409);
+    expect(drafting.body.error.message).toBe(
+      'Hand over first: this person has notes still in draft. They must be signed before the role or facility changes.',
+    );
+    await db
+      .update(encounters)
+      .set({ noteStatus: 'SIGNED', signedAt: new Date(), signedById: doctor.id })
+      .where(eq(encounters.id, draft!.id));
+
+    // A prescription the pharmacy returned for the prescriber to act on.
+    const [rx] = await db
+      .insert(prescriptions)
+      .values({
+        patientId: patient.id,
+        doctorId: doctor.id,
+        medication: 'Amlodipine 5 mg',
+        dosage: '5 mg',
+        frequency: 'once a day',
+        startDate: '2026-11-01',
+        pharmacyStatus: 'RETURNED',
+        pharmacistNote: 'Interaction to review',
+        verifiedById: w.users.pharmacist.id,
+        verifiedAt: new Date(),
+      })
+      .returning();
+    const returned = await move();
+    expect(returned.status).toBe(409);
+    expect(returned.body.error.message).toBe(
+      'Hand over first: the pharmacy returned prescriptions this person wrote. They must be resubmitted or cancelled before the role or facility changes.',
+    );
+    // Also for a change of role at the same facility.
+    expect(
+      (await patch(`/${doctor.id}`, { role: 'NURSE', reason: 'Works as a nurse now' })).status,
+    ).toBe(409);
+    await db.update(prescriptions).set({ status: 'CANCELLED' }).where(eq(prescriptions.id, rx!.id));
+
+    const moved = await move();
+    expect(moved.status).toBe(200);
+    expect(moved.body.user.facilityId).toBe(other.id);
+    expect(await auditRows('admin.user.updated', doctor.id)).toHaveLength(1);
   });
 
   it('checks licences and facilities and leaves patient accounts to their facility', async () => {

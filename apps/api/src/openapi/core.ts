@@ -160,8 +160,21 @@ export const CORE_OPERATIONS: ModuleOperation[] = [
   }),
   op('post', '/patients/{id}/portal-invitation', PAT, 'Invite the patient to the portal', {
     access: 'DOCTOR, NURSE, DIRECTOR, RECEPTION',
-    description: 'Emails an activation link to the patient’s address on record.',
+    description:
+      'Emails an activation link to the patient’s address on record. When the patient was invited but never activated the account (e.g. the 72-hour link expired), sends a new link instead (`renewed: true`): earlier links stop working, the account takes the address on record, audited with the staff member as actor. 409 once the account is activated, or when it is closed.',
   }),
+  op(
+    'post',
+    '/patients/{id}/portal-account/two-step-reset',
+    PAT,
+    'Reset the two-step sign-in of the patient’s portal account',
+    {
+      access: 'DIRECTOR, RECEPTION of the patient’s facility (after verifying identity in person)',
+      description:
+        'For a patient who lost their authenticator app and recovery codes: removes every second factor, signs the patient out everywhere and tells them; they set it up again at the next sign-in. Audited with the reason in the same transaction. 409 when the patient has no portal account or two-step sign-in is not set up.',
+      body: obj({ reason: text(5, 500) }, ['reason']),
+    },
+  ),
   op('post', '/patients/{id}/care-team', PAT, 'Add a doctor to the care team', {
     access: 'DOCTOR, NURSE, DIRECTOR',
     body: obj({ doctorId: { ...uuid, description: 'Defaults to the calling doctor' } }),

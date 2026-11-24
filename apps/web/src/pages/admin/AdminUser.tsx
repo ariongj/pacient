@@ -127,7 +127,7 @@ function AccountView({ page }: { page: AccountPage }) {
             'A patient account. The patient’s details and health record are kept by their facility; here you can only help with signing in.',
           )}{' '}
           {t(
-            'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.',
+            'If their invitation link expired or they lost their two-step sign-in, reception or a director of their facility verifies their identity in person and, on the patient’s page, sends the invitation again or resets the two-step sign-in.',
           )}
         </Alert>
       )}

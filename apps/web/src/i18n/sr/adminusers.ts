@@ -121,8 +121,8 @@ export const adminusers: Record<string, string> = {
     'Administrator je resetovao vašu prijavu u dva koraka',
   'Patient accounts are found by their exact e-mail address.':
     'Nalozi pacijenata pronalaze se samo po tačnoj e-mail adresi.',
-  'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.':
-    'Njihovom prijavom u dva koraka i pozivom za portal bavi se njihova ustanova, koja proverava njihov identitet.',
+  'If their invitation link expired or they lost their two-step sign-in, reception or a director of their facility verifies their identity in person and, on the patient’s page, sends the invitation again or resets the two-step sign-in.':
+    'Ako im je link poziva istekao ili su izgubili prijavu u dva koraka, prijemna služba ili direktor njihove ustanove lično proverava njihov identitet i, na stranici pacijenta, ponovo šalje poziv ili resetuje prijavu u dva koraka.',
   'Closed when a death was registered': 'Zatvoren kada je prijavljena smrt',
   'Reopened when the death registration was withdrawn':
     'Ponovo otvoren kada je prijava smrti povučena',
@@ -135,8 +135,12 @@ export const adminusers: Record<string, string> = {
     'Najpre izvršite primopredaju: rezultati koje je ova osoba naručila još čekaju pregled. Moraju biti pregledani pre promene uloge ili ustanove.',
   'This account was closed when a death was registered. It comes back only if the death registration is withdrawn.':
     'Ovaj nalog je zatvoren kada je prijavljena smrt. Vraća se samo ako se prijava smrti povuče.',
-  'A patient’s two-step sign-in is reset by their facility, which verifies their identity.':
-    'Prijavu u dva koraka pacijenta resetuje njegova ustanova, koja proverava njegov identitet.',
-  'A patient’s portal invitation is renewed by their facility, which verifies their identity.':
-    'Poziv za portal pacijenta obnavlja njegova ustanova, koja proverava njegov identitet.',
+  'A patient’s two-step sign-in is reset by reception or a director of their facility, who verify the patient’s identity in person.':
+    'Prijavu u dva koraka pacijenta resetuje prijemna služba ili direktor njegove ustanove, koji lično proveravaju identitet pacijenta.',
+  'A patient’s portal invitation is sent again by reception or a director of their facility, who verify the patient’s identity in person.':
+    'Poziv za portal pacijentu ponovo šalje prijemna služba ili direktor njegove ustanove, koji lično proveravaju identitet pacijenta.',
+  'Hand over first: this person has notes still in draft. They must be signed before the role or facility changes.':
+    'Najpre izvršite primopredaju: ova osoba ima beleške koje su još u nacrtu. Moraju biti potpisane pre promene uloge ili ustanove.',
+  'Hand over first: the pharmacy returned prescriptions this person wrote. They must be resubmitted or cancelled before the role or facility changes.':
+    'Najpre izvršite primopredaju: apoteka je vratila recepte koje je napisala ova osoba. Moraju biti ponovo poslati ili otkazani pre promene uloge ili ustanove.',
 };

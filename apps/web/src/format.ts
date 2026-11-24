@@ -174,6 +174,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.invited': 'Account invited',
   'user.deactivated': 'Account deactivated',
   'user.reactivated': 'Account reactivated',
+  'user.mfa_reset': 'Two-step sign-in reset by the facility',
   'facility.created': 'Facility created',
   'facility.updated': 'Facility updated',
   'patient.registered': 'Patient registered',

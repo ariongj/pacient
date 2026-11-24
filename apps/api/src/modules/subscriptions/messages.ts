@@ -6,6 +6,8 @@ export const sqSubscriptions: Record<string, string> = {
   'Your facility’s subscription: invoice {number} was issued':
     'Abonimi i institucionit tuaj: u lëshua fatura {number}',
   'Your facility’s subscription is active again': 'Abonimi i institucionit tuaj është sërish aktiv',
+  'Your facility’s subscription is no longer suspended, but an invoice is overdue':
+    'Abonimi i institucionit tuaj nuk është më i pezulluar, por ka një faturë me afat të kaluar',
   'Your facility’s subscription has ended': 'Abonimi i institucionit tuaj ka përfunduar',
   'Your facility’s subscription has an overdue invoice':
     'Abonimi i institucionit tuaj ka një faturë me afat të kaluar',
@@ -25,6 +27,8 @@ export const srSubscriptions: Record<string, string> = {
   'Your facility’s subscription: invoice {number} was issued':
     'Pretplata vaše ustanove: izdata je faktura {number}',
   'Your facility’s subscription is active again': 'Pretplata vaše ustanove je ponovo aktivna',
+  'Your facility’s subscription is no longer suspended, but an invoice is overdue':
+    'Pretplata vaše ustanove više nije suspendovana, ali ima fakturu kojoj je istekao rok plaćanja',
   'Your facility’s subscription has ended': 'Pretplata vaše ustanove je završena',
   'Your facility’s subscription has an overdue invoice':
     'Pretplata vaše ustanove ima fakturu kojoj je istekao rok plaćanja',

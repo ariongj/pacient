@@ -286,7 +286,11 @@ describe('scoring and escalation of inpatients', () => {
 
   it('re-escalates an unacknowledged HIGH score after an hour, once, and stops after acknowledgement', async () => {
     const later = new Date(Date.now() + 61 * 60_000);
-    expect(await reescalateOnce(new Date(Date.now() + 10 * 60_000))).toBe(0);
+    // Other test files may leave unacknowledged scores of their own patients (and the order of
+    // the files changes between runs): what counts is what reaches this patient's doctor.
+    const before = (await newsNotifications(w.users.doctor.id)).length;
+    await reescalateOnce(new Date(Date.now() + 10 * 60_000));
+    expect(await newsNotifications(w.users.doctor.id)).toHaveLength(before);
     expect(await reescalateOnce(later)).toBeGreaterThanOrEqual(1);
     const doc = await newsNotifications(w.users.doctor.id);
     expect(doc.some((n) => n.title.endsWith('(still not acknowledged)'))).toBe(true);

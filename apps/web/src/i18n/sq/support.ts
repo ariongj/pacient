@@ -133,4 +133,6 @@ export const support: Record<string, string> = {
   'Request counts per facility': 'Numri i kërkesave sipas institucionit',
   'MINISTRY (all facilities), DIRECTOR and IT_SUPPORT (own); counts only':
     'MINISTRIA (të gjitha institucionet), DREJTORI dhe MBËSHTETJA IT (të vetin); vetëm numra',
+  'This account is not activated yet, so it has no password to reset':
+    'Kjo llogari ende nuk është aktivizuar, prandaj nuk ka fjalëkalim për t’u rivendosur',
 };

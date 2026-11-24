@@ -356,6 +356,12 @@ export type SubscriptionAction =
   | 'notes'
   | 'invoices';
 
+/**
+ * The organisation after the action. Reactivating says what happened: `ENDED` when a cancellation
+ * was scheduled for a date that had passed, so the subscription ended instead.
+ */
+export type SubscriptionActionResult = OrganizationDetail & { outcome?: 'REACTIVATED' | 'ENDED' };
+
 export const subscriptionAction = ({
   id,
   action,
@@ -365,7 +371,7 @@ export const subscriptionAction = ({
   action: SubscriptionAction;
   body?: Record<string, unknown>;
 }) =>
-  api<OrganizationDetail>(`/admin/subscriptions/${id}/${action}`, {
+  api<SubscriptionActionResult>(`/admin/subscriptions/${id}/${action}`, {
     method: 'POST',
     body: body ?? {},
   });

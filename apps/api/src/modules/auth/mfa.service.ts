@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { and, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import { env } from '../../config/env.js';
-import { db } from '../../db/client.js';
+import { db, type Executor } from '../../db/client.js';
 import { mfaRecoveryCodes, oneTimeTokens, users, webauthnCredentials } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
@@ -225,6 +225,35 @@ export async function completeMfaChallenge(
 /* ------------------------------------------------------------------ password reset ----------- */
 
 /**
+ * Creates a reset link and queues the usual reset e-mail to the account's own address, inside the
+ * caller's transaction (so the caller's audit entry goes with it). `createdById` is whoever asked
+ * on the person's behalf (an administrator or IT support), never shown the link; null when the
+ * person asked themselves.
+ */
+export async function sendPasswordResetLink(
+  tx: Executor,
+  user: { id: string; email: string; fullName: string; locale: string | null },
+  createdById: string | null,
+) {
+  const token = generateOpaqueToken();
+  await tx.insert(oneTimeTokens).values({
+    userId: user.id,
+    purpose: 'PASSWORD_RESET',
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
+    createdById,
+  });
+  await enqueueEmail(tx, {
+    to: user.email,
+    userId: user.id,
+    template: 'password_reset',
+    locale: toLocale(user.locale),
+    name: user.fullName,
+    url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
+  });
+}
+
+/**
  * Always succeeds from the caller's point of view, so the endpoint cannot be used to discover
  * which email addresses have accounts.
  */
@@ -235,23 +264,7 @@ export async function requestPasswordReset(email: string, meta: RequestMeta) {
     .where(sql`lower(${users.email}) = ${email.toLowerCase()}`);
   if (!user || !user.isActive || !user.passwordHash) return;
 
-  const token = generateOpaqueToken();
-  await db.transaction(async (tx) => {
-    await tx.insert(oneTimeTokens).values({
-      userId: user.id,
-      purpose: 'PASSWORD_RESET',
-      tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
-    });
-    await enqueueEmail(tx, {
-      to: user.email,
-      userId: user.id,
-      template: 'password_reset',
-      locale: toLocale(user.locale),
-      name: user.fullName,
-      url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
-    });
-  });
+  await db.transaction((tx) => sendPasswordResetLink(tx, user, null));
   await auditSafe({
     action: AuditAction.PASSWORD_RESET_REQUESTED,
     actor: { userId: user.id, role: user.role, facilityId: user.facilityId },

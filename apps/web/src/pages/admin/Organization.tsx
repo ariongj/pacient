@@ -115,8 +115,24 @@ function SubscriptionCard({
   if (s.status === 'SUSPENDED') {
     items.push([t('Suspended since'), formatDate(s.suspendedAt)]);
     items.push([t('Cause of the suspension'), suspensionCauseText(s.suspensionCause, 'admin')]);
+    // What reactivating does next (with a scheduled cancellation it ends as scheduled instead): a
+    // trial that has not ended continues without an invoice, a running period keeps renewing on
+    // its date, and only a period that has ended starts again on the day of reactivation.
+    const trialRunning =
+      inTrialWindow(s) && s.trialEndsAt !== null && new Date(s.trialEndsAt).getTime() > Date.now();
     if (!s.cancelAtPeriodEnd) {
-      items.push([t('Next period'), t('Starts when the suspension is lifted, with its invoice')]);
+      items.push([
+        t('Next period'),
+        trialRunning
+          ? t('The trial continues if reactivated before {date}', {
+              date: formatDate(s.trialEndsAt),
+            })
+          : periodRunning
+            ? t('Renews on {date} if reactivated before then', {
+                date: formatDate(s.currentPeriodEnd),
+              })
+            : t('Starts when the suspension is lifted, with its invoice'),
+      ]);
     }
   }
   if (s.cancelledAt) items.push([t('Ended on'), formatDate(s.cancelledAt)]);
@@ -202,10 +218,13 @@ function SubscriptionCard({
 function ActionForm({
   action,
   detail,
+  onEnded,
   onDone,
 }: {
   action: Action;
   detail: OrganizationDetail;
+  /** Reactivating found the cancellation date passed: the subscription ended instead. */
+  onEnded: () => void;
   onDone: () => void;
 }) {
   const plans = usePlans();
@@ -282,7 +301,9 @@ function ActionForm({
           }
         />
       );
-    case 'reactivate':
+    case 'reactivate': {
+      const endsInstead =
+        s.cancelAtPeriodEnd && new Date(s.currentPeriodEnd).getTime() <= Date.now();
       return (
         <ReasonForm
           subscriptionId={s.id}
@@ -292,16 +313,28 @@ function ActionForm({
           label={t('Note')}
           hint={t('Shown to the facility’s directors in the history.')}
           submit={t('Reactivate')}
+          onResult={(r) => r.outcome === 'ENDED' && onEnded()}
           onDone={onDone}
           intro={
-            <p>
-              {t(
-                'A trial that has not ended is a trial again. With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled.',
+            <>
+              <p>
+                {t(
+                  'A trial that has not ended is a trial again. With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled.',
+                )}
+              </p>
+              {endsInstead && (
+                <Alert
+                  tone="warning"
+                  title={t(
+                    'The cancellation date has passed: the subscription ends as scheduled instead of being reactivated.',
+                  )}
+                />
               )}
-            </p>
+            </>
           }
         />
       );
+    }
     case 'cancel':
       return <CancelForm subscription={s} invoices={detail.invoices} onDone={onDone} />;
     case 'note':
@@ -327,7 +360,12 @@ export function Organization() {
   const { facilityId } = useParams();
   const query = useOrganization(facilityId);
   const [action, setAction] = useState<Action | null>(null);
+  const [endedInstead, setEndedInstead] = useState(false);
   const close = () => setAction(null);
+  const open = (a: Action) => {
+    setEndedInstead(false);
+    setAction(a);
+  };
 
   return (
     <QueryView query={query}>
@@ -344,15 +382,23 @@ export function Organization() {
             {!d.facility.isActive && (
               <Alert tone="info" title={t('This facility is deactivated.')} />
             )}
+            {endedInstead && (
+              <Alert
+                tone="info"
+                title={t(
+                  'The subscription was not reactivated: its cancellation date had passed, so it ended as scheduled.',
+                )}
+              />
+            )}
             {d.subscription ? (
-              <SubscriptionCard detail={d} onAction={setAction} />
+              <SubscriptionCard detail={d} onAction={open} />
             ) : (
               <Card title={t('Subscription')}>
                 <EmptyState title={t('No subscription')}>
                   {t('Start one to bill this facility and to set its number of staff accounts.')}
                 </EmptyState>
                 <div className="form-actions">
-                  <Button onClick={() => setAction('start')}>{t('Start subscription')}</Button>
+                  <Button onClick={() => open('start')}>{t('Start subscription')}</Button>
                 </div>
                 <SeatsMeter used={d.seatsUsed} limit={null} />
               </Card>
@@ -389,7 +435,14 @@ export function Organization() {
             title={action ? TITLES[action]() : ''}
             wide={action === 'change' || action === 'start'}
           >
-            {action && <ActionForm action={action} detail={d} onDone={close} />}
+            {action && (
+              <ActionForm
+                action={action}
+                detail={d}
+                onEnded={() => setEndedInstead(true)}
+                onDone={close}
+              />
+            )}
           </Dialog>
         </>
       )}

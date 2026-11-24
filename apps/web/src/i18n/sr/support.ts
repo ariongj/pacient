@@ -130,4 +130,6 @@ export const support: Record<string, string> = {
   'Request counts per facility': 'Broj zahteva po ustanovi',
   'MINISTRY (all facilities), DIRECTOR and IT_SUPPORT (own); counts only':
     'MINISTARSTVO (sve ustanove), DIREKTOR i IT PODRŠKA (sopstvena); samo brojevi',
+  'This account is not activated yet, so it has no password to reset':
+    'Ovaj nalog još nije aktiviran, pa nema lozinku koja bi se resetovala',
 };

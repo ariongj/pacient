@@ -49,7 +49,8 @@ export const SUPPORT_OPERATIONS: ModuleOperation[] = [
   op('post', '/support/tickets/{id}/unlock', T, 'Unlock the account', { access: DESK }),
   op('post', '/support/tickets/{id}/password-reset', T, 'Send a password-reset link', {
     access: DESK,
-    description: 'The usual reset e-mail goes to the account’s own address.',
+    description:
+      'The usual reset e-mail goes to the account’s own address (IT support never sees the link). Link, e-mail and audit entry (IT support as actor) are one transaction. 409 for an account not activated yet or disabled.',
   }),
   op('post', '/support/tickets/{id}/mfa-reset', T, 'Reset two-step sign-in', {
     access: `${DESK}; only after a director approved the request`,

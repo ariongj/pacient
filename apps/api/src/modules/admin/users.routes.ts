@@ -1,18 +1,15 @@
 import { Router, type Request } from 'express';
-import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { env, isProd } from '../../config/env.js';
+import { isProd } from '../../config/env.js';
 import { db } from '../../db/client.js';
-import { facilities, oneTimeTokens, patients, users, type Role } from '../../db/schema.js';
-import { toLocale } from '../../i18n/index.js';
+import { facilities, patients, users, type Role } from '../../db/schema.js';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
-import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
 import { audit, AuditAction, type AuditActionValue } from '../audit/audit.service.js';
-import { createInvitedUser } from '../auth/invitations.js';
-import { RESET_TTL_MINUTES } from '../auth/mfa.service.js';
-import { enqueueEmail } from '../email/outbox.js';
+import { createInvitedUser, renewInvitation } from '../auth/invitations.js';
+import { sendPasswordResetLink } from '../auth/mfa.service.js';
 import {
   autoLinkOnInvite,
   clearLicenceCache,
@@ -54,12 +51,15 @@ import {
  * can only be disabled, enabled, unlocked, signed out or sent a password reset.
  *
  * Patient accounts are not browsable: the list shows one only for its exact e-mail address, and a
- * patient's two-step sign-in and invitation stay with their facility, which verifies identity.
+ * patient's two-step sign-in and invitation stay with their facility: reception or a director
+ * verifies the patient's identity in person and resets the two-step sign-in or sends the
+ * invitation again on the patient's page (modules/patients).
  *
  * Guardrails: never on your own account (use your own security page), never the last active
  * administrator, licensed professions need their licence number, a role or facility change waits
- * until the person's patients, result cover and pending results are handed over, new facility
- * staff need a free seat. Every change is audited in the same transaction.
+ * until the person's patients, result cover, pending results, draft notes and returned
+ * prescriptions are handed over, new facility staff need a free seat. Every change is audited in
+ * the same transaction.
  */
 export const adminUsersRouter = Router();
 
@@ -347,7 +347,8 @@ adminUsersRouter.patch('/:id', async (req, res) => {
           'Hand over this person’s patients to colleagues first: they are still in the care team of patients.',
         );
       }
-      // Result cover and results awaiting review also reach the old facility's patients.
+      // Result cover, results awaiting review, draft notes and returned prescriptions also reach
+      // the old facility's patients (all on the person's worklist).
       const pending = await pendingHandover(id, tx);
       if (pending.coverArrangements > 0) {
         throw conflict(
@@ -357,6 +358,16 @@ adminUsersRouter.patch('/:id', async (req, res) => {
       if (pending.pendingResults > 0) {
         throw conflict(
           'Hand over first: results this person ordered are still waiting to be reviewed. They must be reviewed before the role or facility changes.',
+        );
+      }
+      if (pending.draftNotes > 0) {
+        throw conflict(
+          'Hand over first: this person has notes still in draft. They must be signed before the role or facility changes.',
+        );
+      }
+      if (pending.returnedPrescriptions > 0) {
+        throw conflict(
+          'Hand over first: the pharmacy returned prescriptions this person wrote. They must be resubmitted or cancelled before the role or facility changes.',
         );
       }
       if (facilityId && facilityChanged) {
@@ -521,23 +532,8 @@ adminUsersRouter.post('/:id/password-reset', async (req, res) => {
   // The usual reset e-mail goes to the account's own address; the administrator never sees the
   // link. Link, e-mail and audit entry (with the administrator as the one who asked) are one
   // transaction: no reset goes out unaudited.
-  const token = generateOpaqueToken();
   await db.transaction(async (tx) => {
-    await tx.insert(oneTimeTokens).values({
-      userId: id,
-      purpose: 'PASSWORD_RESET',
-      tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
-      createdById: ctx.userId,
-    });
-    await enqueueEmail(tx, {
-      to: target.email,
-      userId: id,
-      template: 'password_reset',
-      locale: toLocale(account?.locale),
-      name: target.fullName,
-      url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
-    });
+    await sendPasswordResetLink(tx, { ...target, locale: account?.locale ?? null }, ctx.userId);
     await auditAccount(tx, ctx, req, AuditAction.ADMIN_PASSWORD_RESET_SENT, id);
   });
   res.json(await presentAccount(id));
@@ -550,7 +546,7 @@ adminUsersRouter.post('/:id/mfa-reset', async (req, res) => {
   notOnYourself(ctx, id, 'Use your own security page for your own two-step sign-in');
   notForPatients(
     await loadAccount(id),
-    'A patient’s two-step sign-in is reset by their facility, which verifies their identity.',
+    'A patient’s two-step sign-in is reset by reception or a director of their facility, who verify the patient’s identity in person.',
   );
   if (!(await hasSecondFactor(id))) {
     throw conflict('Two-step sign-in is not set up for this account');
@@ -594,41 +590,20 @@ adminUsersRouter.post('/:id/resend-invitation', async (req, res) => {
   const target = await loadAccount(id);
   notForPatients(
     target,
-    'A patient’s portal invitation is renewed by their facility, which verifies their identity.',
+    'A patient’s portal invitation is sent again by reception or a director of their facility, who verify the patient’s identity in person.',
   );
   if (target.activated) throw conflict('This account is already activated');
   if (!target.isActive) throw conflict('Enable the account first');
   const [account] = await db.select({ locale: users.locale }).from(users).where(eq(users.id, id));
-  const token = generateOpaqueToken();
-  const activationUrl = `${env.WEB_APP_URL}/activate?token=${encodeURIComponent(token)}`;
-  await db.transaction(async (tx) => {
+  const activationUrl = await db.transaction(async (tx) => {
     // Earlier links stop working: only the newest one activates the account.
-    await tx
-      .update(oneTimeTokens)
-      .set({ usedAt: new Date() })
-      .where(
-        and(
-          eq(oneTimeTokens.userId, id),
-          eq(oneTimeTokens.purpose, 'ACCOUNT_ACTIVATION'),
-          isNull(oneTimeTokens.usedAt),
-        ),
-      );
-    await tx.insert(oneTimeTokens).values({
-      userId: id,
-      purpose: 'ACCOUNT_ACTIVATION',
-      tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + 72 * 3_600_000),
-      createdById: ctx.userId,
-    });
-    await enqueueEmail(tx, {
-      to: target.email,
-      userId: id,
-      template: 'activation',
-      locale: toLocale(account?.locale),
-      name: target.fullName,
-      url: activationUrl,
-    });
+    const url = await renewInvitation(
+      tx,
+      { ...target, locale: account?.locale ?? null },
+      ctx.userId,
+    );
     await auditAccount(tx, ctx, req, AuditAction.ADMIN_INVITATION_RESENT, id);
+    return url;
   });
   res.json({
     ...(await presentAccount(id)),

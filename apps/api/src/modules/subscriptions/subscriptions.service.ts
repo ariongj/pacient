@@ -602,11 +602,16 @@ export async function endSubscription(
     at: opts.now,
   });
   if (opts.actor) {
+    // An administrator's own words are kept next to the cause of an end as scheduled.
     await auditChange(
       executor,
       opts.actor,
       s,
-      { event: 'CANCELLED', reason: opts.note ?? opts.reason ?? null },
+      {
+        event: 'CANCELLED',
+        reason: opts.reason ?? opts.note ?? null,
+        ...(opts.reason && opts.note ? { note: opts.note } : {}),
+      },
       opts.meta,
     );
   }
@@ -614,11 +619,14 @@ export async function endSubscription(
   return updated!;
 }
 
-/** A scheduled cancellation takes effect: the subscription ends with its period, as agreed. */
+/**
+ * A scheduled cancellation takes effect: the subscription ends with its period, as agreed. `note`
+ * is the administrator's, when their action (e.g. reactivating) found the date already passed.
+ */
 export const endAsScheduled = (
   executor: Executor,
   s: Subscription,
-  opts: { actor: Actor; meta?: RequestMeta; now: Date },
+  opts: { actor: Actor; meta?: RequestMeta; now: Date; note?: string | null },
 ) =>
   endSubscription(executor, s, {
     ...opts,
@@ -636,7 +644,8 @@ export const endAsScheduled = (
  *  - with invoices still overdue the grace period counts from the oldest of them (or from a fresh
  *    grace period an administrator gave on reactivating, if later), and a suspended subscription
  *    whose grace period is then not over is back to "payment overdue".
- * A suspension by an administrator is lifted only by reactivating it.
+ * Only a suspension for non-payment is lifted this way. One by an administrator – or one whose
+ * cause is not recorded, which is treated the same way – is lifted only by reactivating it.
  */
 export async function restoreStanding(
   executor: Executor,
@@ -650,7 +659,7 @@ export async function restoreStanding(
     await endAsScheduled(executor, s, { actor: opts.actor, meta: opts.meta, now });
     return;
   }
-  if (s.status === 'SUSPENDED' && s.suspensionCause === 'MANUAL') return;
+  if (s.status === 'SUSPENDED' && s.suspensionCause !== 'NON_PAYMENT') return;
   const overdue = await overdueInvoices(executor, s.id, now);
   const since = overdue.length ? laterOf(s.pastDueSince, overdue[0]!.dueAt) : null;
   const settings = await settingsOf(executor);
@@ -687,7 +696,7 @@ export async function restoreStanding(
     at: now,
   });
   await auditChange(executor, opts.actor, s, { event: 'REACTIVATED', status }, opts.meta);
-  await notifyDirectors(executor, s.facilityId, 'Your facility’s subscription is active again');
+  await notifyLifted(executor, updated!, now);
   if (newPeriod) {
     await recordScheduledCycle(executor, s, updated!, now);
     await issueInvoice(
@@ -700,6 +709,35 @@ export async function restoreStanding(
 }
 
 /* ------------------------------------------------------------------ lifecycle ---------------- */
+
+/** Key of the notice of an overdue invoice: once per past-due period (by when it started). */
+const pastDueKey = (since: Date) => `past-due:${since.toISOString()}`;
+const PAST_DUE_NOTICE = 'Your facility’s subscription has an overdue invoice';
+
+/**
+ * Tells the directors that a suspension was lifted (by a payment or by the administrator). Only
+ * an active subscription is "active again"; with an invoice still overdue it is "payment overdue",
+ * and the notice says so. That notice also counts as the overdue notice of this past-due period,
+ * so the subscription worker does not send a second one.
+ */
+export async function notifyLifted(executor: Executor, s: Subscription, now: Date) {
+  if (s.status !== 'PAST_DUE' || !s.pastDueSince) {
+    await notifyDirectors(executor, s.facilityId, 'Your facility’s subscription is active again');
+    return;
+  }
+  const title = 'Your facility’s subscription is no longer suspended, but an invoice is overdue';
+  const told = await notifyDirectors(executor, s.facilityId, title, {}, true);
+  const key = pastDueKey(s.pastDueSince);
+  if (told && !(await reminderSent(executor, s.id, key))) {
+    await recordEvent(executor, {
+      subscription: s,
+      type: 'REMINDER_SENT',
+      actor: null,
+      data: { key, title },
+      at: now,
+    });
+  }
+}
 
 async function reminderSent(executor: Executor, subscriptionId: string, key: string) {
   const [row] = await executor
@@ -847,7 +885,19 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       }
     }
 
-    // 4. Past due for longer than the grace period: suspended for non-payment (no new staff
+    // 4. The notice of an overdue invoice, once per past-due period – before a suspension in
+    //    the same run (e.g. after an outage longer than the grace period), so the directors are
+    //    always told of the overdue invoice first. Repeated at a later run if no director could
+    //    be told yet.
+    if (
+      s.status === 'PAST_DUE' &&
+      s.pastDueSince &&
+      (await remindOnce(tx, s, pastDueKey(s.pastDueSince), PAST_DUE_NOTICE, {}, now, true))
+    ) {
+      result.reminders++;
+    }
+
+    // 5. Past due for longer than the grace period: suspended for non-payment (no new staff
     //    accounts; nothing else). A payment lifts it.
     if (
       s.status === 'PAST_DUE' &&
@@ -867,23 +917,8 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       result.suspended++;
     }
 
-    // 5. Notices of an overdue invoice and of a suspension for non-payment, once each – repeated
-    //    at a later run if no director could be told yet.
-    if (
-      s.status === 'PAST_DUE' &&
-      s.pastDueSince &&
-      (await remindOnce(
-        tx,
-        s,
-        `past-due:${s.pastDueSince.toISOString()}`,
-        'Your facility’s subscription has an overdue invoice',
-        {},
-        now,
-        true,
-      ))
-    ) {
-      result.reminders++;
-    }
+    // 6. The notice of a suspension for non-payment, once – repeated at a later run if no
+    //    director could be told yet.
     if (
       s.status === 'SUSPENDED' &&
       s.suspensionCause === 'NON_PAYMENT' &&
@@ -901,7 +936,7 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       result.reminders++;
     }
 
-    // 6. Reminders a week before the end of a trial or a renewal.
+    // 7. Reminders a week before the end of a trial or a renewal.
     const soon = now.getTime() + REMINDER_DAYS * DAY;
     if (
       s.status === 'TRIAL' &&

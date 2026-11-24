@@ -298,4 +298,24 @@ export const care: Record<string, string> = {
   'Clinical summary and response': 'Klinički sažetak i odgovor',
   'Response:': 'Odgovor:',
   'Open patient record': 'Otvori karton pacijenta',
+  'Invitation not accepted yet': 'Poziv još nije prihvaćen',
+  'Send the invitation again': 'Ponovo pošalji poziv',
+  'A new invitation was sent.': 'Poslat je novi poziv.',
+  '{name} has not activated their portal account yet. A new single-use link replaces the earlier ones, which stop working.':
+    '{name} još nije aktivirao/la nalog na portalu. Novi link za jednokratnu upotrebu zamenjuje prethodne, koji više ne važe.',
+  'Check the patient’s identity and email address before sending it.':
+    'Proverite identitet i e-mail adresu pacijenta pre slanja.',
+  'Two-step sign-in was reset.': 'Prijava u dva koraka je resetovana.',
+  '{name} was signed out everywhere and sets up two-step sign-in again at the next sign-in.':
+    '{name} je odjavljen/a svuda i ponovo podešava prijavu u dva koraka pri sledećoj prijavi.',
+  'Verify the patient’s identity in person first.': 'Najpre lično proverite identitet pacijenta.',
+  'For a patient who lost their authenticator app and recovery codes. Every second factor of the portal account of {name} is removed; they are signed out everywhere, are told, and set up two-step sign-in again at their next sign-in.':
+    'Za pacijenta koji je izgubio aplikaciju za autentifikaciju i kodove za oporavak. Uklanja se svaki drugi faktor naloga na portalu za {name}; pacijent se odjavljuje svuda, obaveštava se i ponovo podešava prijavu u dva koraka pri sledećoj prijavi.',
+  'For example, how the identity was verified. Kept in the audit trail.':
+    'Na primer, kako je identitet proveren. Čuva se u revizionom tragu.',
+  'This patient’s portal account is closed': 'Nalog ovog pacijenta na portalu je zatvoren',
+  'This patient has no portal account': 'Ovaj pacijent nema nalog na portalu',
+  'Your two-step sign-in was reset by your facility':
+    'Vaša ustanova je resetovala vašu prijavu u dva koraka',
+  'Two-step sign-in reset by the facility': 'Ustanova je resetovala prijavu u dva koraka',
 };

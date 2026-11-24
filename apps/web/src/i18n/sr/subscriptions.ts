@@ -330,4 +330,14 @@ export const subscriptions: Record<string, string> = {
     'Prelazi na godišnju naplatu sa sledećim periodom: {price} godišnje',
   'Changes to monthly with the next period: {price} per month':
     'Prelazi na mesečnu naplatu sa sledećim periodom: {price} mesečno',
+  'Your facility’s subscription is no longer suspended, but an invoice is overdue':
+    'Pretplata vaše ustanove više nije suspendovana, ali ima fakturu kojoj je istekao rok plaćanja',
+  'The trial continues if reactivated before {date}':
+    'Probni period se nastavlja ako se pretplata ponovo aktivira pre {date}',
+  'Renews on {date} if reactivated before then':
+    'Obnavlja se {date} ako se ponovo aktivira pre tog datuma',
+  'The cancellation date has passed: the subscription ends as scheduled instead of being reactivated.':
+    'Datum otkazivanja je prošao: pretplata se završava kako je planirano umesto da se ponovo aktivira.',
+  'The subscription was not reactivated: its cancellation date had passed, so it ended as scheduled.':
+    'Pretplata nije ponovo aktivirana: datum otkazivanja je prošao, pa je završena kako je planirano.',
 };

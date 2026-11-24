@@ -33,6 +33,7 @@ import {
   issueInvoice,
   monthlyValueCents,
   notifyDirectors,
+  notifyLifted,
   overdueInvoices,
   overdueWhere,
   periodFrom,
@@ -783,60 +784,63 @@ adminBillingRouter.post('/subscriptions/:id/suspend', async (req, res) => {
 const NoteInput = z.object({ note: z.string().trim().max(1000).optional().nullable() });
 
 /**
- * Reactivates a suspended subscription. A trial suspended before it ended is a trial again. With
- * invoices still overdue it becomes "past due" with a fresh grace period (the administrator's
+ * Reactivates a suspended subscription. A trial whose end date has not passed is a trial again.
+ * With invoices still overdue it becomes "past due" with a fresh grace period (the administrator's
  * decision to give more time); otherwise active. A period that ended while suspended starts again
  * now, with its invoice (no back-billing) – unless a cancellation was scheduled for its end: then
- * the subscription ends as scheduled, without a new period or invoice.
+ * the subscription ends as scheduled, without a new period or invoice, with the administrator's
+ * note in the history, and the answer says so (`outcome: 'ENDED'`).
  */
 adminBillingRouter.post('/subscriptions/:id/reactivate', async (req, res) => {
   const { note } = parse(NoteInput, req.body ?? {});
-  res.json(
-    await withSubscription(req, async (tx, s, ctx, meta) => {
-      if (s.status !== 'SUSPENDED')
-        throw conflict('Only a suspended subscription can be reactivated');
-      const now = new Date();
-      if (cancellationDue(s, now)) {
-        await endAsScheduled(tx, s, { actor: ctx, meta, now });
-        return;
-      }
-      const overdue = (await overdueInvoices(tx, s.id, now)).length;
-      const trial = inTrialWindow(s) && s.trialEndsAt! > now;
-      const status = trial ? 'TRIAL' : overdue ? 'PAST_DUE' : 'ACTIVE';
-      const newPeriod = !trial && s.currentPeriodEnd <= now;
-      const [updated] = await tx
-        .update(subscriptions)
-        .set({
-          status,
-          suspendedAt: null,
-          suspensionCause: null,
-          pastDueSince: status === 'PAST_DUE' ? now : null,
-          ...(newPeriod ? periodFrom(s, now, { renewal: false }) : {}),
-        })
-        .where(eq(subscriptions.id, s.id))
-        .returning();
-      await recordEvent(tx, {
-        subscription: s,
-        type: 'REACTIVATED',
-        actor: ctx,
-        fromStatus: 'SUSPENDED',
-        toStatus: status,
-        data: { overdueInvoices: overdue },
-        note: note ?? null,
-      });
-      await auditChange(tx, ctx, s, { event: 'REACTIVATED', status }, meta);
-      await notifyDirectors(tx, s.facilityId, 'Your facility’s subscription is active again');
-      if (newPeriod) {
-        await recordScheduledCycle(tx, s, updated!, now);
-        await issueInvoice(
-          tx,
-          updated!,
-          { start: updated!.currentPeriodStart, end: updated!.currentPeriodEnd },
-          { actor: ctx, meta },
-        );
-      }
-    }),
-  );
+  let outcome: 'REACTIVATED' | 'ENDED' = 'REACTIVATED';
+  const detail = await withSubscription(req, async (tx, s, ctx, meta) => {
+    if (s.status !== 'SUSPENDED')
+      throw conflict('Only a suspended subscription can be reactivated');
+    const now = new Date();
+    if (cancellationDue(s, now)) {
+      await endAsScheduled(tx, s, { actor: ctx, meta, now, note: note ?? null });
+      outcome = 'ENDED';
+      return;
+    }
+    const overdue = (await overdueInvoices(tx, s.id, now)).length;
+    const trial = inTrialWindow(s) && s.trialEndsAt! > now;
+    const status = trial ? 'TRIAL' : overdue ? 'PAST_DUE' : 'ACTIVE';
+    const newPeriod = !trial && s.currentPeriodEnd <= now;
+    const [updated] = await tx
+      .update(subscriptions)
+      .set({
+        status,
+        suspendedAt: null,
+        suspensionCause: null,
+        pastDueSince: status === 'PAST_DUE' ? now : null,
+        ...(newPeriod ? periodFrom(s, now, { renewal: false }) : {}),
+      })
+      .where(eq(subscriptions.id, s.id))
+      .returning();
+    await recordEvent(tx, {
+      subscription: s,
+      type: 'REACTIVATED',
+      actor: ctx,
+      fromStatus: 'SUSPENDED',
+      toStatus: status,
+      data: { overdueInvoices: overdue },
+      note: note ?? null,
+    });
+    await auditChange(tx, ctx, s, { event: 'REACTIVATED', status }, meta);
+    await notifyLifted(tx, updated!, now);
+    if (newPeriod) {
+      await recordScheduledCycle(tx, s, updated!, now);
+      await issueInvoice(
+        tx,
+        updated!,
+        { start: updated!.currentPeriodStart, end: updated!.currentPeriodEnd },
+        { actor: ctx, meta },
+      );
+    }
+  });
+  // The cancellation date had passed: the subscription ended instead of being reactivated.
+  res.json({ ...detail, outcome });
 });
 
 const CancelInput = z.object({ atPeriodEnd: z.boolean(), reason: Reason });

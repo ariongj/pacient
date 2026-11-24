@@ -24,6 +24,7 @@ export const AuditAction = {
   USER_INVITED: 'user.invited',
   USER_DEACTIVATED: 'user.deactivated',
   USER_REACTIVATED: 'user.reactivated',
+  USER_MFA_RESET: 'user.mfa_reset',
   FACILITY_CREATED: 'facility.created',
   FACILITY_UPDATED: 'facility.updated',
 

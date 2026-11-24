@@ -8,4 +8,6 @@ export const sqSecurity: Record<string, string> = {
     'Çelësi i kalimit „{name}”. Nëse nuk e shtuat ju, hiqeni te Llogaria › Siguria dhe ndryshoni fjalëkalimin.',
   'Your two-step sign-in was reset by the administrator':
     'Hyrja juaj me dy hapa u rivendos nga administratori',
+  'Your two-step sign-in was reset by your facility':
+    'Hyrja juaj me dy hapa u rivendos nga institucioni juaj',
 };

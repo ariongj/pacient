@@ -9,7 +9,7 @@ import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { revokeAllSessions } from '../auth/auth.service.js';
-import { requestPasswordReset } from '../auth/mfa.service.js';
+import { sendPasswordResetLink } from '../auth/mfa.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import {
   accountView,
@@ -392,6 +392,12 @@ async function accountAction(
     if (row.ticket.kind !== 'MFA_RESET') throw badRequest('Open a two-step sign-in reset request');
     if (!row.ticket.approvedAt) throw forbidden('A director must approve this first');
   }
+  if (action === 'PASSWORD_RESET_LINK') {
+    if (!account.passwordHash) {
+      throw conflict('This account is not activated yet, so it has no password to reset');
+    }
+    if (!account.isActive) throw conflict('Enable the account first');
+  }
   await db.transaction(async (tx) => {
     if (action === 'UNLOCK') {
       await tx
@@ -400,6 +406,11 @@ async function accountAction(
         .where(eq(users.id, account.id));
     } else if (action === 'MFA_RESET') {
       await resetSecondFactors(tx, account.id);
+    } else {
+      // The usual reset e-mail goes to the account's own address (IT support never sees the
+      // link). Link, e-mail and the audit entry below – IT support as the one who asked, never
+      // the person – are one transaction: no reset goes out unaudited.
+      await sendPasswordResetLink(tx, account, ctx.userId);
     }
     await audit(
       {
@@ -422,10 +433,6 @@ async function accountAction(
       .set({ assignedToId: row.ticket.assignedToId ?? ctx.userId, status: 'IN_PROGRESS' })
       .where(eq(supportTickets.id, row.ticket.id));
   });
-  if (action === 'PASSWORD_RESET_LINK') {
-    // The usual reset e-mail goes to the account's own address (IT support never sees the link).
-    await requestPasswordReset(account.email, requestMeta(req));
-  }
   if (action === 'MFA_RESET') await revokeAllSessions(account.id);
   return { ctx, id };
 }

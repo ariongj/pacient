@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import {
   and,
   asc,
@@ -8,11 +8,13 @@ import {
   ilike,
   inArray,
   isNull,
+  ne,
   or,
   sql,
   type SQL,
 } from 'drizzle-orm';
 import { z } from 'zod';
+import { isProd } from '../../config/env.js';
 import { db } from '../../db/client.js';
 import {
   bloodTypeEnum,
@@ -23,9 +25,10 @@ import {
   patients,
   sexEnum,
   users,
+  type Patient,
 } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
-import { parse, requestMeta, requireAuth } from '../../lib/http.js';
+import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import {
@@ -34,9 +37,11 @@ import {
   getPatientOrThrow,
   hasActiveCareAssignment,
 } from '../access/policy.js';
+import { hasSecondFactor, revokeSessions } from '../admin/users.service.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
-import { createInvitedUser } from '../auth/invitations.js';
-import { notifyFacilityRole } from '../notifications/notifications.service.js';
+import { createInvitedUser, renewInvitation } from '../auth/invitations.js';
+import { notifyFacilityRole, notifyUsers } from '../notifications/notifications.service.js';
+import { resetSecondFactors } from '../support/support.service.js';
 
 export const EMERGENCY_ACCESS_HOURS = 4;
 
@@ -91,6 +96,12 @@ const IdParam = z.object({ id: z.string().uuid() });
 const CareTeamBody = z.object({ doctorId: z.string().uuid().optional() });
 const CareTeamParams = z.object({ id: z.string().uuid(), doctorId: z.string().uuid() });
 const EmergencyBody = z.object({ reason: z.string().trim().min(10).max(1000) });
+const ReasonBody = z.object({
+  reason: z.string().trim().min(5, 'Give a reason of at least 5 characters').max(500),
+});
+
+/** Roles that verify a patient's identity in person and may reset their two-step sign-in. */
+const IDENTITY_DESK = ['DIRECTOR', 'RECEPTION'] as const;
 
 const listColumns = {
   id: patients.id,
@@ -101,9 +112,22 @@ const listColumns = {
   sex: patients.sex,
   primaryFacilityId: patients.primaryFacilityId,
   hasPortalAccount: sql<boolean>`${patients.userId} IS NOT NULL`,
+  /** PENDING until the patient activates the portal account (the invitation can be renewed). */
+  portalAccount: sql<
+    'PENDING' | 'ACTIVE' | null
+  >`(SELECT CASE WHEN ${users.passwordHash} IS NULL THEN 'PENDING' ELSE 'ACTIVE' END FROM ${users} WHERE ${users.id} = ${patients.userId})`,
   /** NEWBORN / UNIDENTIFIED while the national ID is a temporary number (TMP…). */
   temporaryIdentity: patients.temporaryIdentity,
 };
+
+/**
+ * Whether two-step sign-in is on for the patient's portal account – only for the desk that can
+ * reset it (null for everyone else): account state, never anything clinical.
+ */
+const portalTwoStepFor = (role: string) =>
+  (IDENTITY_DESK as readonly string[]).includes(role)
+    ? sql<boolean>`coalesce((SELECT ${users.mfaEnabledAt} IS NOT NULL FROM ${users} WHERE ${users.id} = ${patients.userId}), false)`
+    : sql<null>`NULL`;
 
 /** Correlated subquery: is the patient in the given doctor's active care? */
 const inCareOf = (doctorId: string) =>
@@ -164,7 +188,7 @@ patientsRouter.get(
 
     const [rows, [total]] = await Promise.all([
       db
-        .select({ ...listColumns, inMyCare: inCare })
+        .select({ ...listColumns, portalTwoStep: portalTwoStepFor(ctx.role), inMyCare: inCare })
         .from(patients)
         .where(where)
         .orderBy(asc(patients.lastName), asc(patients.firstName))
@@ -341,6 +365,11 @@ patientsRouter.patch(
   },
 );
 
+/**
+ * Invites the patient to the portal – or, when the account the patient was invited to was never
+ * activated (e.g. the 72-hour link expired), sends a new link: earlier links stop working. The
+ * staff member verifies the patient's identity; the link goes to the e-mail address on file.
+ */
 patientsRouter.post(
   '/:id/portal-invitation',
   requireRole('DOCTOR', 'NURSE', 'DIRECTOR', 'RECEPTION'),
@@ -348,7 +377,10 @@ patientsRouter.post(
     const ctx = requireAuth(req);
     const { id } = parse(IdParam, req.params);
     const patient = await assertDemographicsAccess(ctx, id);
-    if (patient.userId) throw conflict('This patient already has a portal account');
+    if (patient.userId) {
+      res.status(201).json(await renewPortalInvitation(req, ctx, patient));
+      return;
+    }
     if (!patient.email) throw badRequest('Add an email address to the patient before inviting');
 
     const activationUrl = await db.transaction(async (tx) => {
@@ -378,6 +410,115 @@ patientsRouter.post(
       return invited.activationUrl;
     });
     res.status(201).json({ activationUrl });
+  },
+);
+
+/** A new activation link for the patient's portal account that was never activated. */
+async function renewPortalInvitation(
+  req: Request,
+  ctx: AuthContext,
+  patient: Pick<Patient, 'id' | 'userId' | 'email'>,
+) {
+  const userId = patient.userId!;
+  const result = await db.transaction(async (tx) => {
+    // Locked, so an activation at the same moment cannot be followed by a fresh link.
+    const [account] = await tx
+      .select({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        locale: users.locale,
+        isActive: users.isActive,
+        activated: sql<boolean>`${users.passwordHash} IS NOT NULL`,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .for('update');
+    if (!account || account.activated) {
+      throw conflict('This patient already has a portal account');
+    }
+    // Closed accounts (e.g. by a death registration) are not reopened by an invitation.
+    if (!account.isActive) throw conflict('This patient’s portal account is closed');
+    if (!patient.email) throw badRequest('Add an email address to the patient before inviting');
+    // The link goes to the address on file, which staff may just have corrected: the account
+    // was never activated, so its address has only ever received invitations.
+    const email = patient.email.toLowerCase();
+    const emailChanged = email !== account.email.toLowerCase();
+    if (emailChanged) {
+      const [taken] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(sql`lower(${users.email}) = ${email}`, ne(users.id, userId)));
+      if (taken) throw conflict('An account with this e-mail address already exists');
+      await tx.update(users).set({ email }).where(eq(users.id, userId));
+    }
+    const url = await renewInvitation(tx, { ...account, email }, ctx.userId);
+    await audit(
+      {
+        action: AuditAction.USER_INVITED,
+        actor: ctx,
+        resourceType: 'user',
+        resourceId: userId,
+        patientId: patient.id,
+        meta: requestMeta(req),
+        metadata: { role: 'PATIENT', renewed: true, ...(emailChanged ? { emailChanged } : {}) },
+      },
+      tx,
+    );
+    return url;
+  });
+  // Outside production the link is shown, as for a first invitation.
+  return { activationUrl: isProd ? undefined : result, renewed: true };
+}
+
+/**
+ * Resets the two-step sign-in of the patient's portal account (lost phone and recovery codes):
+ * reception and directors of the patient's facility, who verify the patient's identity in person,
+ * with a reason. As the administrator's reset does for staff, it removes every second factor (the
+ * patient sets it up again at the next sign-in), signs the patient out everywhere and tells them –
+ * audited in the same transaction.
+ */
+patientsRouter.post(
+  '/:id/portal-account/two-step-reset',
+  requireRole(...IDENTITY_DESK),
+  async (req, res) => {
+    const ctx = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const { reason } = parse(ReasonBody, req.body ?? {});
+    const patient = await assertDemographicsAccess(ctx, id);
+    if (!patient.userId) throw conflict('This patient has no portal account');
+    const userId = patient.userId;
+    if (!(await hasSecondFactor(userId))) {
+      throw conflict('Two-step sign-in is not set up for this account');
+    }
+    const sessionsRevoked = await db.transaction(async (tx) => {
+      await resetSecondFactors(tx, userId);
+      const sessions = await revokeSessions(tx, userId);
+      await notifyUsers(
+        [userId],
+        {
+          type: 'security',
+          title: 'Your two-step sign-in was reset by your facility',
+          link: '/account/security',
+          important: true,
+        },
+        tx,
+      );
+      await audit(
+        {
+          action: AuditAction.USER_MFA_RESET,
+          actor: ctx,
+          resourceType: 'user',
+          resourceId: userId,
+          patientId: id,
+          meta: requestMeta(req),
+          metadata: { reason, sessionsRevoked: sessions },
+        },
+        tx,
+      );
+      return sessions;
+    });
+    res.json({ reset: true, sessionsRevoked });
   },
 );
 

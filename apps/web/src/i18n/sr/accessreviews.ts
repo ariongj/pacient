@@ -82,4 +82,9 @@ export const accessreviews: Record<string, string> = {
     'Možete da čitate ovaj pregled, ali ne i da ga završite',
   'Only a completed review can be exported': 'Samo završen pregled može da se izveze',
   'Explain the change or the revocation in a note': 'Objasnite izmenu ili opoziv u napomeni',
+  'Now: {account}': 'Sada: {account}',
+  'Moved out of this review': 'Izašao iz ovog pregleda',
+  'This account has moved to another facility or role since the review opened. It can only be kept here.':
+    'Ovaj nalog je od otvaranja pregleda prešao u drugu ustanovu ili ulogu. Ovde se može samo zadržati.',
+  'This account has moved out of this review': 'Ovaj nalog je izašao iz ovog pregleda',
 };

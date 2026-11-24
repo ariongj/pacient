@@ -514,6 +514,20 @@ deathsRouter.post('/:id/sign', requireRole('DOCTOR'), async (req, res) => {
         .update(refreshTokens)
         .set({ revokedAt: now })
         .where(and(eq(refreshTokens.userId, patient.userId), isNull(refreshTokens.revokedAt)));
+      if (portalDisabled) {
+        // The account's own history says why it is closed (the administrator's account page).
+        // Recorded as the system's doing, without the patient or who registered the death: the
+        // death record's audit entry above holds those.
+        await audit(
+          {
+            action: AuditAction.USER_DEACTIVATED,
+            resourceType: 'user',
+            resourceId: patient.userId,
+            metadata: { source: 'death_registration' },
+          },
+          tx,
+        );
+      }
     }
 
     await audit(
@@ -782,6 +796,17 @@ deathsRouter.post('/:id/withdraw', requireRole('MINISTRY'), async (req, res) => 
         .where(and(eq(users.id, patient.userId), eq(users.isActive, false)))
         .returning({ id: users.id });
       portalRestored = restored.length > 0;
+      if (portalRestored) {
+        await audit(
+          {
+            action: AuditAction.USER_REACTIVATED,
+            resourceType: 'user',
+            resourceId: patient.userId,
+            metadata: { source: 'death_registration_withdrawn' },
+          },
+          tx,
+        );
+      }
     }
 
     await audit(

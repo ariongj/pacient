@@ -1,4 +1,4 @@
-import { and, eq, like } from 'drizzle-orm';
+import { and, eq, inArray, like } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
 import {
@@ -305,6 +305,102 @@ describe('directors and the Ministry', () => {
         (r: { id: string }) => r.id,
       ),
     ).not.toContain(reviewId);
+  });
+});
+
+describe('accounts that moved since the review opened', () => {
+  it('can only be kept: a review never changes or revokes someone outside it', async () => {
+    const f = await createFacility();
+    const elsewhere = await createFacility();
+    const head = await createUser('DIRECTOR', f.id);
+    const promoted = await createUser('RECEPTION', f.id);
+    const transferred = await createUser('RECEPTION', f.id);
+    const official = await createUser('MINISTRY');
+    const { review } = await openReview(f.id);
+    // A quarter of its own (another test uses the second quarter of 2400–2899).
+    const year = 2900 + Math.floor(Math.random() * 500);
+    const { review: ministryReview } = await openReview(null, {
+      now: new Date(`${year}-08-15T10:00:00Z`),
+    });
+
+    // The platform administrator makes one a platform administrator and moves the other.
+    const admin = await createUser('ADMIN');
+    const adminAuth = bearer(await login(admin.email));
+    const change = (id: string, body: Record<string, unknown>) =>
+      api().patch(`/api/v1/admin/users/${id}`).set(adminAuth).send(body);
+    expect(
+      (await change(promoted.id, { role: 'ADMIN', reason: 'Joins the operator' })).status,
+    ).toBe(200);
+    expect(
+      (await change(transferred.id, { facilityId: elsewhere.id, reason: 'Moves hospital' })).status,
+    ).toBe(200);
+    expect(
+      (await change(official.id, { role: 'ADMIN', reason: 'Joins the operator' })).status,
+    ).toBe(200);
+
+    const auth = bearer(await login(head.email));
+    const view = await api().get(`/api/v1/access-reviews/${review.id}`).set(auth);
+    const items = view.body.items as (Item & {
+      current: {
+        role: string;
+        facilityId: string | null;
+        facilityName: string | null;
+        inScope: boolean;
+      };
+    })[];
+    const item = (id: string) => items.find((i) => i.userId === id)!;
+    // The page shows the account as it is now next to the snapshot.
+    expect(item(promoted.id).snapshot.role).toBe('RECEPTION');
+    expect(item(promoted.id).current).toMatchObject({ role: 'ADMIN', inScope: false });
+    expect(item(transferred.id).current).toMatchObject({
+      facilityId: elsewhere.id,
+      facilityName: elsewhere.name,
+      inScope: false,
+    });
+
+    const path = (r: string, id: string) => `/api/v1/access-reviews/${r}/items/${id}/decision`;
+    for (const userId of [promoted.id, transferred.id]) {
+      for (const decision of ['REVOKE', 'CHANGE']) {
+        const res = await api()
+          .post(path(review.id, item(userId).id))
+          .set(auth)
+          .send({ decision, note: 'No longer works here' });
+        expect(res.status).toBe(409);
+        expect(res.body.error.message).toBe('This account has moved out of this review');
+      }
+      // Keeping it closes the item, so the review can still be completed.
+      expect(
+        (
+          await api()
+            .post(path(review.id, item(userId).id))
+            .set(auth)
+            .send({ decision: 'KEEP' })
+        ).status,
+      ).toBe(200);
+    }
+    const now = await db
+      .select({ id: users.id, isActive: users.isActive })
+      .from(users)
+      .where(inArray(users.id, [promoted.id, transferred.id, official.id]));
+    expect(now.every((u) => u.isActive)).toBe(true);
+
+    // The Ministry review never revokes a platform administrator either.
+    const [officialItem] = await db
+      .select()
+      .from(accessReviewItems)
+      .where(
+        and(
+          eq(accessReviewItems.reviewId, ministryReview.id),
+          eq(accessReviewItems.userId, official.id),
+        ),
+      );
+    const revoke = await api()
+      .post(path(ministryReview.id, officialItem!.id))
+      .set(ministry())
+      .send({ decision: 'REVOKE', note: 'Not a Ministry official any more' });
+    expect(revoke.status).toBe(409);
+    const [still] = await db.select().from(users).where(eq(users.id, official.id));
+    expect(still).toMatchObject({ role: 'ADMIN', isActive: true });
   });
 });
 

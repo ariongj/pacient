@@ -5,16 +5,16 @@
 Authorization is **default-deny and contextual**. Job title alone never grants access to a record.
 The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 
-| Role       | Identifiable clinical record                                                                                | Demographics                       | Aggregates                      |
-| ---------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
-| Patient    | Own record, read-only; only **released** results and **signed** notes                                       | Own                                | –                               |
-| Doctor     | Active care relationship, or emergency access **within the same facility**                                  | Own facility, own care team        | –                               |
-| Nurse      | Care team: read; record vitals, reported allergies, vaccinations, medication administration                 | Own facility, own care team        | –                               |
-| Pharmacist | Never in full – medication context of prescriptions in the facility queue (audited, visible to the patient) | Via the queue only                 | –                               |
-| Reception  | Never                                                                                                       | Own facility's registered patients | –                               |
-| Director   | Never                                                                                                       | Own facility's registered patients | Own facility                    |
-| Ministry   | Never                                                                                                       | Never                              | National, small-cell suppressed |
-| Platform   | Never                                                                                                       | Never                              | Operational counts only         |
+| Role       | Identifiable clinical record                                                                                | Demographics                                                             | Aggregates                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------- |
+| Patient    | Own record, read-only; only **released** results and **signed** notes                                       | Own                                                                      | –                               |
+| Doctor     | Active care relationship, or emergency access **within the same facility**                                  | Own facility, own care team                                              | –                               |
+| Nurse      | Care team: read; record vitals, reported allergies, vaccinations, medication administration                 | Own facility, own care team                                              | –                               |
+| Pharmacist | Never in full – medication context of prescriptions in the facility queue (audited, visible to the patient) | Via the queue only                                                       | –                               |
+| Reception  | Never                                                                                                       | Own facility's registered patients                                       | –                               |
+| Director   | Never                                                                                                       | Own facility's registered patients                                       | Own facility                    |
+| Ministry   | Never                                                                                                       | Never                                                                    | National, small-cell suppressed |
+| Platform   | Never                                                                                                       | Never (patient account data only, looked up by exact e-mail for support) | Operational counts only         |
 
 - **Institution boundaries.** Patient search, care-team assignment and emergency access never cross
   facilities. A national ID match at another facility is not disclosed.
@@ -27,12 +27,25 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
 - **Platform administrator (operator of the service).** Manages accounts of every role (invite,
   disable, unlock, password reset e-mail, two-step reset, sign out everywhere, role or facility
   change), facilities' subscriptions and invoices, operator settings, and the terms of use and
-  privacy notice – never a patient record: the role is not a staff role, the access policy denies
-  it every record and demographics, and responses about patient accounts carry account data only.
-  Every action needs a reason where it can lock someone out, is audited (administrative audit
-  view) and cannot target one's own account; the last active administrator cannot be removed; a
-  two-step reset notifies the person. The first account of an installation is this
-  administrator, invited through a private file (`deploy/first-admin.sh`).
+  privacy notice – never a patient record: the role is not a staff role and the access policy
+  denies it every record and demographics. **Patient accounts are not browsable**: one is listed
+  only when the search is its exact e-mail address (a support case), and then with account data
+  only (name and e-mail of the account, sign-in state, sessions) – never clinical or demographic
+  data, the link to a record, or who at a facility invited or treated the patient (the account's
+  history shows only what administrators and the system did). For a patient account the
+  administrator can only disable, enable, unlock, sign out and send a password reset e-mail; the
+  two-step reset and a new invitation stay with the facility, which verifies identity, and an
+  activation link of a patient is never returned to the administrator. A portal account closed by
+  a death registration is reopened only by withdrawing that registration.
+  Every action needs a reason where it can lock someone out, is audited in the same transaction
+  (administrative audit view) and cannot target one's own account; the last active administrator
+  cannot be removed (concurrent changes are serialised); a two-step reset notifies the person. A
+  role or facility change waits until the person's patients, result cover and results awaiting
+  review are handed over, unlinks a licence of the old profession, and takes effect at the next
+  sign-in; result cover never reaches beyond the covering doctor's current facility, and an access
+  review never changes or revokes an account that has moved out of it. The first account of an
+  installation is this administrator, invited through a private file (`deploy/first-admin.sh`;
+  `--existing-installation` adds one to an installation that has none).
 - **Subscriptions never gate care.** A facility's subscription status (unpaid, suspended,
   cancelled) never affects sign-in, existing accounts or record access; it only stops new staff
   accounts (clinical safety case H74).

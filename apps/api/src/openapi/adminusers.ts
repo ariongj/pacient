@@ -31,7 +31,7 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/users', T, 'Accounts', {
     access: ADMIN,
     description:
-      'Search by name or e-mail; filter by role, facility and state. `counts` gives the number of accounts in each state for the same search.',
+      'Search by name or e-mail; filter by role, facility and state. `counts` gives the number of accounts in each state for the same search. Patient accounts are not browsable: one is listed only when `q` is its exact e-mail address (a support case).',
     params: [
       q('q', str({ maxLength: 100 })),
       q('role', enumOf(...ROLES, 'PATIENT')),
@@ -69,7 +69,7 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   op('patch', '/admin/users/{id}', T, 'Change name, role, facility, specialty or licence', {
     access: `${ADMIN}; role and facility ${SELF}`,
     description:
-      'A role or facility change needs a reason, waits until the person is in no care team (their patients handed over), checks the new facility’s seats and signs the person out everywhere. Patient accounts are not changed here.',
+      'A role or facility change needs a reason, waits until the person is in no care team (their patients handed over), has no result cover (active or to come, as covering or absent doctor) and no results they ordered awaiting review, checks the new facility’s seats and signs the person out everywhere. A change of role unlinks a licence of the old profession (audited); `licenceLinked` says whether a licence of the new profession is linked, `licenceUnlinked` whether one was unlinked. Patient accounts are not changed here.',
     body: obj({
       fullName: str({ minLength: 2, maxLength: 200 }),
       role: enumOf(...ROLES),
@@ -80,25 +80,26 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
     }),
   }),
   op('post', '/admin/users/{id}/disable', T, 'Disable an account', {
-    access: `${ADMIN}; ${SELF}; never the last active administrator`,
+    access: `${ADMIN}; ${SELF}; never the last active administrator (serialised with every change of an administrator)`,
     description: 'Signs the person out everywhere. ' + account + '.',
     body: reason(true),
   }),
   op('post', '/admin/users/{id}/enable', T, 'Enable an account', {
     access: ADMIN,
-    description: 'Facility staff need a free seat of the facility’s subscription.',
+    description:
+      'Facility staff need a free seat of the facility’s subscription. A patient account closed when a death was registered is refused (409): it comes back only if the death registration is withdrawn.',
     body: reason(false),
   }),
   op('post', '/admin/users/{id}/unlock', T, 'Unlock after failed sign-ins', { access: ADMIN }),
   op('post', '/admin/users/{id}/password-reset', T, 'Send a password reset e-mail', {
     access: ADMIN,
     description:
-      'The usual reset e-mail goes to the account’s own address; the administrator never sees the link. Activated, enabled accounts only.',
+      'The usual reset e-mail goes to the account’s own address; the administrator never sees the link. Link, e-mail and audit entry (the administrator as actor) are one transaction. Activated, enabled accounts only.',
   }),
   op('post', '/admin/users/{id}/mfa-reset', T, 'Reset two-step sign-in', {
     access: `${ADMIN}; ${SELF}`,
     description:
-      'Removes the authenticator app, recovery codes and passkeys, signs the person out everywhere and tells them (in the app and by e-mail). They set it up again at the next sign-in.',
+      'Removes the authenticator app, recovery codes and passkeys, signs the person out everywhere and tells them (in the app and by e-mail). They set it up again at the next sign-in. Not for patient accounts (400): their facility verifies their identity.',
     body: reason(true),
   }),
   op('post', '/admin/users/{id}/revoke-sessions', T, 'Sign out everywhere', {
@@ -107,6 +108,6 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/users/{id}/resend-invitation', T, 'Renew the activation link', {
     access: ADMIN,
     description:
-      'For accounts not yet activated: earlier links stop working, a new 72-hour link is e-mailed (and returned outside production).',
+      'For accounts not yet activated: earlier links stop working, a new 72-hour link is e-mailed (and returned outside production). Not for patient accounts (400): their facility verifies their identity; a patient’s link is never returned.',
   }),
 ];

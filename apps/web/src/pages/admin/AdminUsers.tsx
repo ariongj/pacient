@@ -13,6 +13,7 @@ import {
 } from '../../api/adminUsers';
 import type { Role } from '../../api/types';
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -38,9 +39,11 @@ const COUNT_KEY: Record<AccountStatus, 'active' | 'disabled' | 'locked' | 'pendi
 };
 
 /**
- * Every account of the service – staff, Ministry, administrators and patients – for the platform
- * administrator: search, filter by role, facility and state, and invite new accounts. The filters
- * live in the address, so a filtered list can be bookmarked and the back button returns to it.
+ * The accounts of the service – staff, Ministry and administrators – for the platform
+ * administrator: search, filter by role, facility and state, and invite new accounts. Patient
+ * accounts cannot be browsed (who is a patient is health data): the API lists one only when the
+ * search is its exact e-mail address, for a support case. The filters live in the address, so a
+ * filtered list can be bookmarked and the back button returns to it.
  */
 export function AdminUsers() {
   const [params, setParams] = useSearchParams();
@@ -71,6 +74,7 @@ export function AdminUsers() {
   }
 
   const counts = list.data?.counts;
+  const patientsHint = t('Patient accounts are found by their exact e-mail address.');
   return (
     <>
       <PageHeader
@@ -131,11 +135,14 @@ export function AdminUsers() {
             </button>
           ))}
         </div>
+        {filters.role === 'PATIENT' && <Alert tone="info">{patientsHint}</Alert>}
         <QueryView query={list}>
           {(data) =>
             data.items.length === 0 ? (
               <EmptyState title={t('No accounts found')}>
-                {t('Change the search or the filters, or invite a new user.')}
+                {filters.role === 'PATIENT'
+                  ? patientsHint
+                  : `${t('Change the search or the filters, or invite a new user.')} ${patientsHint}`}
               </EmptyState>
             ) : (
               <>

@@ -275,6 +275,21 @@ export function accessTo(
   return null;
 }
 
+/**
+ * Whether an account (as it is now) still belongs to a review: a facility review covers the
+ * facility roles of that facility, the Ministry review Ministry officials and directors. Items are
+ * snapshots, so an account the administrator moved to another facility or role since the review
+ * opened – or made a platform administrator – is out of it, and the review can no longer change
+ * or revoke it.
+ */
+export function inReviewScope(
+  review: Pick<Review, 'facilityId'>,
+  account: { role: Role; facilityId: string | null },
+) {
+  if (review.facilityId === null) return account.role === 'MINISTRY' || account.role === 'DIRECTOR';
+  return account.facilityId === review.facilityId && FACILITY_ROLES.includes(account.role);
+}
+
 export const isOverdue = (review: Pick<Review, 'status' | 'dueDate'>, now = new Date()) =>
   review.status === 'OPEN' && review.dueDate < todayIso(now);
 

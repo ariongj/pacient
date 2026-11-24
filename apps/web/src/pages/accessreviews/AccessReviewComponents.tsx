@@ -195,6 +195,11 @@ function ItemRow({
 }) {
   const s = item.snapshot;
   const canAct = review.canDecide && !item.isMe && item.decision !== 'REVOKE';
+  // The row is a snapshot from when the review opened; the platform administrator may have
+  // changed the role or facility since. Out of the review's scope it can only be kept.
+  const now = item.current;
+  const moved = now.role !== s.role || (now.facilityId ?? null) !== (s.facilityId ?? null);
+  const outOfScope = !now.inScope && item.decision !== 'REVOKE';
   return (
     <tr>
       <th scope="row">
@@ -206,9 +211,17 @@ function ItemRow({
         </div>
         <div className="muted">{s.email}</div>
         {s.units.length > 0 && <div className="muted">{s.units.join(', ')}</div>}
+        {moved && (
+          <div className="muted">
+            {t('Now: {account}', {
+              account: [humanize(now.role), now.facilityName].filter(Boolean).join(' · '),
+            })}
+          </div>
+        )}
         {!item.current.isActive && item.decision !== 'REVOKE' && (
           <Badge tone="neutral">{t('Deactivated since the review opened')}</Badge>
         )}
+        {outOfScope && <Badge tone="warning">{t('Moved out of this review')}</Badge>}
       </th>
       <td>
         {s.lastLoginAt ? formatDate(s.lastLoginAt) : t('Never')}
@@ -247,7 +260,7 @@ function ItemRow({
         {item.isMe && review.status === 'OPEN' && (
           <p className="muted">{t('Your own account is reviewed by someone else.')}</p>
         )}
-        {canAct && (
+        {canAct && !(outOfScope && item.decision === 'KEEP') && (
           <div
             className="badge-wrap"
             role="group"
@@ -258,15 +271,24 @@ function ItemRow({
                 {t('Keep')}
               </Button>
             )}
-            {item.decision !== 'CHANGE' && (
+            {!outOfScope && item.decision !== 'CHANGE' && (
               <Button size="sm" variant="secondary" onClick={() => onDecide('CHANGE')}>
                 {t('Change needed')}
               </Button>
             )}
-            <Button size="sm" variant="danger" onClick={() => onDecide('REVOKE')}>
-              {t('Revoke')}
-            </Button>
+            {!outOfScope && (
+              <Button size="sm" variant="danger" onClick={() => onDecide('REVOKE')}>
+                {t('Revoke')}
+              </Button>
+            )}
           </div>
+        )}
+        {canAct && outOfScope && item.decision !== 'KEEP' && (
+          <p className="muted">
+            {t(
+              'This account has moved to another facility or role since the review opened. It can only be kept here.',
+            )}
+          </p>
         )}
       </td>
     </tr>

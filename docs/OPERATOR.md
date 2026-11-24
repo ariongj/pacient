@@ -29,13 +29,15 @@ Demo sign-in (synthetic data only): `admin@pacient.local`.
 ## Users
 
 Search by name or e-mail; filter by role, facility and state (active, disabled, locked, waiting
-for activation, without two-step sign-in).
+for activation, without two-step sign-in). Patient accounts are found only by their exact e-mail
+address (a support case), never by name or by browsing.
 
 - **Invite** staff of any facility, Ministry officials and other administrators. The person gets an
   activation link by e-mail (valid 72 hours). Doctors, nurses and pharmacists need their licence
   number. Patients are never invited here – their facility registers them.
 - **Change** name, role, facility, specialty or licence number. A role or facility change is refused
-  while the person still has patients in their care; the patients are handed over first.
+  while the person still has patients in their care, result cover or results awaiting review; these
+  are handed over first.
 - **Disable / enable**, **unlock** after too many failed sign-ins, **send a password reset**,
   **reset two-step sign-in** (the person sets it up again at the next sign-in and is notified), **sign out everywhere**, **send the invitation again**.
 

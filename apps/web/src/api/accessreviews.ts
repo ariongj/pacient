@@ -59,7 +59,14 @@ export interface ReviewItem {
   note: string | null;
   decidedAt: string | null;
   decidedByName: string | null;
-  current: { isActive: boolean; role: Role; facilityId: string | null };
+  /** The account as it is now; inScope is false once it moved out of the review (keep only). */
+  current: {
+    isActive: boolean;
+    role: Role;
+    facilityId: string | null;
+    facilityName: string | null;
+    inScope: boolean;
+  };
   isMe: boolean;
 }
 

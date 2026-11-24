@@ -119,4 +119,24 @@ export const adminusers: Record<string, string> = {
   'The facility does not exist or is no longer active': 'Ustanova ne postoji ili više nije aktivna',
   'Your two-step sign-in was reset by the administrator':
     'Administrator je resetovao vašu prijavu u dva koraka',
+  'Patient accounts are found by their exact e-mail address.':
+    'Nalozi pacijenata pronalaze se samo po tačnoj e-mail adresi.',
+  'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.':
+    'Njihovom prijavom u dva koraka i pozivom za portal bavi se njihova ustanova, koja proverava njihov identitet.',
+  'Closed when a death was registered': 'Zatvoren kada je prijavljena smrt',
+  'Reopened when the death registration was withdrawn':
+    'Ponovo otvoren kada je prijava smrti povučena',
+  'Revoked in an access review': 'Opozvan u pregledu pristupa',
+  'No register licence of this profession is linked to the account yet; until the Ministry links one, clinical entries can be refused.':
+    'Sa nalogom još nije povezana nijedna licenca ove profesije iz registra; dok je Ministarstvo ne poveže, klinički unosi mogu biti odbijeni.',
+  'Hand over first: this person has result cover arranged (covering a colleague, or covered while away). Cancel the cover before changing their role or facility.':
+    'Najpre izvršite primopredaju: ova osoba ima dogovorenu zamenu za rezultate (zamenjuje kolegu ili je zamenjena dok je odsutna). Otkažite zamenu pre promene uloge ili ustanove.',
+  'Hand over first: results this person ordered are still waiting to be reviewed. They must be reviewed before the role or facility changes.':
+    'Najpre izvršite primopredaju: rezultati koje je ova osoba naručila još čekaju pregled. Moraju biti pregledani pre promene uloge ili ustanove.',
+  'This account was closed when a death was registered. It comes back only if the death registration is withdrawn.':
+    'Ovaj nalog je zatvoren kada je prijavljena smrt. Vraća se samo ako se prijava smrti povuče.',
+  'A patient’s two-step sign-in is reset by their facility, which verifies their identity.':
+    'Prijavu u dva koraka pacijenta resetuje njegova ustanova, koja proverava njegov identitet.',
+  'A patient’s portal invitation is renewed by their facility, which verifies their identity.':
+    'Poziv za portal pacijenta obnavlja njegova ustanova, koja proverava njegov identitet.',
 };

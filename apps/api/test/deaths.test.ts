@@ -299,10 +299,12 @@ describe('signing', () => {
   let patientId: string;
   let recordId: string;
   let portalEmail: string;
+  let portalId: string;
 
   beforeAll(async () => {
     const portal = await createUser('PATIENT');
     portalEmail = portal.email;
+    portalId = portal.id;
     const p = await elderlyPatient({ userId: portal.id });
     patientId = p.id;
     await db.insert(careAssignments).values({ patientId, doctorId: w.users.colleague.id });
@@ -410,6 +412,34 @@ describe('signing', () => {
       .post('/api/v1/auth/login')
       .send({ email: portalEmail, password: PASSWORD });
     expect(signIn.status).not.toBe(200);
+    // The account's own history says why it is closed: written by the system with the death,
+    // without the patient or who registered it (that is in the death record's own entry).
+    const closed = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'user.deactivated'), eq(auditLogs.resourceId, portalId)));
+    expect(closed).toHaveLength(1);
+    expect(closed[0]).toMatchObject({
+      resourceType: 'user',
+      actorUserId: null,
+      patientId: null,
+      metadata: { source: 'death_registration' },
+    });
+    // The platform administrator sees why, and cannot open the account again.
+    const admin = await createUser('ADMIN');
+    const adminAuth = bearer(await login(admin.email));
+    const page = await api().get(`/api/v1/admin/users/${portalId}`).set(adminAuth);
+    expect(page.body.adminHistory[0]).toMatchObject({
+      action: 'user.deactivated',
+      source: 'death_registration',
+    });
+    expect(JSON.stringify(page.body)).not.toMatch(/infar|I21|VD-/i);
+    const enable = await api()
+      .post(`/api/v1/admin/users/${portalId}/enable`)
+      .set(adminAuth)
+      .send({ reason: 'A relative called support' });
+    expect(enable.status).toBe(409);
+    expect(enable.body.error.message).toMatch(/closed when a death was registered/);
     // The care team is told, without the cause of death.
     const told = await db
       .select()
@@ -657,6 +687,16 @@ describe('signing', () => {
       .post('/api/v1/auth/login')
       .send({ email: portalEmail, password: PASSWORD });
     expect(signIn.status).toBe(200);
+    const reopened = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'user.reactivated'), eq(auditLogs.resourceId, portalId)));
+    expect(reopened).toHaveLength(1);
+    expect(reopened[0]).toMatchObject({
+      actorUserId: null,
+      patientId: null,
+      metadata: { source: 'death_registration_withdrawn' },
+    });
 
     // Final: no second withdrawal, no amendment, no direct change.
     expect(

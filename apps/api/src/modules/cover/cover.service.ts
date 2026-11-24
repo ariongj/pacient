@@ -1,4 +1,5 @@
-import { and, eq, gt, inArray, isNull, lte } from 'drizzle-orm';
+import { and, eq, exists, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db, type Executor } from '../../db/client.js';
 import { careAssignments, coverArrangements, users } from '../../db/schema.js';
 
@@ -11,6 +12,25 @@ const activeAt = (now: Date) =>
     isNull(coverArrangements.cancelledAt),
     lte(coverArrangements.startsAt, now),
     gt(coverArrangements.endsAt, now),
+  );
+
+/**
+ * The covering doctor still works at the facility the cover was arranged for. A move to another
+ * facility waits until the cover is cancelled (admin account changes); this keeps a cover that
+ * outlived a move from reaching across institutions all the same.
+ */
+const coverDoctor = alias(users, 'cover_doctor_now');
+const coverDoctorStillThere = () =>
+  exists(
+    db
+      .select({ one: sql`1` })
+      .from(coverDoctor)
+      .where(
+        and(
+          eq(coverDoctor.id, coverArrangements.coverDoctorId),
+          eq(coverDoctor.facilityId, coverArrangements.facilityId),
+        ),
+      ),
   );
 
 /** Doctors currently covering for `doctorId` (with names, for notification titles). */
@@ -28,7 +48,9 @@ export async function activeCoverDoctorsFor(
     })
     .from(coverArrangements)
     .innerJoin(users, eq(users.id, coverArrangements.doctorId))
-    .where(and(inArray(coverArrangements.doctorId, doctorIds), activeAt(now)));
+    .where(
+      and(inArray(coverArrangements.doctorId, doctorIds), activeAt(now), coverDoctorStillThere()),
+    );
 }
 
 /** Doctors that `coverDoctorId` currently covers for. */
@@ -36,7 +58,13 @@ export async function doctorsCoveredBy(coverDoctorId: string, executor: Executor
   const rows = await executor
     .select({ doctorId: coverArrangements.doctorId })
     .from(coverArrangements)
-    .where(and(eq(coverArrangements.coverDoctorId, coverDoctorId), activeAt(new Date())));
+    .where(
+      and(
+        eq(coverArrangements.coverDoctorId, coverDoctorId),
+        activeAt(new Date()),
+        coverDoctorStillThere(),
+      ),
+    );
   return [...new Set(rows.map((r) => r.doctorId))];
 }
 

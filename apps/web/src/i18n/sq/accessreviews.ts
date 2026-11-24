@@ -84,4 +84,9 @@ export const accessreviews: Record<string, string> = {
   'Only a completed review can be exported': 'Vetëm një rishikim i përfunduar mund të eksportohet',
   'Explain the change or the revocation in a note':
     'Shpjegoni ndryshimin ose revokimin në një shënim',
+  'Now: {account}': 'Tani: {account}',
+  'Moved out of this review': 'Ka dalë nga ky rishikim',
+  'This account has moved to another facility or role since the review opened. It can only be kept here.':
+    'Kjo llogari ka kaluar në një institucion ose rol tjetër pasi u hap rishikimi. Këtu mund vetëm të mbahet.',
+  'This account has moved out of this review': 'Kjo llogari ka dalë nga ky rishikim',
 };

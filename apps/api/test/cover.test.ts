@@ -1,7 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
-import { auditLogs, labResults, notifications, resultEscalations } from '../src/db/schema.js';
+import {
+  auditLogs,
+  labResults,
+  notifications,
+  resultEscalations,
+  users,
+} from '../src/db/schema.js';
+import { activeCoverDoctorsFor, doctorsCoveredBy } from '../src/modules/cover/cover.service.js';
 import { runEscalationOnce } from '../src/modules/cover/escalation.js';
 import { buildOru } from '../src/ops/oru.js';
 import { api, bearer, createPatient, createUser, createWorld, login } from './helpers.js';
@@ -215,6 +222,38 @@ describe('access and worklist while covering', () => {
     expect((await summary()).status).toBe(403);
     const after = await api().get('/api/v1/worklist').set(bearer(p.coverToken));
     expect(after.body.coveredResults).toEqual([]);
+  });
+
+  it('reaches patients only while the covering doctor works at the facility of the cover', async () => {
+    const p = await pair();
+    const arranged = await arrange(p.awayToken, {
+      coverDoctorId: p.coverer.id,
+      startsAt: iso(-HOUR),
+      endsAt: iso(12 * HOUR),
+    });
+    expect(arranged.status).toBe(201);
+    const result = await insertResult(p.patient.id, p.away.id, { flag: 'NORMAL' });
+    const summary = (token: string) =>
+      api().get(`/api/v1/patients/${p.patient.id}/summary`).set(bearer(token));
+    expect((await summary(p.coverToken)).status).toBe(200);
+    expect((await activeCoverDoctorsFor([p.away.id])).map((c) => c.coverDoctorId)).toEqual([
+      p.coverer.id,
+    ]);
+
+    // The covering doctor now works at another facility. The administrator's move waits until
+    // the cover is cancelled; should a cover outlive a move all the same, it reaches nobody.
+    await db
+      .update(users)
+      .set({ facilityId: w.otherFacility.id })
+      .where(eq(users.id, p.coverer.id));
+    const moved = await login(p.coverer.email);
+    expect((await summary(moved)).status).toBe(403);
+    expect(await doctorsCoveredBy(p.coverer.id)).toEqual([]);
+    const work = await api().get('/api/v1/worklist').set(bearer(moved));
+    expect(work.status).toBe(200);
+    expect(work.body.coveredResults.map((r: { id: string }) => r.id)).not.toContain(result.id);
+    // New results of the absent doctor no longer go to them either.
+    expect(await activeCoverDoctorsFor([p.away.id])).toEqual([]);
   });
 
   it('sends laboratory alerts to the covering doctor too', async () => {

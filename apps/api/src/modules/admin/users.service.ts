@@ -14,11 +14,15 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
+import { z } from 'zod';
 import { db, type Executor } from '../../db/client.js';
 import {
   auditLogs,
   careAssignments,
+  coverArrangements,
   facilities,
+  imagingOrders,
+  labResults,
   mfaRecoveryCodes,
   refreshTokens,
   users,
@@ -133,6 +137,10 @@ export function accountDetail(r: AccountRow, now = new Date()) {
   };
 }
 
+/** A whole e-mail address, not a fragment of one or a name. */
+export const isEmailAddress = (q: string | undefined): q is string =>
+  Boolean(q) && z.email().safeParse(q).success;
+
 /** Filters shared by the list and its counts (everything except the status). */
 export function baseFilters(q: {
   q?: string;
@@ -145,6 +153,11 @@ export function baseFilters(q: {
       : undefined,
     q.role ? eq(users.role, q.role) : undefined,
     q.facilityId ? eq(users.facilityId, q.facilityId) : undefined,
+    // Patient accounts cannot be browsed: who is a patient of the national service is health
+    // data. One is listed only when the search is its exact e-mail address (a support case).
+    isEmailAddress(q.q)
+      ? or(ne(users.role, 'PATIENT'), sql`lower(${users.email}) = ${q.q.toLowerCase()}`)
+      : ne(users.role, 'PATIENT'),
   ];
 }
 
@@ -207,10 +220,21 @@ export async function assertActiveFacility(facilityId: string, executor: Executo
 }
 
 /**
+ * Serialises every change that can add or remove a platform administrator (until the caller's
+ * transaction ends). The same lock guards the first-administrator set-up (ops/bootstrap-admin).
+ */
+export async function lockPlatformAdmins(executor: Executor) {
+  await executor.execute(sql`SELECT pg_advisory_xact_lock(4180271)`);
+}
+
+/**
  * Never leave the service without an active platform administrator who can sign in (an
- * invitation that was never accepted does not count).
+ * invitation that was never accepted does not count). Call it inside the transaction that makes
+ * the change: the lock makes two administrators who disable or demote each other at the same
+ * moment wait for one another, so the second sees the first's change and is refused.
  */
 export async function assertAnotherActiveAdmin(exceptUserId: string, executor: Executor = db) {
+  await lockPlatformAdmins(executor);
   const [row] = await executor
     .select({ n: sql<number>`count(*)::int` })
     .from(users)
@@ -236,6 +260,46 @@ export async function activeCareTeams(userId: string, executor: Executor = db) {
     .from(careAssignments)
     .where(and(eq(careAssignments.doctorId, userId), isNull(careAssignments.endedAt)));
   return row?.n ?? 0;
+}
+
+/**
+ * What else ties the person to their current role and facility, besides care teams: result cover
+ * (covering a colleague, or covered while away – active or still to come) and results they
+ * ordered that nobody has reviewed yet. A role or facility change waits until both are cleared,
+ * so nobody keeps reaching the old facility's patients or results.
+ */
+export async function pendingHandover(userId: string, executor: Executor = db) {
+  const [cover] = await executor
+    .select({ n: sql<number>`count(*)::int` })
+    .from(coverArrangements)
+    .where(
+      and(
+        or(eq(coverArrangements.doctorId, userId), eq(coverArrangements.coverDoctorId, userId)),
+        isNull(coverArrangements.cancelledAt),
+        gt(coverArrangements.endsAt, sql`now()`),
+      ),
+    );
+  const [lab] = await executor
+    .select({ n: sql<number>`count(*)::int` })
+    .from(labResults)
+    .where(
+      and(
+        eq(labResults.orderedById, userId),
+        isNull(labResults.acknowledgedAt),
+        isNull(labResults.supersededById),
+      ),
+    );
+  const [imaging] = await executor
+    .select({ n: sql<number>`count(*)::int` })
+    .from(imagingOrders)
+    .where(
+      and(
+        eq(imagingOrders.orderedById, userId),
+        eq(imagingOrders.status, 'REPORTED'),
+        isNull(imagingOrders.acknowledgedAt),
+      ),
+    );
+  return { coverArrangements: cover?.n ?? 0, pendingResults: (lab?.n ?? 0) + (imaging?.n ?? 0) };
 }
 
 /** Signs the account out everywhere; returns how many sessions (devices) were open. */
@@ -268,10 +332,15 @@ export async function hasSecondFactor(userId: string, executor: Executor = db) {
 
 /**
  * What happened to the account administratively (invitations, status and role changes, resets,
- * IT support actions), newest first. Only the reason and the names of changed fields are shown,
- * never raw details.
+ * IT support actions), newest first. Only the reason, the names of changed fields and the source
+ * of an automatic change are shown, never raw details. Nothing written about a patient (a row
+ * with a patient) is ever shown, and on a patient account only what an administrator or the
+ * system did: who at a facility invited or helped a patient would reveal their care.
  */
-export async function adminHistory(userId: string, limit = 20) {
+export async function adminHistory(
+  userId: string,
+  opts: { patientAccount?: boolean; limit?: number } = {},
+) {
   const rows = await db
     .select({
       id: auditLogs.id,
@@ -297,10 +366,14 @@ export async function adminHistory(userId: string, limit = 20) {
           ne(auditLogs.actorUserId, userId),
           like(auditLogs.action, 'admin.%'),
         ),
+        isNull(auditLogs.patientId),
+        opts.patientAccount
+          ? or(isNull(auditLogs.actorUserId), eq(auditLogs.actorRole, 'ADMIN'))
+          : undefined,
       ),
     )
     .orderBy(desc(auditLogs.occurredAt))
-    .limit(limit);
+    .limit(opts.limit ?? 20);
   return rows.map((r) => {
     const m = (r.metadata ?? {}) as Record<string, unknown>;
     return {
@@ -312,6 +385,8 @@ export async function adminHistory(userId: string, limit = 20) {
       actorRole: r.actorRole,
       reason: typeof m.reason === 'string' ? m.reason : null,
       changes: Array.isArray(m.changes) ? (m.changes as unknown[]).map(String) : [],
+      /** What caused an automatic change, e.g. death_registration or access_review. */
+      source: typeof m.source === 'string' ? m.source : null,
     };
   });
 }

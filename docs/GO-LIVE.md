@@ -139,6 +139,24 @@ BACKUP_AGE_RECIPIENT=age1… deploy/go-live.sh
 With `BACKUP_AGE_RECIPIENT` set it takes an encrypted backup before applying migrations. The
 frontend redeploys by itself when the branch changes.
 
+**Installations set up before the platform administrator existed** (or bootstrapped as
+Ministry-run) have accounts but no administrator, so nobody can open the operator portal
+(accounts, subscriptions, invoices, terms and privacy), and step 3 refuses because accounts exist.
+After the upgrade, invite the administrator once with:
+
+```bash
+deploy/first-admin.sh --existing-installation owner@example.org
+```
+
+It works only while the installation has **no active platform administrator who can sign in**,
+so it can never add an administrator next to a working one; it never turns an existing account
+(another e-mail's owner) into an administrator, and running it again before the link is used
+renews the invitation (the earlier link stops working). The invitation is audited with the source
+`owner-authorized-existing-installation` and the link goes, as in step 3, only to
+`~/pacienti-private/invite.txt` – open it, choose a password, set up two-step sign-in, then delete
+the file. If it is refused, nothing is created and no file is left behind. Once an administrator
+exists, further administrators are invited from **Users** in the portal.
+
 ## Optional, any time
 
 - **SMS**, **document malware scanning**, **radiology images (PACS)**, **object storage**,

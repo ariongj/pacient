@@ -29,7 +29,7 @@ async function hasPasskey(userId: string) {
 import { toLocale } from '../../i18n/index.js';
 
 const RECOVERY_CODE_COUNT = 10;
-const RESET_TTL_MINUTES = 60;
+export const RESET_TTL_MINUTES = 60;
 
 function newRecoveryCodes(): string[] {
   // 10 random characters, grouped for readability: e.g. "k7qd2-x9mpa".

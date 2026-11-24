@@ -25,8 +25,9 @@ import { t, tn } from '../../../i18n';
 
 /**
  * Change an account's name, role, facility, specialty or licence number. A change of role or
- * facility needs a reason, signs the person out everywhere and waits until their patients have
- * been handed over to colleagues.
+ * facility needs a reason, signs the person out everywhere and waits until their patients, result
+ * cover and results awaiting review have been handed over. Only fields that changed are sent: a
+ * field that is not shown is never cleared.
  */
 export function ChangeDialog({
   user,
@@ -65,25 +66,35 @@ function ChangeForm({
   const needsFacility = FACILITY_ROLES.includes(role);
   const licensed = LICENSED_ROLES.includes(role);
   const moves = role !== user.role || (needsFacility ? facilityId : '') !== (user.facilityId ?? '');
+  // Doctors have a specialty; nurses and pharmacists often a professional title in the same field.
+  // It is shown whenever the account has one, so it can be seen and kept, never wiped unseen.
+  const showSpecialty = role === 'DOCTOR' || Boolean(user.specialty);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const v = formValues(e.currentTarget);
     const body: AccountChange = {};
+    // Only what the form shows and was changed: a missing field never becomes "clear it".
+    const changed = (field: 'specialty' | 'licenseNumber') =>
+      field in v && v[field] !== (user[field] ?? '');
     if (v.fullName && v.fullName !== user.fullName) body.fullName = v.fullName;
     if (role !== user.role) body.role = role;
     if (needsFacility && facilityId !== (user.facilityId ?? '')) body.facilityId = facilityId;
-    if ((v.specialty ?? '') !== (user.specialty ?? '')) body.specialty = v.specialty || null;
-    if (licensed && (v.licenseNumber ?? '') !== (user.licenseNumber ?? '')) {
-      body.licenseNumber = v.licenseNumber || null;
-    }
+    if (changed('specialty')) body.specialty = v.specialty || null;
+    if (licensed && changed('licenseNumber')) body.licenseNumber = v.licenseNumber || null;
     if (moves) body.reason = v.reason;
     update.mutate(body, {
-      onSuccess: () => {
+      onSuccess: (result) => {
+        const done = moves
+          ? t('The details are changed; the person is signed out and signs in again.')
+          : t('The details are changed.');
+        // Where licences are enforced, clinical entries need a licence of the new profession.
+        const noLicence =
+          result.licenceLinked === false && (body.role !== undefined || 'licenseNumber' in body);
         onDone(
-          moves
-            ? t('The details are changed; the person is signed out and signs in again.')
-            : t('The details are changed.'),
+          noLicence
+            ? `${done} ${t('No register licence of this profession is linked to the account yet; until the Ministry links one, clinical entries can be refused.')}`
+            : done,
         );
         onClose();
       },
@@ -135,7 +146,7 @@ function ChangeForm({
             options={(facilities.data ?? []).map((f) => ({ value: f.id, label: f.name }))}
           />
         )}
-        {role === 'DOCTOR' && (
+        {showSpecialty && (
           <TextField
             label={t('Specialty')}
             name="specialty"

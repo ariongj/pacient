@@ -87,6 +87,8 @@ export interface AdminHistoryEntry {
   actorRole: Role | null;
   reason: string | null;
   changes: string[];
+  /** What caused an automatic change, e.g. death_registration or access_review. */
+  source: string | null;
 }
 
 export interface AccountPage {
@@ -251,11 +253,18 @@ export interface AccountChange {
   reason?: string;
 }
 
+export interface AccountChangeResult extends AccountPage {
+  /** Doctors, nurses and pharmacists: whether a register licence of their profession is linked. */
+  licenceLinked: boolean | null;
+  /** The licence of the old profession was unlinked (a change of role). */
+  licenceUnlinked: boolean;
+}
+
 export function useUpdateAccount(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: AccountChange) =>
-      api<AccountPage>(`/admin/users/${id}`, { method: 'PATCH', body }),
+      api<AccountChangeResult>(`/admin/users/${id}`, { method: 'PATCH', body }),
     onSuccess: (page) => {
       qc.setQueryData([...KEY, 'one', id], page);
       void qc.invalidateQueries({ queryKey: [...KEY, 'list'] });

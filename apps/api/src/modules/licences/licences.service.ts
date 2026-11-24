@@ -105,23 +105,45 @@ export function setLicenceEnforcementForTests(mode: EnforcementMode | undefined)
 export const enforcementMode = (): EnforcementMode => modeOverride ?? env.LICENCE_ENFORCEMENT;
 
 const CACHE_MS = 60_000;
-const cache = new Map<string, { state: EffectiveStatus | 'MISSING'; at: number }>();
+const cache = new Map<
+  string,
+  { state: EffectiveStatus | 'MISSING'; profession: string | null; at: number }
+>();
 /** Called whenever a licence changes so enforcement never acts on stale data. */
 export function clearLicenceCache(userId?: string | null) {
   if (userId) cache.delete(userId);
   else cache.clear();
 }
 
-export async function licenceStateOfUser(userId: string): Promise<EffectiveStatus | 'MISSING'> {
-  const hit = cache.get(userId);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.state;
-  const [l] = await db
-    .select({ status: professionalLicences.status, validUntil: professionalLicences.validUntil })
-    .from(professionalLicences)
-    .where(eq(professionalLicences.userId, userId));
-  const state = l ? effectiveStatus(l) : 'MISSING';
-  cache.set(userId, { state, at: Date.now() });
-  return state;
+/**
+ * The state of the licence that entitles the user to work in `role`. A linked licence of another
+ * profession counts as MISSING: a nurse's licence never makes a doctor's entries valid (a role can
+ * change after the licence was linked).
+ */
+export async function licenceStateOfUser(
+  userId: string,
+  role: Role,
+): Promise<EffectiveStatus | 'MISSING'> {
+  let hit = cache.get(userId);
+  if (!hit || Date.now() - hit.at >= CACHE_MS) {
+    const [l] = await db
+      .select({
+        status: professionalLicences.status,
+        validUntil: professionalLicences.validUntil,
+        profession: professionalLicences.profession,
+      })
+      .from(professionalLicences)
+      .where(eq(professionalLicences.userId, userId));
+    hit = {
+      state: l ? effectiveStatus(l) : 'MISSING',
+      profession: l?.profession ?? null,
+      at: Date.now(),
+    };
+    cache.set(userId, hit);
+  }
+  return hit.profession !== null && professionMatchesRole(hit.profession, role)
+    ? hit.state
+    : 'MISSING';
 }
 
 const MESSAGES: Record<Exclude<EffectiveStatus, 'VALID'> | 'MISSING', string> = {
@@ -154,7 +176,7 @@ export async function assertLicensed(
 ): Promise<EffectiveStatus | 'MISSING'> {
   const mode = enforcementMode();
   if (mode === 'off' || !LICENSED_ROLES[ctx.role]) return 'VALID';
-  const state = await licenceStateOfUser(ctx.userId);
+  const state = await licenceStateOfUser(ctx.userId, ctx.role);
   if (state === 'VALID') return state;
   if (mode === 'warn') {
     const res = responseStore.getStore();
@@ -337,6 +359,39 @@ export async function autoLinkOnInvite(
     .where(eq(professionalLicences.id, l.id));
   clearLicenceCache(account.id);
   return true;
+}
+
+/**
+ * On a change of role: unlinks the account's licence when its profession does not license the
+ * new role (a nurse's licence must not make the entries of a doctor valid). Returns the unlinked
+ * licence, or null; the caller audits it in the same transaction.
+ */
+export async function unlinkLicenceNotFor(
+  tx: Executor,
+  userId: string,
+  role: Role,
+): Promise<{ id: string; profession: string } | null> {
+  const [l] = await tx
+    .select({ id: professionalLicences.id, profession: professionalLicences.profession })
+    .from(professionalLicences)
+    .where(eq(professionalLicences.userId, userId))
+    .for('update');
+  if (!l || professionMatchesRole(l.profession, role)) return null;
+  await tx
+    .update(professionalLicences)
+    .set({ userId: null })
+    .where(eq(professionalLicences.id, l.id));
+  clearLicenceCache(userId);
+  return l;
+}
+
+/** Whether the user has a linked licence of a profession that licenses `role`. */
+export async function hasLicenceFor(userId: string, role: Role, executor: Executor = db) {
+  const [l] = await executor
+    .select({ profession: professionalLicences.profession })
+    .from(professionalLicences)
+    .where(eq(professionalLicences.userId, userId));
+  return Boolean(l && professionMatchesRole(l.profession, role));
 }
 
 /* ------------------------------------------------------------------------------- worker -- */

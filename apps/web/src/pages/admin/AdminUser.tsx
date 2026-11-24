@@ -33,6 +33,13 @@ const FIELD_LABEL: Record<string, () => string> = {
   licenseNumber: () => t('licence number'),
 };
 
+/** What caused an automatic change in the administrative history, in words. */
+const SOURCE_LABEL: Record<string, () => string> = {
+  death_registration: () => t('Closed when a death was registered'),
+  death_registration_withdrawn: () => t('Reopened when the death registration was withdrawn'),
+  access_review: () => t('Revoked in an access review'),
+};
+
 /** Sessions listed before "Show all": a busy account can have dozens on many devices. */
 const SESSIONS_SHOWN = 10;
 
@@ -56,10 +63,12 @@ function AccountView({ page }: { page: AccountPage }) {
   const when = (d: string | null) => (d ? formatDateTime(d) : '—');
 
   const buttons: { action: AccountAction; label: string; show: boolean; danger?: boolean }[] = [
+    // A patient's invitation and two-step sign-in stay with their facility, which verifies who
+    // they are; the operator cannot do that remotely.
     {
       action: 'resend-invitation',
       label: t('Renew activation link'),
-      show: !u.activated && u.isActive,
+      show: !patient && !u.activated && u.isActive,
     },
     {
       action: 'password-reset',
@@ -67,7 +76,11 @@ function AccountView({ page }: { page: AccountPage }) {
       show: u.activated && u.isActive,
     },
     { action: 'unlock', label: t('Unlock account'), show: u.locked || u.failedLoginAttempts > 0 },
-    { action: 'mfa-reset', label: t('Reset two-step sign-in'), show: !self && u.mfaEnabled },
+    {
+      action: 'mfa-reset',
+      label: t('Reset two-step sign-in'),
+      show: !self && !patient && u.mfaEnabled,
+    },
     {
       action: 'revoke-sessions',
       label: t('Sign out everywhere'),
@@ -112,6 +125,9 @@ function AccountView({ page }: { page: AccountPage }) {
         <Alert tone="info">
           {t(
             'A patient account. The patient’s details and health record are kept by their facility; here you can only help with signing in.',
+          )}{' '}
+          {t(
+            'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.',
           )}
         </Alert>
       )}
@@ -265,6 +281,9 @@ function AccountView({ page }: { page: AccountPage }) {
                       <div className="muted">
                         {h.changes.map((c) => (FIELD_LABEL[c] ? FIELD_LABEL[c]() : c)).join(', ')}
                       </div>
+                    )}
+                    {h.source && SOURCE_LABEL[h.source] && (
+                      <div className="muted">{SOURCE_LABEL[h.source]!()}</div>
                     )}
                   </td>
                   <td>

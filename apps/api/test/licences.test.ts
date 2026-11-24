@@ -8,6 +8,7 @@ import {
   assertLicensed,
   clearLicenceCache,
   effectiveStatus,
+  licenceStateOfUser,
   licenceWarnings,
   namesMatch,
   resetLicenceAuditMemory,
@@ -315,6 +316,98 @@ describe('enforcement on clinical entries', () => {
     setLicenceEnforcementForTests('off');
     expect((await vitals(token)).status).toBe(201);
     setLicenceEnforcementForTests('on');
+  });
+});
+
+describe('a change of role by the platform administrator', () => {
+  let adminAuth: ReturnType<typeof bearer>;
+  beforeAll(async () => {
+    const admin = await createUser('ADMIN');
+    adminAuth = bearer(await login(admin.email));
+    setLicenceEnforcementForTests('on');
+    resetLicenceAuditMemory();
+  });
+  afterAll(() => setLicenceEnforcementForTests(undefined));
+
+  /** A nurse with her own nursing licence linked. */
+  async function licensedNurse(n: number) {
+    const nurse = await createUser('NURSE', w.facility.id);
+    const l = await register(n, { holderName: nurse.fullName, profession: 'NURSE' });
+    await linkTo(l.id, nurse.id);
+    return { nurse, licenceId: l.id };
+  }
+  const toDoctor = (id: string, licenseNumber: string) =>
+    api()
+      .patch(`/api/v1/admin/users/${id}`)
+      .set(adminAuth)
+      .send({ role: 'DOCTOR', licenseNumber, reason: 'Qualified as a physician' });
+  /** Signs in again (the change signed the person out) and joins the patient's care team. */
+  async function asDoctor(email: string) {
+    const token = await login(email);
+    await api().post(`/api/v1/patients/${w.patient.id}/care-team`).set(bearer(token)).send({});
+    return token;
+  }
+
+  it('unlinks the licence of the old profession, so it never licenses the new role', async () => {
+    const { nurse, licenceId } = await licensedNurse(80);
+    expect(await licenceStateOfUser(nurse.id, 'NURSE')).toBe('VALID');
+    const res = await toDoctor(nurse.id, `NOT-IN-REGISTER-${seq}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ licenceUnlinked: true, licenceLinked: false });
+    const [l] = await db
+      .select()
+      .from(professionalLicences)
+      .where(eq(professionalLicences.id, licenceId));
+    expect(l!.userId).toBeNull();
+    const audits = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'licence.changed'), eq(auditLogs.resourceId, licenceId)));
+    expect(audits.at(-1)!.metadata).toMatchObject({
+      change: 'unlinked',
+      userId: nurse.id,
+      source: 'role_change',
+      fromRole: 'NURSE',
+      toRole: 'DOCTOR',
+    });
+    const [updated] = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'admin.user.updated'), eq(auditLogs.resourceId, nurse.id)));
+    expect(updated!.metadata).toMatchObject({ licenceUnlinked: licenceId });
+
+    // A doctor's clinical entries need a doctor's licence.
+    const refused = await vitals(await asDoctor(nurse.email));
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toMatchObject({
+      code: 'LICENCE_INVALID',
+      details: { state: 'MISSING' },
+    });
+  });
+
+  it('links the licence of the new profession named in the change', async () => {
+    const { nurse, licenceId } = await licensedNurse(81);
+    const physician = await register(82, { holderName: nurse.fullName });
+    const res = await toDoctor(nurse.id, physician.licenceNumber);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ licenceUnlinked: true, licenceLinked: true });
+    const linked = await db
+      .select({ id: professionalLicences.id })
+      .from(professionalLicences)
+      .where(eq(professionalLicences.userId, nurse.id));
+    expect(linked.map((r) => r.id)).toEqual([physician.id]);
+    expect(linked.map((r) => r.id)).not.toContain(licenceId);
+    expect((await vitals(await asDoctor(nurse.email))).status).toBe(201);
+  });
+
+  it('counts only a licence whose profession fits the current role', async () => {
+    const { nurse } = await licensedNurse(83);
+    // Even if the role changed without the unlink (e.g. directly in the database).
+    await db.update(users).set({ role: 'DOCTOR' }).where(eq(users.id, nurse.id));
+    clearLicenceCache(nurse.id);
+    expect(await licenceStateOfUser(nurse.id, 'DOCTOR')).toBe('MISSING');
+    expect(await licenceStateOfUser(nurse.id, 'NURSE')).toBe('VALID');
+    await db.update(users).set({ role: 'NURSE' }).where(eq(users.id, nurse.id));
   });
 });
 

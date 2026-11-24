@@ -12,6 +12,7 @@ import { toCsv } from '../reports/reports.routes.js';
 import {
   accessTo,
   FACILITY_ROLES,
+  inReviewScope,
   isOverdue,
   openReview,
   progressOf,
@@ -195,9 +196,11 @@ accessReviewsRouter.get('/:id', async (req, res) => {
       isActive: users.isActive,
       currentRole: users.role,
       currentFacilityId: users.facilityId,
+      currentFacilityName: facilities.name,
     })
     .from(accessReviewItems)
     .innerJoin(users, eq(users.id, accessReviewItems.userId))
+    .leftJoin(facilities, eq(facilities.id, users.facilityId))
     .where(eq(accessReviewItems.reviewId, id));
   const deciders = [
     ...new Set(items.map((i) => i.item.decidedById).filter((x): x is string => Boolean(x))),
@@ -237,6 +240,12 @@ accessReviewsRouter.get('/:id', async (req, res) => {
             isActive: i.isActive,
             role: i.currentRole,
             facilityId: i.currentFacilityId,
+            facilityName: i.currentFacilityName ?? null,
+            /** False once the account has moved out of this review (it can only be kept). */
+            inScope: inReviewScope(review, {
+              role: i.currentRole,
+              facilityId: i.currentFacilityId,
+            }),
           },
           isMe: i.item.userId === ctx.userId,
         };
@@ -270,6 +279,18 @@ accessReviewsRouter.post('/:id/items/:itemId/decision', async (req, res) => {
     if (item.userId === ctx.userId) throw forbidden('You cannot review your own account');
     if (item.decision === 'REVOKE') {
       throw conflict('The account was revoked; reactivate it on the staff page if needed');
+    }
+    // The item is a snapshot: the account may have moved since the review opened (the platform
+    // administrator changes roles and facilities). Read it as it is now, locked, so a review never
+    // changes or deactivates someone outside its scope – another facility's staff, or a platform
+    // administrator (that would also bypass the last-administrator guard).
+    const [account] = await tx
+      .select({ role: users.role, facilityId: users.facilityId })
+      .from(users)
+      .where(eq(users.id, item.userId))
+      .for('update');
+    if (input.decision !== 'KEEP' && (!account || !inReviewScope(review, account))) {
+      throw conflict('This account has moved out of this review');
     }
     const [row] = await tx
       .update(accessReviewItems)

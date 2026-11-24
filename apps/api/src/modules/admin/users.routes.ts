@@ -1,9 +1,9 @@
 import { Router, type Request } from 'express';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { env, isProd } from '../../config/env.js';
 import { db } from '../../db/client.js';
-import { facilities, oneTimeTokens, users, type Role } from '../../db/schema.js';
+import { facilities, oneTimeTokens, patients, users, type Role } from '../../db/schema.js';
 import { toLocale } from '../../i18n/index.js';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
@@ -11,9 +11,14 @@ import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
 import { audit, AuditAction, type AuditActionValue } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
-import { requestPasswordReset } from '../auth/mfa.service.js';
+import { RESET_TTL_MINUTES } from '../auth/mfa.service.js';
 import { enqueueEmail } from '../email/outbox.js';
-import { autoLinkOnInvite } from '../licences/licences.service.js';
+import {
+  autoLinkOnInvite,
+  clearLicenceCache,
+  hasLicenceFor,
+  unlinkLicenceNotFor,
+} from '../licences/licences.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { listSessions, signInHistory } from '../security/sessions.js';
 import { assertSeatAvailable } from '../subscriptions/subscriptions.service.js';
@@ -35,6 +40,7 @@ import {
   LICENSED_ROLES,
   loadAccount,
   NATIONAL_ROLES,
+  pendingHandover,
   revokeSessions,
   statusCounts,
   statusFilter,
@@ -47,10 +53,13 @@ import {
  * no link to a health record. Patients' details are kept by their facility; here their accounts
  * can only be disabled, enabled, unlocked, signed out or sent a password reset.
  *
+ * Patient accounts are not browsable: the list shows one only for its exact e-mail address, and a
+ * patient's two-step sign-in and invitation stay with their facility, which verifies identity.
+ *
  * Guardrails: never on your own account (use your own security page), never the last active
  * administrator, licensed professions need their licence number, a role or facility change waits
- * until the person's patients are handed over, new facility staff need a free seat. Every change is
- * audited in the same transaction.
+ * until the person's patients, result cover and pending results are handed over, new facility
+ * staff need a free seat. Every change is audited in the same transaction.
  */
 export const adminUsersRouter = Router();
 
@@ -132,12 +141,13 @@ function auditAccount(
 
 /** The account page, after any change. */
 async function presentAccount(id: string) {
-  const [account, sessions, signIns, history, careTeams] = await Promise.all([
-    loadAccount(id),
+  const account = await loadAccount(id);
+  const patientAccount = account.role === 'PATIENT';
+  const [sessions, signIns, history, careTeams] = await Promise.all([
     listSessions(id, undefined),
     signInHistory(id, { page: 1, pageSize: 20 }),
-    adminHistory(id),
-    activeCareTeams(id),
+    adminHistory(id, { patientAccount }),
+    patientAccount ? 0 : activeCareTeams(id),
   ]);
   return {
     user: { ...accountDetail(account), activeCareTeams: careTeams },
@@ -145,6 +155,19 @@ async function presentAccount(id: string) {
     signIns: signIns.items,
     adminHistory: history,
   };
+}
+
+/**
+ * The activation link in a response (outside production, for testing without e-mail). Never for a
+ * patient account, in any environment: whoever holds the link chooses the password, and the
+ * administrator must never be able to open a patient's record.
+ */
+const visibleActivationUrl = (role: Role, url: string | null | undefined) =>
+  isProd || role === 'PATIENT' ? null : (url ?? null);
+
+/** A patient's identity is verified by their facility; the operator cannot do that remotely. */
+function notForPatients(target: { role: Role }, message: string) {
+  if (target.role === 'PATIENT') throw badRequest(message);
 }
 
 function notOnYourself(ctx: AuthContext, id: string, message: string) {
@@ -255,7 +278,7 @@ adminUsersRouter.post('/', async (req, res) => {
     // The activation e-mail is queued with the account; it is sent once e-mail delivery is set up.
     emailQueued: true,
     // Shown outside production only (in production the person receives it by e-mail).
-    activationUrl: result.activationUrl ?? null,
+    activationUrl: visibleActivationUrl(input.role, result.activationUrl),
     expiresInHours: 72,
   });
 });
@@ -312,11 +335,11 @@ adminUsersRouter.patch('/:id', async (req, res) => {
     .map(([field]) => field);
   if (!changes.length) throw badRequest('Nothing to change');
 
-  await db.transaction(async (tx) => {
+  const licence = await db.transaction(async (tx) => {
+    let licenceUnlinked: { id: string; profession: string } | null = null;
     if (roleChanged || facilityChanged) {
-      if (target.role === 'ADMIN' && role !== 'ADMIN' && target.isActive) {
-        await assertAnotherActiveAdmin(id, tx);
-      }
+      // Under the administrators' lock, so two concurrent changes cannot both pass the check.
+      if (target.role === 'ADMIN' && role !== 'ADMIN') await assertAnotherActiveAdmin(id, tx);
       const teams = await activeCareTeams(id, tx);
       if (teams > 0) {
         // The account page shows how many patients; the message stays translatable.
@@ -324,10 +347,24 @@ adminUsersRouter.patch('/:id', async (req, res) => {
           'Hand over this person’s patients to colleagues first: they are still in the care team of patients.',
         );
       }
+      // Result cover and results awaiting review also reach the old facility's patients.
+      const pending = await pendingHandover(id, tx);
+      if (pending.coverArrangements > 0) {
+        throw conflict(
+          'Hand over first: this person has result cover arranged (covering a colleague, or covered while away). Cancel the cover before changing their role or facility.',
+        );
+      }
+      if (pending.pendingResults > 0) {
+        throw conflict(
+          'Hand over first: results this person ordered are still waiting to be reviewed. They must be reviewed before the role or facility changes.',
+        );
+      }
       if (facilityId && facilityChanged) {
         await assertActiveFacility(facilityId, tx);
         if (target.isActive) await assertSeatAvailable(facilityId, tx);
       }
+      // A licence of the old profession must not count for the new role.
+      if (roleChanged) licenceUnlinked = await unlinkLicenceNotFor(tx, id, role);
     }
     await tx
       .update(users)
@@ -357,9 +394,42 @@ adminUsersRouter.patch('/:id', async (req, res) => {
       ...(facilityChanged ? { fromFacilityId: target.facilityId, toFacilityId: facilityId } : {}),
       ...(signedOut ? { sessionsRevoked: signedOut } : {}),
       ...(licenceLinked ? { licenceLinked } : {}),
+      ...(licenceUnlinked ? { licenceUnlinked: licenceUnlinked.id } : {}),
     });
+    if (licenceUnlinked) {
+      // The licence's own history (the Ministry's register) shows the unlink as well.
+      await audit(
+        {
+          action: AuditAction.LICENCE_CHANGED,
+          actor: ctx,
+          resourceType: 'professional_licence',
+          resourceId: licenceUnlinked.id,
+          meta: requestMeta(req),
+          metadata: {
+            change: 'unlinked',
+            userId: id,
+            reason: input.reason ?? null,
+            source: 'role_change',
+            fromRole: target.role,
+            toRole: role,
+          },
+        },
+        tx,
+      );
+    }
+    return {
+      unlinked: Boolean(licenceUnlinked),
+      // Whether a licence of the right profession is linked (licensed roles only): without one,
+      // clinical entries are refused where licences are enforced.
+      linked: LICENSED_ROLES.includes(role) ? await hasLicenceFor(id, role, tx) : null,
+    };
   });
-  res.json(await presentAccount(id));
+  clearLicenceCache(id);
+  res.json({
+    ...(await presentAccount(id)),
+    licenceLinked: licence.linked,
+    licenceUnlinked: licence.unlinked,
+  });
 });
 
 adminUsersRouter.post('/:id/disable', async (req, res) => {
@@ -370,8 +440,15 @@ adminUsersRouter.post('/:id/disable', async (req, res) => {
   const target = await loadAccount(id);
   if (!target.isActive) throw conflict('The account is already disabled');
   await db.transaction(async (tx) => {
+    // Under the administrators' lock, so two concurrent changes cannot both pass the check.
     if (target.role === 'ADMIN') await assertAnotherActiveAdmin(id, tx);
-    await tx.update(users).set({ isActive: false }).where(eq(users.id, id));
+    // Only if still active now (another administrator may have just disabled it).
+    const [disabled] = await tx
+      .update(users)
+      .set({ isActive: false })
+      .where(and(eq(users.id, id), eq(users.isActive, true)))
+      .returning({ id: users.id });
+    if (!disabled) throw conflict('The account is already disabled');
     const sessions = await revokeSessions(tx, id);
     await auditAccount(tx, ctx, req, AuditAction.ADMIN_USER_DISABLED, id, {
       reason,
@@ -388,6 +465,20 @@ adminUsersRouter.post('/:id/enable', async (req, res) => {
   const target = await loadAccount(id);
   if (target.isActive) throw conflict('The account is already enabled');
   await db.transaction(async (tx) => {
+    if (target.role === 'PATIENT') {
+      // Registering a death closes the patient's portal account; only withdrawing that
+      // registration (the Ministry) opens it again. The message says nothing clinical.
+      const [deceased] = await tx
+        .select({ id: patients.id })
+        .from(patients)
+        .where(and(eq(patients.userId, id), isNotNull(patients.deceasedAt)))
+        .limit(1);
+      if (deceased) {
+        throw conflict(
+          'This account was closed when a death was registered. It comes back only if the death registration is withdrawn.',
+        );
+      }
+    }
     if (target.facilityId && FACILITY_ROLES.includes(target.role)) {
       await assertSeatAvailable(target.facilityId, tx, { reactivation: { role: target.role } });
     }
@@ -426,9 +517,27 @@ adminUsersRouter.post('/:id/password-reset', async (req, res) => {
     throw conflict('This account is not activated yet: renew the activation link instead');
   }
   if (!target.isActive) throw conflict('Enable the account first');
-  // The usual reset e-mail goes to the account's own address; the administrator never sees the link.
-  await requestPasswordReset(target.email, requestMeta(req));
+  const [account] = await db.select({ locale: users.locale }).from(users).where(eq(users.id, id));
+  // The usual reset e-mail goes to the account's own address; the administrator never sees the
+  // link. Link, e-mail and audit entry (with the administrator as the one who asked) are one
+  // transaction: no reset goes out unaudited.
+  const token = generateOpaqueToken();
   await db.transaction(async (tx) => {
+    await tx.insert(oneTimeTokens).values({
+      userId: id,
+      purpose: 'PASSWORD_RESET',
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
+      createdById: ctx.userId,
+    });
+    await enqueueEmail(tx, {
+      to: target.email,
+      userId: id,
+      template: 'password_reset',
+      locale: toLocale(account?.locale),
+      name: target.fullName,
+      url: `${env.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`,
+    });
     await auditAccount(tx, ctx, req, AuditAction.ADMIN_PASSWORD_RESET_SENT, id);
   });
   res.json(await presentAccount(id));
@@ -439,7 +548,10 @@ adminUsersRouter.post('/:id/mfa-reset', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(ReasonBody, req.body ?? {});
   notOnYourself(ctx, id, 'Use your own security page for your own two-step sign-in');
-  await loadAccount(id);
+  notForPatients(
+    await loadAccount(id),
+    'A patient’s two-step sign-in is reset by their facility, which verifies their identity.',
+  );
   if (!(await hasSecondFactor(id))) {
     throw conflict('Two-step sign-in is not set up for this account');
   }
@@ -480,6 +592,10 @@ adminUsersRouter.post('/:id/resend-invitation', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
   const target = await loadAccount(id);
+  notForPatients(
+    target,
+    'A patient’s portal invitation is renewed by their facility, which verifies their identity.',
+  );
   if (target.activated) throw conflict('This account is already activated');
   if (!target.isActive) throw conflict('Enable the account first');
   const [account] = await db.select({ locale: users.locale }).from(users).where(eq(users.id, id));
@@ -517,7 +633,7 @@ adminUsersRouter.post('/:id/resend-invitation', async (req, res) => {
   res.json({
     ...(await presentAccount(id)),
     emailQueued: true,
-    activationUrl: isProd ? null : activationUrl,
+    activationUrl: visibleActivationUrl(target.role, activationUrl),
     expiresInHours: 72,
   });
 });

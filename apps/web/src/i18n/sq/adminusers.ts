@@ -124,4 +124,24 @@ export const adminusers: Record<string, string> = {
     'Institucioni nuk ekziston ose nuk është më aktiv',
   'Your two-step sign-in was reset by the administrator':
     'Hyrja juaj me dy hapa u rivendos nga administratori',
+  'Patient accounts are found by their exact e-mail address.':
+    'Llogaritë e pacientëve gjenden vetëm me adresën e saktë të e-mailit.',
+  'Their two-step sign-in and portal invitation are handled by their facility, which verifies their identity.':
+    'Hyrja e tyre me dy hapa dhe ftesa për portal trajtohen nga institucioni i tyre, i cili verifikon identitetin e tyre.',
+  'Closed when a death was registered': 'U mbyll kur u regjistrua një vdekje',
+  'Reopened when the death registration was withdrawn':
+    'U rihap kur u tërhoq regjistrimi i vdekjes',
+  'Revoked in an access review': 'U revokua në një rishikim të qasjeve',
+  'No register licence of this profession is linked to the account yet; until the Ministry links one, clinical entries can be refused.':
+    'Ende nuk është lidhur me llogarinë asnjë licencë e këtij profesioni nga regjistri; derisa Ministria ta lidhë një, regjistrimet klinike mund të refuzohen.',
+  'Hand over first: this person has result cover arranged (covering a colleague, or covered while away). Cancel the cover before changing their role or facility.':
+    'Fillimisht bëni dorëzimin: ky person ka zëvendësim për rezultatet (zëvendëson një koleg ose zëvendësohet gjatë mungesës). Anuloni zëvendësimin para se t’i ndryshoni rolin ose institucionin.',
+  'Hand over first: results this person ordered are still waiting to be reviewed. They must be reviewed before the role or facility changes.':
+    'Fillimisht bëni dorëzimin: rezultatet që ka porositur ky person ende presin të shqyrtohen. Ato duhet të shqyrtohen para se të ndryshojë roli ose institucioni.',
+  'This account was closed when a death was registered. It comes back only if the death registration is withdrawn.':
+    'Kjo llogari u mbyll kur u regjistrua një vdekje. Rikthehet vetëm nëse tërhiqet regjistrimi i vdekjes.',
+  'A patient’s two-step sign-in is reset by their facility, which verifies their identity.':
+    'Hyrjen me dy hapa të pacientit e rivendos institucioni i tij, i cili verifikon identitetin e tij.',
+  'A patient’s portal invitation is renewed by their facility, which verifies their identity.':
+    'Ftesën për portal të pacientit e rinovon institucioni i tij, i cili verifikon identitetin e tij.',
 };

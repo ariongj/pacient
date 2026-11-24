@@ -94,6 +94,7 @@ describe('operator settings and the notice to users', () => {
         supportEmail: null,
         privacyEmail: null,
         vatRateBp: 0,
+        operatorVatNumber: null,
       })
       .where(eq(platformSettings.id, 1));
     const settingsAudits = () =>
@@ -114,6 +115,8 @@ describe('operator settings and the notice to users', () => {
       invoicePrefix: 'tst',
       supportEmail: 'Support@Example.org',
       privacyEmail: 'privacy@example.org',
+      // VAT is charged only with a VAT number (see billing-documents.test.ts).
+      operatorVatNumber: '330000002',
       vatRateBp: 1800,
     });
     expect(res.status).toBe(200);
@@ -827,11 +830,14 @@ describe('administrative audit', () => {
       targetName: w.users.nurse.fullName,
     });
 
-    // Customers (facilities the administrator created) and the operator's billing.
+    // Customers (facilities the administrator created) and the operator's billing – with the
+    // billing documents, agreements and requests of round 2 – never patients' hospital billing.
     const billing = (await get('billing')).body;
     expect(
       billing.items.every((i: { action: string }) =>
-        /^(billing\.(plan|subscription|invoice)|facility)\./.test(i.action),
+        /^((billing\.(plan|subscription|invoice)|facility|operator_request)\.|billing\.(profile_changed|invoice_sent|payment_recorded|payment_reversed|credit_note_issued|exported)$|legal\.organization_accepted$)/.test(
+          i.action,
+        ),
       ),
     ).toBe(true);
     expect(

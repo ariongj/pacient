@@ -11,6 +11,7 @@ import {
   uuid,
   type ModuleOperation,
 } from './modules.js';
+import { billingProfileBody } from './billingdocs.js';
 
 /** OpenAPI entries: plans, facilities' subscriptions, their history, invoices and payments. */
 export const SUBSCRIPTIONS_TAGS = [
@@ -104,10 +105,15 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
           ['email', 'fullName'],
         ),
         subscription: start,
+        billingProfile: billingProfileBody,
       },
       ['facility'],
     ),
-    responses: { '201': 'The facility with its subscription', '409': 'Code or e-mail taken' },
+    responses: {
+      '201': 'The facility with its subscription',
+      '409':
+        'Code or e-mail taken; or BILLING_NOT_READY (a paid start while the operator settings are incomplete)',
+    },
   }),
   op('get', '/admin/organizations/{facilityId}', T, 'One facility’s subscription', {
     access: ADMIN,

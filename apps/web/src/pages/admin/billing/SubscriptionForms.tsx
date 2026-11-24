@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../../api/client';
 import {
   centsToInput,
@@ -29,6 +29,7 @@ import {
 } from '../../../components/ui';
 import { formatDate, formatNumber } from '../../../format';
 import { t } from '../../../i18n';
+import { BillingNotReadyNote, useBillingNotReady } from '../home/BillingReadinessCard';
 
 export const CYCLE_OPTIONS = () =>
   (['MONTHLY', 'YEARLY'] as const).map((c) => ({ value: c, label: cycleLabel(c) }));
@@ -72,6 +73,8 @@ function Actions({
 
 /** Plan, cycle, trial, seats and an agreed price: the fields of a new subscription. */
 export function StartFields({ plans }: { plans: Plan[] }) {
+  const billingNotReady = useBillingNotReady();
+  const noteId = useId();
   const offered = plans.filter((p) => p.isActive);
   const [planId, setPlanId] = useState(offered[0]?.id ?? '');
   const [cycle, setCycle] = useState<BillingCycle>('MONTHLY');
@@ -113,10 +116,27 @@ export function StartFields({ plans }: { plans: Plan[] }) {
           })}
         />
       </div>
+      {/* Starting paid issues the first invoice now: not offered while billing is not ready. */}
       <label className="checkbox">
-        <input type="checkbox" name="trial" value="yes" defaultChecked />
+        <input
+          // Remounted (checked again) when billing turns out not to be ready.
+          key={billingNotReady ? 'trial-only' : 'trial-or-paid'}
+          type="checkbox"
+          name="trial"
+          value="yes"
+          defaultChecked
+          disabled={billingNotReady}
+          aria-describedby={billingNotReady ? `${noteId}-billing` : undefined}
+        />
         {t('Start with a free trial (no invoice until it ends)')}
       </label>
+      {billingNotReady && (
+        <>
+          {/* A disabled checkbox is not submitted: the trial is sent all the same. */}
+          <input type="hidden" name="trial" value="yes" />
+          <BillingNotReadyNote id={`${noteId}-billing`} />
+        </>
+      )}
     </>
   );
 }

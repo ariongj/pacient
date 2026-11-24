@@ -13,6 +13,7 @@ import {
   TextField,
 } from '../../../components/ui';
 import { t } from '../../../i18n';
+import { BillingProfileFields, readBillingProfile } from './BillingProfileCard';
 import { readStart, StartFields } from './SubscriptionForms';
 import { SubscriptionBadge } from './parts';
 
@@ -79,8 +80,15 @@ export function NewCustomerForm({ onDone }: { onDone: () => void }) {
       setProblem(t('Enter the price as an amount, e.g. 149.00'));
       return;
     }
+    // Saved before the first invoice, which copies them.
+    const billing = readBillingProfile(v);
+    if (billing.problem) {
+      setProblem(billing.problem);
+      return;
+    }
     setProblem(null);
     mutation.mutate({
+      billingProfile: billing.profile,
       facility: {
         code: v.code,
         name: v.name,
@@ -180,6 +188,15 @@ export function NewCustomerForm({ onDone }: { onDone: () => void }) {
         <p className="muted">
           {t('The director receives an activation link and then invites the facility’s staff.')}
         </p>
+      </fieldset>
+      <fieldset>
+        <legend>{t('Billing details (optional)')}</legend>
+        <p className="muted">
+          {t(
+            'Who is invoiced for this facility. Without them invoices name the facility as registered here; they can be added later on the facility’s page.',
+          )}
+        </p>
+        <BillingProfileFields required={false} />
       </fieldset>
       <fieldset>
         <legend>{t('Subscription')}</legend>

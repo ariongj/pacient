@@ -1,7 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { env, isTest } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
-import { emailOutbox } from '../../db/schema.js';
+import { emailOutbox, users } from '../../db/schema.js';
+import { toLocale } from '../../i18n/index.js';
 import { logger } from '../../lib/logger.js';
 import { open, seal } from '../../lib/secret-box.js';
 import { render, type EmailTemplate } from './templates.js';
@@ -22,20 +23,56 @@ export const MAX_ATTEMPTS = 6;
 const LEASE_MINUTES = 5;
 const BATCH = 20;
 
+/**
+ * A billing document to attach when the message is sent. Only its kind and id are stored: the PDF
+ * is rendered from the issued (immutable) document at that moment, so nothing PDF-shaped is kept.
+ */
+export interface OutboxAttachment {
+  kind: 'invoice' | 'credit_note';
+  id: string;
+}
+
+/** Queues a message in the caller's transaction; returns the id of its outbox row. */
 export async function enqueueEmail(
   executor: Executor,
-  message: { to: string; userId?: string | null } & EmailTemplate,
-) {
-  const { to, userId, ...template } = message;
+  message: { to: string; userId?: string | null; attachment?: OutboxAttachment } & EmailTemplate,
+): Promise<string> {
+  const { to, userId, attachment, ...template } = message;
   const rendered = render(template);
-  await executor.insert(emailOutbox).values({
-    userId: userId ?? null,
-    toEmail: to,
-    template: template.template,
-    subjectSealed: seal(rendered.subject),
-    textSealed: seal(rendered.text),
-    htmlSealed: seal(rendered.html),
-  });
+  const [row] = await executor
+    .insert(emailOutbox)
+    .values({
+      userId: userId ?? null,
+      toEmail: to,
+      template: template.template,
+      subjectSealed: seal(rendered.subject),
+      textSealed: seal(rendered.text),
+      htmlSealed: seal(rendered.html),
+      attachmentKind: attachment?.kind ?? null,
+      attachmentId: attachment?.id ?? null,
+    })
+    .returning({ id: emailOutbox.id });
+  return row!.id;
+}
+
+/**
+ * The PDF of a billing document, in the language of the account the message goes to (Albanian
+ * for a billing address without an account). Loaded on demand: most messages carry nothing.
+ */
+async function attachmentOf(row: {
+  attachment_kind: string;
+  attachment_id: string;
+  user_id: string | null;
+}) {
+  const { billingAttachment } = await import('../subscriptions/billing-documents.js');
+  const [user] = row.user_id
+    ? await db.select({ locale: users.locale }).from(users).where(eq(users.id, row.user_id))
+    : [];
+  return billingAttachment(
+    row.attachment_kind === 'credit_note' ? 'credit_note' : 'invoice',
+    row.attachment_id,
+    toLocale(user?.locale),
+  );
 }
 
 /** Delivers due messages once. Returns the number delivered. */
@@ -43,9 +80,12 @@ export async function processOutboxOnce(): Promise<number> {
   const claimed = await db.execute<{
     id: string;
     to_email: string;
+    user_id: string | null;
     subject_sealed: string;
     text_sealed: string;
     html_sealed: string;
+    attachment_kind: string | null;
+    attachment_id: string | null;
     attempts: number;
   }>(sql`
     UPDATE email_outbox SET status = 'SENDING', attempts = attempts + 1, next_attempt_at = now()
@@ -57,16 +97,30 @@ export async function processOutboxOnce(): Promise<number> {
       LIMIT ${BATCH}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, to_email, subject_sealed, text_sealed, html_sealed, attempts`);
+    RETURNING id, to_email, user_id, subject_sealed, text_sealed, html_sealed, attachment_kind,
+      attachment_id, attempts`);
 
   let delivered = 0;
   for (const row of claimed.rows) {
     try {
+      // A document that cannot be rendered fails the delivery like the mail server would:
+      // retried, then marked FAILED – never sent without the document it announces.
+      const attachments =
+        row.attachment_kind && row.attachment_id
+          ? [
+              await attachmentOf({
+                attachment_kind: row.attachment_kind,
+                attachment_id: row.attachment_id,
+                user_id: row.user_id,
+              }),
+            ]
+          : undefined;
       await getTransport().send({
         to: row.to_email,
         subject: open(row.subject_sealed),
         text: open(row.text_sealed),
         html: open(row.html_sealed),
+        ...(attachments ? { attachments } : {}),
       });
       await db
         .update(emailOutbox)

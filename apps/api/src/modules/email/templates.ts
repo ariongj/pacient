@@ -11,7 +11,37 @@ export type EmailTemplate = { locale: Locale } & (
   | { template: 'password_reset'; name: string; url: string }
   /** `title` is already in the recipient's language. */
   | { template: 'notification'; name: string; title: string; link: string | null }
+  | BillingDocumentEmail
 );
+
+/**
+ * An invoice or credit note e-mailed to a facility's billing contact, with the PDF attached when
+ * it is sent. Business data only – numbers, amounts, dates and where to pay – never clinical data.
+ * Amounts and dates are already formatted in the recipient's language.
+ */
+export interface BillingDocumentEmail {
+  template: 'billing_document';
+  /** A director's name; null for a billing address without an account. */
+  name: string | null;
+  document: 'invoice' | 'credit_note';
+  /** Sent on issue, as an overdue reminder, or again by the operator. */
+  kind: 'ISSUED' | 'REMINDER' | 'RESEND';
+  number: string;
+  /** The operator's name as printed on the document. */
+  operator: string;
+  /** "01.12.2026 – 31.12.2026". */
+  period: string;
+  total: string;
+  /** Invoices: the due date; null for a credit note. */
+  dueDate: string | null;
+  iban: string | null;
+  /** The payment reference (the invoice number); null for a credit note. */
+  reference: string | null;
+  /** An invoice with nothing to pay (issued as paid). */
+  nothingToPay: boolean;
+  /** Credit notes: the invoice they correct. */
+  invoiceNumber: string | null;
+}
 
 export interface RenderedEmail {
   subject: string;
@@ -60,10 +90,72 @@ const FOOTER_NOTIFY =
   'You receive this because email notifications are on for your Pacient account. For your privacy we never include health information in emails. Change this under My details / Account. In an emergency call 112.';
 const FOOTER_SECURITY =
   'If you did not expect this email you can ignore it. Pacient staff will never ask you for your password.';
+const FOOTER_BILLING =
+  'You receive this e-mail as a billing contact of a facility that uses Pacient. Billing e-mails never contain health information.';
+
+/** The paragraphs of a billing document e-mail and its subject, in the recipient's language. */
+function billingDocument(t: BillingDocumentEmail & { locale: Locale }, hello: string) {
+  const l = t.locale;
+  const vars = {
+    number: t.number,
+    operator: t.operator,
+    period: t.period,
+    total: t.total,
+    date: t.dueDate,
+    iban: t.iban,
+    reference: t.reference,
+    invoice: t.invoiceNumber,
+  };
+  if (t.document === 'credit_note') {
+    return {
+      subject: tr(l, 'Credit note {number} from {operator}', vars),
+      heading: tr(l, 'Credit note {number}', vars),
+      paragraphs: [
+        hello,
+        tr(l, 'Please find attached credit note {number} for invoice {invoice}.', vars),
+        tr(l, 'Amount credited: {total}.', vars),
+      ],
+    };
+  }
+  const reminder = t.kind === 'REMINDER';
+  const paragraphs = [
+    hello,
+    reminder
+      ? tr(
+          l,
+          'Invoice {number} for the Pacient service, period {period}, is overdue. It is attached again.',
+          vars,
+        )
+      : tr(
+          l,
+          'Please find attached invoice {number} for the Pacient service, period {period}.',
+          vars,
+        ),
+  ];
+  if (t.nothingToPay) {
+    paragraphs.push(tr(l, 'There is nothing to pay: the invoice is for your records.'));
+  } else {
+    paragraphs.push(tr(l, 'Amount to pay: {total}, due by {date}.', vars));
+    if (t.iban) {
+      paragraphs.push(
+        tr(l, 'Please pay by bank transfer to IBAN {iban} with the reference {reference}.', vars),
+      );
+    }
+    if (reminder)
+      paragraphs.push(tr(l, 'If you have paid in the meantime, please ignore this reminder.'));
+  }
+  return {
+    subject: reminder
+      ? tr(l, 'Reminder: invoice {number} is overdue', vars)
+      : tr(l, 'Invoice {number} from {operator}', vars),
+    heading: tr(l, 'Invoice {number}', vars),
+    paragraphs,
+  };
+}
 
 export function render(t: EmailTemplate): RenderedEmail {
   const l = t.locale;
-  const hello = tr(l, 'Hello {name},', { name: t.name });
+  const hello = t.name ? tr(l, 'Hello {name},', { name: t.name }) : tr(l, 'Hello,');
   switch (t.template) {
     case 'activation': {
       const footer = tr(l, FOOTER_SECURITY);
@@ -118,6 +210,22 @@ export function render(t: EmailTemplate): RenderedEmail {
           locale: l,
           heading: t.title,
           paragraphs,
+          cta: { label: tr(l, 'Open Pacient'), url },
+          footer,
+        }),
+      };
+    }
+    case 'billing_document': {
+      const url = absolute('/director/subscription');
+      const footer = tr(l, FOOTER_BILLING);
+      const doc = billingDocument(t, hello);
+      return {
+        subject: doc.subject,
+        text: `${doc.paragraphs.join('\n\n')}\n\n${tr(l, 'Open Pacient: {url}', { url })}\n\n${footer}\n`,
+        html: layout({
+          locale: l,
+          heading: doc.heading,
+          paragraphs: doc.paragraphs,
           cta: { label: tr(l, 'Open Pacient'), url },
           footer,
         }),

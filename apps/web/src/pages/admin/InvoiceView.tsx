@@ -5,7 +5,7 @@ import { Alert, Button, PageHeader, QueryView } from '../../components/ui';
 import { t } from '../../i18n';
 import { InvoiceActions } from './billing/InvoiceTable';
 import { InvoiceCreditNotes } from './billing/InvoiceCreditNotes';
-import { InvoiceDeliveries } from './billing/InvoiceDeliveries';
+import { InvoiceDeliveries, PdfButton } from './billing/InvoiceDeliveries';
 import { InvoicePayments } from './billing/InvoicePayments';
 import { INVOICE_PRINT_CSS, InvoiceSheet } from './billing/InvoiceSheet';
 import { InvoiceBadge } from './billing/parts';
@@ -36,6 +36,7 @@ export function InvoiceView() {
                   {admin ? invoice.facilityName : t('Subscription and invoices')}
                 </Link>
                 {admin && <InvoiceActions invoice={invoice} />}
+                <PdfButton kind="invoice" document={invoice} scope={admin ? 'admin' : 'director'} />
                 <Button variant="secondary" onClick={() => window.print()}>
                   {t('Print')}
                 </Button>

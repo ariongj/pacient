@@ -193,16 +193,29 @@ export interface Invoice {
     email?: string | null;
     phone?: string | null;
   };
-  /** The facility's details when the invoice was issued. */
+  /**
+   * The facility's details when the invoice was issued, with its billing details (the legal
+   * entity invoiced) when it had them.
+   */
   customer: {
     name?: string | null;
     code?: string | null;
     address?: string | null;
     municipality?: string | null;
     region?: string | null;
+    legalName?: string | null;
+    businessNumber?: string | null;
+    fiscalNumber?: string | null;
+    vatNumber?: string | null;
+    billingAddress?: string | null;
+    customerReference?: string | null;
   };
   facilityName: string | null;
   overdue: boolean;
+  /** When an e-mail carrying it was first delivered; null while it never was. */
+  sentAt?: string | null;
+  /** An e-mail carrying it is still waiting to be sent. */
+  sending?: boolean;
   /** The plan and cycle the invoice was issued for. */
   line: { planName: string; cycle: BillingCycle } | null;
 }
@@ -605,6 +618,7 @@ const reasonText = (reason: string) =>
     'unpaid after the grace period': t('An invoice remained unpaid after the grace period'),
     paid: t('The overdue invoices were settled'),
     voided: t('No invoice is overdue any more after a voided invoice'),
+    'billing details changed': t('Billing details changed'),
   })[reason] ?? reason;
 
 /** What a history entry says, in one line (besides its title and note). */

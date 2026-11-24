@@ -90,11 +90,20 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
       <div className="is-parties">
         <div>
           <div className="is-label">{t('Bill to')}</div>
-          <strong>{customer.name || i.facilityName}</strong>
+          {/* The legal entity of the facility's billing details, when it had them at issue. */}
+          <strong>{customer.legalName || customer.name || i.facilityName}</strong>
           {lines(
+            customer.legalName && customer.name && customer.legalName !== customer.name
+              ? `${t('Facility')}: ${customer.name}`
+              : null,
+            ...(customer.billingAddress
+              ? [customer.billingAddress]
+              : [customer.address, lines(customer.municipality, customer.region).join(', ')]),
+            customer.businessNumber && `${t('Business number (NUI)')}: ${customer.businessNumber}`,
+            customer.fiscalNumber && `${t('Fiscal number')}: ${customer.fiscalNumber}`,
+            customer.vatNumber && `${t('VAT number')}: ${customer.vatNumber}`,
             customer.code && `${t('Code')}: ${customer.code}`,
-            customer.address,
-            lines(customer.municipality, customer.region).join(', '),
+            customer.customerReference && `${t('Your reference')}: ${customer.customerReference}`,
           ).map((l) => (
             <div key={l}>{l}</div>
           ))}
@@ -128,14 +137,23 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
 
       <table className="is-totals">
         <tbody>
-          <tr>
-            <td>{t('Amount without VAT')}</td>
-            <td className="num">{formatMoney(i.netCents, i.currency)}</td>
-          </tr>
-          <tr>
-            <td>{t('VAT {rate}', { rate: formatRate(i.taxRateBp) })}</td>
-            <td className="num">{formatMoney(i.taxCents, i.currency)}</td>
-          </tr>
+          {/* Without VAT registration the invoice says so instead of "VAT 0 %". */}
+          {i.taxRateBp > 0 ? (
+            <>
+              <tr>
+                <td>{t('Amount without VAT')}</td>
+                <td className="num">{formatMoney(i.netCents, i.currency)}</td>
+              </tr>
+              <tr>
+                <td>{t('VAT {rate}', { rate: formatRate(i.taxRateBp) })}</td>
+                <td className="num">{formatMoney(i.taxCents, i.currency)}</td>
+              </tr>
+            </>
+          ) : (
+            <tr>
+              <td colSpan={2}>{t('Not registered for VAT')}</td>
+            </tr>
+          )}
           <tr className="is-grand">
             <td>{t('Total to pay')}</td>
             <td className="num">{formatMoney(i.totalCents, i.currency)}</td>

@@ -85,6 +85,9 @@ beforeAll(async () => {
     .set({
       operatorName: 'Operator Test SH.P.K.',
       operatorAddress: 'Rr. Test 1, Prishtinë',
+      // Invoices are issued only with the operator's fiscal and (with VAT) VAT number.
+      operatorFiscalNumber: '810000001',
+      operatorVatNumber: '330000001',
       operatorIban: 'XK051212012345678906',
       vatRateBp: 1800,
       paymentTermsDays: 14,

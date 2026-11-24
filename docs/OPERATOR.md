@@ -18,7 +18,7 @@ Demo sign-in (synthetic data only): `admin@pacient.local`.
 | **Overview**                                            | Facilities by subscription status, monthly revenue, open and overdue invoices, |
 |                                                         | renewals in the next 30 days, accounts waiting for activation, recent changes  |
 | **Customers and subscriptions › Facilities**            | Every facility with plan, status, seats and renewal; add a new customer        |
-| **Customers and subscriptions › Invoices and payments** | All invoices; record a payment, void, print                                    |
+| **Customers and subscriptions › Invoices and payments** | All invoices; record a payment, void, print, download, e-mail again            |
 | **Customers and subscriptions › Plans**                 | What facilities can subscribe to, and at what price                            |
 | **Users**                                               | Every account of the service                                                   |
 | **Platform › Operator settings**                        | Company details, payment terms, VAT, trial and grace periods, notice to users  |
@@ -162,11 +162,71 @@ after a payment.
 invoice numbers.
 
 Directors see their plan, seats, history and invoices under **Facility management › Subscription
-and invoices**, and can print every invoice.
+and invoices**, and can print every invoice or download it as a PDF.
+
+### Invoices reach the customer by e-mail
+
+Every invoice is **e-mailed when it is issued** – by an administrator's action or by the
+subscription worker – to each billing e-mail of the facility's billing details and to each of its
+active directors, every address once (the same address in other letters counts once). The PDF is
+attached when the message is sent: it is drawn from the issued invoice at that moment, so nothing
+PDF-shaped is stored, and the PDF always shows the invoice exactly as it was issued. The e-mail
+says the number, the period, the amount, the due date, the IBAN and the payment reference – never
+anything clinical. A director reads it in their own language; a billing address without an
+account reads Albanian.
+
+When an invoice becomes overdue, the **overdue reminder** to the directors also sends the invoice
+again to the same addresses (once per overdue period; it reaches the billing e-mails even when the
+facility has no director yet).
+
+On the invoice page, **Sent by e-mail** lists every message: when it was queued, why (on issue,
+overdue reminder, sent again – with who sent it), the address and whether it went out (sent, waiting,
+not delivered with the mail server's answer). The invoices list shows **Sent on**: when the invoice
+first reached the mail server. **Send again** e-mails it once more to the current addresses (useful
+after correcting a billing e-mail); it is audited (`billing.invoice_sent`). A voided invoice is not
+sent, and with no billing e-mail and no active director there is nobody to send to: the page says
+so. **Download PDF** gives the invoice as a file in your own language; directors download their
+facility's invoices and credit notes from **Documents to download**.
+
+Invoices without VAT say **Not registered for VAT** instead of "VAT 0 %".
 
 ## Billing details
 
-To be written.
+### Billing is ready only with the operator's details
+
+An invoice keeps the operator's details for good, so no invoice is issued until **Operator
+settings** has the operator's name, address, fiscal number (NUI), IBAN and – while VAT is charged
+– the VAT number. Until then:
+
+- the **Overview** shows **Billing is not ready** with the missing settings and a link to them;
+- starting a paid subscription, **End the trial now** and **Invoice the current period** are not
+  offered (a trial can still be started), and the server refuses any action that would issue an
+  invoice with the list of missing settings – also recording a payment or reactivating when that
+  would start a new period with its invoice;
+- the subscription worker leaves a trial that ended, or a period that ended, as it is (nothing is
+  invoiced and the status does not change) and raises the operator alert
+  `billing.settings_incomplete`; at its next run after the settings are complete it issues the
+  invoices it held back, with their periods as they were due, and clears the alert.
+
+Billing never restricts sign-in, existing accounts or clinical work (hazard H74). The settings page
+refuses a VAT rate above 0 without a VAT number.
+
+### A facility's billing details
+
+On the facility's page, **Billing details** says who is invoiced for it: the **legal name** of the
+entity that pays, its **business number (NUI)**, **fiscal** and **VAT number**, a **billing
+address**, up to three **billing e-mails**, a **contact person** and the **customer reference**
+(their purchase order or contract number, printed on invoices). Enter them with the new customer,
+or later with **Add billing details**. They are business data of the customer, shown in full.
+
+Every invoice copies them, as they are at that moment, under **Bill to** (with the facility's own
+name beside a different legal name); an invoice already issued never changes. Without billing
+details, invoices name the facility as it is registered in Pacient and are e-mailed to its
+directors only.
+
+Saving them is audited (`billing.profile_changed`, with the names of the fields that changed, not
+their values) and noted in the facility's internal history. Directors see them, read-only, under
+**Subscription and invoices**, and ask the operator to change them.
 
 ## Payments and credit notes
 

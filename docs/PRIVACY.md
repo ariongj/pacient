@@ -42,6 +42,7 @@ diagnosis, care and treatment by professionals bound by confidentiality, and for
 | Notifications, email and SMS delivery logs    | Patients, staff     | Telling people something is ready       | Service; legitimate interest  | Email/SMS providers (no health details)      | Retention policies (default 90–365 days)                      |
 | Sign-in sessions, devices, verification codes | Patients, staff     | Security of processing                  | Security; legitimate interest | –                                            | Retention policies (default 1–730 days)                       |
 | Raw laboratory messages (HL7)                 | Patients            | Filing results from laboratories        | Care                          | Laboratory interface                         | Anonymised after 730 days (the filed results stay)            |
+| Billing details, invoices, their e-mailing    | Facilities' staff   | Invoicing the facilities that subscribe | Contract; legal obligation    | Operator; the facility's billing contacts    | Statutory accounting period; never removed automatically      |
 | Statistics and reports                        | –                   | Planning, public health                 | Public interest               | Ministry                                     | Aggregated, no personal data                                  |
 
 **International transfers:** none. All data is hosted in Kosovo; providers that would transfer
@@ -82,6 +83,13 @@ them.
 | `KNOWN_DEVICES`            | 730 days | Delete devices not used since            |
 | `VIDEO_SESSIONS`           | 365 days | Delete technical records of ended visits |
 | `INTEGRATION_RAW_MESSAGES` | 730 days | Anonymise (drop the raw message body)    |
+
+`EMAIL_OUTBOX` keeps every message that carried an invoice or credit note (`billing_deliveries`
+refers to it): who it was sent to and when is part of the billing records, kept for the statutory
+accounting period. Such a message holds no body once it was sent – the PDF is rendered from the
+issued document when it is sent and never stored – and billing data (facilities' billing details:
+legal name, business numbers, billing address and e-mails, a contact name; invoices, credit notes,
+payments and deliveries) is business data about the customer, never about patients.
 
 The Ministry can change the period, pause a category and must record the legal basis; each
 change is audited (`privacy.retention_changed`). Directors and the Ministry can preview what the

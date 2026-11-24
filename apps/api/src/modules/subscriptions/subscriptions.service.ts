@@ -1,8 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, min, ne, sql } from 'drizzle-orm';
 import { isTest } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import {
+  billingDeliveries,
+  emailOutbox,
   facilities,
+  facilityBillingProfiles,
   invoices,
   platformSettings,
   subscriptionEvents,
@@ -13,12 +16,14 @@ import {
   type subscriptionEventTypeEnum,
   type subscriptionStatusEnum,
 } from '../../db/schema.js';
-import { conflict } from '../../lib/errors.js';
+import { conflict, HttpError } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
+import { raiseOperatorAlert, resolveOperatorAlert } from '../platform/alerts.js';
 import { recordRun, registerWorker } from '../../lib/worker-runs.js';
+import { queueBillingDocument } from './billing-documents.js';
 
 /*
  * Subscriptions of facilities to the service.
@@ -259,6 +264,62 @@ export async function settingsOf(executor: Executor = db) {
   );
 }
 
+/* ------------------------------------------------------------------ billing readiness -------- */
+
+/** Operator settings an invoice cannot do without (the VAT number only while VAT is charged). */
+export type BillingSettingsField =
+  | 'operatorName'
+  | 'operatorAddress'
+  | 'operatorFiscalNumber'
+  | 'operatorIban'
+  | 'operatorVatNumber';
+
+/** Each field's label as on the operator settings page (the web app translates it). */
+export const BILLING_FIELD_LABELS: Record<BillingSettingsField, string> = {
+  operatorName: 'Operator name',
+  operatorAddress: 'Operator address',
+  operatorFiscalNumber: 'Fiscal number (NUI)',
+  operatorIban: 'IBAN',
+  operatorVatNumber: 'VAT number',
+};
+
+type BillingSettings = Pick<
+  Awaited<ReturnType<typeof settingsOf>>,
+  BillingSettingsField | 'vatRateBp'
+>;
+
+/**
+ * What the operator settings still lack for an invoice: who issues it, where to pay and, while
+ * VAT is charged, the VAT number. An issued invoice keeps these details for good, so one issued
+ * without them could only be corrected by a credit note.
+ */
+export function missingBillingSettings(s: BillingSettings): BillingSettingsField[] {
+  const blank = (v: string | null | undefined) => !v || !v.trim();
+  const missing: BillingSettingsField[] = [];
+  if (blank(s.operatorName)) missing.push('operatorName');
+  if (blank(s.operatorAddress)) missing.push('operatorAddress');
+  if (blank(s.operatorFiscalNumber)) missing.push('operatorFiscalNumber');
+  if (blank(s.operatorIban)) missing.push('operatorIban');
+  if (s.vatRateBp > 0 && blank(s.operatorVatNumber)) missing.push('operatorVatNumber');
+  return missing;
+}
+
+/**
+ * Refuses to issue an invoice while the operator settings are incomplete: 409 BILLING_NOT_READY
+ * with each missing field and its label in the details. Only invoicing waits; sign-in, accounts
+ * and clinical work never depend on it (H74).
+ */
+export function assertInvoiceable(settings: BillingSettings): void {
+  const missing = missingBillingSettings(settings);
+  if (!missing.length) return;
+  throw new HttpError(
+    409,
+    'BILLING_NOT_READY',
+    'Billing is not ready: fill in the missing operator settings first',
+    missing.map((field) => ({ field, message: BILLING_FIELD_LABELS[field] })),
+  );
+}
+
 /** Active staff accounts (seats) of a facility; patients never count, pending invitations do. */
 export async function seatsUsed(facilityId: string, executor: Executor = db): Promise<number> {
   const [row] = await executor
@@ -430,8 +491,11 @@ export async function nextInvoiceNumber(executor: Executor, prefix: string, at: 
 
 /**
  * Issues the invoice for one period of a subscription: gapless number, amounts with VAT from the
- * operator settings, issuer and customer details frozen at the time of issue (database trigger).
- * Writes the history entry and the audit entry and tells the facility's directors.
+ * operator settings, issuer and customer details frozen at the time of issue (database trigger) –
+ * the customer from the facility's billing details, when it has them. Writes the history entry
+ * and the audit entry, tells the facility's directors and e-mails the invoice to its billing
+ * addresses and directors (in the same transaction: nothing is sent for an invoice that is not
+ * issued). Refuses with 409 BILLING_NOT_READY while the operator settings are incomplete.
  */
 export async function issueInvoice(
   executor: Executor,
@@ -441,6 +505,11 @@ export async function issueInvoice(
 ) {
   const now = opts.now ?? new Date();
   const settings = await settingsOf(executor);
+  assertInvoiceable(settings);
+  const [profile] = await executor
+    .select()
+    .from(facilityBillingProfiles)
+    .where(eq(facilityBillingProfiles.facilityId, subscription.facilityId));
   const [plan] = await executor
     .select()
     .from(subscriptionPlans)
@@ -483,12 +552,20 @@ export async function issueInvoice(
         email: settings.supportEmail,
         phone: settings.supportPhone,
       },
+      // The facility as it is known in the service, and the legal entity that is invoiced for it
+      // (its billing details as they are today; a later change never alters this invoice).
       customer: {
         name: facility.name,
         code: facility.code,
         address: facility.address,
         municipality: facility.municipality,
         region: facility.region,
+        legalName: profile?.legalName ?? null,
+        businessNumber: profile?.businessNumber ?? null,
+        fiscalNumber: profile?.fiscalNumber ?? null,
+        vatNumber: profile?.vatNumber ?? null,
+        billingAddress: profile?.billingAddress ?? null,
+        customerReference: profile?.customerReference ?? null,
       },
       createdById: opts.actor?.userId ?? null,
     })
@@ -530,6 +607,11 @@ export async function issueInvoice(
     'Your facility’s subscription: invoice {number} was issued',
     { number },
   );
+  await queueBillingDocument(executor, {
+    invoiceId: invoice!.id,
+    kind: 'ISSUED',
+    actor: opts.actor,
+  });
   return invoice!;
 }
 
@@ -761,9 +843,10 @@ async function reminderSent(executor: Executor, subscriptionId: string, key: str
 }
 
 /**
- * Sends a reminder to the facility's directors once per key (REMINDER_SENT in the history). A
- * reminder that reached no one – the facility has no active director yet – is not recorded, so a
- * later run sends it once there is one.
+ * Sends a reminder to the facility's directors once per key (REMINDER_SENT in the history).
+ * `documents` e-mails the billing documents that go with it (the overdue invoices) and returns
+ * how many messages it queued. A reminder that reached no one – no active director yet and no
+ * billing e-mail – is not recorded, so a later run sends it once there is one.
  */
 async function remindOnce(
   executor: Executor,
@@ -773,11 +856,12 @@ async function remindOnce(
   vars: Record<string, string | number | Date>,
   now: Date,
   important = false,
+  documents?: () => Promise<number>,
 ) {
   if (await reminderSent(executor, subscription.id, key)) return false;
-  if (!(await notifyDirectors(executor, subscription.facilityId, title, vars, important))) {
-    return false;
-  }
+  const told = await notifyDirectors(executor, subscription.facilityId, title, vars, important);
+  const sent = documents ? await documents() : 0;
+  if (!told && !sent) return false;
   await recordEvent(executor, {
     subscription,
     type: 'REMINDER_SENT',
@@ -796,6 +880,11 @@ export interface LifecycleResult {
   suspended: number;
   cancelled: number;
   reminders: number;
+  /**
+   * Subscriptions whose trial end or renewal waits because the operator settings are incomplete
+   * (nothing about them changed; the next run tries again).
+   */
+  waiting: number;
 }
 
 /** Most periods caught up in one run for one subscription (e.g. after a long outage). */
@@ -823,6 +912,10 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       return s;
     };
     const settings = await settingsOf(tx);
+    // Without the operator details no invoice can be issued: a trial that ended and a period
+    // that ended stay as they are (no status change, nothing invoiced), and the next run tries
+    // again; the run raises an operator alert. Everything else below goes on as usual.
+    const canInvoice = missingBillingSettings(settings).length === 0;
     const system = { actor: null, now };
     const event = (
       type: SubscriptionEventType,
@@ -841,16 +934,20 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
         result.cancelled++;
         return;
       }
-      const before = s;
-      await update({ status: 'ACTIVE', ...periodFrom(s, s.trialEndsAt, { renewal: false }) });
-      await event('ACTIVATED', {
-        fromStatus: 'TRIAL',
-        toStatus: 'ACTIVE',
-        data: { reason: 'trial ended' },
-      });
-      await recordScheduledCycle(tx, before, s, now);
-      await issueInvoice(tx, s, { start: s.currentPeriodStart, end: s.currentPeriodEnd }, system);
-      result.activated++;
+      if (canInvoice) {
+        const before = s;
+        await update({ status: 'ACTIVE', ...periodFrom(s, s.trialEndsAt, { renewal: false }) });
+        await event('ACTIVATED', {
+          fromStatus: 'TRIAL',
+          toStatus: 'ACTIVE',
+          data: { reason: 'trial ended' },
+        });
+        await recordScheduledCycle(tx, before, s, now);
+        await issueInvoice(tx, s, { start: s.currentPeriodStart, end: s.currentPeriodEnd }, system);
+        result.activated++;
+      } else {
+        result.waiting++;
+      }
     }
 
     // 2. End of a period: end a scheduled cancellation – also while suspended: a cancellation
@@ -861,11 +958,10 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       return;
     }
     let renewals = 0;
-    while (
-      (s.status === 'ACTIVE' || s.status === 'PAST_DUE') &&
-      s.currentPeriodEnd <= now &&
-      renewals < MAX_RENEWALS_PER_RUN
-    ) {
+    const renewalDue = () =>
+      (s.status === 'ACTIVE' || s.status === 'PAST_DUE') && s.currentPeriodEnd <= now;
+    if (renewalDue() && !canInvoice) result.waiting++;
+    while (canInvoice && renewalDue() && renewals < MAX_RENEWALS_PER_RUN) {
       const before = s;
       await update(periodFrom(s, s.currentPeriodEnd, { renewal: true }));
       await event('RENEWED', {
@@ -893,12 +989,28 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
 
     // 4. The notice of an overdue invoice, once per past-due period – before a suspension in
     //    the same run (e.g. after an outage longer than the grace period), so the directors are
-    //    always told of the overdue invoice first. Repeated at a later run if no director could
-    //    be told yet.
+    //    always told of the overdue invoice first. The overdue invoices themselves are e-mailed
+    //    again with it (to the billing e-mails and the directors). Repeated at a later run if no
+    //    one could be told yet.
     if (
       s.status === 'PAST_DUE' &&
       s.pastDueSince &&
-      (await remindOnce(tx, s, pastDueKey(s.pastDueSince), PAST_DUE_NOTICE, {}, now, true))
+      (await remindOnce(
+        tx,
+        s,
+        pastDueKey(s.pastDueSince),
+        PAST_DUE_NOTICE,
+        {},
+        now,
+        true,
+        async () => {
+          let queued = 0;
+          for (const invoice of await overdueInvoices(tx, s.id, now)) {
+            queued += await queueBillingDocument(tx, { invoiceId: invoice.id, kind: 'REMINDER' });
+          }
+          return queued;
+        },
+      ))
     ) {
       result.reminders++;
     }
@@ -999,6 +1111,7 @@ export async function runSubscriptionLifecycle(
     suspended: 0,
     cancelled: 0,
     reminders: 0,
+    waiting: 0,
   };
   const rows = await db
     .select({ id: subscriptions.id })
@@ -1019,7 +1132,32 @@ export async function runSubscriptionLifecycle(
       logger.error({ err, subscriptionId: id }, 'Subscription lifecycle step failed');
     }
   }
+  await alertBillingReadiness(result.waiting);
   return result;
+}
+
+const SETTINGS_ALERT = 'billing.settings_incomplete';
+
+/**
+ * Tells the operator that invoices wait for the operator settings (the alert names the missing
+ * fields and how many subscriptions wait, nothing else), and clears the alert once the settings
+ * are complete. Alerts run on their own and never throw.
+ */
+async function alertBillingReadiness(waiting: number) {
+  const missing = missingBillingSettings(await settingsOf());
+  if (!missing.length) {
+    await resolveOperatorAlert(SETTINGS_ALERT);
+    return;
+  }
+  if (!waiting) return;
+  const fields = missing.map((f) => BILLING_FIELD_LABELS[f]).join(', ');
+  await raiseOperatorAlert(SETTINGS_ALERT, {
+    severity: 'CRITICAL',
+    message:
+      `No invoice can be issued until the operator settings are complete (missing: ${fields}). ` +
+      `${waiting} subscription(s) wait for their invoice; nothing else about them changes, and ` +
+      'the next run issues the invoices once the settings are complete.',
+  });
 }
 
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -1097,7 +1235,7 @@ export async function eventsOf(subscriptionId: string, executor: Executor = db) 
 /** An invoice for display: overdue flag and the plan/cycle it was issued for (from the history). */
 export function presentInvoice(
   inv: Invoice,
-  line: { planName?: unknown; cycle?: unknown } | null,
+  line: InvoiceLine | null,
   now = new Date(),
   facilityName?: string | null,
 ) {
@@ -1109,12 +1247,29 @@ export function presentInvoice(
       line && typeof line.planName === 'string'
         ? { planName: line.planName, cycle: line.cycle === 'YEARLY' ? 'YEARLY' : 'MONTHLY' }
         : null,
+    // When the invoice first reached the customer by e-mail, and whether a message is on its way.
+    sentAt: line?.sentAt ?? null,
+    sending: line?.sending ?? false,
   };
 }
 
-/** The plan and cycle each invoice was issued for, from its INVOICE_ISSUED history entry. */
+/** What an invoice was issued for (plan, cycle) and how far its e-mailing has got. */
+export interface InvoiceLine {
+  planName?: unknown;
+  cycle?: unknown;
+  /** The first time an e-mail carrying it was delivered to the mail server. */
+  sentAt?: Date | null;
+  /** An e-mail carrying it is still queued (pending or being sent). */
+  sending?: boolean;
+}
+
+/**
+ * The plan and cycle each invoice was issued for, from its INVOICE_ISSUED history entry, and when
+ * it was e-mailed (its deliveries' outbox rows).
+ */
 export async function invoiceLines(invoiceIds: string[], executor: Executor = db) {
-  if (!invoiceIds.length) return new Map<string, { planName?: unknown; cycle?: unknown }>();
+  const lines = new Map<string, InvoiceLine>();
+  if (!invoiceIds.length) return lines;
   const rows = await executor
     .select({ data: subscriptionEvents.data })
     .from(subscriptionEvents)
@@ -1124,9 +1279,22 @@ export async function invoiceLines(invoiceIds: string[], executor: Executor = db
         inArray(sql<string>`${subscriptionEvents.data}->>'invoiceId'`, invoiceIds),
       ),
     );
-  return new Map(
-    rows.map((r) => [String(r.data.invoiceId), r.data as { planName?: unknown; cycle?: unknown }]),
-  );
+  for (const r of rows) lines.set(String(r.data.invoiceId), { ...(r.data as InvoiceLine) });
+  const sent = await executor
+    .select({
+      invoiceId: billingDeliveries.invoiceId,
+      sentAt: min(emailOutbox.sentAt),
+      sending: sql<boolean>`bool_or(${emailOutbox.status} IN ('PENDING', 'SENDING'))`,
+    })
+    .from(billingDeliveries)
+    .innerJoin(emailOutbox, eq(emailOutbox.id, billingDeliveries.emailOutboxId))
+    .where(inArray(billingDeliveries.invoiceId, invoiceIds))
+    .groupBy(billingDeliveries.invoiceId);
+  for (const r of sent) {
+    const id = r.invoiceId!;
+    lines.set(id, { ...lines.get(id), sentAt: r.sentAt, sending: Boolean(r.sending) });
+  }
+  return lines;
 }
 
 /** Invoices of a subscription (or facility), newest first, ready for display. */

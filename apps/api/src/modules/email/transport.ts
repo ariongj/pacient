@@ -2,11 +2,19 @@ import nodemailer from 'nodemailer';
 import { env, isProd } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 
+/** A file sent with a message: only billing documents, rendered when the message is sent. */
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export interface OutgoingEmail {
   to: string;
   subject: string;
   text: string;
   html: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailTransport {
@@ -24,6 +32,12 @@ class SmtpTransport implements EmailTransport {
       subject: m.subject,
       text: m.text,
       html: m.html,
+      // In-memory buffers only: file and URL access stay off.
+      attachments: m.attachments?.map((a) => ({
+        filename: a.filename,
+        contentType: a.contentType,
+        content: a.content,
+      })),
       disableFileAccess: true,
       disableUrlAccess: true,
     });
@@ -32,9 +46,14 @@ class SmtpTransport implements EmailTransport {
 
 class LogTransport implements EmailTransport {
   async send(m: OutgoingEmail) {
-    // Development only: the text may contain single-use links.
+    // Development only: the text may contain single-use links. Attachments: names and sizes.
     logger.info(
-      { to: m.to, subject: m.subject, text: isProd ? '[redacted]' : m.text },
+      {
+        to: m.to,
+        subject: m.subject,
+        text: isProd ? '[redacted]' : m.text,
+        attachments: m.attachments?.map((a) => ({ filename: a.filename, bytes: a.content.length })),
+      },
       'Email (log transport)',
     );
   }

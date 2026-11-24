@@ -30,6 +30,7 @@ import {
 import { formatDate, humanize } from '../../format';
 import { t } from '../../i18n';
 import { BillingProfileCard } from './billing/BillingProfileCard';
+import { BillingNotReadyNote, useBillingNotReady } from './home/BillingReadinessCard';
 import { SubscriptionHistory } from './billing/History';
 import { InvoiceTable } from './billing/InvoiceTable';
 import { OrganizationAgreementsCard } from './billing/OrganizationAgreementsCard';
@@ -78,6 +79,13 @@ function SubscriptionCard({
   onAction: (a: Action) => void;
 }) {
   const s = detail.subscription!;
+  // Ending the trial early and invoicing the period issue an invoice: not while billing is not
+  // ready (the note below says why).
+  const billingNotReady = useBillingNotReady();
+  const issuing = {
+    disabled: billingNotReady,
+    'aria-describedby': billingNotReady ? 'billing-not-ready' : undefined,
+  };
   const ended = s.status === 'CANCELLED' || s.status === 'EXPIRED';
   const invoiced = detail.invoices.some(
     (i) => i.status !== 'VOID' && i.periodStart === s.currentPeriodStart,
@@ -153,12 +161,12 @@ function SubscriptionCard({
             </Button>
             {/* A facility that asked to leave after the trial is not billed: withdraw first. */}
             {s.status === 'TRIAL' && !s.cancelAtPeriodEnd && (
-              <Button variant="secondary" onClick={() => onAction('activate')}>
+              <Button variant="secondary" onClick={() => onAction('activate')} {...issuing}>
                 {t('End the trial now')}
               </Button>
             )}
             {s.status !== 'TRIAL' && !inTrialWindow(s) && !invoiced && (
-              <Button variant="secondary" onClick={() => onAction('invoice')}>
+              <Button variant="secondary" onClick={() => onAction('invoice')} {...issuing}>
                 {t('Invoice the current period')}
               </Button>
             )}
@@ -184,6 +192,7 @@ function SubscriptionCard({
       }
     >
       <div className="stack">
+        {!ended && <BillingNotReadyNote id="billing-not-ready" />}
         {s.status === 'SUSPENDED' && (
           <Alert tone="warning" title={t('New staff accounts cannot be added.')}>
             {t('Clinical work, sign-in and existing accounts are not affected.')}

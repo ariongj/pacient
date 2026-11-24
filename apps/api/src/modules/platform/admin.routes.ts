@@ -415,6 +415,24 @@ adminPlatformRouter.put('/settings', async (req, res) => {
         throw badRequest('Validation failed', [{ path: 'operatorIban', message: problem }]);
       }
     }
+    // VAT is charged only with a VAT number to print beside it. Checked when either of them
+    // changes, like the IBAN, so settings stored before never hold up another change (the
+    // overview says that billing is not ready instead).
+    const vatRateBp = patch.vatRateBp ?? before.vatRateBp;
+    const vatNumber =
+      'operatorVatNumber' in patch ? patch.operatorVatNumber : before.operatorVatNumber;
+    if (
+      (changed.includes('vatRateBp') || changed.includes('operatorVatNumber')) &&
+      vatRateBp > 0 &&
+      !vatNumber
+    ) {
+      throw badRequest('Validation failed', [
+        {
+          path: 'operatorVatNumber',
+          message: 'Enter the VAT number to charge VAT, or set the VAT rate to 0',
+        },
+      ]);
+    }
     if (!changed.length) return before;
     const [row] = await tx
       .update(platformSettings)

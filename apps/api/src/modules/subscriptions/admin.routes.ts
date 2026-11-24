@@ -19,6 +19,7 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
 import { ensureDefaultChannels } from '../channels/channels.routes.js';
 import { FacilityInput } from '../facilities/facilities.routes.js';
+import { BillingProfileInput, saveBillingProfile } from './profile.routes.js';
 import {
   addCycle,
   addLocalDays,
@@ -467,11 +468,14 @@ const NewCustomerInput = z.object({
     .optional()
     .nullable(),
   subscription: StartInput.optional().nullable(),
+  billingProfile: BillingProfileInput.optional().nullable(),
 });
 
 /**
- * A new customer in one step: the facility, its subscription (trial or active) and, optionally,
- * the first director's invitation (activation link shown once outside production; e-mailed always).
+ * A new customer in one step: the facility, its billing details, its subscription (trial or
+ * active) and, optionally, the first director's invitation (activation link shown once outside
+ * production; e-mailed always). Starting a paid subscription needs the operator settings to be
+ * complete (409 BILLING_NOT_READY otherwise, and nothing is created).
  */
 adminBillingRouter.post('/organizations', async (req, res) => {
   const ctx = requireAuth(req);
@@ -504,6 +508,10 @@ adminBillingRouter.post('/organizations', async (req, res) => {
       },
       tx,
     );
+    // The billing details before the first invoice, which copies them.
+    if (input.billingProfile) {
+      await saveBillingProfile(tx, f.id, input.billingProfile, ctx, meta);
+    }
     // The director first, so the notice of the first invoice reaches them.
     let director: { id: string; email: string; activationUrl?: string } | null = null;
     if (input.director) {

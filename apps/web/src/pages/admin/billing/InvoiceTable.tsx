@@ -174,6 +174,7 @@ export function InvoiceTable({
           <th scope="col">{t('Due date')}</th>
           <th scope="col">{t('Total')}</th>
           <th scope="col">{t('Status')}</th>
+          {audience === 'admin' && <th scope="col">{t('Sent on')}</th>}
           {audience === 'admin' && (
             <th scope="col">
               <span className="sr-only">{t('Actions')}</span>
@@ -209,6 +210,18 @@ export function InvoiceTable({
               )}
               {i.status === 'VOID' && i.voidReason && <div className="muted">{i.voidReason}</div>}
             </td>
+            {audience === 'admin' && (
+              <td>
+                {/* When the invoice first reached the customer by e-mail. */}
+                {i.sentAt ? (
+                  formatDate(i.sentAt)
+                ) : (
+                  <span className="muted">
+                    {i.sending ? t('Waiting to be sent') : t('Not sent')}
+                  </span>
+                )}
+              </td>
+            )}
             {audience === 'admin' && (
               <td>
                 <div className="row">

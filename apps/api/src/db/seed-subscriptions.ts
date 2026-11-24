@@ -24,6 +24,9 @@ import {
 import { ensureDefaultChannels } from '../modules/channels/channels.routes.js';
 import {
   addCycle,
+  addMonths,
+  invoiceDescription,
+  invoiceDueAt,
   nextInvoiceNumber,
   notifyDirectors,
   recordEvent,
@@ -35,25 +38,8 @@ import {
 
 const DAY = 86_400_000;
 
-/** `months` calendar months before `d` (same day of the month where it exists). */
-function monthsBefore(d: Date, months: number): Date {
-  const target = new Date(
-    Date.UTC(
-      d.getUTCFullYear(),
-      d.getUTCMonth() - months,
-      1,
-      d.getUTCHours(),
-      d.getUTCMinutes(),
-      d.getUTCSeconds(),
-      d.getUTCMilliseconds(),
-    ),
-  );
-  const lastDay = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  target.setUTCDate(Math.min(d.getUTCDate(), lastDay));
-  return target;
-}
+/** `months` calendar months before `d` in Kosovo (same day of the month where it exists). */
+const monthsBefore = (d: Date, months: number) => addMonths(d, -months);
 
 interface InvoiceSpec {
   subscription: Subscription;
@@ -146,6 +132,8 @@ export async function seedSubscriptions(opts: { adminId: string }) {
         createdAt: Date;
         periodStart: Date;
         periodEnd: Date;
+        /** Start of the first paid period: renewals keep its day of the month. */
+        billingAnchor?: Date;
         trialEndsAt?: Date;
         pastDueSince?: Date;
       },
@@ -159,9 +147,11 @@ export async function seedSubscriptions(opts: { adminId: string }) {
           billingCycle: values.cycle,
           priceCents: values.cycle === 'YEARLY' ? p.yearlyPriceCents : p.monthlyPriceCents,
           currency: p.currency,
+          planSeatLimit: p.seatLimit,
           trialEndsAt: values.trialEndsAt ?? null,
           currentPeriodStart: values.periodStart,
           currentPeriodEnd: values.periodEnd,
+          billingAnchor: values.billingAnchor ?? null,
           pastDueSince: values.pastDueSince ?? null,
           createdById: opts.adminId,
           createdAt: values.createdAt,
@@ -199,15 +189,18 @@ export async function seedSubscriptions(opts: { adminId: string }) {
         createdAt: first,
         periodStart: current,
         periodEnd: addCycle(current, 'MONTHLY'),
+        // The earlier periods were counted back from the current one: its day of the month.
+        billingAnchor: current,
       });
       for (let i = 3; i >= 0; i--) {
         const start = monthsBefore(current, i);
+        const end = addCycle(start, 'MONTHLY', current);
         if (i < 3) {
           await recordEvent(tx, {
             subscription: s,
             type: 'RENEWED',
             actor: null,
-            data: { periodStart: start, periodEnd: addCycle(start, 'MONTHLY') },
+            data: { periodStart: start, periodEnd: end },
             at: start,
           });
         }
@@ -216,7 +209,7 @@ export async function seedSubscriptions(opts: { adminId: string }) {
           plan: hospital,
           facility: ucc,
           start,
-          end: addCycle(start, 'MONTHLY'),
+          end,
           issuedAt: start,
           ...(i > 0
             ? {
@@ -235,7 +228,7 @@ export async function seedSubscriptions(opts: { adminId: string }) {
       const renewal = new Date(now.getTime() - 20 * DAY);
       const activation = monthsBefore(renewal, 1);
       const trialStart = new Date(activation.getTime() - 30 * DAY);
-      const dueAt = new Date(renewal.getTime() + settings.paymentTermsDays * DAY);
+      const dueAt = invoiceDueAt(renewal, settings.paymentTermsDays);
       const overdue = dueAt < now;
       const s = await subscribe(prizren, clinic, {
         status: overdue ? 'PAST_DUE' : 'ACTIVE',
@@ -243,6 +236,7 @@ export async function seedSubscriptions(opts: { adminId: string }) {
         createdAt: trialStart,
         periodStart: renewal,
         periodEnd: addCycle(renewal, 'MONTHLY'),
+        billingAnchor: renewal,
         trialEndsAt: activation,
         pastDueSince: overdue ? dueAt : undefined,
       });
@@ -360,6 +354,7 @@ export async function seedSubscriptions(opts: { adminId: string }) {
         createdAt: start,
         periodStart: start,
         periodEnd: addCycle(start, 'YEARLY'),
+        billingAnchor: start,
       });
       await recordEvent(tx, {
         subscription: s,
@@ -399,15 +394,6 @@ async function issueSeedInvoice(
   const number = await nextInvoiceNumber(tx, settings.invoicePrefix, spec.issuedAt);
   const netCents = s.priceCents;
   const taxCents = Math.round((netCents * settings.vatRateBp) / 10_000);
-  const day = (d: Date) =>
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/Belgrade',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-      .format(d)
-      .replace(/\//g, '.');
   const [invoice] = await tx
     .insert(invoices)
     .values({
@@ -416,7 +402,7 @@ async function issueSeedInvoice(
       subscriptionId: s.id,
       periodStart: spec.start,
       periodEnd: spec.end,
-      description: `${plan.name} plan, ${s.billingCycle === 'YEARLY' ? 'yearly' : 'monthly'}: ${day(spec.start)} – ${day(new Date(spec.end.getTime() - DAY))}`,
+      description: invoiceDescription(plan.name, s.billingCycle, spec),
       netCents,
       taxRateBp: settings.vatRateBp,
       taxCents,
@@ -424,7 +410,7 @@ async function issueSeedInvoice(
       currency: s.currency,
       status: spec.paidAt ? 'PAID' : 'OPEN',
       issuedAt: spec.issuedAt,
-      dueAt: new Date(spec.issuedAt.getTime() + settings.paymentTermsDays * DAY),
+      dueAt: invoiceDueAt(spec.issuedAt, settings.paymentTermsDays),
       paidAt: spec.paidAt ?? null,
       paymentMethod: spec.method ?? null,
       paymentReference: spec.reference ?? null,

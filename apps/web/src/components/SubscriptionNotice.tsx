@@ -8,7 +8,9 @@ const WEEK = 7 * 86_400_000;
 
 /**
  * For directors: a notice when the facility's subscription needs attention (trial ending, unpaid
- * invoice, suspended, ending). Never blocks clinical work; nothing is shown otherwise.
+ * invoice, suspended, ending). Never blocks clinical work; nothing is shown otherwise. It stays
+ * mounted all session, so the subscription is fetched again on focus and every few minutes
+ * (useMySubscription): a recorded payment or reactivation clears it without signing out.
  */
 export function SubscriptionNotice() {
   const { pathname } = useLocation();

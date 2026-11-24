@@ -5,11 +5,13 @@ import {
   cycleLabel,
   formatMoney,
   inputToCents,
+  inTrialWindow,
   perCycle,
   periodText,
   subscriptionAction,
   useBillingMutation,
   type BillingCycle,
+  type Invoice,
   type OrganizationDetail,
   type Plan,
   type SubscriptionAction,
@@ -38,9 +40,10 @@ export const planOption = (p: Plan) => ({
   label: `${p.name} · ${formatMoney(p.monthlyPriceCents, p.currency)} ${t('per month')}`,
 });
 
-const seatHint = (plan: Plan | undefined) =>
-  plan?.seatLimit
-    ? t('Empty: as in the plan ({count})', { count: formatNumber(plan.seatLimit) })
+/** The plan's seat limit that applies when no seats are agreed (null = no limit). */
+const seatHint = (limit: number | null | undefined) =>
+  limit
+    ? t('Empty: as in the plan ({count})', { count: formatNumber(limit) })
     : t('Empty: as in the plan (no limit)');
 
 function Actions({
@@ -96,7 +99,7 @@ export function StartFields({ plans }: { plans: Plan[] }) {
           type="number"
           min={1}
           max={100000}
-          hint={seatHint(plan)}
+          hint={seatHint(plan?.seatLimit)}
         />
         <TextField
           label={t('Agreed price per cycle (€)')}
@@ -178,7 +181,11 @@ export function StartForm({
   );
 }
 
-/** Change plan, cycle, seats or price: takes effect now; the next invoice uses it. */
+/**
+ * Change plan, cycle, seats or price. Plan, seats and price take effect now (the next invoice uses
+ * them); a new billing cycle takes effect at the renewal – the current period keeps its cycle and
+ * price – and choosing the current cycle again withdraws it. A trial changes its cycle at once.
+ */
 export function ChangeForm({
   subscription: s,
   plans,
@@ -189,23 +196,29 @@ export function ChangeForm({
   onDone: () => void;
 }) {
   const choices = plans.filter((p) => p.isActive || p.id === s.plan.id);
+  // The cycle the subscription renews with, and its price (a change may already be scheduled).
+  const upcoming = s.nextBillingCycle ?? s.billingCycle;
+  const agreedPrice = (c: BillingCycle) =>
+    c === s.nextBillingCycle && s.nextPriceCents !== null
+      ? s.nextPriceCents
+      : c === s.billingCycle
+        ? s.priceCents
+        : null;
   const [planId, setPlanId] = useState(s.plan.id);
-  const [cycle, setCycle] = useState<BillingCycle>(s.billingCycle);
-  const [price, setPrice] = useState(centsToInput(s.priceCents));
+  const [cycle, setCycle] = useState<BillingCycle>(upcoming);
+  const [price, setPrice] = useState(centsToInput(agreedPrice(upcoming)));
   const [problem, setProblem] = useState<string | null>(null);
   const plan = plans.find((p) => p.id === planId);
   const mutation = useBillingMutation(subscriptionAction);
+  const atRenewal = !inTrialWindow(s) && cycle !== s.billingCycle;
 
   // A new plan or cycle proposes its catalogue price; the field can still be changed.
   const choose = (nextPlan: string, nextCycle: BillingCycle) => {
     setPlanId(nextPlan);
     setCycle(nextCycle);
     const p = plans.find((x) => x.id === nextPlan);
-    setPrice(
-      nextPlan === s.plan.id && nextCycle === s.billingCycle
-        ? centsToInput(s.priceCents)
-        : centsToInput(planPrice(p, nextCycle)),
-    );
+    const agreed = nextPlan === s.plan.id ? agreedPrice(nextCycle) : null;
+    setPrice(centsToInput(agreed ?? planPrice(p, nextCycle)));
   };
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -219,9 +232,9 @@ export function ChangeForm({
     const seats = v.seats ? Number(v.seats) : null;
     const body: Record<string, unknown> = {};
     if (planId !== s.plan.id) body.planId = planId;
-    if (cycle !== s.billingCycle) body.billingCycle = cycle;
+    if (cycle !== upcoming) body.billingCycle = cycle;
     if (seats !== s.seats) body.seats = seats;
-    if (cents !== s.priceCents || body.planId || body.billingCycle) body.priceCents = cents;
+    if (cents !== agreedPrice(cycle) || body.planId || body.billingCycle) body.priceCents = cents;
     if (Object.keys(body).length === 0) {
       setProblem(t('Nothing to change'));
       return;
@@ -255,7 +268,7 @@ export function ChangeForm({
           min={1}
           max={100000}
           defaultValue={s.seats ?? ''}
-          hint={seatHint(plan)}
+          hint={seatHint(planId === s.plan.id ? s.planSeatLimit : plan?.seatLimit)}
         />
         <TextField
           label={t('Agreed price per cycle (€)')}
@@ -280,8 +293,13 @@ export function ChangeForm({
       />
       <p className="muted">
         {t(
-          'The change takes effect now; the current invoice stays as issued and the next one uses the new terms.',
-        )}
+          'Plan, seats and price take effect now; the current invoice stays as issued and the next one uses the new terms.',
+        )}{' '}
+        {atRenewal &&
+          t(
+            'The new billing cycle starts with the next period, on {date}; the current period keeps its cycle and price. Choose the current cycle again to withdraw it.',
+            { date: formatDate(s.currentPeriodEnd) },
+          )}
       </p>
       {problem && <Alert tone="danger" title={problem} />}
       <ErrorAlert error={mutation.error} />
@@ -342,16 +360,23 @@ export function ReasonForm({
   );
 }
 
-/** Cancel now or at the end of the period (a suspended subscription only now). */
+/**
+ * Cancel now or at the end of the period (a suspended subscription only now). Open invoices – also
+ * the one of the current period – stay open after cancelling: the form says so.
+ */
 export function CancelForm({
   subscription: s,
+  invoices,
   onDone,
 }: {
   subscription: SubscriptionSummary;
+  invoices: Invoice[];
   onDone: () => void;
 }) {
   const end = s.status === 'TRIAL' ? (s.trialEndsAt ?? s.currentPeriodEnd) : s.currentPeriodEnd;
   const canWait = s.status !== 'SUSPENDED' && !s.cancelAtPeriodEnd;
+  const open = invoices.filter((i) => i.status === 'OPEN');
+  const current = open.find((i) => i.periodStart === s.currentPeriodStart);
   return (
     <ReasonForm
       subscriptionId={s.id}
@@ -386,6 +411,25 @@ export function CancelForm({
               'Ending the subscription never blocks clinical work or existing accounts; it only stops new staff accounts and invoices.',
             )}
           </p>
+          {current && (
+            <Alert
+              tone="info"
+              title={t('The invoice of the current period, {number}, stays open.', {
+                number: current.number,
+              })}
+            >
+              {t(
+                'Cancelling now does not void it: record its payment, or void it if the facility owes nothing for this period.',
+              )}
+            </Alert>
+          )}
+          {open.length > 0 && (
+            <p className="muted">
+              {t(
+                'A new subscription can be started for this facility only when none of its invoices is open.',
+              )}
+            </p>
+          )}
         </fieldset>
       }
     />

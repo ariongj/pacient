@@ -2,6 +2,7 @@ import {
   formatMoney,
   formatRate,
   invoiceLineText,
+  isNoCharge,
   paymentMethodLabel,
   periodText,
   type Invoice,
@@ -167,8 +168,8 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
       {i.status === 'PAID' && (
         <div className="is-pay">
           {t('Paid on {date}', { date: formatDate(i.paidAt) })} ·{' '}
-          {paymentMethodLabel(i.paymentMethod)}
-          {i.paymentReference && ` · ${i.paymentReference}`}
+          {isNoCharge(i) ? t('No charge') : paymentMethodLabel(i.paymentMethod)}
+          {!isNoCharge(i) && i.paymentReference && ` · ${i.paymentReference}`}
         </div>
       )}
       {i.status === 'VOID' && (

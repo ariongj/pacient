@@ -146,7 +146,7 @@ function PlanForm({ plan, onDone }: { plan?: Plan; onDone: () => void }) {
       {plan && (
         <p className="muted">
           {t(
-            'Running subscriptions keep their agreed price; a new price applies to new subscriptions and plan changes.',
+            'Running subscriptions keep their agreed price and number of staff accounts; a new price or limit applies to new subscriptions and plan changes.',
           )}
         </p>
       )}

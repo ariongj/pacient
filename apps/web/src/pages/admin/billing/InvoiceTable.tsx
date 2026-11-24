@@ -4,6 +4,7 @@ import { api } from '../../../api/client';
 import {
   formatMoney,
   invoiceLineText,
+  isNoCharge,
   PAYMENT_METHODS,
   paymentMethodLabel,
   periodText,
@@ -84,7 +85,7 @@ function PaymentForm({ invoice, onDone }: { invoice: Invoice; onDone: () => void
       </div>
       <p className="muted">
         {t(
-          'When nothing else is overdue, a subscription with an overdue payment or a suspension is active again.',
+          'When nothing else is overdue, a subscription with an overdue payment or suspended for non-payment is active again. A suspension by an administrator is lifted only by reactivating the subscription.',
         )}
       </p>
       <ErrorAlert error={mutation.error} />
@@ -202,7 +203,8 @@ export function InvoiceTable({
               <InvoiceBadge invoice={i} />
               {i.status === 'PAID' && (
                 <div className="muted">
-                  {formatDate(i.paidAt)} · {paymentMethodLabel(i.paymentMethod)}
+                  {formatDate(i.paidAt)} ·{' '}
+                  {isNoCharge(i) ? t('No charge') : paymentMethodLabel(i.paymentMethod)}
                 </div>
               )}
               {i.status === 'VOID' && i.voidReason && <div className="muted">{i.voidReason}</div>}

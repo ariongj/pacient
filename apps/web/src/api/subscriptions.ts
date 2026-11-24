@@ -8,8 +8,9 @@ import type { Facility } from './types';
 
 /*
  * Plans, facilities' subscriptions, their history, invoices and payments. Money is in integer
- * cents everywhere; a period ends where the next one starts, so its last day is the day before.
- * The subscription status never restricts clinical work: it only limits new staff accounts.
+ * cents everywhere; a period ends where the next one starts, so its last day is the day before –
+ * on the calendar in Kosovo, where billing happens. The subscription status never restricts
+ * clinical work: it only limits new staff accounts.
  */
 
 export const SUBSCRIPTION_STATUSES = [
@@ -22,6 +23,8 @@ export const SUBSCRIPTION_STATUSES = [
 ] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type BillingCycle = 'MONTHLY' | 'YEARLY';
+/** Why a subscription is suspended: unpaid (a payment lifts it) or by an administrator. */
+export type SuspensionCause = 'NON_PAYMENT' | 'MANUAL';
 export type InvoiceStatus = 'OPEN' | 'PAID' | 'VOID';
 export const PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CARD', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -82,10 +85,13 @@ export interface SubscriptionState {
   id: string;
   status: SubscriptionStatus;
   billingCycle: BillingCycle;
-  /** Agreed price per billing cycle. */
+  /** Agreed price per billing cycle (of the current period). */
   priceCents: number;
+  /** A change of billing cycle from the next period, with the price per new cycle. */
+  nextBillingCycle: BillingCycle | null;
+  nextPriceCents: number | null;
   currency: string;
-  /** Seats bought; null = the plan's limit. */
+  /** Seats bought; null = the plan's limit as agreed. */
   seats: number | null;
   trialEndsAt: string | null;
   currentPeriodStart: string;
@@ -94,10 +100,13 @@ export interface SubscriptionState {
   cancelAtPeriodEnd: boolean;
   pastDueSince: string | null;
   suspendedAt: string | null;
+  suspensionCause: SuspensionCause | null;
   cancelledAt: string | null;
 }
 
 export interface SubscriptionSummary extends SubscriptionState {
+  /** The plan's seat limit agreed when the subscription started or changed plan; null = none. */
+  planSeatLimit: number | null;
   notes: string | null;
   createdAt: string;
   plan: {
@@ -298,13 +307,19 @@ export function useInvoice(id: string | undefined, scope: 'admin' | 'director') 
   });
 }
 
-/** The signed-in director's facility subscription. */
+/**
+ * The signed-in director's facility subscription. It stays mounted for the whole session (the
+ * notice in the layout), so it is fetched again when the window gets the focus back and every few
+ * minutes: a recorded payment or a new status shows without signing out.
+ */
 export function useMySubscription(enabled = true) {
   return useQuery({
     queryKey: [...KEY, 'mine'],
     queryFn: () => api<MySubscription>('/subscription'),
     enabled,
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60_000,
   });
 }
 
@@ -383,13 +398,97 @@ export function inputToCents(value: string): number | null {
 /** VAT rate from basis points: "18 %". */
 export const formatRate = (bp: number) => `${formatNumber(bp / 100)} %`;
 
-/** The last day of a period (its end is where the next period starts). */
-export const lastDayOf = (periodEnd: string) =>
-  new Date(new Date(periodEnd).getTime() - 86_400_000).toISOString();
+const kosovoParts = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Belgrade',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+/**
+ * The calendar day of an instant in Kosovo (`days` later), as midday UTC of that day – shown as
+ * that day in any time zone of Europe.
+ */
+function kosovoDay(iso: string, days = 0) {
+  const p = Object.fromEntries(
+    kosovoParts.formatToParts(new Date(iso)).map((x) => [x.type, Number(x.value)]),
+  );
+  return new Date(Date.UTC(p.year!, p.month! - 1, p.day! + days, 12)).toISOString();
+}
+
+/**
+ * The last day of a period: the day before the one it ends on (the next period starts then) in
+ * Kosovo – not "end − 24 hours", which is the wrong day across a change of the clocks.
+ */
+export const lastDayOf = (periodEnd: string) => kosovoDay(periodEnd, -1);
 
 /** "12 Nov 2026 – 11 Dec 2026". */
 export const periodText = (start: string, end: string) =>
-  `${formatDate(start)} – ${formatDate(lastDayOf(end))}`;
+  `${formatDate(kosovoDay(start))} – ${formatDate(lastDayOf(end))}`;
+
+/** The current period is (still) the free trial: it is never invoiced. */
+export const inTrialWindow = (s: Pick<SubscriptionState, 'trialEndsAt' | 'currentPeriodEnd'>) =>
+  s.trialEndsAt !== null && new Date(s.currentPeriodEnd) <= new Date(s.trialEndsAt);
+
+/**
+ * The next date of the current period that matters, for the subscription's page: when it renews
+ * (only an active or overdue subscription renews by itself), or when a scheduled cancellation ends
+ * it (also while suspended). Null when neither applies – e.g. a suspended subscription starts a new
+ * period only when the suspension is lifted.
+ */
+export function periodEndLine(
+  s: Pick<SubscriptionState, 'status' | 'cancelAtPeriodEnd' | 'currentPeriodEnd'>,
+): [string, string] | null {
+  const running = s.status === 'ACTIVE' || s.status === 'PAST_DUE';
+  if (s.cancelAtPeriodEnd && (running || s.status === 'SUSPENDED')) {
+    return [t('Ends on'), formatDate(s.currentPeriodEnd)];
+  }
+  return running ? [t('Renews on'), formatDate(s.currentPeriodEnd)] : null;
+}
+
+/**
+ * "Changes to yearly on 1 Dec 2026: €1,490.00 per year" for a scheduled change of cycle. A
+ * suspended subscription does not renew on a date: the change comes with its next period.
+ */
+export function cycleChangeText(
+  s: Pick<
+    SubscriptionState,
+    | 'status'
+    | 'nextBillingCycle'
+    | 'nextPriceCents'
+    | 'currentPeriodEnd'
+    | 'currency'
+    | 'cancelAtPeriodEnd'
+  >,
+): string | null {
+  if (!s.nextBillingCycle || s.cancelAtPeriodEnd) return null;
+  const vars = {
+    date: formatDate(s.currentPeriodEnd),
+    price: formatMoney(s.nextPriceCents, s.currency),
+  };
+  const yearly = s.nextBillingCycle === 'YEARLY';
+  if (s.status === 'SUSPENDED') {
+    return yearly
+      ? t('Changes to yearly with the next period: {price} per year', vars)
+      : t('Changes to monthly with the next period: {price} per month', vars);
+  }
+  return yearly
+    ? t('Changes to yearly on {date}: {price} per year', vars)
+    : t('Changes to monthly on {date}: {price} per month', vars);
+}
+
+/** Why a subscription is suspended, for the administrator or for the facility's directors. */
+export function suspensionCauseText(
+  cause: SuspensionCause | null,
+  audience: 'admin' | 'director',
+): string {
+  if (cause === 'NON_PAYMENT') {
+    return t('An invoice remained unpaid after the grace period; paying it lifts the suspension.');
+  }
+  return audience === 'admin'
+    ? t('Suspended by an administrator; only reactivating lifts it.')
+    : t('Suspended by the service operator.');
+}
 
 /** Subscription states in plain words (the context keeps them apart from other "Active"s). */
 export const subscriptionStatusLabel = (s: SubscriptionStatus) =>
@@ -437,6 +536,13 @@ export const paymentMethodLabel = (m: string | null | undefined) => {
   };
   return m ? (labels[m] ?? m) : '—';
 };
+
+/** Payment reference of an invoice with nothing to pay (issued as paid by the server). */
+const NO_CHARGE = 'No charge';
+
+/** An invoice with nothing to pay: issued as paid, never overdue. */
+export const isNoCharge = (i: Pick<Invoice, 'paymentReference' | 'totalCents'>) =>
+  i.totalCents === 0 && i.paymentReference === NO_CHARGE;
 
 /** "Clinic plan – monthly" for an invoice line (from the plan and cycle it was issued for). */
 export const invoiceLineText = (i: Pick<Invoice, 'line' | 'description'>) =>
@@ -492,6 +598,7 @@ const reasonText = (reason: string) =>
     'cancelled at the end of the period': t('Ended at the end of the period, as scheduled'),
     'unpaid after the grace period': t('An invoice remained unpaid after the grace period'),
     paid: t('The overdue invoices were settled'),
+    voided: t('No invoice is overdue any more after a voided invoice'),
   })[reason] ?? reason;
 
 /** What a history entry says, in one line (besides its title and note). */
@@ -513,8 +620,20 @@ export function describeEvent(e: SubscriptionEvent): string | null {
         : null;
     case 'PLAN_CHANGED':
       return `${e.fromPlan?.name ?? '—'} → ${e.toPlan?.name ?? '—'}`;
-    case 'CYCLE_CHANGED':
-      return `${cycleOf(d.from)} → ${cycleOf(d.to)}`;
+    case 'CYCLE_CHANGED': {
+      if (d.withdrawn) {
+        return t('The scheduled change to {cycle} was withdrawn', { cycle: cycleOf(d.from) });
+      }
+      const price =
+        num(d.priceCents) !== null && (d.to === 'YEARLY' || d.to === 'MONTHLY')
+          ? `${formatMoney(num(d.priceCents), str(d.currency) ?? 'EUR')} ${perCycle(d.to)}`
+          : null;
+      const when =
+        d.scheduled && str(d.effectiveAt)
+          ? t('from the renewal on {date}', { date: formatDate(str(d.effectiveAt)) })
+          : null;
+      return [`${cycleOf(d.from)} → ${cycleOf(d.to)}`, when, price].filter(Boolean).join(' · ');
+    }
     case 'SEATS_CHANGED':
       return `${seatWord(d.from)} → ${seatWord(d.to)}`;
     case 'PRICE_CHANGED':

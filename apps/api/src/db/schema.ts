@@ -4812,18 +4812,40 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => subscriptionPlans.id, { onDelete: 'restrict' }),
     status: subscriptionStatusEnum('status').notNull(),
+    /** Billing cycle of the current period. */
     billingCycle: billingCycleEnum('billing_cycle').notNull().default('MONTHLY'),
-    /** Price per billing cycle in cents (copied from the plan, may be negotiated). */
+    /** Price per billing cycle of the current period in cents (from the plan, may be negotiated). */
     priceCents: integer('price_cents').notNull(),
+    /**
+     * A change of billing cycle scheduled for the next period, with the price per new cycle: the
+     * running period keeps the cycle and price it was invoiced with.
+     */
+    nextBillingCycle: billingCycleEnum('next_billing_cycle'),
+    nextPriceCents: integer('next_price_cents'),
     currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
-    /** Seats purchased; null = the plan's limit. */
+    /** Seats purchased; null = the plan's limit as agreed (plan_seat_limit). */
     seats: integer('seats'),
+    /**
+     * The plan's seat limit when the subscription started or last changed plan; null = unlimited.
+     * Editing the plan later does not change running subscriptions.
+     */
+    planSeatLimit: integer('plan_seat_limit'),
     trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }).notNull(),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }).notNull(),
+    /**
+     * Start of the first period of the current run of paid periods: renewals keep its day of the
+     * month and time of day in Kosovo (31 Jan → 28 Feb → 31 Mar). Null: the current period start.
+     */
+    billingAnchor: timestamp('billing_anchor', { withTimezone: true }),
     cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
     pastDueSince: timestamp('past_due_since', { withTimezone: true }),
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    /**
+     * Why it is suspended: NON_PAYMENT (by the subscription worker; a payment lifts it) or MANUAL
+     * (by an administrator; only reactivating lifts it). Only set while suspended.
+     */
+    suspensionCause: varchar('suspension_cause', { length: 20 }).$type<'NON_PAYMENT' | 'MANUAL'>(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     notes: varchar('notes', { length: 2000 }),
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
@@ -4835,6 +4857,18 @@ export const subscriptions = pgTable(
     check('subscriptions_price_ck', sql`${t.priceCents} >= 0`),
     check('subscriptions_seats_ck', sql`${t.seats} IS NULL OR ${t.seats} > 0`),
     check('subscriptions_period_ck', sql`${t.currentPeriodEnd} > ${t.currentPeriodStart}`),
+    check(
+      'subscriptions_plan_seat_limit_ck',
+      sql`${t.planSeatLimit} IS NULL OR ${t.planSeatLimit} > 0`,
+    ),
+    check(
+      'subscriptions_next_cycle_ck',
+      sql`(${t.nextBillingCycle} IS NULL) = (${t.nextPriceCents} IS NULL) AND (${t.nextBillingCycle} IS NULL OR ${t.nextBillingCycle} <> ${t.billingCycle}) AND (${t.nextPriceCents} IS NULL OR ${t.nextPriceCents} >= 0)`,
+    ),
+    check(
+      'subscriptions_suspension_ck',
+      sql`${t.suspensionCause} IS NULL OR (${t.suspensionCause} IN ('NON_PAYMENT', 'MANUAL') AND ${t.status} = 'SUSPENDED')`,
+    ),
   ],
 );
 

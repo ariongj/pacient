@@ -48,7 +48,8 @@ function NextDate({ o }: { o: OrganizationRow }) {
       </>
     );
   }
-  if (s.status === 'SUSPENDED') return <>—</>;
+  // A suspended subscription does not renew; a scheduled cancellation still ends it.
+  if (s.status === 'SUSPENDED' && !s.cancelAtPeriodEnd) return <>—</>;
   return (
     <>
       {formatDate(s.currentPeriodEnd)}

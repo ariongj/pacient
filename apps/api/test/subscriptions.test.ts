@@ -11,8 +11,12 @@ import {
   users,
 } from '../src/db/schema.js';
 import {
+  addCycle,
+  invoiceDescription,
   issueInvoice,
+  localInstant,
   runSubscriptionLifecycle,
+  yearStartOf,
 } from '../src/modules/subscriptions/subscriptions.service.js';
 import { api, bearer, createFacility, createUser, createWorld, login } from './helpers.js';
 
@@ -58,6 +62,17 @@ const invoicesOf = (facilityId: string) =>
     .orderBy(asc(invoices.issuedAt), asc(invoices.number));
 const run = (now: Date, facilityId: string) =>
   runSubscriptionLifecycle(now, { facilityIds: [facilityId] });
+/** A lifecycle run that changed nothing. */
+const NOTHING = { activated: 0, renewed: 0, pastDue: 0, suspended: 0, cancelled: 0, reminders: 0 };
+const localFormat = (opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Belgrade', ...opts });
+/** "24/11/2026" and "23:59:59" in Kosovo. */
+const localDate = (d: Date) =>
+  localFormat({ day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+const localTime = (d: Date) =>
+  localFormat({ hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(
+    d,
+  );
 
 beforeAll(async () => {
   w = await createWorld();
@@ -190,7 +205,9 @@ describe('starting a subscription', () => {
     expect(inv!.taxRateBp).toBe(1800);
     expect(inv!.taxCents).toBe(26_820);
     expect(inv!.totalCents).toBe(175_820);
-    expect(inv!.dueAt.getTime() - inv!.issuedAt.getTime()).toBe(14 * DAY);
+    // Due at the end of the 14th day after the issue day in Kosovo.
+    expect(localDate(inv!.dueAt)).toBe(localDate(new Date(inv!.issuedAt.getTime() + 14 * DAY)));
+    expect(localTime(inv!.dueAt)).toBe('23:59:59');
     expect(inv!.issuer).toMatchObject({
       name: 'Operator Test SH.P.K.',
       iban: 'XK051212012345678906',
@@ -250,9 +267,9 @@ describe('lifecycle', () => {
       ]),
     );
 
-    // Running again at the same moment changes nothing.
+    // Running again at the same moment changes nothing and sends nothing.
     const again = await run(new Date(s.suspendedAt!.getTime()), f.id);
-    expect(again).toMatchObject({ checked: 0 });
+    expect(again).toMatchObject(NOTHING);
   });
 
   it('needs every overdue invoice paid before a suspended subscription is active again', async () => {
@@ -260,8 +277,8 @@ describe('lifecycle', () => {
     await subscribe(f.id, { trial: false });
     let s = await subOf(f.id);
     const now = Date.now();
-    // Two invoices from earlier periods, overdue by the real clock.
-    for (const daysAgo of [60, 40]) {
+    // Two invoices from earlier periods, both overdue for longer than the grace period.
+    for (const daysAgo of [90, 60]) {
       await db.transaction((tx) =>
         issueInvoice(
           tx,
@@ -605,5 +622,559 @@ describe('seats and access', () => {
       .get(`/api/v1/subscription/invoices/${own}`)
       .set(bearer(w.tokens.otherDirector));
     expect(other.status).toBe(404);
+  });
+});
+
+/* ------------------------------------------------------------ operator review: billing fixes -- */
+
+/** Sets fields of a subscription directly (time travel for the lifecycle). */
+const setSub = (id: string, set: Partial<typeof subscriptions.$inferInsert>) =>
+  db.update(subscriptions).set(set).where(eq(subscriptions.id, id));
+const titlesOf = async (userId: string) =>
+  (
+    await db
+      .select({ title: notifications.title })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.type, 'subscription')))
+  ).map((n) => n.title);
+const pay = (invoiceId: string, body: Record<string, unknown> = {}) =>
+  adminPost(`/invoices/${invoiceId}/payments`, { method: 'BANK_TRANSFER', ...body });
+const invite = (token: string, email: string) =>
+  api()
+    .post('/api/v1/staff/invitations')
+    .set(bearer(token))
+    .send({ email, fullName: 'Front Desk', role: 'RECEPTION' });
+
+describe('a cancellation scheduled before a suspension', () => {
+  it('ends a suspended subscription at the end of its period, without a new invoice', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    await subscribe(f.id, { trial: false, billingCycle: 'YEARLY' });
+    let s = await subOf(f.id);
+    await adminPost(`/subscriptions/${s.id}/cancel`, {
+      atPeriodEnd: true,
+      reason: 'Does not renew next year',
+    });
+    const [inv] = await invoicesOf(f.id);
+    await run(new Date(inv!.dueAt.getTime() + HOUR), f.id);
+    s = await subOf(f.id);
+    await run(new Date(s.pastDueSince!.getTime() + 30 * DAY + HOUR), f.id);
+    s = await subOf(f.id);
+    expect(s).toMatchObject({
+      status: 'SUSPENDED',
+      suspensionCause: 'NON_PAYMENT',
+      cancelAtPeriodEnd: true,
+    });
+
+    const r = await run(new Date(s.currentPeriodEnd.getTime() + HOUR), f.id);
+    expect(r.cancelled).toBe(1);
+    const ended = await subOf(f.id);
+    expect(ended).toMatchObject({
+      status: 'CANCELLED',
+      cancelAtPeriodEnd: false,
+      suspensionCause: null,
+      suspendedAt: null,
+    });
+    expect(ended.cancelledAt!.toISOString()).toBe(s.currentPeriodEnd.toISOString());
+    expect(await invoicesOf(f.id)).toHaveLength(1);
+    expect(await titlesOf(director.id)).toContain('Your facility’s subscription has ended');
+  });
+
+  it('a payment after the end of the period ends it as scheduled instead of billing a new one', async () => {
+    const f = await createFacility();
+    await subscribe(f.id);
+    const s = await subOf(f.id);
+    const now = Date.now();
+    const start = new Date(now - 400 * DAY);
+    const end = new Date(now - 35 * DAY);
+    await setSub(s.id, {
+      status: 'ACTIVE',
+      billingCycle: 'YEARLY',
+      priceCents: 149_000,
+      trialEndsAt: null,
+      currentPeriodStart: start,
+      currentPeriodEnd: end,
+    });
+    const old = await db.transaction(async (tx) =>
+      issueInvoice(tx, await subOf(f.id), { start, end }, { actor: null, now: start }),
+    );
+    await adminPost(`/subscriptions/${s.id}/cancel`, {
+      atPeriodEnd: true,
+      reason: 'Leaves at the end of the contract',
+    });
+    await setSub(s.id, {
+      status: 'SUSPENDED',
+      suspensionCause: 'NON_PAYMENT',
+      suspendedAt: new Date(now - 300 * DAY),
+      pastDueSince: old.dueAt,
+    });
+
+    expect((await pay(old.id)).status).toBe(200);
+    const after = await subOf(f.id);
+    expect(after).toMatchObject({ status: 'CANCELLED', cancelAtPeriodEnd: false });
+    expect(after.cancelledAt!.toISOString()).toBe(end.toISOString());
+    expect(after.currentPeriodEnd.toISOString()).toBe(end.toISOString());
+    expect(await invoicesOf(f.id)).toHaveLength(1);
+  });
+
+  it('reactivating after the date ends it as scheduled; suspending keeps the cancellation', async () => {
+    const f = await createFacility();
+    const body = await subscribe(f.id, { trial: false });
+    const id = body.subscription.id as string;
+    await adminPost(`/subscriptions/${id}/cancel`, {
+      atPeriodEnd: true,
+      reason: 'Closing the practice',
+    });
+    const suspended = await adminPost(`/subscriptions/${id}/suspend`, {
+      reason: 'Contract dispute under review',
+    });
+    expect(suspended.body.subscription).toMatchObject({
+      status: 'SUSPENDED',
+      cancelAtPeriodEnd: true,
+      suspensionCause: 'MANUAL',
+    });
+    const now = Date.now();
+    await setSub(id, {
+      currentPeriodStart: new Date(now - 40 * DAY),
+      currentPeriodEnd: new Date(now - 10 * DAY),
+    });
+    const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
+    expect(back.status).toBe(200);
+    expect(back.body.subscription).toMatchObject({ status: 'CANCELLED', cancelAtPeriodEnd: false });
+    expect(back.body.invoices).toHaveLength(1);
+    const cancelled = back.body.events.find((e: { type: string }) => e.type === 'CANCELLED');
+    expect(cancelled.data).toMatchObject({ reason: 'cancelled at the end of the period' });
+  });
+});
+
+describe('a change of billing cycle', () => {
+  it('takes effect at the renewal; the current period keeps its cycle and price, also re-issued', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    const body = await subscribe(f.id, { trial: false });
+    const id = body.subscription.id as string;
+    const change = await adminPost(`/subscriptions/${id}/change`, { billingCycle: 'YEARLY' });
+    expect(change.status).toBe(200);
+    expect(change.body.subscription).toMatchObject({
+      billingCycle: 'MONTHLY',
+      priceCents: 14_900,
+      nextBillingCycle: 'YEARLY',
+      nextPriceCents: 149_000,
+    });
+    const mine = await api()
+      .get('/api/v1/subscription')
+      .set(bearer(await login(director.email)));
+    expect(mine.body.subscription).toMatchObject({
+      nextBillingCycle: 'YEARLY',
+      nextPriceCents: 149_000,
+    });
+
+    // Re-issued for the current period: still monthly, at the monthly price.
+    const [first] = await invoicesOf(f.id);
+    await adminPost(`/invoices/${first!.id}/void`, { reason: 'Re-issue with the new terms' });
+    expect((await adminPost(`/subscriptions/${id}/invoices`)).status).toBe(201);
+    const reissued = (await invoicesOf(f.id))[1]!;
+    expect(reissued.netCents).toBe(14_900);
+    expect(reissued.description).toMatch(/^Clinic plan, monthly: /);
+
+    const s = await subOf(f.id);
+    const r = await run(new Date(s.currentPeriodEnd.getTime() + HOUR), f.id);
+    expect(r.renewed).toBe(1);
+    const renewed = await subOf(f.id);
+    expect(renewed).toMatchObject({
+      billingCycle: 'YEARLY',
+      priceCents: 149_000,
+      nextBillingCycle: null,
+      nextPriceCents: null,
+    });
+    expect(renewed.currentPeriodStart.toISOString()).toBe(s.currentPeriodEnd.toISOString());
+    expect(renewed.currentPeriodEnd.toISOString()).toBe(
+      addCycle(s.currentPeriodEnd, 'YEARLY', s.billingAnchor!).toISOString(),
+    );
+    const third = (await invoicesOf(f.id))[2]!;
+    expect(third.netCents).toBe(149_000);
+    expect(third.description).toMatch(/^Clinic plan, yearly: /);
+    const cycleEvents = await db
+      .select({ data: subscriptionEvents.data })
+      .from(subscriptionEvents)
+      .where(
+        and(
+          eq(subscriptionEvents.subscriptionId, id),
+          eq(subscriptionEvents.type, 'CYCLE_CHANGED'),
+        ),
+      )
+      .orderBy(asc(subscriptionEvents.createdAt));
+    expect(cycleEvents.map((e) => e.data)).toMatchObject([
+      { from: 'MONTHLY', to: 'YEARLY', scheduled: true, priceCents: 149_000 },
+      { from: 'MONTHLY', to: 'YEARLY', applied: true },
+    ]);
+  });
+
+  it('is withdrawn by choosing the current cycle again; a trial changes its cycle at once', async () => {
+    const f = await createFacility();
+    const body = await subscribe(f.id, { trial: false });
+    const id = body.subscription.id as string;
+    await adminPost(`/subscriptions/${id}/change`, { billingCycle: 'YEARLY', priceCents: 120_000 });
+    const back = await adminPost(`/subscriptions/${id}/change`, { billingCycle: 'MONTHLY' });
+    expect(back.body.subscription).toMatchObject({
+      billingCycle: 'MONTHLY',
+      priceCents: 14_900,
+      nextBillingCycle: null,
+      nextPriceCents: null,
+    });
+    const withdrawn = back.body.events.find((e: { type: string }) => e.type === 'CYCLE_CHANGED');
+    expect(withdrawn.data).toMatchObject({ withdrawn: true });
+
+    const g = await createFacility();
+    const trial = await subscribe(g.id);
+    const changed = await adminPost(`/subscriptions/${trial.subscription.id}/change`, {
+      billingCycle: 'YEARLY',
+    });
+    expect(changed.body.subscription).toMatchObject({
+      billingCycle: 'YEARLY',
+      priceCents: 149_000,
+      nextBillingCycle: null,
+    });
+  });
+});
+
+describe('suspensions', () => {
+  it('keeps a suspension by the administrator when a payment is recorded or an invoice voided', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    const token = await login(director.email);
+    const body = await subscribe(f.id, { trial: false });
+    const id = body.subscription.id as string;
+    await adminPost(`/subscriptions/${id}/suspend`, {
+      reason: 'Breach of the data processing agreement',
+    });
+    const [current] = await invoicesOf(f.id);
+    expect((await pay(current!.id)).status).toBe(200);
+    expect(await subOf(f.id)).toMatchObject({ status: 'SUSPENDED', suspensionCause: 'MANUAL' });
+    const s = await subOf(f.id);
+    const extra = await db.transaction((tx) =>
+      issueInvoice(
+        tx,
+        s,
+        { start: s.currentPeriodStart, end: s.currentPeriodEnd },
+        { actor: null },
+      ),
+    );
+    await adminPost(`/invoices/${extra.id}/void`, { reason: 'Issued twice by mistake' });
+    expect((await subOf(f.id)).status).toBe('SUSPENDED');
+    expect((await invite(token, `desk-${id}@example.test`)).status).toBe(409);
+    const director2 = await api().get('/api/v1/subscription').set(bearer(token));
+    expect(director2.body.subscription).toMatchObject({
+      status: 'SUSPENDED',
+      suspensionCause: 'MANUAL',
+    });
+
+    const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
+    expect(back.body.subscription).toMatchObject({ status: 'ACTIVE', suspensionCause: null });
+  });
+
+  it('counts the grace period from the oldest invoice still overdue after a payment', async () => {
+    const f = await createFacility();
+    await subscribe(f.id, { trial: false });
+    const s = await subOf(f.id);
+    const now = Date.now();
+    // A fell due 50 days ago, B 10 days ago (14-day payment terms).
+    const issued = [];
+    for (const daysAgo of [64, 24]) {
+      issued.push(
+        await db.transaction((tx) =>
+          issueInvoice(
+            tx,
+            s,
+            { start: new Date(now - (daysAgo + 30) * DAY), end: new Date(now - daysAgo * DAY) },
+            { actor: null, now: new Date(now - daysAgo * DAY) },
+          ),
+        ),
+      );
+    }
+    const [older, newer] = issued as [(typeof issued)[0], (typeof issued)[0]];
+    const r = await run(new Date(), f.id);
+    expect(r).toMatchObject({ pastDue: 1, suspended: 1 });
+
+    expect((await pay(older.id)).status).toBe(200);
+    let after = await subOf(f.id);
+    expect(after).toMatchObject({ status: 'PAST_DUE', suspensionCause: null, suspendedAt: null });
+    expect(after.pastDueSince!.toISOString()).toBe(newer.dueAt.toISOString());
+    expect(await run(new Date(), f.id)).toMatchObject({ suspended: 0 });
+
+    // The grace period of B ends 30 days after its due date.
+    await run(new Date(newer.dueAt.getTime() + 30 * DAY - HOUR), f.id);
+    expect((await subOf(f.id)).status).toBe('PAST_DUE');
+    await run(new Date(newer.dueAt.getTime() + 30 * DAY + HOUR), f.id);
+    after = await subOf(f.id);
+    expect(after).toMatchObject({ status: 'SUSPENDED', suspensionCause: 'NON_PAYMENT' });
+  });
+});
+
+describe('seat limits', () => {
+  it('keeps the seat limit a subscription started with when the plan is edited', async () => {
+    const team = (
+      await adminPost('/plans', {
+        code: 'TEAM',
+        name: 'Team',
+        monthlyPriceCents: 2_000,
+        yearlyPriceCents: 20_000,
+        seatLimit: 40,
+      })
+    ).body;
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    await createUser('DOCTOR', f.id);
+    const token = await login(director.email);
+    const body = await subscribe(f.id, { planId: team.id, trial: false });
+    const edited = await api()
+      .patch(`/api/v1/admin/plans/${team.id}`)
+      .set(bearer(admin))
+      .send({ seatLimit: 2 });
+    expect(edited.status).toBe(200);
+    expect((await adminGet(`/organizations/${f.id}`)).body.seatLimit).toBe(40);
+    expect((await invite(token, 'team-desk@example.test')).status).toBe(201);
+
+    // A plan change brings the new plan's limit: unlimited, then the edited one.
+    const id = body.subscription.id as string;
+    const toHospital = await adminPost(`/subscriptions/${id}/change`, { planId: hospital.id });
+    expect(toHospital.body.seatLimit).toBeNull();
+    const toTeam = await adminPost(`/subscriptions/${id}/change`, { planId: team.id });
+    expect(toTeam.body.seatLimit).toBe(2);
+    expect(toTeam.body.subscription.planSeatLimit).toBe(2);
+  });
+});
+
+describe('trials', () => {
+  it('returns a suspended trial to the trial; never invoices or counts the trial period', async () => {
+    const f = await createFacility();
+    const body = await subscribe(f.id);
+    const id = body.subscription.id as string;
+    await adminPost(`/subscriptions/${id}/suspend`, { reason: 'Paused on request' });
+    const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
+    expect(back.body.subscription.status).toBe('TRIAL');
+    expect(back.body.invoices).toHaveLength(0);
+    expect((await adminPost(`/subscriptions/${id}/invoices`)).status).toBe(409);
+    const list = await adminGet(`/organizations?q=${f.code}`);
+    expect(list.body.items[0].monthlyValueCents).toBe(0);
+
+    // A trial that ended while suspended starts its first paid period on reactivation.
+    await adminPost(`/subscriptions/${id}/suspend`, { reason: 'Paused again on request' });
+    const now = Date.now();
+    await setSub(id, {
+      currentPeriodStart: new Date(now - 40 * DAY),
+      currentPeriodEnd: new Date(now - 10 * DAY),
+      trialEndsAt: new Date(now - 10 * DAY),
+    });
+    const started = await adminPost(`/subscriptions/${id}/reactivate`, {});
+    expect(started.body.subscription.status).toBe('ACTIVE');
+    expect(started.body.invoices).toHaveLength(1);
+    expect(new Date(started.body.subscription.currentPeriodStart).getTime()).toBeGreaterThan(
+      now - 60_000,
+    );
+  });
+
+  it('refuses to end a trial early while a cancellation is scheduled', async () => {
+    const f = await createFacility();
+    const body = await subscribe(f.id);
+    const id = body.subscription.id as string;
+    await adminPost(`/subscriptions/${id}/cancel`, {
+      atPeriodEnd: true,
+      reason: 'Does not want to continue after the trial',
+    });
+    const refused = await adminPost(`/subscriptions/${id}/activate`);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.message).toMatch(/Withdraw the cancellation first/);
+    expect(await invoicesOf(f.id)).toHaveLength(0);
+    await adminPost(`/subscriptions/${id}/withdraw-cancellation`);
+    const activated = await adminPost(`/subscriptions/${id}/activate`);
+    expect(activated.body.subscription.status).toBe('ACTIVE');
+    expect(await eventTypes(id)).toEqual(
+      expect.arrayContaining(['CANCELLATION_SCHEDULED', 'CANCELLATION_WITHDRAWN', 'ACTIVATED']),
+    );
+  });
+});
+
+describe('due dates and periods', () => {
+  it('makes an invoice overdue only after its due date has fully passed (0-day terms: the issue day)', async () => {
+    await db
+      .update(platformSettings)
+      .set({ paymentTermsDays: 0 })
+      .where(eq(platformSettings.id, 1));
+    try {
+      const f = await createFacility();
+      await createUser('DIRECTOR', f.id);
+      await subscribe(f.id);
+      const s = await subOf(f.id);
+      const r = await run(new Date(s.trialEndsAt!.getTime() + HOUR), f.id);
+      expect(r).toMatchObject({ activated: 1, pastDue: 0 });
+      const [inv] = await invoicesOf(f.id);
+      expect(localDate(inv!.dueAt)).toBe(localDate(inv!.issuedAt));
+      expect(localTime(inv!.dueAt)).toBe('23:59:59');
+      expect((await run(new Date(inv!.dueAt.getTime()), f.id)).pastDue).toBe(0);
+      expect((await run(new Date(inv!.dueAt.getTime() + 1000), f.id)).pastDue).toBe(1);
+    } finally {
+      await db
+        .update(platformSettings)
+        .set({ paymentTermsDays: 14 })
+        .where(eq(platformSettings.id, 1));
+    }
+  });
+
+  it('computes periods on the Kosovo calendar and keeps the billing day after a short month', async () => {
+    const periods = (anchorIso: string, n: number) => {
+      const anchor = new Date(anchorIso);
+      const out: string[] = [];
+      for (let i = 0, start = anchor; i < n; i++) {
+        const end = addCycle(start, 'MONTHLY', anchor);
+        out.push(invoiceDescription('X', 'MONTHLY', { start, end }).slice(-23));
+        start = end;
+      }
+      return out;
+    };
+    // Across the change to summer time, near midnight: no day missing, none twice.
+    expect(periods('2027-02-28T22:15:00Z', 2)).toEqual([
+      '28.02.2027 – 27.03.2027',
+      '28.03.2027 – 27.04.2027',
+    ]);
+    expect(periods('2026-09-25T22:30:00Z', 2)).toEqual([
+      '26.09.2026 – 25.10.2026',
+      '26.10.2026 – 25.11.2026',
+    ]);
+    // 1 February 00:30 in Kosovo is still 31 January in UTC: the billing day stays the 1st.
+    expect(periods('2026-01-31T23:30:00Z', 3)).toEqual([
+      '01.02.2026 – 28.02.2026',
+      '01.03.2026 – 31.03.2026',
+      '01.04.2026 – 30.04.2026',
+    ]);
+
+    // Renewals keep the anchor day: 31 Jan → 28 Feb → 31 Mar.
+    const f = await createFacility();
+    await subscribe(f.id, { trial: false });
+    const [first] = await invoicesOf(f.id);
+    await adminPost(`/invoices/${first!.id}/void`, { reason: 'Moved to the contract date' });
+    const s = await subOf(f.id);
+    const anchor = localInstant(2027, 1, 31, 10);
+    await setSub(s.id, {
+      currentPeriodStart: anchor,
+      currentPeriodEnd: addCycle(anchor, 'MONTHLY'),
+      billingAnchor: anchor,
+    });
+    await run(new Date(localInstant(2027, 2, 28, 11)), f.id);
+    await run(new Date(localInstant(2027, 3, 31, 11)), f.id);
+    const after = await subOf(f.id);
+    expect(after.currentPeriodStart.toISOString()).toBe(
+      localInstant(2027, 3, 31, 10).toISOString(),
+    );
+    expect(after.currentPeriodEnd.toISOString()).toBe(localInstant(2027, 4, 30, 10).toISOString());
+    expect((await invoicesOf(f.id)).slice(-2).map((i) => i.description)).toEqual([
+      'Clinic plan, monthly: 28.02.2027 – 30.03.2027',
+      'Clinic plan, monthly: 31.03.2027 – 29.04.2027',
+    ]);
+  });
+
+  it('counts payments as "paid this year" by the year in Kosovo', async () => {
+    const f = await createFacility();
+    await subscribe(f.id);
+    const s = await subOf(f.id);
+    const yearStart = yearStartOf(new Date());
+    const issue = (at: Date) =>
+      db.transaction((tx) =>
+        issueInvoice(tx, s, { start: at, end: addCycle(at, 'MONTHLY') }, { actor: null, now: at }),
+      );
+    const lastYear = await issue(new Date(yearStart.getTime() - 2 * DAY));
+    const thisYear = await issue(new Date(yearStart.getTime() + 10 * 60_000));
+    // 31 December 23:30 and 1 January 00:30 in Kosovo – both still 31 December in UTC.
+    await pay(lastYear.id, { paidAt: new Date(yearStart.getTime() - 30 * 60_000).toISOString() });
+    await pay(thisYear.id, { paidAt: new Date(yearStart.getTime() + 30 * 60_000).toISOString() });
+    const res = await adminGet(`/invoices?facilityId=${f.id}`);
+    expect(res.body.totals.paidThisYearCents).toBe(thisYear.totalCents);
+  });
+});
+
+describe('invoices with nothing to pay, restarts and notices', () => {
+  it('issues an invoice with nothing to pay as paid; it never becomes overdue', async () => {
+    const pilot = (
+      await adminPost('/plans', {
+        code: 'PILOT',
+        name: 'Pilot',
+        monthlyPriceCents: 0,
+        yearlyPriceCents: 0,
+        seatLimit: 5,
+      })
+    ).body;
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    const token = await login(director.email);
+    await subscribe(f.id, { planId: pilot.id, trial: false });
+    const [inv] = await invoicesOf(f.id);
+    expect(inv).toMatchObject({
+      totalCents: 0,
+      status: 'PAID',
+      paymentMethod: 'OTHER',
+      paymentReference: 'No charge',
+    });
+    const r = await run(new Date(inv!.dueAt.getTime() + 31 * DAY), f.id);
+    expect(r).toMatchObject({ pastDue: 0, suspended: 0, renewed: 1 });
+    expect((await subOf(f.id)).status).toBe('ACTIVE');
+    expect((await adminGet(`/organizations/${f.id}`)).body.invoices[0].overdue).toBe(false);
+    expect((await invite(token, 'pilot-desk@example.test')).status).toBe(201);
+  });
+
+  it('starts a new subscription only when the earlier invoices are settled', async () => {
+    const f = await createFacility();
+    await createUser('DIRECTOR', f.id);
+    const body = await subscribe(f.id, { trial: false });
+    const id = body.subscription.id as string;
+    const cancelled = await adminPost(`/subscriptions/${id}/cancel`, {
+      atPeriodEnd: false,
+      reason: 'Contract terminated',
+    });
+    expect(cancelled.body.subscription.status).toBe('CANCELLED');
+    const [open] = await invoicesOf(f.id);
+    expect(open!.status).toBe('OPEN');
+    const refused = await adminPost(`/organizations/${f.id}/subscription`, {
+      planId: clinic.id,
+      trial: false,
+    });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.message).toMatch(/still open/);
+    await adminPost(`/invoices/${open!.id}/void`, { reason: 'Contract terminated early' });
+    await subscribe(f.id, { trial: false });
+    const r = await run(new Date(), f.id);
+    expect(r).toMatchObject({ pastDue: 0, suspended: 0 });
+    expect((await subOf(f.id)).status).toBe('ACTIVE');
+  });
+
+  it('tells the first director of a new customer about the first invoice', async () => {
+    const res = await adminPost('/organizations', {
+      facility: {
+        code: 'klinika-paid',
+        name: 'Klinika Paid',
+        type: 'SPECIALIZED_CLINIC',
+        region: 'Prishtinë',
+        municipality: 'Prishtinë',
+      },
+      director: { email: 'paid.director@example.test', fullName: 'Besa Director' },
+      subscription: { planId: clinic.id, billingCycle: 'MONTHLY', trial: false },
+    });
+    expect(res.status).toBe(201);
+    const number = res.body.invoices[0].number as string;
+    expect((await titlesOf(res.body.invitedDirector.id)).join(' ')).toContain(number);
+  });
+
+  it('records a reminder as sent only once a director received it', async () => {
+    const f = await createFacility();
+    await subscribe(f.id);
+    const s = await subOf(f.id);
+    const at = (daysBeforeEnd: number) => new Date(s.trialEndsAt!.getTime() - daysBeforeEnd * DAY);
+    expect((await run(at(5), f.id)).reminders).toBe(0);
+    expect(await eventTypes(s.id)).not.toContain('REMINDER_SENT');
+    const director = await createUser('DIRECTOR', f.id);
+    expect((await run(at(4), f.id)).reminders).toBe(1);
+    expect((await run(at(3), f.id)).reminders).toBe(0);
+    const titles = await titlesOf(director.id);
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toMatch(/^Your facility’s trial ends on /);
   });
 });

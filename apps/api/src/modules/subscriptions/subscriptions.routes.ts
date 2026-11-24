@@ -49,6 +49,9 @@ subscriptionRouter.get('/', async (req, res) => {
           status: row.subscription.status,
           billingCycle: row.subscription.billingCycle,
           priceCents: row.subscription.priceCents,
+          // A change of billing cycle from the next period, with the price per new cycle.
+          nextBillingCycle: row.subscription.nextBillingCycle,
+          nextPriceCents: row.subscription.nextPriceCents,
           currency: row.subscription.currency,
           seats: row.subscription.seats,
           trialEndsAt: row.subscription.trialEndsAt,
@@ -57,6 +60,7 @@ subscriptionRouter.get('/', async (req, res) => {
           cancelAtPeriodEnd: row.subscription.cancelAtPeriodEnd,
           pastDueSince: row.subscription.pastDueSince,
           suspendedAt: row.subscription.suspendedAt,
+          suspensionCause: row.subscription.suspensionCause,
           cancelledAt: row.subscription.cancelledAt,
         }
       : null,
@@ -70,7 +74,7 @@ subscriptionRouter.get('/', async (req, res) => {
         }
       : null,
     seatsUsed: await seatsUsed(facilityId),
-    seatLimit: row ? seatLimitOf(row.subscription, row.plan) : null,
+    seatLimit: row ? seatLimitOf(row.subscription) : null,
     // Internal notes stay with the operator; who changed what is "the service operator".
     events: events
       .filter((e) => e.type !== 'NOTE')

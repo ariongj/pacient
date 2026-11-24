@@ -82,7 +82,8 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   }),
   op('patch', '/admin/plans/{id}', T, 'Change a plan (or stop offering it)', {
     access: ADMIN,
-    description: 'Only the fields sent change. Running subscriptions keep their agreed price.',
+    description:
+      'Only the fields sent change. Running subscriptions keep their agreed price and seat limit; changes apply to new subscriptions and plan changes.',
     body: obj(plan),
   }),
   op('get', '/admin/organizations', T, 'Facilities with their subscription', {
@@ -116,14 +117,17 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/organizations/{facilityId}/subscription', T, 'Start a subscription', {
     access: ADMIN,
     description:
-      'A trial (no invoice) or an active subscription whose first invoice is issued now. A cancelled or expired subscription can be started again.',
+      'A trial (no invoice) or an active subscription whose first invoice is issued now. The plan’s seat limit is agreed with it. A cancelled or expired subscription can be started again once the invoices of the earlier one are paid or voided.',
     body: start,
-    responses: { '201': 'The facility with its subscription', '409': 'Already subscribed' },
+    responses: {
+      '201': 'The facility with its subscription',
+      '409': 'Already subscribed, or invoices of the earlier subscription still open',
+    },
   }),
   op('post', '/admin/subscriptions/{id}/change', T, 'Change plan, cycle, seats or price', {
     access: ADMIN,
     description:
-      'Takes effect now; the next invoice uses it. A new plan or cycle takes the catalogue price unless a price is given.',
+      'Plan, seats and price take effect now; the next invoice uses them, and a new plan brings its seat limit. A new billing cycle takes effect at the next renewal (nextBillingCycle, nextPriceCents): the current period keeps its cycle and price, also when its invoice is issued again; choosing the current cycle again withdraws the change. A trial changes its cycle at once. A new plan or cycle takes the catalogue price unless a price (per the chosen cycle) is given.',
     body: obj({
       planId: uuid,
       billingCycle: cycle,
@@ -134,21 +138,27 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   }),
   op('post', '/admin/subscriptions/{id}/activate', T, 'End a trial now (first invoice)', {
     access: ADMIN,
+    responses: {
+      '200': 'The facility with its subscription',
+      '409': 'Not a trial, or a cancellation is scheduled (withdraw it first)',
+    },
   }),
   op('post', '/admin/subscriptions/{id}/suspend', T, 'Suspend (no new staff accounts)', {
     access: ADMIN,
     description:
-      'Clinical access, sign-in and existing accounts are unaffected. The reason is shown to the facility’s directors.',
+      'Clinical access, sign-in and existing accounts are unaffected. The reason is shown to the facility’s directors. Suspended by hand (suspensionCause MANUAL), it is lifted only by reactivating – not by a payment. A scheduled cancellation stays and takes effect at the end of the period.',
     body: reasonBody,
   }),
   op('post', '/admin/subscriptions/{id}/reactivate', T, 'Reactivate a suspended subscription', {
     access: ADMIN,
     description:
-      'Active again – or past due with a fresh grace period while invoices are still overdue. A period that ended while suspended starts again now, with its invoice.',
+      'Active again – or past due with a fresh grace period while invoices are still overdue; a trial suspended before it ended is a trial again. A period that ended while suspended starts again now, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled, without a new invoice.',
     body: obj({ note: str({ maxLength: 1000 }) }),
   }),
   op('post', '/admin/subscriptions/{id}/cancel', T, 'Cancel now or at the end of the period', {
     access: ADMIN,
+    description:
+      'Open invoices, also the one of the current period, stay open: they are paid or voided. A cancellation scheduled for the end of the period also takes effect while the subscription is suspended.',
     body: obj({ atPeriodEnd: bool, reason: str({ minLength: 5, maxLength: 1000 }) }, [
       'atPeriodEnd',
       'reason',
@@ -171,15 +181,16 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/subscriptions/{id}/invoices', T, 'Invoice the current period', {
     access: ADMIN,
     description:
-      'Only when the period has no (non-void) invoice yet. Number without gaps per year; VAT and payment terms from the operator settings; issuer and customer details frozen.',
+      'Only when the period has no (non-void) invoice yet, with the period’s billing cycle and price; never for the free trial period. Number without gaps per year; VAT and payment terms from the operator settings (due at the end of the due day in Kosovo; nothing to pay: issued as paid); issuer and customer details frozen.',
     responses: {
       '201': 'The facility with its invoices',
-      '409': 'Trial, ended, or already invoiced',
+      '409': 'Trial, ended, already invoiced, or a period that does not match the billing cycle',
     },
   }),
   op('get', '/admin/invoices', T, 'Invoices', {
     access: ADMIN,
-    description: 'With totals: open, overdue, paid this year.',
+    description:
+      'With totals: open, overdue, paid this year (the calendar year in Kosovo). An open invoice is overdue once its due date has passed in Kosovo; an invoice with nothing to pay never is.',
     params: [
       q('status', enumOf('open', 'overdue', 'paid', 'void', 'all')),
       q('facilityId', uuid),
@@ -190,7 +201,7 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/invoices/{id}/payments', T, 'Record a payment', {
     access: ADMIN,
     description:
-      'Marks the invoice paid. When nothing is overdue any more, a past-due or suspended subscription is active again.',
+      'Marks the invoice paid. When nothing is overdue any more, a past-due subscription, or one suspended for non-payment, is active again; otherwise the grace period counts from the oldest invoice still overdue. A suspension by the administrator stays until reactivated. A cancellation scheduled for a date that has passed takes effect.',
     body: obj(
       {
         paidAt: dateTime,
@@ -203,7 +214,8 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   }),
   op('post', '/admin/invoices/{id}/void', T, 'Void an open invoice', {
     access: ADMIN,
-    description: 'Paid invoices cannot be voided; invoices are never deleted.',
+    description:
+      'Paid invoices cannot be voided; invoices are never deleted. Afterwards the subscription’s standing is checked as after a payment.',
     body: reasonBody,
   }),
   op('get', '/subscription', T, 'My facility’s subscription', {

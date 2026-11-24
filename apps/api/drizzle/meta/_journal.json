@@ -183,6 +183,13 @@
       "when": 1794768443168,
       "tag": "0025_operator_admin_subscriptions_legal",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795483416472,
+      "tag": "0026_subscription_terms_anchor_suspension",
+      "breakpoints": true
     }
   ]
 }

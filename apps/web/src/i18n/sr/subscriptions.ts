@@ -131,8 +131,6 @@ export const subscriptions: Record<string, string> = {
   'Record payment': 'Evidentiraj plaćanje',
   Renews: 'Obnavlja se',
   'Renews on': 'Obnavlja se',
-  'Running subscriptions keep their agreed price; a new price applies to new subscriptions and plan changes.':
-    'Aktivne pretplate zadržavaju ugovorenu cenu; nova cena važi za nove pretplate i promene plana.',
   'Seats agreed for this facility instead of the plan’s limit.':
     'Mesta ugovorena za ovu ustanovu umesto ograničenja plana.',
   'Service period': 'Period usluge',
@@ -158,8 +156,6 @@ export const subscriptions: Record<string, string> = {
   Subscriptions: 'Pretplate',
   'Suspend subscription': 'Suspenduj pretplatu',
   'Suspended since': 'Suspendovana od',
-  'The change takes effect now; the current invoice stays as issued and the next one uses the new terms.':
-    'Promena važi odmah; tekuća faktura ostaje kako je izdata, a sledeća koristi nove uslove.',
   'The director receives an activation link and then invites the facility’s staff.':
     'Direktor dobija vezu za aktivaciju, a zatim poziva osoblje ustanove.',
   'The overdue invoices were settled': 'Dospele fakture su izmirene',
@@ -188,10 +184,6 @@ export const subscriptions: Record<string, string> = {
   'Voided on {date}': 'Poništena {date}',
   'Voided|invoice': 'Poništena',
   'Void|invoice action': 'Poništi',
-  'When nothing else is overdue, a subscription with an overdue payment or a suspension is active again.':
-    'Kada ništa drugo nije dospelo, pretplata sa zakasnelim plaćanjem ili suspenzijom ponovo je aktivna.',
-  'With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice.':
-    'Ako i dalje ima dospelih faktura, pretplata ponovo prikazuje zakasnelo plaćanje sa novim dodatnim rokom. Period koji je u međuvremenu istekao počinje ponovo danas, sa svojom fakturom.',
   'Withdraw the cancellation': 'Povuci otkazivanje',
   'Without a subscription': 'Bez pretplate',
   'Without a trial the subscription is active now and its first invoice is issued at once.':
@@ -291,4 +283,51 @@ export const subscriptions: Record<string, string> = {
   'per month': 'mesečno',
   'per year': 'godišnje',
   '{count} open|invoice': 'Otvorenih: {count}',
+  'Changes to yearly on {date}: {price} per year':
+    'Prelazi na godišnju naplatu {date}: {price} godišnje',
+  'Changes to monthly on {date}: {price} per month':
+    'Prelazi na mesečnu naplatu {date}: {price} mesečno',
+  'An invoice remained unpaid after the grace period; paying it lifts the suspension.':
+    'Faktura je ostala neplaćena posle dodatnog roka; njeno plaćanje ukida suspenziju.',
+  'Suspended by an administrator; only reactivating lifts it.':
+    'Suspendovao ju je administrator; ukida se samo ponovnom aktivacijom.',
+  'Suspended by the service operator.': 'Suspendovao ju je operater usluge.',
+  'No invoice is overdue any more after a voided invoice':
+    'Posle poništene fakture nijedna faktura više nije dospela',
+  'The scheduled change to {cycle} was withdrawn': 'Zakazana promena na {cycle} je povučena',
+  'from the renewal on {date}': 'od obnove {date}',
+  'Cause of the suspension': 'Razlog suspenzije',
+  'Next period': 'Sledeći period',
+  'Starts when the suspension is lifted, with its invoice':
+    'Počinje kada se suspenzija ukine, sa svojom fakturom',
+  'To start the paid subscription instead, withdraw the cancellation first.':
+    'Da biste umesto toga započeli plaćenu pretplatu, prvo povucite otkazivanje.',
+  'A trial that has not ended is a trial again. With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled.':
+    'Probni period koji nije istekao ponovo je probni period. Ako i dalje ima dospelih faktura, pretplata ponovo prikazuje zakasnelo plaćanje sa novim dodatnim rokom. Period koji je u međuvremenu istekao počinje ponovo danas, sa svojom fakturom – osim ako je za njegov kraj zakazano otkazivanje: tada se pretplata završava kako je zakazano.',
+  'Running subscriptions keep their agreed price and number of staff accounts; a new price or limit applies to new subscriptions and plan changes.':
+    'Aktivne pretplate zadržavaju ugovorenu cenu i broj naloga osoblja; nova cena ili ograničenje važi za nove pretplate i promene plana.',
+  'No charge': 'Bez naknade',
+  'When nothing else is overdue, a subscription with an overdue payment or suspended for non-payment is active again. A suspension by an administrator is lifted only by reactivating the subscription.':
+    'Kada ništa drugo nije dospelo, pretplata sa zakasnelim plaćanjem ili suspendovana zbog neplaćanja ponovo je aktivna. Suspenzija koju je odredio administrator ukida se samo ponovnom aktivacijom pretplate.',
+  'Plan, seats and price take effect now; the current invoice stays as issued and the next one uses the new terms.':
+    'Plan, mesta i cena važe odmah; tekuća faktura ostaje kako je izdata, a sledeća koristi nove uslove.',
+  'The new billing cycle starts with the next period, on {date}; the current period keeps its cycle and price. Choose the current cycle again to withdraw it.':
+    'Novi ciklus naplate počinje sa sledećim periodom, {date}; tekući period zadržava svoj ciklus i cenu. Ponovo izaberite tekući ciklus da biste ga povukli.',
+  'The invoice of the current period, {number}, stays open.':
+    'Faktura tekućeg perioda, {number}, ostaje otvorena.',
+  'Cancelling now does not void it: record its payment, or void it if the facility owes nothing for this period.':
+    'Otkazivanje odmah je ne poništava: evidentirajte njeno plaćanje ili je poništite ako ustanova ništa ne duguje za ovaj period.',
+  'A new subscription can be started for this facility only when none of its invoices is open.':
+    'Nova pretplata za ovu ustanovu može da se započne tek kada nijedna njena faktura nije otvorena.',
+  'Suspended since {date}.': 'Suspendovana od {date}.',
+  'Invoices of the earlier subscription are still open. Record their payment or void them before starting a new subscription.':
+    'Fakture prethodne pretplate su još otvorene. Evidentirajte njihovo plaćanje ili ih poništite pre nego što započnete novu pretplatu.',
+  'A cancellation is scheduled for the end of the trial. Withdraw the cancellation first.':
+    'Za kraj probnog perioda zakazano je otkazivanje. Prvo povucite otkazivanje.',
+  'The current period does not match the billing cycle, so it cannot be invoiced at the price per cycle. The next period is invoiced as usual.':
+    'Tekući period ne odgovara ciklusu naplate, pa ne može da se fakturiše po ceni po ciklusu. Sledeći period se fakturiše kao i obično.',
+  'Changes to yearly with the next period: {price} per year':
+    'Prelazi na godišnju naplatu sa sledećim periodom: {price} godišnje',
+  'Changes to monthly with the next period: {price} per month':
+    'Prelazi na mesečnu naplatu sa sledećim periodom: {price} mesečno',
 };

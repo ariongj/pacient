@@ -53,8 +53,11 @@ Directors keep inviting and managing their own staff, as before.
 A facility has at most one subscription. A facility without one – for example a public facility
 run by the Ministry – works without limits.
 
-**New customer** creates the facility, its subscription and the first director's invitation in one
-step. An existing facility gets a subscription from its page.
+**New customer** creates the facility, the first director's invitation and its subscription in
+one step (the director is invited first, so they are told about the first invoice). An existing
+facility gets a subscription from its page. A subscription keeps the number of staff accounts
+(seats) of its plan as it was when it started or changed plan: editing a plan later changes neither
+the price nor the seats of running subscriptions.
 
 | Status          | Meaning                                                                                |
 | --------------- | -------------------------------------------------------------------------------------- |
@@ -64,20 +67,46 @@ step. An existing facility gets a subscription from its page.
 | Suspended       | Unpaid for longer than the grace period (30 days by default), or suspended by hand     |
 | Cancelled       | Ended, now or at the end of the paid period                                            |
 
+Periods follow the calendar in Kosovo and keep the day of the month they started on: a
+subscription that started on 31 January renews on 28 February, then on 31 March.
+
 What happens by itself (checked every six hours):
 
 - a trial that ends becomes active and gets its first invoice;
 - at the end of each period the subscription renews and the next invoice is issued;
-- an invoice past its due date marks the subscription as overdue; after the grace period it is
-  suspended;
+- an invoice whose due date has passed marks the subscription as overdue; when it is still unpaid
+  after the grace period, the subscription is suspended. The grace period counts from the due date
+  of the oldest invoice that is still unpaid;
+- a cancellation scheduled for the end of the period takes effect then – also when the
+  subscription was suspended in the meantime;
 - directors are told a week before a trial ends or a renewal, when an invoice is issued, overdue,
-  and when the status changes.
+  and when the status changes. A reminder that finds no active director (for example before the
+  first director is invited) is sent at a later check, once there is one.
 
 By hand, on the facility's page: change plan, billing cycle, number of staff accounts (seats) or an
 agreed price; start the paid subscription before the trial ends; suspend and reactivate; cancel
-(now, or at the end of the period) and withdraw a cancellation; add an internal note. A change of
-plan or price applies from the next invoice; to apply it now, void the invoice of the current
-period and issue it again.
+(now, or at the end of the period) and withdraw a cancellation; add an internal note.
+
+- A change of **plan or price** applies from the next invoice; to apply it now, void the invoice
+  of the current period and issue it again. A change of **seats** applies at once; a new plan
+  brings its seat limit.
+- A change of **billing cycle** takes effect at the next renewal: the page shows, for example,
+  "changes to yearly on 1 Dec 2026", and the directors see it too. The current period keeps the
+  cycle and price it was invoiced with, also when its invoice is voided and issued again. Choose the
+  current cycle again to withdraw the change. During a trial the cycle changes at once.
+- **Start the paid subscription now** is refused while a cancellation is scheduled: withdraw the
+  cancellation first.
+- **Suspend** by hand: only **Reactivate** lifts it – a payment does not. A suspension for
+  non-payment ends by itself when the overdue invoices are paid. The facility's page shows since
+  when and why a subscription is suspended. A scheduled cancellation stays and ends the
+  subscription at the end of the period.
+- **Reactivate**: a trial suspended before it ended is a trial again. With invoices still overdue,
+  the subscription is overdue again with a new grace period. A period that ended while suspended
+  starts again on the day of reactivation, with its invoice – unless a cancellation was scheduled
+  for its end: then the subscription ends as scheduled, without a new invoice.
+- **Cancel now** leaves the open invoices – also the one of the current period – open: record
+  their payment, or void an invoice the facility does not owe. A new subscription for the facility
+  can be started only when none of its invoices is open.
 
 Every step is in the facility's **History**, which cannot be edited: who, when, from which status
 to which, and the note.
@@ -101,10 +130,22 @@ An invoice copies the operator's and the customer's details and the VAT rate at 
 issued; afterwards only its payment or its voiding can be recorded – the database refuses any
 other change.
 
+An invoice is due at the end of the due date in Kosovo (payment terms in days after the issue
+day; 0 means by the end of the issue day), and it is overdue only once that day has passed. An
+invoice with nothing to pay (a free plan or an agreed price of 0) is issued as paid ("No charge")
+and is never overdue.
+
 Pacient does not take card payments. Customers pay by bank transfer with the invoice number as
 the reference, and the administrator **records the payment** (date, method, reference). When
-nothing else is overdue, an overdue or suspended subscription is active again at once. An invoice
-issued by mistake is **voided** with a reason; it keeps its number.
+nothing else is overdue, an overdue subscription, or one suspended for non-payment, is active again
+at once; a suspension made by hand stays until it is reactivated. When other invoices are still
+overdue, the grace period counts from the oldest of them – a subscription suspended because of the
+invoice just paid is overdue again if that invoice's grace period has not ended. An invoice issued
+by mistake is **voided** with a reason; it keeps its number, and the subscription is checked as
+after a payment.
+
+**Paid this year** on the invoices page counts payments of the calendar year in Kosovo, like the
+invoice numbers.
 
 Directors see their plan, seats, history and invoices under **Facility management › Subscription
 and invoices**, and can print every invoice.

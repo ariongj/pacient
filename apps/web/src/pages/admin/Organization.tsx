@@ -1,10 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
+  cycleChangeText,
   cycleLabel,
   formatMoney,
+  inTrialWindow,
   perCycle,
+  periodEndLine,
   periodText,
+  suspensionCauseText,
   useOrganization,
   usePlans,
   type OrganizationDetail,
@@ -76,10 +80,17 @@ function SubscriptionCard({
   const invoiced = detail.invoices.some(
     (i) => i.status !== 'VOID' && i.periodStart === s.currentPeriodStart,
   );
+  const cycleChange = cycleChangeText(s);
   const items: [string, ReactNode][] = [
     [t('Plan'), s.plan.name],
     [t('Status'), <SubscriptionBadge key="s" status={s.status} />],
-    [t('Billing cycle'), cycleLabel(s.billingCycle)],
+    [
+      t('Billing cycle'),
+      <>
+        {cycleLabel(s.billingCycle)}
+        {cycleChange && <div className="muted">{cycleChange}</div>}
+      </>,
+    ],
     [
       t('Price'),
       <>
@@ -92,15 +103,22 @@ function SubscriptionCard({
     ],
   ];
   if (s.status === 'TRIAL') items.push([t('Trial ends'), formatDate(s.trialEndsAt)]);
-  if (!ended && s.status !== 'TRIAL') {
+  // A suspended subscription does not renew: its period is shown while it runs, and a new one
+  // starts when the suspension is lifted.
+  const periodRunning = new Date(s.currentPeriodEnd).getTime() > Date.now();
+  if (!ended && s.status !== 'TRIAL' && (s.status !== 'SUSPENDED' || periodRunning)) {
     items.push([t('Current period'), currentPeriodText(s)]);
-    items.push([
-      s.cancelAtPeriodEnd ? t('Ends on') : t('Renews on'),
-      formatDate(s.currentPeriodEnd),
-    ]);
   }
+  const endLine = periodEndLine(s);
+  if (endLine) items.push(endLine);
   if (s.pastDueSince) items.push([t('Payment overdue since'), formatDate(s.pastDueSince)]);
-  if (s.suspendedAt) items.push([t('Suspended since'), formatDate(s.suspendedAt)]);
+  if (s.status === 'SUSPENDED') {
+    items.push([t('Suspended since'), formatDate(s.suspendedAt)]);
+    items.push([t('Cause of the suspension'), suspensionCauseText(s.suspensionCause, 'admin')]);
+    if (!s.cancelAtPeriodEnd) {
+      items.push([t('Next period'), t('Starts when the suspension is lifted, with its invoice')]);
+    }
+  }
   if (s.cancelledAt) items.push([t('Ended on'), formatDate(s.cancelledAt)]);
   items.push([t('Customer since'), formatDate(s.createdAt)]);
 
@@ -115,12 +133,13 @@ function SubscriptionCard({
             <Button variant="secondary" onClick={() => onAction('change')}>
               {t('Change')}
             </Button>
-            {s.status === 'TRIAL' && (
+            {/* A facility that asked to leave after the trial is not billed: withdraw first. */}
+            {s.status === 'TRIAL' && !s.cancelAtPeriodEnd && (
               <Button variant="secondary" onClick={() => onAction('activate')}>
                 {t('End the trial now')}
               </Button>
             )}
-            {s.status !== 'TRIAL' && !invoiced && (
+            {s.status !== 'TRIAL' && !inTrialWindow(s) && !invoiced && (
               <Button variant="secondary" onClick={() => onAction('invoice')}>
                 {t('Invoice the current period')}
               </Button>
@@ -158,7 +177,10 @@ function SubscriptionCard({
             title={t('Ends on {date}', {
               date: formatDate(s.status === 'TRIAL' ? s.trialEndsAt : s.currentPeriodEnd),
             })}
-          />
+          >
+            {s.status === 'TRIAL' &&
+              t('To start the paid subscription instead, withdraw the cancellation first.')}
+          </Alert>
         )}
         <DefinitionList items={items} />
         <SeatsMeter used={detail.seatsUsed} limit={detail.seatLimit} />
@@ -274,14 +296,14 @@ function ActionForm({
           intro={
             <p>
               {t(
-                'With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice.',
+                'A trial that has not ended is a trial again. With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled.',
               )}
             </p>
           }
         />
       );
     case 'cancel':
-      return <CancelForm subscription={s} onDone={onDone} />;
+      return <CancelForm subscription={s} invoices={detail.invoices} onDone={onDone} />;
     case 'note':
       return (
         <ReasonForm

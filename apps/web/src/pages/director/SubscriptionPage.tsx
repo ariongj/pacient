@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import {
+  cycleChangeText,
   cycleLabel,
   formatMoney,
   perCycle,
+  periodEndLine,
   periodText,
+  suspensionCauseText,
   useMySubscription,
   type MySubscription,
 } from '../../api/subscriptions';
@@ -67,6 +70,10 @@ function StatusExplained({ data }: { data: MySubscription }) {
     case 'SUSPENDED':
       return (
         <Alert tone="warning" title={t('New staff accounts cannot be added.')}>
+          <p style={{ margin: 0 }}>
+            {t('Suspended since {date}.', { date: formatDate(s.suspendedAt) })}{' '}
+            {suspensionCauseText(s.suspensionCause, 'director')}
+          </p>
           {t(
             'Clinical work, sign-in and existing accounts are not affected. Please contact the service operator.',
           )}
@@ -106,10 +113,17 @@ export function SubscriptionPage() {
             );
           }
           const ended = s.status === 'CANCELLED' || s.status === 'EXPIRED';
+          const cycleChange = cycleChangeText(s);
           const items: [string, ReactNode][] = [
             [t('Plan'), data.plan.name],
             [t('Status'), <SubscriptionBadge key="s" status={s.status} />],
-            [t('Billing cycle'), cycleLabel(s.billingCycle)],
+            [
+              t('Billing cycle'),
+              <>
+                {cycleLabel(s.billingCycle)}
+                {cycleChange && <div className="muted">{cycleChange}</div>}
+              </>,
+            ],
             [
               t('Price'),
               `${formatMoney(s.priceCents, s.currency)} ${perCycle(s.billingCycle)} ${t('(without VAT)')}`,
@@ -117,11 +131,15 @@ export function SubscriptionPage() {
           ];
           if (s.status === 'TRIAL') items.push([t('Trial ends'), formatDate(s.trialEndsAt)]);
           else if (!ended) {
-            items.push([t('Current period'), periodText(s.currentPeriodStart, s.currentPeriodEnd)]);
-            items.push([
-              s.cancelAtPeriodEnd ? t('Ends on') : t('Renews on'),
-              formatDate(s.currentPeriodEnd),
-            ]);
+            // A suspended subscription does not renew: a new period starts when it is lifted.
+            if (s.status !== 'SUSPENDED' || new Date(s.currentPeriodEnd).getTime() > Date.now()) {
+              items.push([
+                t('Current period'),
+                periodText(s.currentPeriodStart, s.currentPeriodEnd),
+              ]);
+            }
+            const endLine = periodEndLine(s);
+            if (endLine) items.push(endLine);
           } else items.push([t('Ended on'), formatDate(s.cancelledAt)]);
           return (
             <div className="stack">

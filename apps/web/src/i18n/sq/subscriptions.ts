@@ -132,8 +132,6 @@ export const subscriptions: Record<string, string> = {
   'Record payment': 'Regjistro pagesën',
   Renews: 'Rinovohet',
   'Renews on': 'Rinovohet më',
-  'Running subscriptions keep their agreed price; a new price applies to new subscriptions and plan changes.':
-    'Abonimet në fuqi e mbajnë çmimin e dakorduar; çmimi i ri vlen për abonimet e reja dhe ndryshimet e planit.',
   'Seats agreed for this facility instead of the plan’s limit.':
     'Vende të dakorduara për këtë institucion në vend të kufirit të planit.',
   'Service period': 'Periudha e shërbimit',
@@ -159,8 +157,6 @@ export const subscriptions: Record<string, string> = {
   Subscriptions: 'Abonimet',
   'Suspend subscription': 'Pezullo abonimin',
   'Suspended since': 'Pezulluar që nga',
-  'The change takes effect now; the current invoice stays as issued and the next one uses the new terms.':
-    'Ndryshimi hyn në fuqi tani; fatura aktuale mbetet siç u lëshua dhe e radhës përdor kushtet e reja.',
   'The director receives an activation link and then invites the facility’s staff.':
     'Drejtori merr një lidhje aktivizimi dhe pastaj fton stafin e institucionit.',
   'The overdue invoices were settled': 'Faturat me afat të kaluar u shlyen',
@@ -189,10 +185,6 @@ export const subscriptions: Record<string, string> = {
   'Voided on {date}': 'Anuluar më {date}',
   'Voided|invoice': 'E anuluar',
   'Void|invoice action': 'Anulo',
-  'When nothing else is overdue, a subscription with an overdue payment or a suspension is active again.':
-    'Kur nuk ka më asgjë me afat të kaluar, abonimi me pagesë të vonuar ose i pezulluar bëhet sërish aktiv.',
-  'With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice.':
-    'Nëse ka ende fatura me afat të kaluar, abonimi shfaqet sërish me pagesë të vonuar, me një afat të ri shtesë. Periudha që përfundoi ndërkohë rifillon sot, me faturën e saj.',
   'Withdraw the cancellation': 'Tërhiq anulimin',
   'Without a subscription': 'Pa abonim',
   'Without a trial the subscription is active now and its first invoice is issued at once.':
@@ -296,4 +288,51 @@ export const subscriptions: Record<string, string> = {
   'per month': 'në muaj',
   'per year': 'në vit',
   '{count} open|invoice': '{count} e hapur',
+  'Changes to yearly on {date}: {price} per year':
+    'Kalon në faturim vjetor më {date}: {price} në vit',
+  'Changes to monthly on {date}: {price} per month':
+    'Kalon në faturim mujor më {date}: {price} në muaj',
+  'An invoice remained unpaid after the grace period; paying it lifts the suspension.':
+    'Një faturë mbeti e papaguar pas afatit shtesë; pagesa e saj e heq pezullimin.',
+  'Suspended by an administrator; only reactivating lifts it.':
+    'Pezulluar nga një administrator; hiqet vetëm me riaktivizim.',
+  'Suspended by the service operator.': 'Pezulluar nga operatori i shërbimit.',
+  'No invoice is overdue any more after a voided invoice':
+    'Pas anulimit të një fature nuk ka më fatura me afat të kaluar',
+  'The scheduled change to {cycle} was withdrawn': 'Ndryshimi i planifikuar në {cycle} u tërhoq',
+  'from the renewal on {date}': 'nga rinovimi më {date}',
+  'Cause of the suspension': 'Shkaku i pezullimit',
+  'Next period': 'Periudha e radhës',
+  'Starts when the suspension is lifted, with its invoice':
+    'Fillon kur hiqet pezullimi, me faturën e saj',
+  'To start the paid subscription instead, withdraw the cancellation first.':
+    'Për të filluar në vend të kësaj abonimin me pagesë, së pari tërhiqni anulimin.',
+  'A trial that has not ended is a trial again. With invoices still overdue, the subscription shows the overdue payment again with a new grace period. A period that ended meanwhile starts again today, with its invoice – unless a cancellation was scheduled for its end: then the subscription ends as scheduled.':
+    'Periudha provuese që nuk ka përfunduar bëhet sërish periudhë provuese. Nëse ka ende fatura me afat të kaluar, abonimi shfaqet sërish me pagesë të vonuar, me një afat të ri shtesë. Periudha që përfundoi ndërkohë rifillon sot, me faturën e saj – përveç nëse ishte planifikuar anulimi në fund të saj: atëherë abonimi përfundon siç ishte planifikuar.',
+  'Running subscriptions keep their agreed price and number of staff accounts; a new price or limit applies to new subscriptions and plan changes.':
+    'Abonimet në fuqi e mbajnë çmimin dhe numrin e llogarive të stafit të dakorduar; çmimi ose kufiri i ri vlen për abonimet e reja dhe ndryshimet e planit.',
+  'No charge': 'Pa pagesë',
+  'When nothing else is overdue, a subscription with an overdue payment or suspended for non-payment is active again. A suspension by an administrator is lifted only by reactivating the subscription.':
+    'Kur nuk ka më asgjë me afat të kaluar, abonimi me pagesë të vonuar ose i pezulluar për mospagesë bëhet sërish aktiv. Pezullimi nga një administrator hiqet vetëm duke e riaktivizuar abonimin.',
+  'Plan, seats and price take effect now; the current invoice stays as issued and the next one uses the new terms.':
+    'Plani, vendet dhe çmimi hyjnë në fuqi tani; fatura aktuale mbetet siç u lëshua dhe e radhës përdor kushtet e reja.',
+  'The new billing cycle starts with the next period, on {date}; the current period keeps its cycle and price. Choose the current cycle again to withdraw it.':
+    'Cikli i ri i faturimit fillon me periudhën e radhës, më {date}; periudha aktuale e mban ciklin dhe çmimin e saj. Zgjidhni sërish ciklin aktual për ta tërhequr.',
+  'The invoice of the current period, {number}, stays open.':
+    'Fatura e periudhës aktuale, {number}, mbetet e hapur.',
+  'Cancelling now does not void it: record its payment, or void it if the facility owes nothing for this period.':
+    'Anulimi i abonimit tani nuk e anulon faturën: regjistroni pagesën e saj ose anulojeni nëse institucioni nuk detyrohet asgjë për këtë periudhë.',
+  'A new subscription can be started for this facility only when none of its invoices is open.':
+    'Një abonim i ri për këtë institucion mund të fillojë vetëm kur asnjë nga faturat e tij nuk është e hapur.',
+  'Suspended since {date}.': 'Pezulluar që nga {date}.',
+  'Invoices of the earlier subscription are still open. Record their payment or void them before starting a new subscription.':
+    'Faturat e abonimit të mëparshëm janë ende të hapura. Regjistroni pagesën e tyre ose anulojini para se të filloni një abonim të ri.',
+  'A cancellation is scheduled for the end of the trial. Withdraw the cancellation first.':
+    'Është planifikuar anulimi në fund të periudhës provuese. Së pari tërhiqni anulimin.',
+  'The current period does not match the billing cycle, so it cannot be invoiced at the price per cycle. The next period is invoiced as usual.':
+    'Periudha aktuale nuk përputhet me ciklin e faturimit, prandaj nuk mund të faturohet me çmimin për cikël. Periudha e radhës faturohet si zakonisht.',
+  'Changes to yearly with the next period: {price} per year':
+    'Kalon në faturim vjetor me periudhën e radhës: {price} në vit',
+  'Changes to monthly with the next period: {price} per month':
+    'Kalon në faturim mujor me periudhën e radhës: {price} në muaj',
 };

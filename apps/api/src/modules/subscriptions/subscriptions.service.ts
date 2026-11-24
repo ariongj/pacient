@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm';
 import { isTest } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import {
@@ -37,6 +37,7 @@ export type Invoice = typeof invoices.$inferSelect;
 type Actor = Pick<AuthContext, 'userId' | 'role' | 'facilityId'> | null;
 
 const TZ = 'Europe/Belgrade';
+const HOUR = 3_600_000;
 const DAY = 86_400_000;
 /** Reminders before the end of a trial or a period. */
 const REMINDER_DAYS = 7;
@@ -46,25 +47,122 @@ const DIRECTOR_LINK = '/director/subscription';
 
 /* ------------------------------------------------------------------ periods and money -------- */
 
-/** Start + one billing cycle, keeping the day of the month (31 Jan + 1 month = 28/29 Feb). */
-export function addCycle(start: Date, cycle: BillingCycle): Date {
-  const months = cycle === 'YEARLY' ? 12 : 1;
-  const target = new Date(
-    Date.UTC(
-      start.getUTCFullYear(),
-      start.getUTCMonth() + months,
-      1,
-      start.getUTCHours(),
-      start.getUTCMinutes(),
-      start.getUTCSeconds(),
-      start.getUTCMilliseconds(),
-    ),
-  );
-  const lastDay = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  target.setUTCDate(Math.min(start.getUTCDate(), lastDay));
-  return target;
+/*
+ * Periods, due dates and years follow the calendar in Kosovo (Europe/Belgrade), not UTC: a period
+ * that starts on the 31st at 00:30 local time starts on the 30th in UTC, and a day is 23 or 25
+ * hours long when the clocks change.
+ */
+const partsFormat = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  second: 'numeric',
+});
+
+/** Wall-clock date and time of an instant in Kosovo (month 1–12). */
+function localParts(at: Date) {
+  const p = Object.fromEntries(partsFormat.formatToParts(at).map((x) => [x.type, x.value]));
+  return {
+    y: Number(p.year),
+    m: Number(p.month),
+    d: Number(p.day),
+    h: Number(p.hour) % 24,
+    mi: Number(p.minute),
+    s: Number(p.second),
+    ms: at.getUTCMilliseconds(),
+  };
+}
+
+/** Offset of Kosovo time from UTC at an instant, in milliseconds (CET +1 h, CEST +2 h). */
+function offsetAt(at: Date) {
+  const p = localParts(at);
+  return Date.UTC(p.y, p.m - 1, p.d, p.h, p.mi, p.s, p.ms) - at.getTime();
+}
+
+/**
+ * The instant of a wall-clock time in Kosovo. Month and day may overflow (day 0 is the last day of
+ * the month before). A time skipped when the clocks go forward falls just after the gap; a time
+ * that occurs twice when they go back is the first one.
+ */
+export function localInstant(y: number, month: number, day: number, h = 0, mi = 0, s = 0, ms = 0) {
+  const wall = Date.UTC(y, month - 1, day, h, mi, s, ms);
+  const before = offsetAt(new Date(wall - 12 * HOUR));
+  const after = offsetAt(new Date(wall + 12 * HOUR));
+  const fits = [wall - before, wall - after].filter((t) => offsetAt(new Date(t)) === wall - t);
+  return new Date(fits.length ? Math.min(...fits) : wall - before);
+}
+
+/**
+ * `months` calendar months after `from` (before, when negative) in Kosovo time, on the anchor's
+ * day of the month – clamped to the month's last day – and at the anchor's time of day.
+ */
+export function addMonths(from: Date, months: number, anchor: Date = from): Date {
+  const f = localParts(from);
+  const a = localParts(anchor);
+  const first = new Date(Date.UTC(f.y, f.m - 1 + months, 1));
+  const y = first.getUTCFullYear();
+  const m = first.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return localInstant(y, m, Math.min(a.d, lastDay), a.h, a.mi, a.s, a.ms);
+}
+
+/**
+ * End of a billing period that starts at `start`: one or twelve months on, on the day of the month
+ * and at the time of day of the billing anchor (the start of the first period of the run). Chaining
+ * renewals from the anchor rather than from the previous end keeps the billing day after a short
+ * month: 31 Jan → 28 Feb → 31 Mar, not → 28 Mar.
+ */
+export function addCycle(start: Date, cycle: BillingCycle, anchor: Date = start): Date {
+  return addMonths(start, cycle === 'YEARLY' ? 12 : 1, anchor);
+}
+
+/** `days` calendar days after `from` in Kosovo time, at the same time of day (a trial). */
+export function addLocalDays(from: Date, days: number): Date {
+  const f = localParts(from);
+  return localInstant(f.y, f.m, f.d + days, f.h, f.mi, f.s, f.ms);
+}
+
+/**
+ * Due date of an invoice issued at `issuedAt`: the last moment of the day `termsDays` days later in
+ * Kosovo (0 = the issue day). The invoice shows that date, and is overdue only once it has fully
+ * passed – never on the day the customer was told to pay by.
+ */
+export function invoiceDueAt(issuedAt: Date, termsDays: number): Date {
+  const p = localParts(issuedAt);
+  return new Date(localInstant(p.y, p.m, p.d + termsDays + 1).getTime() - 1);
+}
+
+/**
+ * The last day of a period: the Kosovo calendar day before the one it ends on (the next period
+ * starts that day), as its midday – never "end − 24 h", which is the wrong day across a change of
+ * the clocks or for a period that ends shortly after midnight.
+ */
+export function lastDayOf(end: Date): Date {
+  const p = localParts(end);
+  return localInstant(p.y, p.m, p.d - 1, 12);
+}
+
+/** Start of the calendar year of an instant in Kosovo (1 January, 00:00 local time). */
+export const yearStartOf = (at: Date) => localInstant(yearOf(at), 1, 1);
+
+/** The current period is (still) the free trial: it is never invoiced. */
+export const inTrialWindow = (s: Pick<Subscription, 'trialEndsAt' | 'currentPeriodEnd'>) =>
+  s.trialEndsAt !== null && s.currentPeriodEnd.getTime() <= s.trialEndsAt.getTime();
+
+/**
+ * The current period is as long as one cycle of the subscription's billing cycle (28–31 days or a
+ * year, with an hour either way for a change of the clocks), so an invoice for it at the price per
+ * cycle is right. Periods started before billing-cycle changes waited for the renewal may not be.
+ */
+export function periodMatchesCycle(
+  s: Pick<Subscription, 'billingCycle' | 'currentPeriodStart' | 'currentPeriodEnd'>,
+) {
+  const days = (s.currentPeriodEnd.getTime() - s.currentPeriodStart.getTime()) / DAY;
+  return s.billingCycle === 'YEARLY' ? days > 364.9 && days < 366.1 : days > 27.9 && days < 31.1;
 }
 
 /** Price per cycle of a plan. */
@@ -81,10 +179,60 @@ const dayFormat = new Intl.DateTimeFormat('en-GB', {
   month: '2-digit',
   year: 'numeric',
 });
-/** "01.12.2026" in Kosovo time (end dates are exclusive: the last day is shown). */
+/** "01.12.2026" in Kosovo time. */
 const dayOf = (d: Date) => dayFormat.format(d).replace(/\//g, '.');
 const yearOf = (d: Date) =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, year: 'numeric' }).format(d));
+
+/** "Clinic plan, monthly: 01.12.2026 – 31.12.2026" (end dates are exclusive: the last day is shown). */
+export const invoiceDescription = (
+  planName: string,
+  cycle: BillingCycle,
+  period: { start: Date; end: Date },
+) =>
+  `${planName} plan, ${cycle === 'YEARLY' ? 'yearly' : 'monthly'}: ${dayOf(period.start)} – ${dayOf(lastDayOf(period.end))}`;
+
+/**
+ * The fields of a new period starting at `start`. A change of billing cycle scheduled for it takes
+ * effect, with its price. A renewal keeps the billing anchor; a period started afresh (the end of a
+ * trial, an activation, a reactivation after the period ended) anchors on its own start.
+ */
+export function periodFrom(s: Subscription, start: Date, opts: { renewal: boolean }) {
+  const cycle = s.nextBillingCycle ?? s.billingCycle;
+  const anchor = opts.renewal ? (s.billingAnchor ?? s.currentPeriodStart) : start;
+  return {
+    billingCycle: cycle,
+    priceCents: s.nextBillingCycle ? (s.nextPriceCents ?? s.priceCents) : s.priceCents,
+    nextBillingCycle: null,
+    nextPriceCents: null,
+    billingAnchor: anchor,
+    currentPeriodStart: start,
+    currentPeriodEnd: addCycle(start, cycle, anchor),
+  };
+}
+
+/** History entry when a new period took up a scheduled change of billing cycle. */
+export async function recordScheduledCycle(
+  executor: Executor,
+  before: Subscription,
+  after: Subscription,
+  at: Date,
+) {
+  if (!before.nextBillingCycle) return;
+  await recordEvent(executor, {
+    subscription: after,
+    type: 'CYCLE_CHANGED',
+    actor: null,
+    data: {
+      from: before.billingCycle,
+      to: after.billingCycle,
+      priceCents: after.priceCents,
+      currency: after.currency,
+      applied: true,
+    },
+    at,
+  });
+}
 
 /* ------------------------------------------------------------------ settings and seats ------- */
 
@@ -121,9 +269,13 @@ export async function seatsUsed(facilityId: string, executor: Executor = db): Pr
   return row?.n ?? 0;
 }
 
-/** Seats available to a subscription: purchased seats, else the plan's limit; null = unlimited. */
-export const seatLimitOf = (s: Pick<Subscription, 'seats'>, plan: Pick<Plan, 'seatLimit'>) =>
-  s.seats ?? plan.seatLimit;
+/**
+ * Seats available to a subscription: purchased seats, else the plan's limit as it was when the
+ * subscription started or changed plan (a later edit of the plan does not change it); null =
+ * unlimited.
+ */
+export const seatLimitOf = (s: Pick<Subscription, 'seats' | 'planSeatLimit'>) =>
+  s.seats ?? s.planSeatLimit;
 
 /**
  * Refuses a NEW staff account when the facility's subscription is suspended, cancelled or expired,
@@ -142,18 +294,17 @@ export async function assertSeatAvailable(
 ): Promise<void> {
   if (opts.reactivation?.role === 'DIRECTOR') return;
   await executor.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`seats:${facilityId}`}))`);
-  const [row] = await executor
-    .select({ subscription: subscriptions, plan: subscriptionPlans })
+  const [subscription] = await executor
+    .select()
     .from(subscriptions)
-    .innerJoin(subscriptionPlans, eq(subscriptionPlans.id, subscriptions.planId))
     .where(eq(subscriptions.facilityId, facilityId));
-  if (!row) return;
-  if (!opts.reactivation && CLOSED_STATUSES.includes(row.subscription.status)) {
+  if (!subscription) return;
+  if (!opts.reactivation && CLOSED_STATUSES.includes(subscription.status)) {
     throw conflict(
       'The facility’s subscription is suspended or has ended, so new staff accounts cannot be added. Existing accounts keep working. Contact the service operator.',
     );
   }
-  const limit = seatLimitOf(row.subscription, row.plan);
+  const limit = seatLimitOf(subscription);
   if (limit === null) return;
   if ((await seatsUsed(facilityId, executor)) >= limit) {
     throw conflict(
@@ -242,23 +393,28 @@ export async function directorsOf(facilityId: string, executor: Executor = db) {
   return rows.map((r) => r.id);
 }
 
+/** Tells the facility's active directors; returns how many were told (0: it has none yet). */
 export async function notifyDirectors(
   executor: Executor,
   facilityId: string,
   title: string,
   vars?: Record<string, string | number | Date>,
   important = false,
-) {
+): Promise<number> {
   const ids = await directorsOf(facilityId, executor);
-  if (!ids.length) return;
+  if (!ids.length) return 0;
   await notifyUsers(
     ids,
     { type: 'subscription', title, vars, link: DIRECTOR_LINK, important },
     executor,
   );
+  return ids.length;
 }
 
 /* ------------------------------------------------------------------ invoices ----------------- */
+
+/** Payment reference of an invoice with nothing to pay (issued as paid). */
+export const NO_CHARGE = 'No charge';
 
 /** Next invoice number of the year: the counter row stays locked until the transaction ends. */
 export async function nextInvoiceNumber(executor: Executor, prefix: string, at: Date) {
@@ -296,9 +452,8 @@ export async function issueInvoice(
   const number = await nextInvoiceNumber(executor, settings.invoicePrefix, now);
   const netCents = subscription.priceCents;
   const taxCents = Math.round((netCents * settings.vatRateBp) / 10_000);
-  const cycleWord = subscription.billingCycle === 'YEARLY' ? 'yearly' : 'monthly';
-  // The period ends when the next one starts; its last day is the day before.
-  const lastDay = new Date(period.end.getTime() - DAY);
+  // Nothing to pay (a free plan or price): issued as paid, so it never becomes overdue.
+  const free = netCents + taxCents === 0;
   const [invoice] = await executor
     .insert(invoices)
     .values({
@@ -307,15 +462,16 @@ export async function issueInvoice(
       subscriptionId: subscription.id,
       periodStart: period.start,
       periodEnd: period.end,
-      description: `${plan.name} plan, ${cycleWord}: ${dayOf(period.start)} – ${dayOf(lastDay)}`,
+      description: invoiceDescription(plan.name, subscription.billingCycle, period),
       netCents,
       taxRateBp: settings.vatRateBp,
       taxCents,
       totalCents: netCents + taxCents,
       currency: subscription.currency,
-      status: 'OPEN',
+      status: free ? 'PAID' : 'OPEN',
+      ...(free ? { paidAt: now, paymentMethod: 'OTHER', paymentReference: NO_CHARGE } : {}),
       issuedAt: now,
-      dueAt: new Date(now.getTime() + settings.paymentTermsDays * DAY),
+      dueAt: invoiceDueAt(now, settings.paymentTermsDays),
       issuer: {
         name: settings.operatorName || null,
         address: settings.operatorAddress || null,
@@ -376,65 +532,164 @@ export async function issueInvoice(
   return invoice!;
 }
 
-/** Open invoices of a subscription whose due date has passed. */
+/**
+ * An open invoice is overdue once its due date (the end of that day in Kosovo) has passed. An
+ * invoice with nothing to pay never is.
+ */
+export const overdueWhere = (now: Date) =>
+  and(eq(invoices.status, 'OPEN'), gt(invoices.totalCents, 0), lt(invoices.dueAt, now))!;
+
+export const isOverdue = (inv: Pick<Invoice, 'status' | 'totalCents' | 'dueAt'>, now: Date) =>
+  inv.status === 'OPEN' && inv.totalCents > 0 && inv.dueAt < now;
+
+/** Open invoices of a subscription whose due date has passed, oldest due date first. */
 export async function overdueInvoices(executor: Executor, subscriptionId: string, now: Date) {
   return executor
     .select()
     .from(invoices)
-    .where(
-      and(
-        eq(invoices.subscriptionId, subscriptionId),
-        eq(invoices.status, 'OPEN'),
-        lte(invoices.dueAt, now),
-      ),
-    )
+    .where(and(eq(invoices.subscriptionId, subscriptionId), overdueWhere(now)))
     .orderBy(asc(invoices.dueAt));
 }
 
+/** The later of two dates (null counts as "none"). */
+const laterOf = (a: Date | null, b: Date) => (a && a > b ? a : b);
+
+/** A cancellation scheduled for the end of the period (or of the trial) whose date has come. */
+export const cancellationDue = (
+  s: Pick<Subscription, 'cancelAtPeriodEnd' | 'currentPeriodEnd'>,
+  now: Date,
+) => s.cancelAtPeriodEnd && s.currentPeriodEnd <= now;
+
 /**
- * After a payment or a void: a past-due or suspended subscription with nothing overdue any more is
- * active again. A suspended one whose period ended starts a new period now (no back-billing).
+ * Ends a subscription (status CANCELLED) at `at`: no new period and no invoice. Open invoices stay
+ * open – they are still owed. Writes the history entry (and the audit entry for an administrator's
+ * action) and tells the directors.
+ */
+export async function endSubscription(
+  executor: Executor,
+  s: Subscription,
+  opts: {
+    at: Date;
+    actor: Actor;
+    meta?: RequestMeta;
+    now?: Date;
+    reason?: string;
+    note?: string | null;
+  },
+) {
+  const [updated] = await executor
+    .update(subscriptions)
+    .set({
+      status: 'CANCELLED',
+      cancelledAt: opts.at,
+      cancelAtPeriodEnd: false,
+      nextBillingCycle: null,
+      nextPriceCents: null,
+      pastDueSince: null,
+      suspendedAt: null,
+      suspensionCause: null,
+    })
+    .where(eq(subscriptions.id, s.id))
+    .returning();
+  await recordEvent(executor, {
+    subscription: s,
+    type: 'CANCELLED',
+    actor: opts.actor,
+    fromStatus: s.status,
+    toStatus: 'CANCELLED',
+    data: opts.reason ? { reason: opts.reason } : {},
+    note: opts.note ?? null,
+    at: opts.now,
+  });
+  if (opts.actor) {
+    await auditChange(
+      executor,
+      opts.actor,
+      s,
+      { event: 'CANCELLED', reason: opts.note ?? opts.reason ?? null },
+      opts.meta,
+    );
+  }
+  await notifyDirectors(executor, s.facilityId, 'Your facility’s subscription has ended');
+  return updated!;
+}
+
+/** A scheduled cancellation takes effect: the subscription ends with its period, as agreed. */
+export const endAsScheduled = (
+  executor: Executor,
+  s: Subscription,
+  opts: { actor: Actor; meta?: RequestMeta; now: Date },
+) =>
+  endSubscription(executor, s, {
+    ...opts,
+    at: s.currentPeriodEnd,
+    reason: 'cancelled at the end of the period',
+  });
+
+/**
+ * After a payment or a void (`reason`), for a past-due subscription or one suspended for
+ * non-payment:
+ *  - a cancellation scheduled for a date that has passed takes effect (no new period, no invoice);
+ *  - with nothing overdue any more it is active again. A suspended one whose period ended starts a
+ *    new period now, with its invoice (no back-billing); a past-due one keeps its period and the
+ *    subscription worker renews it where it ended;
+ *  - with invoices still overdue the grace period counts from the oldest of them (or from a fresh
+ *    grace period an administrator gave on reactivating, if later), and a suspended subscription
+ *    whose grace period is then not over is back to "payment overdue".
+ * A suspension by an administrator is lifted only by reactivating it.
  */
 export async function restoreStanding(
   executor: Executor,
   subscription: Subscription,
-  opts: { actor: Actor; meta?: RequestMeta; now?: Date },
+  opts: { actor: Actor; meta?: RequestMeta; now?: Date; reason: 'paid' | 'voided' },
 ) {
   const now = opts.now ?? new Date();
-  if (subscription.status !== 'PAST_DUE' && subscription.status !== 'SUSPENDED') return;
-  if ((await overdueInvoices(executor, subscription.id, now)).length) return;
-  const newPeriod = subscription.currentPeriodEnd <= now;
+  const s = subscription;
+  if (s.status !== 'PAST_DUE' && s.status !== 'SUSPENDED') return;
+  if (cancellationDue(s, now)) {
+    await endAsScheduled(executor, s, { actor: opts.actor, meta: opts.meta, now });
+    return;
+  }
+  if (s.status === 'SUSPENDED' && s.suspensionCause === 'MANUAL') return;
+  const overdue = await overdueInvoices(executor, s.id, now);
+  const since = overdue.length ? laterOf(s.pastDueSince, overdue[0]!.dueAt) : null;
+  const settings = await settingsOf(executor);
+  const graceOver = since !== null && since.getTime() + settings.graceDays * DAY <= now.getTime();
+  if ((s.status === 'PAST_DUE' && since) || (s.status === 'SUSPENDED' && graceOver)) {
+    if (since!.getTime() !== s.pastDueSince?.getTime()) {
+      await executor
+        .update(subscriptions)
+        .set({ pastDueSince: since })
+        .where(eq(subscriptions.id, s.id));
+    }
+    return;
+  }
+  const status = since ? 'PAST_DUE' : 'ACTIVE';
+  const newPeriod = s.status === 'SUSPENDED' && s.currentPeriodEnd <= now;
   const [updated] = await executor
     .update(subscriptions)
     .set({
-      status: 'ACTIVE',
-      pastDueSince: null,
+      status,
+      pastDueSince: since,
       suspendedAt: null,
-      ...(newPeriod
-        ? {
-            currentPeriodStart: now,
-            currentPeriodEnd: addCycle(now, subscription.billingCycle),
-          }
-        : {}),
+      suspensionCause: null,
+      ...(newPeriod ? periodFrom(s, now, { renewal: false }) : {}),
     })
-    .where(eq(subscriptions.id, subscription.id))
+    .where(eq(subscriptions.id, s.id))
     .returning();
   await recordEvent(executor, {
-    subscription,
+    subscription: s,
     type: 'REACTIVATED',
     actor: opts.actor,
-    fromStatus: subscription.status,
-    toStatus: 'ACTIVE',
-    data: { reason: 'paid' },
+    fromStatus: s.status,
+    toStatus: status,
+    data: { reason: opts.reason },
     at: now,
   });
-  await auditChange(executor, opts.actor, subscription, { event: 'REACTIVATED' }, opts.meta);
-  await notifyDirectors(
-    executor,
-    subscription.facilityId,
-    'Your facility’s subscription is active again',
-  );
+  await auditChange(executor, opts.actor, s, { event: 'REACTIVATED', status }, opts.meta);
+  await notifyDirectors(executor, s.facilityId, 'Your facility’s subscription is active again');
   if (newPeriod) {
+    await recordScheduledCycle(executor, s, updated!, now);
     await issueInvoice(
       executor,
       updated!,
@@ -461,7 +716,11 @@ async function reminderSent(executor: Executor, subscriptionId: string, key: str
   return Boolean(row);
 }
 
-/** Sends a reminder to the facility's directors once per key (REMINDER_SENT in the history). */
+/**
+ * Sends a reminder to the facility's directors once per key (REMINDER_SENT in the history). A
+ * reminder that reached no one – the facility has no active director yet – is not recorded, so a
+ * later run sends it once there is one.
+ */
 async function remindOnce(
   executor: Executor,
   subscription: Subscription,
@@ -472,7 +731,9 @@ async function remindOnce(
   important = false,
 ) {
   if (await reminderSent(executor, subscription.id, key)) return false;
-  await notifyDirectors(executor, subscription.facilityId, title, vars, important);
+  if (!(await notifyDirectors(executor, subscription.facilityId, title, vars, important))) {
+    return false;
+  }
   await recordEvent(executor, {
     subscription,
     type: 'REMINDER_SENT',
@@ -527,62 +788,46 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
     // 1. End of a trial: the subscription starts (first invoice), unless it was cancelled.
     if (s.status === 'TRIAL' && s.trialEndsAt && s.trialEndsAt <= now) {
       if (s.cancelAtPeriodEnd) {
-        await update({ status: 'CANCELLED', cancelledAt: s.trialEndsAt, cancelAtPeriodEnd: false });
-        await event('CANCELLED', {
-          fromStatus: 'TRIAL',
-          toStatus: 'CANCELLED',
-          data: { reason: 'trial ended with a scheduled cancellation' },
+        await endSubscription(tx, s, {
+          at: s.trialEndsAt,
+          actor: null,
+          now,
+          reason: 'trial ended with a scheduled cancellation',
         });
-        await notifyDirectors(tx, s.facilityId, 'Your facility’s subscription has ended');
         result.cancelled++;
         return;
       }
-      const start = s.trialEndsAt;
-      await update({
-        status: 'ACTIVE',
-        currentPeriodStart: start,
-        currentPeriodEnd: addCycle(start, s.billingCycle),
-      });
+      const before = s;
+      await update({ status: 'ACTIVE', ...periodFrom(s, s.trialEndsAt, { renewal: false }) });
       await event('ACTIVATED', {
         fromStatus: 'TRIAL',
         toStatus: 'ACTIVE',
         data: { reason: 'trial ended' },
       });
+      await recordScheduledCycle(tx, before, s, now);
       await issueInvoice(tx, s, { start: s.currentPeriodStart, end: s.currentPeriodEnd }, system);
       result.activated++;
     }
 
-    // 2. End of a period: renew (next invoice) or end a scheduled cancellation.
+    // 2. End of a period: end a scheduled cancellation – also while suspended: a cancellation
+    //    survives a suspension – or renew where the period ended (next invoice).
+    if (s.status !== 'TRIAL' && cancellationDue(s, now)) {
+      await endAsScheduled(tx, s, { actor: null, now });
+      result.cancelled++;
+      return;
+    }
     let renewals = 0;
     while (
       (s.status === 'ACTIVE' || s.status === 'PAST_DUE') &&
       s.currentPeriodEnd <= now &&
       renewals < MAX_RENEWALS_PER_RUN
     ) {
-      if (s.cancelAtPeriodEnd) {
-        const from = s.status;
-        await update({
-          status: 'CANCELLED',
-          cancelledAt: s.currentPeriodEnd,
-          cancelAtPeriodEnd: false,
-        });
-        await event('CANCELLED', {
-          fromStatus: from,
-          toStatus: 'CANCELLED',
-          data: { reason: 'cancelled at the end of the period' },
-        });
-        await notifyDirectors(tx, s.facilityId, 'Your facility’s subscription has ended');
-        result.cancelled++;
-        return;
-      }
-      const start = s.currentPeriodEnd;
-      await update({
-        currentPeriodStart: start,
-        currentPeriodEnd: addCycle(start, s.billingCycle),
-      });
+      const before = s;
+      await update(periodFrom(s, s.currentPeriodEnd, { renewal: true }));
       await event('RENEWED', {
         data: { periodStart: s.currentPeriodStart, periodEnd: s.currentPeriodEnd },
       });
+      await recordScheduledCycle(tx, before, s, now);
       await issueInvoice(tx, s, { start: s.currentPeriodStart, end: s.currentPeriodEnd }, system);
       result.renewed++;
       renewals++;
@@ -592,61 +837,71 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
     if (s.status === 'ACTIVE') {
       const overdue = await overdueInvoices(tx, s.id, now);
       if (overdue.length) {
-        const since = overdue[0]!.dueAt;
-        await update({ status: 'PAST_DUE', pastDueSince: since });
+        await update({ status: 'PAST_DUE', pastDueSince: overdue[0]!.dueAt });
         await event('MARKED_PAST_DUE', {
           fromStatus: 'ACTIVE',
           toStatus: 'PAST_DUE',
           data: { invoices: overdue.map((i) => i.number) },
         });
-        const key = `past-due:${since.toISOString()}`;
-        if (
-          await remindOnce(
-            tx,
-            s,
-            key,
-            'Your facility’s subscription has an overdue invoice',
-            {},
-            now,
-            true,
-          )
-        ) {
-          result.reminders++;
-        }
         result.pastDue++;
       }
     }
 
-    // 4. Past due for longer than the grace period: suspended (no new staff accounts; nothing else).
+    // 4. Past due for longer than the grace period: suspended for non-payment (no new staff
+    //    accounts; nothing else). A payment lifts it.
     if (
       s.status === 'PAST_DUE' &&
       s.pastDueSince &&
       s.pastDueSince.getTime() + settings.graceDays * DAY <= now.getTime()
     ) {
-      await update({ status: 'SUSPENDED', suspendedAt: now });
+      await update({ status: 'SUSPENDED', suspendedAt: now, suspensionCause: 'NON_PAYMENT' });
       await event('SUSPENDED', {
         fromStatus: 'PAST_DUE',
         toStatus: 'SUSPENDED',
-        data: { reason: 'unpaid after the grace period', graceDays: settings.graceDays },
+        data: {
+          reason: 'unpaid after the grace period',
+          cause: 'NON_PAYMENT',
+          graceDays: settings.graceDays,
+        },
       });
-      const key = `suspended:${now.toISOString()}`;
-      if (
-        await remindOnce(
-          tx,
-          s,
-          key,
-          'Your facility’s subscription is suspended – new staff accounts cannot be added',
-          {},
-          now,
-          true,
-        )
-      ) {
-        result.reminders++;
-      }
       result.suspended++;
     }
 
-    // 5. Reminders a week before the end of a trial or a renewal.
+    // 5. Notices of an overdue invoice and of a suspension for non-payment, once each – repeated
+    //    at a later run if no director could be told yet.
+    if (
+      s.status === 'PAST_DUE' &&
+      s.pastDueSince &&
+      (await remindOnce(
+        tx,
+        s,
+        `past-due:${s.pastDueSince.toISOString()}`,
+        'Your facility’s subscription has an overdue invoice',
+        {},
+        now,
+        true,
+      ))
+    ) {
+      result.reminders++;
+    }
+    if (
+      s.status === 'SUSPENDED' &&
+      s.suspensionCause === 'NON_PAYMENT' &&
+      s.suspendedAt &&
+      (await remindOnce(
+        tx,
+        s,
+        `suspended:${s.suspendedAt.toISOString()}`,
+        'Your facility’s subscription is suspended – new staff accounts cannot be added',
+        {},
+        now,
+        true,
+      ))
+    ) {
+      result.reminders++;
+    }
+
+    // 6. Reminders a week before the end of a trial or a renewal.
     const soon = now.getTime() + REMINDER_DAYS * DAY;
     if (
       s.status === 'TRIAL' &&
@@ -685,10 +940,11 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
 }
 
 /**
- * One pass of the subscription lifecycle: trial ends, renewals with their invoices, overdue
- * invoices (past due), the grace period (suspended), and reminders – each subscription in its own
- * transaction under an advisory lock, so several instances can run it at once. Idempotent: running
- * it again at the same `now` changes nothing and sends no reminder twice.
+ * One pass of the subscription lifecycle: trial ends, renewals with their invoices, scheduled
+ * cancellations (also of suspended subscriptions), overdue invoices (past due), the grace period
+ * (suspended), and reminders – each subscription in its own transaction under an advisory lock, so
+ * several instances can run it at once. Idempotent: running it again at the same `now` changes
+ * nothing and sends no reminder twice.
  */
 export async function runSubscriptionLifecycle(
   now = new Date(),
@@ -708,7 +964,7 @@ export async function runSubscriptionLifecycle(
     .from(subscriptions)
     .where(
       and(
-        inArray(subscriptions.status, ['TRIAL', 'ACTIVE', 'PAST_DUE']),
+        inArray(subscriptions.status, ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED']),
         opts.facilityIds ? inArray(subscriptions.facilityId, opts.facilityIds) : undefined,
       ),
     )
@@ -806,7 +1062,7 @@ export function presentInvoice(
   return {
     ...inv,
     facilityName: facilityName ?? (inv.customer.name as string | null) ?? null,
-    overdue: inv.status === 'OPEN' && inv.dueAt <= now,
+    overdue: isOverdue(inv, now),
     line:
       line && typeof line.planName === 'string'
         ? { planName: line.planName, cycle: line.cycle === 'YEARLY' ? 'YEARLY' : 'MONTHLY' }

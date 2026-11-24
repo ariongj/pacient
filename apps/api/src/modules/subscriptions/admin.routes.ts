@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import { and, asc, count, desc, eq, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { isProd } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
@@ -20,21 +20,32 @@ import { ensureDefaultChannels } from '../channels/channels.routes.js';
 import { FacilityInput } from '../facilities/facilities.routes.js';
 import {
   addCycle,
+  addLocalDays,
   assertSeatAvailable,
   auditChange,
+  cancellationDue,
+  endAsScheduled,
+  endSubscription,
   eventsOf,
+  inTrialWindow,
   invoiceLines,
   invoicesOf,
   issueInvoice,
   monthlyValueCents,
   notifyDirectors,
+  overdueInvoices,
+  overdueWhere,
+  periodFrom,
+  periodMatchesCycle,
   planPrice,
   presentInvoice,
   recordEvent,
+  recordScheduledCycle,
   restoreStanding,
   seatLimitOf,
   seatsUsed,
   settingsOf,
+  yearStartOf,
   type Plan,
   type Subscription,
 } from './subscriptions.service.js';
@@ -181,14 +192,18 @@ function subscriptionSummary(s: Subscription, plan: Plan) {
     status: s.status,
     billingCycle: s.billingCycle,
     priceCents: s.priceCents,
+    nextBillingCycle: s.nextBillingCycle,
+    nextPriceCents: s.nextPriceCents,
     currency: s.currency,
     seats: s.seats,
+    planSeatLimit: s.planSeatLimit,
     trialEndsAt: s.trialEndsAt,
     currentPeriodStart: s.currentPeriodStart,
     currentPeriodEnd: s.currentPeriodEnd,
     cancelAtPeriodEnd: s.cancelAtPeriodEnd,
     pastDueSince: s.pastDueSince,
     suspendedAt: s.suspendedAt,
+    suspensionCause: s.suspensionCause,
     cancelledAt: s.cancelledAt,
     notes: s.notes,
     createdAt: s.createdAt,
@@ -224,7 +239,7 @@ adminBillingRouter.get('/organizations', async (req, res) => {
       subscription: subscriptions,
       plan: subscriptionPlans,
       openInvoices: sql<number>`(SELECT count(*)::int FROM invoices i WHERE i.facility_id = ${facilities.id} AND i.status = 'OPEN')`,
-      overdueInvoices: sql<number>`(SELECT count(*)::int FROM invoices i WHERE i.facility_id = ${facilities.id} AND i.status = 'OPEN' AND i.due_at <= ${now})`,
+      overdueInvoices: sql<number>`(SELECT count(*)::int FROM invoices i WHERE i.facility_id = ${facilities.id} AND i.status = 'OPEN' AND i.total_cents > 0 AND i.due_at < ${now})`,
     })
     .from(facilities)
     .leftJoin(subscriptions, eq(subscriptions.facilityId, facilities.id))
@@ -236,7 +251,7 @@ adminBillingRouter.get('/organizations', async (req, res) => {
     facility: r.facility,
     subscription: r.subscription && r.plan ? subscriptionSummary(r.subscription, r.plan) : null,
     seatsUsed: seats.get(r.facility.id) ?? 0,
-    seatLimit: r.subscription && r.plan ? seatLimitOf(r.subscription, r.plan) : null,
+    seatLimit: r.subscription ? seatLimitOf(r.subscription) : null,
     openInvoices: r.openInvoices,
     overdueInvoices: r.overdueInvoices,
     monthlyValueCents:
@@ -288,7 +303,7 @@ async function organizationDetail(facilityId: string) {
     facility,
     subscription: row ? subscriptionSummary(row.subscription, row.plan) : null,
     seatsUsed: await seatsUsed(facilityId),
-    seatLimit: row ? seatLimitOf(row.subscription, row.plan) : null,
+    seatLimit: row ? seatLimitOf(row.subscription) : null,
     events: row ? await eventsOf(row.subscription.id) : [],
     invoices: await invoicesOf(facilityId),
     directors,
@@ -322,6 +337,11 @@ const StartInput = z.object({
 /**
  * Starts a facility's subscription (or restarts a cancelled or expired one): a trial for the number
  * of days in the operator settings, or an active subscription whose first invoice is issued now.
+ * The plan's seat limit is agreed with it: a later edit of the plan does not change it.
+ *
+ * A restart reuses the facility's subscription, so invoices of the earlier contract that are still
+ * open would count against the new one (overdue at once, suspended in the first run): they are
+ * settled – paid or voided – first.
  */
 async function startSubscription(
   tx: Executor,
@@ -341,9 +361,20 @@ async function startSubscription(
   if (existing && !['CANCELLED', 'EXPIRED'].includes(existing.status)) {
     throw conflict('This facility already has a subscription. Change its plan instead.');
   }
+  if (existing) {
+    const [open] = await tx
+      .select({ n: count() })
+      .from(invoices)
+      .where(and(eq(invoices.subscriptionId, existing.id), eq(invoices.status, 'OPEN')));
+    if (open && open.n > 0) {
+      throw conflict(
+        'Invoices of the earlier subscription are still open. Record their payment or void them before starting a new subscription.',
+      );
+    }
+  }
   const trial = input.trial && settings.trialDays > 0;
   const periodEnd = trial
-    ? new Date(now.getTime() + settings.trialDays * 86_400_000)
+    ? addLocalDays(now, settings.trialDays)
     : addCycle(now, input.billingCycle);
   const values = {
     facilityId,
@@ -351,14 +382,19 @@ async function startSubscription(
     status: trial ? ('TRIAL' as const) : ('ACTIVE' as const),
     billingCycle: input.billingCycle,
     priceCents: input.priceCents ?? planPrice(plan, input.billingCycle),
+    nextBillingCycle: null,
+    nextPriceCents: null,
     currency: plan.currency,
     seats: input.seats ?? null,
+    planSeatLimit: plan.seatLimit,
     trialEndsAt: trial ? periodEnd : null,
     currentPeriodStart: now,
     currentPeriodEnd: periodEnd,
+    billingAnchor: trial ? null : now,
     cancelAtPeriodEnd: false,
     pastDueSince: null,
     suspendedAt: null,
+    suspensionCause: null,
     cancelledAt: null,
     createdById: ctx.userId,
   };
@@ -466,7 +502,7 @@ adminBillingRouter.post('/organizations', async (req, res) => {
       },
       tx,
     );
-    if (input.subscription) await startSubscription(tx, ctx, f.id, input.subscription, meta);
+    // The director first, so the notice of the first invoice reaches them.
     let director: { id: string; email: string; activationUrl?: string } | null = null;
     if (input.director) {
       await assertSeatAvailable(f.id, tx);
@@ -492,6 +528,7 @@ adminBillingRouter.post('/organizations', async (req, res) => {
         activationUrl: invited.activationUrl,
       };
     }
+    if (input.subscription) await startSubscription(tx, ctx, f.id, input.subscription, meta);
     return { facilityId: f.id, director };
   });
   res.status(201).json({
@@ -544,6 +581,13 @@ const ChangeInput = z
     'Nothing to change',
   );
 
+/**
+ * Plan, seats and price change now (the next invoice uses them). A new billing cycle waits for
+ * the renewal: the running period was invoiced with its cycle and price and keeps them – also when
+ * its invoice is voided and issued again. It is stored as a scheduled change with the price per
+ * new cycle, and choosing the current cycle again withdraws it. A trial has no invoiced period, so
+ * its cycle changes at once.
+ */
 adminBillingRouter.post('/subscriptions/:id/change', async (req, res) => {
   const input = parse(ChangeInput, req.body);
   res.json(
@@ -553,15 +597,52 @@ adminBillingRouter.post('/subscriptions/:id/change', async (req, res) => {
       }
       const planChanged = input.planId !== undefined && input.planId !== s.planId;
       const plan = await loadPlan(tx, input.planId ?? s.planId, planChanged);
-      const cycle = input.billingCycle ?? s.billingCycle;
-      const cycleChanged = cycle !== s.billingCycle;
-      // A new plan or cycle takes the catalogue price unless a price was agreed.
-      const price =
-        input.priceCents ?? (planChanged || cycleChanged ? planPrice(plan, cycle) : s.priceCents);
+      // The cycle the subscription renews with (a change may already be scheduled).
+      const upcoming = s.nextBillingCycle ?? s.billingCycle;
+      const target = input.billingCycle ?? upcoming;
+      const trial = inTrialWindow(s);
+      const scheduled = !trial && target !== s.billingCycle;
+      // The price field is the price per the chosen cycle. A new plan or cycle takes the catalogue
+      // price unless a price was agreed.
+      let billingCycle = s.billingCycle;
+      let price = s.priceCents;
+      let nextBillingCycle: Subscription['nextBillingCycle'] = null;
+      let nextPriceCents: number | null = null;
+      if (scheduled) {
+        nextBillingCycle = target;
+        nextPriceCents =
+          input.priceCents ??
+          (planChanged || target !== upcoming || s.nextPriceCents === null
+            ? planPrice(plan, target)
+            : s.nextPriceCents);
+        if (planChanged) price = planPrice(plan, s.billingCycle);
+      } else {
+        billingCycle = target;
+        price =
+          input.priceCents ??
+          (planChanged || target !== s.billingCycle ? planPrice(plan, target) : s.priceCents);
+      }
       const seats = input.seats !== undefined ? input.seats : s.seats;
-      const set = { planId: plan.id, billingCycle: cycle, priceCents: price, seats };
+      // A new plan brings its seat limit; the one agreed with the old plan no longer applies.
+      const planSeatLimit = planChanged ? plan.seatLimit : s.planSeatLimit;
+      const set = {
+        planId: plan.id,
+        billingCycle,
+        priceCents: price,
+        nextBillingCycle,
+        nextPriceCents,
+        seats,
+        planSeatLimit,
+      };
       await tx.update(subscriptions).set(set).where(eq(subscriptions.id, s.id));
       const note = input.note ?? null;
+      // The note goes with the first history entry of the change.
+      let noted = false;
+      const once = () => {
+        const n = noted ? null : note;
+        noted = true;
+        return n;
+      };
       if (planChanged) {
         await recordEvent(tx, {
           subscription: s,
@@ -569,16 +650,36 @@ adminBillingRouter.post('/subscriptions/:id/change', async (req, res) => {
           actor: ctx,
           fromPlanId: s.planId,
           toPlanId: plan.id,
-          note,
+          note: once(),
         });
       }
-      if (cycleChanged) {
+      if (billingCycle !== s.billingCycle) {
         await recordEvent(tx, {
           subscription: s,
           type: 'CYCLE_CHANGED',
           actor: ctx,
-          data: { from: s.billingCycle, to: cycle },
-          note: planChanged ? null : note,
+          data: { from: s.billingCycle, to: billingCycle },
+          note: once(),
+        });
+      } else if (
+        nextBillingCycle !== s.nextBillingCycle ||
+        (nextBillingCycle && nextPriceCents !== s.nextPriceCents)
+      ) {
+        await recordEvent(tx, {
+          subscription: s,
+          type: 'CYCLE_CHANGED',
+          actor: ctx,
+          data: nextBillingCycle
+            ? {
+                from: s.billingCycle,
+                to: nextBillingCycle,
+                priceCents: nextPriceCents,
+                currency: s.currency,
+                effectiveAt: s.currentPeriodEnd,
+                scheduled: true,
+              }
+            : { from: s.nextBillingCycle, to: s.billingCycle, withdrawn: true },
+          note: once(),
         });
       }
       if (seats !== s.seats) {
@@ -587,7 +688,7 @@ adminBillingRouter.post('/subscriptions/:id/change', async (req, res) => {
           type: 'SEATS_CHANGED',
           actor: ctx,
           data: { from: s.seats, to: seats, used: await seatsUsed(s.facilityId, tx) },
-          note: planChanged || cycleChanged ? null : note,
+          note: once(),
         });
       }
       if (price !== s.priceCents) {
@@ -596,7 +697,7 @@ adminBillingRouter.post('/subscriptions/:id/change', async (req, res) => {
           type: 'PRICE_CHANGED',
           actor: ctx,
           data: { from: s.priceCents, to: price, currency: s.currency },
-          note: planChanged || cycleChanged || seats !== s.seats ? null : note,
+          note: once(),
         });
       }
       await auditChange(tx, ctx, s, { event: 'CHANGED', ...set }, meta);
@@ -611,16 +712,17 @@ adminBillingRouter.post('/subscriptions/:id/activate', async (req, res) => {
   res.json(
     await withSubscription(req, async (tx, s, ctx, meta) => {
       if (s.status !== 'TRIAL') throw conflict('Only a trial can be activated');
+      // The facility asked to leave after the trial: starting to bill it needs that withdrawn
+      // first, visibly in the history and told to the directors.
+      if (s.cancelAtPeriodEnd) {
+        throw conflict(
+          'A cancellation is scheduled for the end of the trial. Withdraw the cancellation first.',
+        );
+      }
       const now = new Date();
       const [updated] = await tx
         .update(subscriptions)
-        .set({
-          status: 'ACTIVE',
-          trialEndsAt: now,
-          cancelAtPeriodEnd: false,
-          currentPeriodStart: now,
-          currentPeriodEnd: addCycle(now, s.billingCycle),
-        })
+        .set({ status: 'ACTIVE', trialEndsAt: now, ...periodFrom(s, now, { renewal: false }) })
         .where(eq(subscriptions.id, s.id))
         .returning();
       await recordEvent(tx, {
@@ -651,9 +753,11 @@ adminBillingRouter.post('/subscriptions/:id/suspend', async (req, res) => {
       if (!['TRIAL', 'ACTIVE', 'PAST_DUE'].includes(s.status)) {
         throw conflict('Only a running subscription can be suspended');
       }
+      // Suspended by hand: a payment does not lift it, only reactivating does. A scheduled
+      // cancellation stays and still takes effect at the end of the period.
       await tx
         .update(subscriptions)
-        .set({ status: 'SUSPENDED', suspendedAt: new Date() })
+        .set({ status: 'SUSPENDED', suspendedAt: new Date(), suspensionCause: 'MANUAL' })
         .where(eq(subscriptions.id, s.id));
       await recordEvent(tx, {
         subscription: s,
@@ -661,6 +765,7 @@ adminBillingRouter.post('/subscriptions/:id/suspend', async (req, res) => {
         actor: ctx,
         fromStatus: s.status,
         toStatus: 'SUSPENDED',
+        data: { cause: 'MANUAL' },
         note: reason,
       });
       await auditChange(tx, ctx, s, { event: 'SUSPENDED', reason }, meta);
@@ -678,9 +783,11 @@ adminBillingRouter.post('/subscriptions/:id/suspend', async (req, res) => {
 const NoteInput = z.object({ note: z.string().trim().max(1000).optional().nullable() });
 
 /**
- * Reactivates a suspended subscription. With invoices still overdue it becomes "past due" with a
- * fresh grace period (the administrator's decision to give more time); otherwise active. A period
- * that ended while suspended starts again now, with its invoice (no back-billing).
+ * Reactivates a suspended subscription. A trial suspended before it ended is a trial again. With
+ * invoices still overdue it becomes "past due" with a fresh grace period (the administrator's
+ * decision to give more time); otherwise active. A period that ended while suspended starts again
+ * now, with its invoice (no back-billing) – unless a cancellation was scheduled for its end: then
+ * the subscription ends as scheduled, without a new period or invoice.
  */
 adminBillingRouter.post('/subscriptions/:id/reactivate', async (req, res) => {
   const { note } = parse(NoteInput, req.body ?? {});
@@ -689,27 +796,22 @@ adminBillingRouter.post('/subscriptions/:id/reactivate', async (req, res) => {
       if (s.status !== 'SUSPENDED')
         throw conflict('Only a suspended subscription can be reactivated');
       const now = new Date();
-      const [overdue] = await tx
-        .select({ n: count() })
-        .from(invoices)
-        .where(
-          and(
-            eq(invoices.subscriptionId, s.id),
-            eq(invoices.status, 'OPEN'),
-            lte(invoices.dueAt, now),
-          ),
-        );
-      const stillOverdue = (overdue?.n ?? 0) > 0;
-      const newPeriod = s.currentPeriodEnd <= now;
+      if (cancellationDue(s, now)) {
+        await endAsScheduled(tx, s, { actor: ctx, meta, now });
+        return;
+      }
+      const overdue = (await overdueInvoices(tx, s.id, now)).length;
+      const trial = inTrialWindow(s) && s.trialEndsAt! > now;
+      const status = trial ? 'TRIAL' : overdue ? 'PAST_DUE' : 'ACTIVE';
+      const newPeriod = !trial && s.currentPeriodEnd <= now;
       const [updated] = await tx
         .update(subscriptions)
         .set({
-          status: stillOverdue ? 'PAST_DUE' : 'ACTIVE',
+          status,
           suspendedAt: null,
-          pastDueSince: stillOverdue ? now : null,
-          ...(newPeriod
-            ? { currentPeriodStart: now, currentPeriodEnd: addCycle(now, s.billingCycle) }
-            : {}),
+          suspensionCause: null,
+          pastDueSince: status === 'PAST_DUE' ? now : null,
+          ...(newPeriod ? periodFrom(s, now, { renewal: false }) : {}),
         })
         .where(eq(subscriptions.id, s.id))
         .returning();
@@ -718,13 +820,14 @@ adminBillingRouter.post('/subscriptions/:id/reactivate', async (req, res) => {
         type: 'REACTIVATED',
         actor: ctx,
         fromStatus: 'SUSPENDED',
-        toStatus: updated!.status,
-        data: { overdueInvoices: overdue?.n ?? 0 },
+        toStatus: status,
+        data: { overdueInvoices: overdue },
         note: note ?? null,
       });
-      await auditChange(tx, ctx, s, { event: 'REACTIVATED', status: updated!.status }, meta);
+      await auditChange(tx, ctx, s, { event: 'REACTIVATED', status }, meta);
       await notifyDirectors(tx, s.facilityId, 'Your facility’s subscription is active again');
       if (newPeriod) {
+        await recordScheduledCycle(tx, s, updated!, now);
         await issueInvoice(
           tx,
           updated!,
@@ -775,20 +878,9 @@ adminBillingRouter.post('/subscriptions/:id/cancel', async (req, res) => {
         });
         return;
       }
-      await tx
-        .update(subscriptions)
-        .set({ status: 'CANCELLED', cancelledAt: new Date(), cancelAtPeriodEnd: false })
-        .where(eq(subscriptions.id, s.id));
-      await recordEvent(tx, {
-        subscription: s,
-        type: 'CANCELLED',
-        actor: ctx,
-        fromStatus: s.status,
-        toStatus: 'CANCELLED',
-        note: input.reason,
-      });
-      await auditChange(tx, ctx, s, { event: 'CANCELLED', reason: input.reason }, meta);
-      await notifyDirectors(tx, s.facilityId, 'Your facility’s subscription has ended');
+      // Open invoices – also the one of the current period – stay open: they are still owed, and
+      // are paid or voided before the facility can subscribe again.
+      await endSubscription(tx, s, { at: new Date(), actor: ctx, meta, note: input.reason });
     }),
   );
 });
@@ -821,13 +913,21 @@ adminBillingRouter.post('/subscriptions/:id/notes', async (req, res) => {
   );
 });
 
-/** Issues the invoice for the current period, if it has none yet (e.g. after a price change). */
+/**
+ * Issues the invoice for the current period, if it has none yet (e.g. after a price change), with
+ * the period's billing cycle and the price per that cycle. Never for a trial period.
+ */
 adminBillingRouter.post('/subscriptions/:id/invoices', async (req, res) => {
   res.status(201).json(
     await withSubscription(req, async (tx, s, ctx, meta) => {
-      if (s.status === 'TRIAL') throw conflict('A trial is not invoiced');
+      if (s.status === 'TRIAL' || inTrialWindow(s)) throw conflict('A trial is not invoiced');
       if (s.status === 'CANCELLED' || s.status === 'EXPIRED') {
         throw conflict('This subscription has ended');
+      }
+      if (!periodMatchesCycle(s)) {
+        throw conflict(
+          'The current period does not match the billing cycle, so it cannot be invoiced at the price per cycle. The next period is invoiced as usual.',
+        );
       }
       const [existing] = await tx
         .select({ id: invoices.id })
@@ -863,7 +963,7 @@ adminBillingRouter.get('/invoices', async (req, res) => {
   const filters: SQL[] = [];
   if (q.facilityId) filters.push(eq(invoices.facilityId, q.facilityId));
   if (q.status === 'open') filters.push(eq(invoices.status, 'OPEN'));
-  if (q.status === 'overdue') filters.push(eq(invoices.status, 'OPEN'), lte(invoices.dueAt, now));
+  if (q.status === 'overdue') filters.push(overdueWhere(now));
   if (q.status === 'paid') filters.push(eq(invoices.status, 'PAID'));
   if (q.status === 'void') filters.push(eq(invoices.status, 'VOID'));
   const where = filters.length ? and(...filters) : undefined;
@@ -880,13 +980,14 @@ adminBillingRouter.get('/invoices', async (req, res) => {
     .limit(toOffset(q).limit)
     .offset(toOffset(q).offset);
   const lines = await invoiceLines(rows.map((r) => r.invoice.id));
-  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  // The year in Kosovo, as in invoice numbers.
+  const yearStart = yearStartOf(now);
   const [totals] = await db
     .select({
       openCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${invoices.status} = 'OPEN'), 0)::int`,
       openCount: sql<number>`count(*) FILTER (WHERE ${invoices.status} = 'OPEN')::int`,
-      overdueCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${invoices.status} = 'OPEN' AND ${invoices.dueAt} <= ${now}), 0)::int`,
-      overdueCount: sql<number>`count(*) FILTER (WHERE ${invoices.status} = 'OPEN' AND ${invoices.dueAt} <= ${now})::int`,
+      overdueCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${overdueWhere(now)}), 0)::int`,
+      overdueCount: sql<number>`count(*) FILTER (WHERE ${overdueWhere(now)})::int`,
       paidThisYearCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${invoices.status} = 'PAID' AND ${invoices.paidAt} >= ${yearStart}), 0)::int`,
     })
     .from(invoices)
@@ -1009,7 +1110,7 @@ adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
         },
         tx,
       );
-      await restoreStanding(tx, s, { actor: ctx, meta, now });
+      await restoreStanding(tx, s, { actor: ctx, meta, now, reason: 'paid' });
     }),
   );
 });
@@ -1040,7 +1141,7 @@ adminBillingRouter.post('/invoices/:id/void', async (req, res) => {
         },
         tx,
       );
-      await restoreStanding(tx, s, { actor: ctx, meta });
+      await restoreStanding(tx, s, { actor: ctx, meta, reason: 'voided' });
     }),
   );
 });

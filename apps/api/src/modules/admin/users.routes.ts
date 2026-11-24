@@ -389,7 +389,7 @@ adminUsersRouter.post('/:id/enable', async (req, res) => {
   if (target.isActive) throw conflict('The account is already enabled');
   await db.transaction(async (tx) => {
     if (target.facilityId && FACILITY_ROLES.includes(target.role)) {
-      await assertSeatAvailable(target.facilityId, tx);
+      await assertSeatAvailable(target.facilityId, tx, { reactivation: { role: target.role } });
     }
     await tx.update(users).set({ isActive: true }).where(eq(users.id, id));
     await auditAccount(tx, ctx, req, AuditAction.ADMIN_USER_ENABLED, id, {

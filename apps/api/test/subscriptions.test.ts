@@ -8,6 +8,7 @@ import {
   platformSettings,
   subscriptionEvents,
   subscriptions,
+  users,
 } from '../src/db/schema.js';
 import {
   issueInvoice,
@@ -563,6 +564,28 @@ describe('seats and access', () => {
     expect(invite.status).toBe(409);
     const back = await adminPost(`/subscriptions/${body.subscription.id}/reactivate`, {});
     expect(back.body.subscription.status).toBe('ACTIVE');
+  });
+
+  it('never stops a disabled clinician or director from being re-enabled because of the status', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    const doctor = await createUser('DOCTOR', f.id);
+    const token = await login(director.email);
+    const body = await subscribe(f.id, { planId: small.id, trial: false });
+    const status = (id: string, isActive: boolean, t = token) =>
+      api().patch(`/api/v1/staff/${id}/status`).set(bearer(t)).send({ isActive });
+    expect((await status(doctor.id, false)).status).toBe(204);
+    await adminPost(`/subscriptions/${body.subscription.id}/suspend`, { reason: 'Unpaid invoice' });
+    // A suspended facility gets no NEW accounts, but its disabled doctor comes back.
+    expect((await status(doctor.id, true)).status).toBe(204);
+    // The only director, disabled by mistake, can be re-enabled by the platform administrator
+    // even with every seat used.
+    expect((await status(director.id, false, w.tokens.ministry)).status).toBe(204);
+    await db.update(users).set({ isActive: true }).where(eq(users.id, doctor.id));
+    const enabled = await adminPost(`/users/${director.id}/enable`, {
+      reason: 'Disabled by mistake',
+    });
+    expect(enabled.status).toBe(200);
   });
 
   it('shows directors their own subscription and invoices only, without internal notes', async () => {

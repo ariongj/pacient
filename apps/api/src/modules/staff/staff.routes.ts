@@ -233,9 +233,10 @@ staffRouter.patch('/:id/status', async (req, res) => {
   if (!canManage(ctx, target)) throw forbidden();
 
   await db.transaction(async (tx) => {
-    // Re-enabling an account takes a seat of the facility's subscription again.
+    // Re-enabling an account takes a seat of the facility's subscription again (never refused for
+    // the subscription's status, and never for a director – hazard H74).
     if (isActive && !target.isActive && target.facilityId) {
-      await assertSeatAvailable(target.facilityId, tx);
+      await assertSeatAvailable(target.facilityId, tx, { reactivation: { role: target.role } });
     }
     await tx.update(users).set({ isActive }).where(eq(users.id, id));
     await audit(

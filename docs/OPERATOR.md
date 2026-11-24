@@ -85,8 +85,9 @@ to which, and the note.
 **A subscription never limits clinical work.** Whatever its status, everyone keeps signing in and
 working with patient records. Only two things depend on it:
 
-- no **new** staff accounts can be added (or disabled ones enabled) when all seats are used, or
-  while the subscription is suspended or has ended;
+- no **new** staff accounts can be added when all seats are used, or while the subscription is
+  suspended or has ended. A disabled account can always be enabled again whatever the status – it
+  only needs a free seat, and a director not even that;
 - the facility's directors see a notice with a link to **Subscription and invoices**.
 
 Patients never count as seats. See hazard H74 in [CLINICAL-SAFETY.md](CLINICAL-SAFETY.md).

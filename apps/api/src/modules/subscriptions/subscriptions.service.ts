@@ -9,6 +9,7 @@ import {
   subscriptionPlans,
   subscriptions,
   users,
+  type Role,
   type subscriptionEventTypeEnum,
   type subscriptionStatusEnum,
 } from '../../db/schema.js';
@@ -125,15 +126,21 @@ export const seatLimitOf = (s: Pick<Subscription, 'seats'>, plan: Pick<Plan, 'se
   s.seats ?? plan.seatLimit;
 
 /**
- * Refuses a new (or re-enabled) staff account when the facility's subscription is suspended,
- * cancelled or expired, or all its seats are used. A facility without a subscription (e.g. a
- * public facility run by the Ministry) has no limit. Never touches existing accounts or access.
- * Inside a transaction, concurrent checks for the same facility are serialised.
+ * Refuses a NEW staff account when the facility's subscription is suspended, cancelled or expired,
+ * or all its seats are used. A facility without a subscription (e.g. a public facility run by the
+ * Ministry) has no limit. Inside a transaction, concurrent checks for the same facility are
+ * serialised.
+ *
+ * Re-enabling an EXISTING account (`reactivation`) is never refused because of the subscription's
+ * status (hazard H74: the status never affects existing accounts); it only needs a free seat, and a
+ * director needs not even that – a facility must always be able to get its director back.
  */
 export async function assertSeatAvailable(
   facilityId: string,
   executor: Executor = db,
+  opts: { reactivation?: { role: Role } } = {},
 ): Promise<void> {
+  if (opts.reactivation?.role === 'DIRECTOR') return;
   await executor.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`seats:${facilityId}`}))`);
   const [row] = await executor
     .select({ subscription: subscriptions, plan: subscriptionPlans })
@@ -141,7 +148,7 @@ export async function assertSeatAvailable(
     .innerJoin(subscriptionPlans, eq(subscriptionPlans.id, subscriptions.planId))
     .where(eq(subscriptions.facilityId, facilityId));
   if (!row) return;
-  if (CLOSED_STATUSES.includes(row.subscription.status)) {
+  if (!opts.reactivation && CLOSED_STATUSES.includes(row.subscription.status)) {
     throw conflict(
       'The facility’s subscription is suspended or has ended, so new staff accounts cannot be added. Existing accounts keep working. Contact the service operator.',
     );

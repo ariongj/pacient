@@ -68,6 +68,8 @@ const P = {
   incidents: { to: '/incidents', label: 'Report an incident', icon: 'alert' },
   rosters: { to: '/rosters', label: 'Rosters and on-call', icon: 'calendar' },
   support: { to: '/support', label: 'IT support', icon: 'settings' },
+  /** A facility's requests to the operator of the service (directors and IT support). */
+  operatorRequests: { to: '/operator-requests', label: 'Contact the operator', icon: 'message' },
   complaintsMine: { to: '/complaints', label: 'Complaints assigned to me', icon: 'message' },
   complaints: { to: '/complaints', label: 'Complaints & feedback', icon: 'message' },
   stock: { to: '/pharmacy/stock', label: 'Stock', icon: 'clipboard' },
@@ -396,7 +398,7 @@ export const NAVIGATION: Record<Role, RoleNav> = {
         title: 'Team and support',
         icon: 'hash',
         summary: 'Channels and incident reports.',
-        items: [P.channels, P.incidents],
+        items: [P.channels, P.incidents, P.operatorRequests],
       },
     ],
   },
@@ -496,6 +498,7 @@ export const NAVIGATION: Record<Role, RoleNav> = {
           P.channels,
           { to: '/director/announcements', label: 'Announcements', icon: 'megaphone' },
           P.support,
+          P.operatorRequests,
         ],
       },
     ],
@@ -509,11 +512,12 @@ export const NAVIGATION: Record<Role, RoleNav> = {
         title: 'Customers and subscriptions',
         icon: 'card',
         summary:
-          'Facilities, their subscriptions and history, invoices and payments, and the plans.',
+          'Facilities, their subscriptions and history, invoices and payments, plans and requests.',
         items: [
           { to: '/admin/organizations', label: 'Facilities and subscriptions', icon: 'building' },
           { to: '/admin/invoices', label: 'Invoices and payments', icon: 'receipt' },
           { to: '/admin/plans', label: 'Plans', icon: 'card' },
+          { to: '/admin/requests', label: 'Requests', icon: 'message' },
         ],
       },
       {

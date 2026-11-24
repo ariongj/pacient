@@ -387,5 +387,20 @@ export const ACTION_LABELS: Record<string, string> = {
   'legal.document.saved': 'Terms or privacy notice saved',
   'legal.document.published': 'Terms or privacy notice published',
   'legal.accepted': 'Terms or privacy notice accepted',
+  // Going live (round 2): billing documents and corrections, agreements, operations, requests.
+  'billing.profile_changed': 'Billing details changed',
+  'billing.invoice_sent': 'Invoice or credit note sent again',
+  'billing.payment_recorded': 'Payment recorded',
+  'billing.payment_reversed': 'Payment reversed',
+  'billing.credit_note_issued': 'Credit note issued',
+  'billing.exported': 'Billing export downloaded',
+  'legal.organization_accepted': 'Agreement accepted for the facility',
+  'platform.test_email_sent': 'Test e-mail sent',
+  'platform.alert_raised': 'Operator alert raised',
+  'platform.alert_resolved': 'Operator alert resolved',
+  'operator_request.created': 'Request to the operator created',
+  'operator_request.message': 'Message on a request to the operator',
+  'operator_request.status_changed': 'Request status changed',
+  'auth.reauthenticated': 'Password confirmed for a sensitive action',
 };
 export const actionLabel = (a: string) => (ACTION_LABELS[a] ? t(ACTION_LABELS[a]) : humanize(a));

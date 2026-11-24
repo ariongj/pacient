@@ -12,6 +12,7 @@ import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { activeCoverDoctorsFor } from './cover.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Critical results must never wait unseen. A critical result nobody has acknowledged is escalated:
@@ -165,14 +166,13 @@ let running = false;
 
 export function startEscalationWorker(intervalMs = 60_000) {
   if (timer || isTest) return;
+  registerWorker('cover-escalation', intervalMs);
   timer = setInterval(() => {
     if (running) return;
     running = true;
-    runEscalationOnce()
-      .catch((err: unknown) => logger.error({ err }, 'Escalation worker error'))
-      .finally(() => {
-        running = false;
-      });
+    void recordRun('cover-escalation', () => runEscalationOnce()).finally(() => {
+      running = false;
+    });
   }, intervalMs);
   timer.unref();
 }

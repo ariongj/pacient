@@ -26,6 +26,7 @@ import { openBuffer, sealBuffer } from '../../lib/secret-box.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyFacilityRole } from '../notifications/notifications.service.js';
 import { collectPackData, renderPackHtml } from './pack.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /** Number of packs kept per facility (and per kind); older ones are deleted with their files. */
 export const PACK_RETENTION = 48;
@@ -487,10 +488,10 @@ let first: ReturnType<typeof setTimeout> | undefined;
 export function startDowntimeWorker(intervalMs = PACK_INTERVAL_MS) {
   if (isTest || env.DOWNTIME_WORKER === 'false' || timer) return;
   const run = () =>
-    generateDowntimePacks(undefined, new Date()).then(
-      (packs) => logger.info({ packs: packs.length }, 'Downtime packs generated'),
-      (err: unknown) => logger.error({ err }, 'Downtime pack generation failed'),
+    recordRun('downtime-packs', () => generateDowntimePacks(undefined, new Date())).then(
+      (packs) => packs && logger.info({ packs: packs.length }, 'Downtime packs generated'),
     );
+  registerWorker('downtime-packs', intervalMs);
   first = setTimeout(run, 60_000);
   first.unref();
   timer = setInterval(run, intervalMs);

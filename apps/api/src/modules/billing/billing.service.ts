@@ -3,6 +3,7 @@ import { isTest } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import { logger } from '../../lib/logger.js';
 import { ensureTariff } from './tariff.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Billing rules (demo – to be aligned with the Health Insurance Fund before real use):
@@ -242,12 +243,13 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function startChargeCaptureWorker() {
   if (isTest || timer) return;
   const run = () =>
-    captureCharges(undefined, new Date(Date.now() - 120 * 86_400_000))
-      .then((r) => {
-        const n = Object.values(r).reduce((a, b) => a + b, 0);
-        if (n) logger.info({ created: r }, 'Charges captured');
-      })
-      .catch((err: unknown) => logger.error({ err }, 'Charge capture failed'));
+    recordRun('charge-capture', () =>
+      captureCharges(undefined, new Date(Date.now() - 120 * 86_400_000)),
+    ).then((r) => {
+      const n = r ? Object.values(r).reduce((a, b) => a + b, 0) : 0;
+      if (n) logger.info({ created: r }, 'Charges captured');
+    });
+  registerWorker('charge-capture', 3_600_000);
   setTimeout(run, 30_000).unref();
   timer = setInterval(run, 3_600_000);
   timer.unref();

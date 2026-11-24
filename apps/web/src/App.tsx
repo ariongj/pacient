@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { HOME_BY_ROLE, useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
 import { LegalGateReset } from './components/LegalGate';
+import { ReauthDialog } from './components/ReauthDialog';
 import { RequireRole } from './components/RequireRole';
 import { EmptyState, Loading } from './components/ui';
 import { NotificationsPage } from './components/Notifications';
@@ -44,6 +45,27 @@ const AdminAudit = lazy(() =>
 );
 const SubscriptionPage = lazy(() =>
   import('./pages/director/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })),
+);
+// Going live (round 2): credit notes, requests to the operator and the public help page.
+const CreditNoteView = lazy(() =>
+  import('./pages/admin/billing/CreditNoteView').then((m) => ({ default: m.CreditNoteView })),
+);
+const RequestsInbox = lazy(() =>
+  import('./pages/admin/requests/RequestsInbox').then((m) => ({ default: m.RequestsInbox })),
+);
+const RequestView = lazy(() =>
+  import('./pages/admin/requests/RequestView').then((m) => ({ default: m.RequestView })),
+);
+const OperatorRequests = lazy(() =>
+  import('./pages/requests/OperatorRequests').then((m) => ({ default: m.OperatorRequests })),
+);
+const OperatorRequestPage = lazy(() =>
+  import('./pages/requests/OperatorRequestPage').then((m) => ({
+    default: m.OperatorRequestPage,
+  })),
+);
+const HelpPage = lazy(() =>
+  import('./pages/public/HelpPage').then((m) => ({ default: m.HelpPage })),
 );
 const LegalPage = lazy(() =>
   import('./pages/public/LegalPage').then((m) => ({ default: m.LegalPage })),
@@ -445,6 +467,8 @@ export function App() {
   return (
     <Suspense fallback={<Loading label={t('Loading…')} />}>
       <LegalGateReset />
+      {/* Asks for the password again when the server wants a sensitive action confirmed. */}
+      <ReauthDialog />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/activate" element={<ActivatePage />} />
@@ -456,6 +480,10 @@ export function App() {
         {/* The public texts live under /legal: /privacy is the data protection workspace. */}
         <Route path="/legal/terms" element={<LegalPage />} />
         <Route path="/legal/privacy" element={<LegalPage />} />
+        {/* The facility agreements (round 2, G: LegalPage resolves the kind from the path). */}
+        <Route path="/legal/service-agreement" element={<LegalPage />} />
+        <Route path="/legal/dpa" element={<LegalPage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="/terms" element={<Navigate to="/legal/terms" replace />} />
         <Route path="/verify/:code" element={<VerifyCertificatePage />} />
         <Route path="/" element={<HomeRedirect />} />
@@ -725,6 +753,17 @@ export function App() {
           <Route path="/admin/legal" element={guard(['ADMIN'], <LegalAdmin />)} />
           <Route path="/admin/health" element={guard(['ADMIN'], <SystemHealth />)} />
           <Route path="/admin/audit" element={guard(['ADMIN'], <AdminAudit />)} />
+          <Route path="/admin/credit-notes/:id" element={guard(['ADMIN'], <CreditNoteView />)} />
+          <Route path="/admin/requests" element={guard(['ADMIN'], <RequestsInbox />)} />
+          <Route path="/admin/requests/:id" element={guard(['ADMIN'], <RequestView />)} />
+          <Route
+            path="/operator-requests"
+            element={guard(['DIRECTOR', 'IT_SUPPORT'], <OperatorRequests />)}
+          />
+          <Route
+            path="/operator-requests/:id"
+            element={guard(['DIRECTOR', 'IT_SUPPORT'], <OperatorRequestPage />)}
+          />
           <Route
             path="/director/subscription"
             element={guard(['DIRECTOR'], <SubscriptionPage />)}
@@ -732,6 +771,10 @@ export function App() {
           <Route
             path="/director/subscription/invoices/:id"
             element={guard(['DIRECTOR'], <InvoiceView />)}
+          />
+          <Route
+            path="/director/subscription/credit-notes/:id"
+            element={guard(['DIRECTOR'], <CreditNoteView />)}
           />
           <Route
             path="/lab"

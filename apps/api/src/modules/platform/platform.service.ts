@@ -4,6 +4,12 @@ import { legalAcceptances, legalDocuments, platformSettings } from '../../db/sch
 import type { LegalKind, LegalLocale } from './legal-templates.js';
 
 export const LEGAL_KINDS = ['TERMS', 'PRIVACY'] as const satisfies readonly LegalKind[];
+/**
+ * The texts every user accepts at sign-in (the legal gate). The service agreement and the data
+ * processing agreement are accepted once per facility by a director and never gate anyone, so
+ * they must never be added here.
+ */
+export const USER_LEGAL_KINDS = ['TERMS', 'PRIVACY'] as const satisfies readonly LegalKind[];
 export const LEGAL_LOCALES = ['sq', 'sr', 'en'] as const satisfies readonly LegalLocale[];
 
 export type Settings = typeof platformSettings.$inferSelect;
@@ -154,7 +160,7 @@ export async function pendingDocuments(
   executor: Executor = db,
 ): Promise<CurrentDocument[]> {
   const pending: CurrentDocument[] = [];
-  for (const kind of LEGAL_KINDS) {
+  for (const kind of USER_LEGAL_KINDS) {
     const current = await currentDocument(kind, locale, executor);
     if (current && !(await acceptedLatestRequired(userId, kind, executor))) pending.push(current);
   }

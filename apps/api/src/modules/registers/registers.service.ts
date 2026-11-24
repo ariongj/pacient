@@ -20,6 +20,7 @@ import {
   type RegisterCode,
 } from './definitions.js';
 import { evaluateRegister, isOverdue, type PatientData } from './evaluate.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /** Clinical data older than this is not needed for any register rule. */
 const LOOKBACK_DAYS = 3 * 365;
@@ -325,9 +326,8 @@ export async function runRegistersOnce(now = new Date()) {
 }
 
 function runSafely() {
-  runRegistersOnce().then(
-    (r) => (r.enrolled || r.recalls) && logger.info(r, 'Disease registers updated'),
-    (err: unknown) => logger.error({ err }, 'Disease register worker failed'),
+  void recordRun('registers', () => runRegistersOnce()).then(
+    (r) => r && (r.enrolled || r.recalls) && logger.info(r, 'Disease registers updated'),
   );
 }
 
@@ -336,6 +336,7 @@ export function startRegistersWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 5 * 60_000);
   first.unref();
+  registerWorker('registers', DAY);
   timer = setInterval(runSafely, DAY);
   timer.unref();
 }

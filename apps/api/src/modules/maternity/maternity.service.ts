@@ -28,6 +28,7 @@ import {
   visitAlerts,
   type KeyTestDef,
 } from './definitions.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 type PregnancyRow = typeof pregnancies.$inferSelect;
 type VisitRow = typeof antenatalVisits.$inferSelect;
@@ -400,9 +401,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runAntenatalRemindersOnce().then(
+  void recordRun('maternity', () => runAntenatalRemindersOnce()).then(
     (n) => n && logger.info({ reminders: n }, 'Antenatal visit reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Antenatal reminder worker failed'),
   );
 }
 
@@ -411,6 +411,7 @@ export function startMaternityWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 10 * 60_000);
   first.unref();
+  registerWorker('maternity', 24 * 60 * 60_000);
   timer = setInterval(runSafely, 24 * 60 * 60_000);
   timer.unref();
 }

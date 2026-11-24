@@ -6,6 +6,9 @@ import { t } from '../i18n';
  * - The refresh token is an httpOnly cookie scoped to /api/v1/auth; the browser sends it automatically.
  * - On a 401 the client refreshes once (single-flight, so parallel requests share one refresh) and
  *   retries. Concurrent refreshes would otherwise trip the server's token-reuse detection.
+ * - A 401 with code REAUTH_REQUIRED (a sensitive action needs the password again) opens the
+ *   shared ReauthDialog instead; the request is sent once more with the password in the
+ *   X-Reauth-Password header, which is never stored.
  */
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 
@@ -29,6 +32,38 @@ export function setActingFor(patientId: string | null) {
 }
 let refreshInFlight: Promise<boolean> | null = null;
 let onSessionExpired: (() => void) | null = null;
+
+/** Header that carries the password, once, for an action the server wants re-confirmed. */
+export const REAUTH_HEADER = 'X-Reauth-Password';
+
+/**
+ * What the shared ReauthDialog does when the server answers 401 REAUTH_REQUIRED: ask for the
+ * password, call `retry(password)` (the same request once more, with the password), and resolve
+ * with the response to use. Cancelling resolves with `refused`, the original answer, so the
+ * caller sees REAUTH_REQUIRED as an ordinary error.
+ */
+export type ReauthHandler = (request: {
+  retry: (password: string) => Promise<Response>;
+  refused: Response;
+}) => Promise<Response>;
+let reauthHandler: ReauthHandler | null = null;
+
+/** Registered by the ReauthDialog (mounted once in App); null when it unmounts. */
+export function setReauthHandler(handler: ReauthHandler | null) {
+  reauthHandler = handler;
+}
+
+/** The error code of a failed response, without consuming its body. */
+export async function errorCodeOf(res: Response): Promise<string | undefined> {
+  try {
+    return ((await res.clone().json()) as { error?: { code?: string } }).error?.code;
+  } catch {
+    return undefined;
+  }
+}
+
+const needsReauth = async (res: Response) =>
+  res.status === 401 && (await errorCodeOf(res)) === 'REAUTH_REQUIRED';
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -104,8 +139,13 @@ function withinDeadline<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T
   });
 }
 
-async function send(path: string, opts: RequestOptions, signal?: AbortSignal): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+async function send(
+  path: string,
+  opts: RequestOptions,
+  signal?: AbortSignal,
+  extra?: Record<string, string>,
+): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (actingFor) headers['X-Acting-For'] = actingFor;
@@ -120,16 +160,33 @@ async function send(path: string, opts: RequestOptions, signal?: AbortSignal): P
   });
 }
 
-export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<Response> {
-  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
-  let res = await send(path, opts, signal);
-  if (res.status === 401 && !path.startsWith('/auth/')) {
+/** Sends a request, refreshing the session once if the access token has expired. */
+async function sendWithSession(
+  path: string,
+  opts: RequestOptions,
+  signal?: AbortSignal,
+  extra?: Record<string, string>,
+): Promise<Response> {
+  let res = await send(path, opts, signal, extra);
+  if (res.status === 401 && !path.startsWith('/auth/') && !(await needsReauth(res))) {
     // The refresh is shared with other requests and keeps running; only this request gives up.
     if (await withinDeadline(refreshSession(), signal)) {
-      res = await send(path, opts, signal);
+      res = await send(path, opts, signal, extra);
     } else {
       onSessionExpired?.();
     }
+  }
+  return res;
+}
+
+export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<Response> {
+  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
+  let res = await sendWithSession(path, opts, signal);
+  if (reauthHandler && (await needsReauth(res))) {
+    res = await reauthHandler({
+      retry: (password) => sendWithSession(path, opts, signal, { [REAUTH_HEADER]: password }),
+      refused: res,
+    });
   }
   if (!res.ok) {
     let payload: { error?: { code?: string; message?: string; details?: unknown } } = {};

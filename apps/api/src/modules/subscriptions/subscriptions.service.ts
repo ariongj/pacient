@@ -18,6 +18,7 @@ import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /*
  * Subscriptions of facilities to the service.
@@ -1025,11 +1026,11 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runSubscriptionLifecycle().then(
+  void recordRun('subscriptions', () => runSubscriptionLifecycle()).then(
     (r) =>
+      r &&
       (r.activated || r.renewed || r.pastDue || r.suspended || r.cancelled || r.reminders) &&
       logger.info(r, 'Subscription lifecycle'),
-    (err: unknown) => logger.error({ err }, 'Subscription lifecycle failed'),
   );
 }
 
@@ -1038,6 +1039,7 @@ export function startSubscriptionsWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 5 * 60_000);
   first.unref();
+  registerWorker('subscriptions', 6 * 60 * 60_000);
   timer = setInterval(runSafely, 6 * 60 * 60_000);
   timer.unref();
 }

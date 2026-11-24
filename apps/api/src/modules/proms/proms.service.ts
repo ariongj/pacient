@@ -23,6 +23,7 @@ import {
   type Frequency,
   type InstrumentCode,
 } from './instruments.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 export type PromAssignment = typeof promAssignments.$inferSelect;
 
@@ -336,9 +337,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runPromRemindersOnce().then(
+  void recordRun('proms', () => runPromRemindersOnce()).then(
     (n) => n && logger.info({ reminders: n }, 'Questionnaire reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Questionnaire reminder worker failed'),
   );
 }
 
@@ -347,6 +347,7 @@ export function startPromsWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 7 * 60_000);
   first.unref();
+  registerWorker('proms', 60 * 60_000);
   timer = setInterval(runSafely, 60 * 60_000);
   timer.unref();
 }

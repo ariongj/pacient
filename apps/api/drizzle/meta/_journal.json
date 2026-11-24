@@ -197,6 +197,13 @@
       "when": 1795522620096,
       "tag": "0027_legal_sources_suspension_cause",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795549186676,
+      "tag": "0028_operator_go_live",
+      "breakpoints": true
     }
   ]
 }

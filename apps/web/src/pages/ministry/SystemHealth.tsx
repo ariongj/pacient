@@ -23,6 +23,9 @@ import {
   type Tone,
 } from '../../components/ui';
 import { formatDateTime, formatNumber } from '../../format';
+import { BackupsCard } from './health/BackupsCard';
+import { EmailCard } from './health/EmailCard';
+import { WorkersCard } from './health/WorkersCard';
 
 const GRAFANA_URL = (import.meta.env.VITE_GRAFANA_URL as string | undefined)?.trim() || null;
 const MAX_EXPORT_DAYS = 31;
@@ -315,6 +318,9 @@ export function SystemHealth() {
             </Grid>
             <SafetyIndicators i={d.indicators} />
             <Queues i={d.indicators} />
+            <WorkersCard health={d} />
+            <BackupsCard health={d} />
+            <EmailCard health={d} />
             <Card title={t('Version')}>
               <DefinitionList
                 items={[

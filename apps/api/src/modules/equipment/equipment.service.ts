@@ -11,6 +11,7 @@ import { isTest } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { parseCsv } from '../licences/licences.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Medical equipment register: items per facility (and ward), an append-only history of services,
@@ -331,9 +332,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runEquipmentWorkerOnce().then(
+  void recordRun('equipment', () => runEquipmentWorkerOnce()).then(
     (n) => n && logger.info({ notifications: n }, 'Equipment maintenance notifications sent'),
-    (err: unknown) => logger.error({ err }, 'Equipment worker failed'),
   );
 }
 
@@ -342,6 +342,7 @@ export function startEquipmentWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 15 * 60_000);
   first.unref();
+  registerWorker('equipment', 24 * 60 * 60_000);
   timer = setInterval(runSafely, 24 * 60 * 60_000);
   timer.unref();
 }

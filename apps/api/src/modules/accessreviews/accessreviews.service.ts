@@ -18,6 +18,7 @@ import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { LICENSED_ROLES, licencesOfUsers, todayIso } from '../licences/licences.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Periodic access recertification. Every calendar quarter each facility reviews its staff
@@ -422,9 +423,9 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runAccessReviewsWorkerOnce().then(
-    (r) => (r.opened || r.reminded) && logger.info(r, 'Access reviews opened or reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Access reviews worker failed'),
+  void recordRun('access-reviews', () => runAccessReviewsWorkerOnce()).then(
+    (r) =>
+      r && (r.opened || r.reminded) && logger.info(r, 'Access reviews opened or reminders sent'),
   );
 }
 
@@ -433,6 +434,7 @@ export function startAccessReviewsWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 10 * 60_000);
   first.unref();
+  registerWorker('access-reviews', 6 * 60 * 60_000);
   timer = setInterval(runSafely, 6 * 60 * 60_000);
   timer.unref();
 }

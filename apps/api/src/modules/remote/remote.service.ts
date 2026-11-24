@@ -14,6 +14,7 @@ import {
   type ReadingKind,
   type Thresholds,
 } from './definitions.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 const DAY = 86_400_000;
 
@@ -205,9 +206,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runRemoteDigestsOnce().then(
+  void recordRun('remote-monitoring', () => runRemoteDigestsOnce()).then(
     (n) => n && logger.info({ digests: n }, 'Remote monitoring digests sent'),
-    (err: unknown) => logger.error({ err }, 'Remote monitoring worker failed'),
   );
 }
 
@@ -219,6 +219,7 @@ export function startRemoteWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 6 * 60_000);
   first.unref();
+  registerWorker('remote-monitoring', 60 * 60_000);
   timer = setInterval(runSafely, 60 * 60_000);
   timer.unref();
 }

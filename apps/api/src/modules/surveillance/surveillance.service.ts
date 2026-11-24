@@ -7,6 +7,7 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyFacilityRole, notifyUsers } from '../notifications/notifications.service.js';
 import { SMALL_CELL_THRESHOLD } from '../stats/stats.service.js';
 import { DEFAULT_DISEASES, matchDisease, normaliseIcd } from './diseases.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /** Diagnoses older than this are not turned into case reports by the detector. */
 export const DETECTION_LOOKBACK_DAYS = 90;
@@ -131,16 +132,13 @@ let timer: NodeJS.Timeout | undefined;
 const FIVE_MINUTES = 5 * 60_000;
 
 async function runSafely() {
-  try {
-    const { created } = await detectCasesOnce();
-    if (created) logger.info({ created }, 'Notifiable disease case reports created');
-  } catch (err) {
-    logger.error({ err }, 'Notifiable disease detection failed');
-  }
+  const r = await recordRun('surveillance', () => detectCasesOnce());
+  if (r?.created) logger.info({ created: r.created }, 'Notifiable disease case reports created');
 }
 
 export function startSurveillanceWorker() {
   if (isTest || timer) return;
+  registerWorker('surveillance', FIVE_MINUTES);
   timer = setInterval(() => void runSafely(), FIVE_MINUTES);
   timer.unref();
   setTimeout(() => void runSafely(), 30_000).unref();

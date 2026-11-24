@@ -12,9 +12,9 @@ import {
   users,
   vitalSigns,
 } from '../../db/schema.js';
-import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Sepsis screening and the Sepsis Six bundle, following the UK Sepsis Trust screening tools and
@@ -432,9 +432,7 @@ async function runSafely() {
   if (running) return;
   running = true;
   try {
-    await escalateOverdueOnce();
-  } catch (err) {
-    logger.error({ err }, 'Sepsis escalation failed');
+    await recordRun('sepsis', () => escalateOverdueOnce());
   } finally {
     running = false;
   }
@@ -443,6 +441,7 @@ async function runSafely() {
 /** Every minute: escalate overdue bundles and unanswered prompts (never in tests). */
 export function startSepsisWorker() {
   if (isTest || timer || !sepsisScreeningEnabled) return;
+  registerWorker('sepsis', 60_000);
   timer = setInterval(runSafely, 60_000);
   timer.unref();
 }

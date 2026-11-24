@@ -9,6 +9,7 @@ import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { AuditAction, auditSafe } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * National register of professional licences (doctors, dentists, nurses, midwives, pharmacists).
@@ -553,9 +554,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runLicenceRemindersOnce().then(
+  void recordRun('licences', () => runLicenceRemindersOnce()).then(
     (n) => n && logger.info({ reminders: n }, 'Licence expiry reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Licence reminder worker failed'),
   );
 }
 
@@ -564,6 +564,7 @@ export function startLicencesWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 10 * 60_000);
   first.unref();
+  registerWorker('licences', 24 * 60 * 60_000);
   timer = setInterval(runSafely, 24 * 60 * 60_000);
   timer.unref();
 }

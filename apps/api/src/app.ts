@@ -96,6 +96,8 @@ import { adminRouter } from './modules/admin/admin.routes.js';
 import { subscriptionRouter } from './modules/subscriptions/subscriptions.routes.js';
 import { legalRouter } from './modules/platform/legal.routes.js';
 import { platformRouter } from './modules/platform/platform.routes.js';
+import { opsRouter } from './modules/platform/operations.routes.js';
+import { operatorRequestsRouter } from './modules/requests/requests.routes.js';
 import { labWorkRouter } from './modules/lab/work.routes.js';
 import { promsRouter } from './modules/proms/proms.routes.js';
 
@@ -150,7 +152,14 @@ export function createApp(): Express {
       origin: env.CORS_ORIGINS,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Acting-For'],
+      // X-Reauth-Password: the password confirmed again for a sensitive action (recent-auth.ts).
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Request-Id',
+        'X-Acting-For',
+        'X-Reauth-Password',
+      ],
       exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
     }),
   );
@@ -215,6 +224,9 @@ export function createApp(): Express {
   api.use('/subscription', subscriptionRouter);
   api.use('/legal', legalRouter);
   api.use('/platform', platformRouter);
+  // Facilities' requests to the operator (directors, IT support) and heartbeats of outside jobs.
+  api.use('/operator-requests', operatorRequestsRouter);
+  api.use('/ops', opsRouter);
   api.use('/lab-work', labWorkRouter);
   api.use('/proms', promsRouter);
   api.use('/remote-monitoring', remoteMonitoringRouter);

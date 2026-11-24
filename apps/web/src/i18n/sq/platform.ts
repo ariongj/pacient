@@ -224,4 +224,18 @@ export const platform: Record<string, string> = {
   'Its length or check digits are wrong, and it is printed on every new invoice. Correct it; the other settings can be saved meanwhile.':
     'Gjatësia ose shifrat e kontrollit të tij janë të gabuara, dhe ai shtypet në çdo faturë të re. Korrigjojeni; cilësimet e tjera mund të ruhen ndërkohë.',
   'The server did not answer in time.': 'Serveri nuk u përgjigj me kohë.',
+  // Audit labels of the actions added for going live.
+  'Billing details changed': 'Të dhënat e faturimit u ndryshuan',
+  'Invoice or credit note sent again': 'Fatura ose nota e kreditit u dërgua përsëri',
+  'Payment reversed': 'Pagesa u anulua',
+  'Credit note issued': 'U lëshua një notë krediti',
+  'Billing export downloaded': 'U shkarkua një eksport i faturimit',
+  'Agreement accepted for the facility': 'Marrëveshja u pranua për institucionin',
+  'Test e-mail sent': 'U dërgua një e-mail provë',
+  'Operator alert raised': 'U ngrit një sinjalizim për operatorin',
+  'Operator alert resolved': 'Sinjalizimi për operatorin u zgjidh',
+  'Request to the operator created': 'U krijua një kërkesë për operatorin',
+  'Message on a request to the operator': 'Mesazh në një kërkesë për operatorin',
+  'Request status changed': 'Statusi i kërkesës u ndryshua',
+  'Password confirmed for a sensitive action': 'Fjalëkalimi u konfirmua për një veprim të ndjeshëm',
 };

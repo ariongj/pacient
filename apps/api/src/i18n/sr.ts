@@ -53,6 +53,12 @@ import { srSupport } from './sr-support.js';
 import { srLabwork } from './sr-labwork.js';
 import { srProms } from './sr-proms.js';
 import { srSubscriptions } from '../modules/subscriptions/messages.js';
+import { srBillingdocs } from './sr-billingdocs.js';
+import { srBillingcorrections } from './sr-billingcorrections.js';
+import { srAgreements } from './sr-agreements.js';
+import { srOperatorrequests } from './sr-operatorrequests.js';
+import { srAdminsecurity } from './sr-adminsecurity.js';
+import { srOperations } from './sr-operations.js';
 
 export const sr: Record<string, string> = {
   ...srCore,
@@ -110,4 +116,10 @@ export const sr: Record<string, string> = {
   ...srLabwork,
   ...srProms,
   ...srSubscriptions,
+  ...srBillingdocs,
+  ...srBillingcorrections,
+  ...srAgreements,
+  ...srOperatorrequests,
+  ...srAdminsecurity,
+  ...srOperations,
 };

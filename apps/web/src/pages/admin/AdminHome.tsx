@@ -12,6 +12,11 @@ import {
 } from '../../components/ui';
 import { actionLabel, formatDate, formatDateTime } from '../../format';
 import { t } from '../../i18n';
+import { AgreementsCard } from './home/AgreementsCard';
+import { AlertsCard } from './home/AlertsCard';
+import { BankChangeCard } from './home/BankChangeCard';
+import { BillingReadinessCard } from './home/BillingReadinessCard';
+import { RequestsCard } from './home/RequestsCard';
 import {
   auditTarget,
   SUBSCRIPTION_TONE,
@@ -71,7 +76,13 @@ export function AdminHome() {
         title={t('Platform overview')}
         subtitle={t('Facilities, subscriptions, users and the health of the service.')}
       />
+      {/* What needs the operator's attention first; each card renders nothing when all is well. */}
+      <AlertsCard />
+      <BillingReadinessCard />
+      <BankChangeCard />
       <QueryView query={overview}>{(o) => <Overview o={o} />}</QueryView>
+      <RequestsCard />
+      <AgreementsCard />
       <Card title={t('Administration')}>
         <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {LINKS.map((l) => (

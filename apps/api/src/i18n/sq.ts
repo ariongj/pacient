@@ -53,6 +53,12 @@ import { sqSupport } from './sq-support.js';
 import { sqLabwork } from './sq-labwork.js';
 import { sqProms } from './sq-proms.js';
 import { sqSubscriptions } from '../modules/subscriptions/messages.js';
+import { sqBillingdocs } from './sq-billingdocs.js';
+import { sqBillingcorrections } from './sq-billingcorrections.js';
+import { sqAgreements } from './sq-agreements.js';
+import { sqOperatorrequests } from './sq-operatorrequests.js';
+import { sqAdminsecurity } from './sq-adminsecurity.js';
+import { sqOperations } from './sq-operations.js';
 
 export const sq: Record<string, string> = {
   ...sqCore,
@@ -110,4 +116,10 @@ export const sq: Record<string, string> = {
   ...sqLabwork,
   ...sqProms,
   ...sqSubscriptions,
+  ...sqBillingdocs,
+  ...sqBillingcorrections,
+  ...sqAgreements,
+  ...sqOperatorrequests,
+  ...sqAdminsecurity,
+  ...sqOperations,
 };

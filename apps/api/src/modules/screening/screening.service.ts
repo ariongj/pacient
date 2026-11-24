@@ -19,6 +19,7 @@ import {
   testFor,
   type ProgrammeCode,
 } from './definitions.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 const DAY = 86_400_000;
 
@@ -302,9 +303,8 @@ let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
   const cap = Number(process.env.SCREENING_DAILY_CAP ?? DEFAULT_DAILY_CAP) || DEFAULT_DAILY_CAP;
-  runScreeningOnce(new Date(), cap).then(
-    (r) => (r.invited || r.reminded) && logger.info(r, 'Screening invitations sent'),
-    (err: unknown) => logger.error({ err }, 'Screening worker failed'),
+  void recordRun('screening', () => runScreeningOnce(new Date(), cap)).then(
+    (r) => r && (r.invited || r.reminded) && logger.info(r, 'Screening invitations sent'),
   );
 }
 
@@ -313,6 +313,7 @@ export function startScreeningWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 10 * 60_000);
   first.unref();
+  registerWorker('screening', DAY);
   timer = setInterval(runSafely, DAY);
   timer.unref();
 }

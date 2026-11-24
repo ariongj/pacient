@@ -29,8 +29,10 @@ import {
 } from '../../components/ui';
 import { formatDate, humanize } from '../../format';
 import { t } from '../../i18n';
+import { BillingProfileCard } from './billing/BillingProfileCard';
 import { SubscriptionHistory } from './billing/History';
 import { InvoiceTable } from './billing/InvoiceTable';
+import { OrganizationAgreementsCard } from './billing/OrganizationAgreementsCard';
 import { SeatsMeter, SubscriptionBadge } from './billing/parts';
 import {
   CancelForm,
@@ -403,9 +405,11 @@ export function Organization() {
                 <SeatsMeter used={d.seatsUsed} limit={null} />
               </Card>
             )}
+            <BillingProfileCard detail={d} />
             <Card title={t('Invoices')}>
               <InvoiceTable invoices={d.invoices} audience="admin" />
             </Card>
+            <OrganizationAgreementsCard detail={d} />
             <div className="two-col">
               <Card title={t('History')}>
                 <SubscriptionHistory events={d.events} audience="admin" />

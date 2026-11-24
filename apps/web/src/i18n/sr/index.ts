@@ -64,6 +64,12 @@ import { admin } from './admin';
 import { adminusers } from './adminusers';
 import { subscriptions } from './subscriptions';
 import { platform } from './platform';
+import { billingdocs } from './billingdocs';
+import { billingcorrections } from './billingcorrections';
+import { agreements } from './agreements';
+import { operatorrequests } from './operatorrequests';
+import { adminsecurity } from './adminsecurity';
+import { operations } from './operations';
 
 export const sr: Record<string, string> = {
   ...common,
@@ -132,4 +138,10 @@ export const sr: Record<string, string> = {
   ...adminusers,
   ...subscriptions,
   ...platform,
+  ...billingdocs,
+  ...billingcorrections,
+  ...agreements,
+  ...operatorrequests,
+  ...adminsecurity,
+  ...operations,
 };

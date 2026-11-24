@@ -6,6 +6,7 @@ import { logger } from '../../lib/logger.js';
 import { open, seal } from '../../lib/secret-box.js';
 import { render, type EmailTemplate } from './templates.js';
 import { getTransport } from './transport.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Transactional outbox for email.
@@ -118,14 +119,13 @@ export function startEmailWorker(intervalMs = 5_000) {
     );
     return;
   }
+  registerWorker('email', intervalMs);
   timer = setInterval(() => {
     if (running) return;
     running = true;
-    processOutboxOnce()
-      .catch((err: unknown) => logger.error({ err }, 'Email worker error'))
-      .finally(() => {
-        running = false;
-      });
+    void recordRun('email', processOutboxOnce).finally(() => {
+      running = false;
+    });
   }, intervalMs);
   timer.unref();
   logger.info({ transport: env.EMAIL_TRANSPORT }, 'Email worker started');

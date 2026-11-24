@@ -5,6 +5,7 @@ import { smsOutbox } from '../../db/schema.js';
 import { logger } from '../../lib/logger.js';
 import { open, seal } from '../../lib/secret-box.js';
 import { getSmsTransport } from './transport.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * SMS outbox: same guarantees as email (enqueued in the caller's transaction, SKIP LOCKED workers,
@@ -123,14 +124,13 @@ export function startSmsWorker(intervalMs = 5_000) {
     logger.warn('SMS provider is not configured: SMS notifications are queued but not delivered');
     return;
   }
+  registerWorker('sms', intervalMs);
   timer = setInterval(() => {
     if (running) return;
     running = true;
-    processSmsOnce()
-      .catch((err: unknown) => logger.error({ err }, 'SMS worker error'))
-      .finally(() => {
-        running = false;
-      });
+    void recordRun('sms', processSmsOnce).finally(() => {
+      running = false;
+    });
   }, intervalMs);
   timer.unref();
   logger.info({ provider: env.SMS_PROVIDER }, 'SMS worker started');

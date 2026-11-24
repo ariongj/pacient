@@ -21,6 +21,7 @@ import {
   REVIEW_AFTER_HOURS,
   type RestrictedAgent,
 } from './definitions.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /* ------------------------------------------------------------------ the stewardship team -- */
 
@@ -401,9 +402,9 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runInfectionWorkerOnce().then(
-    (r) => (r.suggestions || r.reviews) && logger.info(r, 'Infection prevention reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Infection prevention worker failed'),
+  void recordRun('infection', () => runInfectionWorkerOnce()).then(
+    (r) =>
+      r && (r.suggestions || r.reviews) && logger.info(r, 'Infection prevention reminders sent'),
   );
 }
 
@@ -412,6 +413,7 @@ export function startInfectionWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 4 * 60_000);
   first.unref();
+  registerWorker('infection', 60 * 60_000);
   timer = setInterval(runSafely, 60 * 60_000);
   timer.unref();
 }

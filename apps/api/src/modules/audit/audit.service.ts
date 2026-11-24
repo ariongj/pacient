@@ -267,6 +267,27 @@ export const AuditAction = {
   LEGAL_DOCUMENT_SAVED: 'legal.document.saved',
   LEGAL_DOCUMENT_PUBLISHED: 'legal.document.published',
   LEGAL_ACCEPTED: 'legal.accepted',
+  // Operator, going live: billing documents and corrections, agreements, operations, requests.
+  /** A facility's billing details (legal name, numbers, billing e-mails) were saved. */
+  BILLING_PROFILE_CHANGED: 'billing.profile_changed',
+  /** An invoice or credit note was e-mailed again by the administrator. */
+  BILLING_INVOICE_SENT: 'billing.invoice_sent',
+  /** A payment was recorded against an invoice (metadata: amount in cents). */
+  BILLING_PAYMENT_RECORDED: 'billing.payment_recorded',
+  BILLING_PAYMENT_REVERSED: 'billing.payment_reversed',
+  BILLING_CREDIT_NOTE_ISSUED: 'billing.credit_note_issued',
+  /** Accounting export downloaded (metadata: the export and its period only). */
+  BILLING_EXPORTED: 'billing.exported',
+  /** A director accepted the service agreement or data processing agreement for a facility. */
+  LEGAL_ORGANIZATION_ACCEPTED: 'legal.organization_accepted',
+  PLATFORM_TEST_EMAIL_SENT: 'platform.test_email_sent',
+  PLATFORM_ALERT_RAISED: 'platform.alert_raised',
+  PLATFORM_ALERT_RESOLVED: 'platform.alert_resolved',
+  OPERATOR_REQUEST_CREATED: 'operator_request.created',
+  OPERATOR_REQUEST_MESSAGE: 'operator_request.message',
+  OPERATOR_REQUEST_STATUS_CHANGED: 'operator_request.status_changed',
+  /** The password was confirmed again for a sensitive action (requireRecentAuth). */
+  AUTH_REAUTHENTICATED: 'auth.reauthenticated',
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

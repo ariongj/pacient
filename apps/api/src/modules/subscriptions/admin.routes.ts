@@ -5,6 +5,7 @@ import { isProd } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import {
   facilities,
+  invoicePayments,
   invoices,
   subscriptionPlans,
   subscriptions,
@@ -1075,6 +1076,19 @@ adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
     await withOpenInvoice(req, async (tx, invoice, s, ctx, meta) => {
       if (paidAt < new Date(invoice.issuedAt.getTime() - 86_400_000 * 365)) {
         throw badRequest('The payment date is too far before the invoice date');
+      }
+      // The payment settles the invoice in full (partial payments come with amounts). It is
+      // also kept as a row of its own, so that it can be reversed; an invoice with nothing to
+      // pay has no payment.
+      if (invoice.totalCents > 0) {
+        await tx.insert(invoicePayments).values({
+          invoiceId: invoice.id,
+          amountCents: invoice.totalCents,
+          paidAt,
+          method: input.method,
+          reference: input.reference ?? null,
+          recordedById: ctx.userId,
+        });
       }
       await tx
         .update(invoices)

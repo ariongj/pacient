@@ -19,6 +19,9 @@ import { DOWNTIME_STATUS_ROLES, useDowntimeStatus } from '../api/downtime';
 import { Icon } from './icons';
 import { NotificationBell } from './Notifications';
 import { APPOINTMENT_SCOPE_PATHS, Breadcrumb, SideNav } from './SideNav';
+import { AdminIdleSignOut } from './AdminIdleSignOut';
+import { AgreementsNotice } from './AgreementsNotice';
+import { ContactOperator } from './ContactOperator';
 import { LegalGate } from './LegalGate';
 import { PlatformNotice } from './PlatformNotice';
 import { SubscriptionNotice } from './SubscriptionNotice';
@@ -202,6 +205,7 @@ export function Layout() {
           <DowntimeBanner role={user.role} hasFacility={Boolean(user.facility)} />
           <PlatformNotice />
           {user.role === 'DIRECTOR' && <SubscriptionNotice />}
+          {user.role === 'DIRECTOR' && <AgreementsNotice />}
           {acting && (
             <div className="acting-banner" role="status">
               <div>
@@ -257,7 +261,9 @@ export function Layout() {
         <Link to={kindPath('PRIVACY')}>{t('Privacy notice')}</Link>
         {user.role === 'PATIENT' &&
           ` ${t('In an emergency call 112 — this portal is not monitored around the clock.')}`}
+        <ContactOperator variant="footer" />
       </footer>
+      {user.role === 'ADMIN' && <AdminIdleSignOut />}
     </div>
   );
 }

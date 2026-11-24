@@ -75,4 +75,8 @@ export const security: Record<string, string> = {
   'Staff accounts need a second factor. Add another passkey or set up an authenticator app first.':
     'Nalozima osoblja potreban je drugi faktor. Najpre dodajte još jedan pristupni ključ ili podesite aplikaciju za autentifikaciju.',
   'Invalid passkey response': 'Neispravan odgovor pristupnog ključa',
+  // Asking for the password again before a sensitive action.
+  'Confirm it is you': 'Potvrdite da ste to vi',
+  'This action needs your password again.': 'Za ovu radnju ponovo je potrebna vaša lozinka.',
+  'The password is not correct. Try again.': 'Lozinka nije tačna. Pokušajte ponovo.',
 };

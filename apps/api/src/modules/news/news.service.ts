@@ -26,6 +26,7 @@ import {
 } from './news2.js';
 import { ageInMonths, scorePews, type PewsResult } from './pews.js';
 import { promptSepsisScreen } from '../sepsis/sepsis.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /** NEWS2 for adults, PEWS for children under 18 at the time of the observation. */
 export type EarlyWarningScale = 'NEWS2' | 'PEWS';
@@ -450,9 +451,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 /** Scores new vital signs and re-escalates every minute (not in tests). */
 export function startNewsWorker() {
   if (isTest || timer) return;
-  timer = setInterval(() => {
-    scoreNewVitalsOnce().catch((err: unknown) => logger.error({ err }, 'NEWS2 worker error'));
-  }, 60_000);
+  registerWorker('early-warning', 60_000);
+  timer = setInterval(() => void recordRun('early-warning', () => scoreNewVitalsOnce()), 60_000);
   timer.unref();
 }
 

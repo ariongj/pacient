@@ -226,4 +226,18 @@ export const platform: Record<string, string> = {
   'Its length or check digits are wrong, and it is printed on every new invoice. Correct it; the other settings can be saved meanwhile.':
     'Njegova dužina ili kontrolne cifre nisu ispravne, a štampa se na svakoj novoj fakturi. Ispravite ga; ostala podešavanja se u međuvremenu mogu sačuvati.',
   'The server did not answer in time.': 'Server nije odgovorio na vreme.',
+  // Audit labels of the actions added for going live.
+  'Billing details changed': 'Podaci za fakturisanje su izmenjeni',
+  'Invoice or credit note sent again': 'Faktura ili knjižno odobrenje je ponovo poslato',
+  'Payment reversed': 'Uplata je stornirana',
+  'Credit note issued': 'Izdato je knjižno odobrenje',
+  'Billing export downloaded': 'Preuzet je izvoz fakturisanja',
+  'Agreement accepted for the facility': 'Ugovor je prihvaćen za ustanovu',
+  'Test e-mail sent': 'Poslat je probni e-mail',
+  'Operator alert raised': 'Podignuto je upozorenje za operatera',
+  'Operator alert resolved': 'Upozorenje za operatera je rešeno',
+  'Request to the operator created': 'Kreiran je zahtev operateru',
+  'Message on a request to the operator': 'Poruka u zahtevu operateru',
+  'Request status changed': 'Status zahteva je promenjen',
+  'Password confirmed for a sensitive action': 'Lozinka je potvrđena za osetljivu radnju',
 };

@@ -164,6 +164,18 @@ invoice numbers.
 Directors see their plan, seats, history and invoices under **Facility management › Subscription
 and invoices**, and can print every invoice.
 
+## Billing details
+
+To be written.
+
+## Payments and credit notes
+
+To be written.
+
+## Exports for the accountant
+
+To be written.
+
 ## Operator settings
 
 Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts –
@@ -210,6 +222,10 @@ workspace is open it stays open until the next sign-in or page load, when the te
 the legal gate never stands between a clinician and a patient (hazard H75). `npm run
 check:legal-gate` checks this in a browser before each release.
 
+## Agreements
+
+To be written.
+
 ## Administrative actions and system health
 
 **Administrative actions** lists what administrators did – accounts, subscriptions and invoices,
@@ -222,6 +238,18 @@ history under **Users**.
 
 **System health** shows the database, e-mail and SMS waiting or failed, and the background
 workers. Check it after go-live and when someone reports a missing e-mail.
+
+## Requests
+
+To be written.
+
+## Alerts and background jobs
+
+To be written.
+
+## Recovering an administrator
+
+To be written.
 
 ## Before the first customer
 

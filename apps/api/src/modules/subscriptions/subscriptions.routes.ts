@@ -6,6 +6,10 @@ import { facilities, invoices, subscriptionPlans, subscriptions } from '../../db
 import { forbidden, notFound } from '../../lib/errors.js';
 import { parse, requireAuth } from '../../lib/http.js';
 import { authenticate, requireRole } from '../../middleware/auth.js';
+import { agreementsDirectorRouter } from './agreements.routes.js';
+import { billingCorrectionsDirectorRouter } from './corrections.routes.js';
+import { billingDocumentsDirectorRouter } from './documents.routes.js';
+import { billingProfileDirectorRouter } from './profile.routes.js';
 import {
   eventsOf,
   invoiceLines,
@@ -101,3 +105,9 @@ subscriptionRouter.get('/invoices/:id', async (req, res) => {
   const lines = await invoiceLines([id]);
   res.json(presentInvoice(row, lines.get(id) ?? null));
 });
+
+// Going live (round 2): billing details, PDFs, credit notes and agreements of the own facility.
+subscriptionRouter.use(billingProfileDirectorRouter);
+subscriptionRouter.use(billingDocumentsDirectorRouter);
+subscriptionRouter.use(billingCorrectionsDirectorRouter);
+subscriptionRouter.use(agreementsDirectorRouter);

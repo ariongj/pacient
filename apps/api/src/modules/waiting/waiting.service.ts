@@ -5,6 +5,7 @@ import { waitingListEntries, waitingListEvents } from '../../db/schema.js';
 import { logger } from '../../lib/logger.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { SMALL_CELL_THRESHOLD } from '../stats/stats.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Elective waiting lists. A patient waits for a planned procedure or a first specialist
@@ -258,9 +259,8 @@ let first: ReturnType<typeof setTimeout> | undefined;
 const SIX_HOURS = 6 * 3_600_000;
 
 function runSafely() {
-  runBreachWarningsOnce().then(
+  void recordRun('waiting-lists', () => runBreachWarningsOnce()).then(
     (n) => n && logger.info({ warnings: n }, 'Waiting-list breach warnings sent'),
-    (err: unknown) => logger.error({ err }, 'Waiting-list breach warnings failed'),
   );
 }
 
@@ -269,6 +269,7 @@ export function startWaitingWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 120_000);
   first.unref();
+  registerWorker('waiting-lists', SIX_HOURS);
   timer = setInterval(runSafely, SIX_HOURS);
   timer.unref();
 }

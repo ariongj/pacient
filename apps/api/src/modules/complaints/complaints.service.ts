@@ -27,6 +27,7 @@ import {
   RESPONSE_DAYS,
   type FeedbackSetting,
 } from './complaints.constants.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 const DAY = 86_400_000;
 
@@ -632,11 +633,11 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  runComplaintsWorker().then(
+  void recordRun('complaints', () => runComplaintsWorker()).then(
     (r) =>
+      r &&
       (r.reminders || r.invitations) &&
       logger.info(r, 'Complaint reminders and feedback invitations sent'),
-    (err: unknown) => logger.error({ err }, 'Complaints worker failed'),
   );
 }
 
@@ -645,6 +646,7 @@ export function startComplaintsWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 180_000);
   first.unref();
+  registerWorker('complaints', DAY);
   timer = setInterval(runSafely, DAY);
   timer.unref();
 }

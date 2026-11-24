@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
   bigint,
+  bigserial,
   boolean,
   check,
   customType,
@@ -1068,9 +1069,21 @@ export const emailOutbox = pgTable(
     lastError: varchar('last_error', { length: 500 }),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    /**
+     * A billing document attached when the message is sent: the worker renders the PDF from the
+     * issued (immutable) invoice or credit note at that moment, so nothing PDF-shaped is stored.
+     */
+    attachmentKind: varchar('attachment_kind', { length: 20 }).$type<'invoice' | 'credit_note'>(),
+    attachmentId: uuid('attachment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('email_outbox_due_idx').on(t.status, t.nextAttemptAt)],
+  (t) => [
+    index('email_outbox_due_idx').on(t.status, t.nextAttemptAt),
+    check(
+      'email_outbox_attachment_ck',
+      sql`(${t.attachmentKind} IS NULL) = (${t.attachmentId} IS NULL) AND (${t.attachmentKind} IS NULL OR ${t.attachmentKind} IN ('invoice', 'credit_note'))`,
+    ),
+  ],
 );
 
 /** Phone-number ownership check before any SMS is sent. Codes are hashed and attempt-limited. */
@@ -4977,6 +4990,8 @@ export const platformSettings = pgTable(
     operatorBank: varchar('operator_bank', { length: 120 }),
     supportEmail: varchar('support_email', { length: 254 }),
     supportPhone: varchar('support_phone', { length: 40 }),
+    /** When support answers, in the operator's words (e.g. "Mon–Fri 08:00–16:00"). */
+    supportHours: varchar('support_hours', { length: 120 }),
     /** Data protection officer / privacy contact for the privacy notice. */
     privacyEmail: varchar('privacy_email', { length: 254 }),
     invoicePrefix: varchar('invoice_prefix', { length: 10 }).notNull().default('PAC'),
@@ -5003,7 +5018,17 @@ export const platformSettings = pgTable(
   ],
 );
 
-export const legalDocumentKindEnum = pgEnum('legal_document_kind', ['TERMS', 'PRIVACY']);
+/**
+ * TERMS and PRIVACY are accepted by every user (the legal gate); SERVICE_AGREEMENT and DPA (data
+ * processing agreement) are accepted once per facility by one of its directors
+ * (organization_acceptances) and never gate anyone.
+ */
+export const legalDocumentKindEnum = pgEnum('legal_document_kind', [
+  'TERMS',
+  'PRIVACY',
+  'SERVICE_AGREEMENT',
+  'DPA',
+]);
 
 /**
  * Terms of use and privacy notice, versioned per language. A draft (published_at null) can be
@@ -5063,5 +5088,358 @@ export const legalAcceptances = pgTable(
   (t) => [
     uniqueIndex('legal_acceptances_user_version_uq').on(t.userId, t.kind, t.version),
     index('legal_acceptances_kind_version_idx').on(t.kind, t.version),
+  ],
+);
+
+/* ------------------------------------------------------------------ operator: billing documents */
+
+/**
+ * Who the operator invoices for a facility: the legal entity, its numbers and where invoices go.
+ * Business data, not personal data about patients. issueInvoice() copies it into each invoice's
+ * customer snapshot, so later changes never alter an issued invoice.
+ */
+export const facilityBillingProfiles = pgTable(
+  'facility_billing_profiles',
+  {
+    facilityId: uuid('facility_id')
+      .primaryKey()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    legalName: varchar('legal_name', { length: 200 }).notNull(),
+    /** Business registration number (NUI in Kosovo). */
+    businessNumber: varchar('business_number', { length: 40 }),
+    fiscalNumber: varchar('fiscal_number', { length: 40 }),
+    vatNumber: varchar('vat_number', { length: 40 }),
+    billingAddress: varchar('billing_address', { length: 500 }),
+    /** Up to three addresses that receive invoices and credit notes (besides the directors). */
+    billingEmails: text('billing_emails')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    contactName: varchar('contact_name', { length: 200 }),
+    /** The customer's own reference to quote on invoices (purchase order or contract number). */
+    customerReference: varchar('customer_reference', { length: 120 }),
+    updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // At most three addresses of 1–254 characters, none missing (a CHECK cannot loop over an
+    // array, so the three possible elements are checked one by one).
+    check(
+      'facility_billing_profiles_emails_ck',
+      sql`cardinality(${t.billingEmails}) <= 3 AND array_position(${t.billingEmails}, NULL) IS NULL AND coalesce(length(${t.billingEmails}[1]), 1) BETWEEN 1 AND 254 AND coalesce(length(${t.billingEmails}[2]), 1) BETWEEN 1 AND 254 AND coalesce(length(${t.billingEmails}[3]), 1) BETWEEN 1 AND 254`,
+    ),
+    check('facility_billing_profiles_name_ck', sql`length(trim(${t.legalName})) > 0`),
+  ],
+);
+
+/**
+ * Money received against an invoice. A mistake is reversed, never edited or deleted (database
+ * trigger: only the three reversal columns are set, once). The invoice is settled (PAID) when its
+ * payments minus reversals plus its credit notes reach the total.
+ */
+export const invoicePayments = pgTable(
+  'invoice_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    amountCents: integer('amount_cents').notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }).notNull(),
+    /** Same values as invoices.payment_method (a credit note is not a payment). */
+    method: varchar('method', { length: 40 })
+      .$type<'BANK_TRANSFER' | 'CASH' | 'CARD' | 'OTHER'>()
+      .notNull(),
+    reference: varchar('reference', { length: 120 }),
+    /** Null only for payments recorded before payments had rows of their own. */
+    recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Set once, together, when the payment is reversed. Use the database clock (sql`now()`): the
+     * invoice trigger reopens a settled invoice only for a reversal in the same transaction.
+     */
+    reversedAt: timestamp('reversed_at', { withTimezone: true }),
+    reversedById: uuid('reversed_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    reversalReason: varchar('reversal_reason', { length: 500 }),
+  },
+  (t) => [
+    index('invoice_payments_invoice_idx').on(t.invoiceId, t.paidAt),
+    index('invoice_payments_paid_idx').on(t.paidAt),
+    check('invoice_payments_amount_ck', sql`${t.amountCents} > 0`),
+    check(
+      'invoice_payments_method_ck',
+      sql`${t.method} IN ('BANK_TRANSFER', 'CASH', 'CARD', 'OTHER')`,
+    ),
+    check(
+      'invoice_payments_reversal_ck',
+      sql`(${t.reversedAt} IS NULL) = (${t.reversedById} IS NULL) AND (${t.reversedAt} IS NULL) = (${t.reversalReason} IS NULL)`,
+    ),
+  ],
+);
+
+/** Gapless credit note numbers per Kosovo calendar year (row-locked counter). */
+export const creditNoteCounters = pgTable('credit_note_counters', {
+  year: integer('year').primaryKey(),
+  lastSeq: integer('last_seq').notNull().default(0),
+});
+
+/**
+ * Credit notes: the only way to reduce an issued invoice. Issuer and customer are copied from the
+ * invoice they correct; the VAT is split at that invoice's rate. Immutable once issued and never
+ * deleted (database trigger).
+ */
+export const creditNotes = pgTable(
+  'credit_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** `<prefix>-CN-<year>-<seq, 5 digits>`, e.g. PAC-CN-2026-00001. */
+    number: varchar('number', { length: 30 }).notNull(),
+    year: integer('year').notNull(),
+    seq: integer('seq').notNull(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'restrict' }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    netCents: integer('net_cents').notNull(),
+    taxCents: integer('tax_cents').notNull(),
+    totalCents: integer('total_cents').notNull(),
+    /** The VAT rate of the invoice it corrects, in basis points. */
+    vatRateBp: integer('vat_rate_bp').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+    issuer: jsonb('issuer').$type<Record<string, string | null>>().notNull(),
+    customer: jsonb('customer').$type<Record<string, string | null>>().notNull(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
+  },
+  (t) => [
+    uniqueIndex('credit_notes_number_uq').on(t.number),
+    uniqueIndex('credit_notes_year_seq_uq').on(t.year, t.seq),
+    index('credit_notes_invoice_idx').on(t.invoiceId),
+    index('credit_notes_facility_idx').on(t.facilityId, t.issuedAt),
+    check(
+      'credit_notes_amounts_ck',
+      sql`${t.netCents} >= 0 AND ${t.taxCents} >= 0 AND ${t.totalCents} = ${t.netCents} + ${t.taxCents} AND ${t.totalCents} > 0`,
+    ),
+    check('credit_notes_vat_ck', sql`${t.vatRateBp} BETWEEN 0 AND 5000`),
+  ],
+);
+
+/**
+ * Every e-mail that carried a billing document, to whom and why (append-only). The outbox row
+ * tells whether it went out; the retention job keeps outbox rows that a delivery refers to
+ * (billing records are kept for the statutory accounting period).
+ */
+export const billingDeliveries = pgTable(
+  'billing_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'restrict' }),
+    creditNoteId: uuid('credit_note_id').references(() => creditNotes.id, {
+      onDelete: 'restrict',
+    }),
+    /** ISSUED (sent on issue), REMINDER (overdue reminder), RESEND (sent again by the operator). */
+    kind: varchar('kind', { length: 10 }).$type<'ISSUED' | 'REMINDER' | 'RESEND'>().notNull(),
+    recipient: varchar('recipient', { length: 254 }).notNull(),
+    emailOutboxId: uuid('email_outbox_id')
+      .notNull()
+      .references(() => emailOutbox.id, { onDelete: 'restrict' }),
+    /** Null when the system sent it (issued by the worker, reminders). */
+    queuedById: uuid('queued_by_id').references(() => users.id, { onDelete: 'restrict' }),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('billing_deliveries_invoice_idx').on(t.invoiceId, t.queuedAt),
+    index('billing_deliveries_credit_note_idx').on(t.creditNoteId, t.queuedAt),
+    index('billing_deliveries_outbox_idx').on(t.emailOutboxId),
+    check(
+      'billing_deliveries_document_ck',
+      sql`num_nonnulls(${t.invoiceId}, ${t.creditNoteId}) = 1`,
+    ),
+    check('billing_deliveries_kind_ck', sql`${t.kind} IN ('ISSUED', 'REMINDER', 'RESEND')`),
+  ],
+);
+
+/* ------------------------------------------------------------------ operator: agreements ----- */
+
+/**
+ * A facility's acceptance of a published service agreement or data processing agreement, signed
+ * by one of its directors with name and title as typed (append-only). A missing acceptance never
+ * blocks anything.
+ */
+export const organizationAcceptances = pgTable(
+  'organization_acceptances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => legalDocuments.id, { onDelete: 'restrict' }),
+    kind: legalDocumentKindEnum('kind').notNull(),
+    version: varchar('version', { length: 20 }).notNull(),
+    acceptedById: uuid('accepted_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    signerName: varchar('signer_name', { length: 200 }).notNull(),
+    signerTitle: varchar('signer_title', { length: 200 }).notNull(),
+    ip: varchar('ip', { length: 64 }),
+    userAgent: varchar('user_agent', { length: 300 }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('organization_acceptances_document_uq').on(t.facilityId, t.documentId),
+    index('organization_acceptances_kind_idx').on(t.kind, t.version),
+    // Compared as text: the two kinds join the enum in the migration that creates this table.
+    check('organization_acceptances_kind_ck', sql`${t.kind}::text IN ('SERVICE_AGREEMENT', 'DPA')`),
+    check(
+      'organization_acceptances_signer_ck',
+      sql`length(trim(${t.signerName})) > 0 AND length(trim(${t.signerTitle})) > 0`,
+    ),
+  ],
+);
+
+/* ------------------------------------------------------------------ operator: operations ----- */
+
+/**
+ * One row per run of a background worker (lib/worker-runs.ts): when, whether it worked, counts of
+ * what it did and a short error. Never names, texts or record data. Kept 30 days.
+ */
+export const workerRuns = pgTable(
+  'worker_runs',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    worker: varchar('worker', { length: 60 }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    ok: boolean('ok'),
+    /** Counts only, e.g. {"delivered": 3}. */
+    summary: jsonb('summary').$type<Record<string, number>>(),
+    error: varchar('error', { length: 500 }),
+  },
+  (t) => [index('worker_runs_worker_idx').on(t.worker, t.startedAt.desc())],
+);
+
+/** The last success of jobs that run outside the API (e.g. 'backup'), reported to it. */
+export const opsHeartbeats = pgTable('ops_heartbeats', {
+  name: varchar('name', { length: 60 }).primaryKey(),
+  lastOkAt: timestamp('last_ok_at', { withTimezone: true }).notNull(),
+  /** Sizes and durations only. */
+  detail: jsonb('detail').$type<Record<string, number | string>>(),
+});
+
+/**
+ * Conditions the operator must look at (a stalled worker, failing e-mail, an old backup,
+ * incomplete billing settings), one row per condition: raised again it is updated, not repeated.
+ * Messages never contain patient data.
+ */
+export const operatorAlerts = pgTable(
+  'operator_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Stable key of the condition, e.g. 'worker.stale:email' or 'billing.settings_incomplete'. */
+    conditionKey: varchar('condition_key', { length: 120 }).notNull(),
+    severity: varchar('severity', { length: 10 }).$type<'WARNING' | 'CRITICAL'>().notNull(),
+    message: varchar('message', { length: 500 }).notNull(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    lastNotifiedAt: timestamp('last_notified_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('operator_alerts_condition_uq').on(t.conditionKey),
+    index('operator_alerts_open_idx').on(t.resolvedAt, t.lastSeenAt),
+    check('operator_alerts_severity_ck', sql`${t.severity} IN ('WARNING', 'CRITICAL')`),
+  ],
+);
+
+/* ------------------------------------------------------------------ operator: requests ------- */
+
+export const operatorRequestCategoryEnum = pgEnum('operator_request_category', [
+  'BILLING',
+  'ACCOUNT',
+  'TECHNICAL',
+  'DATA_PROTECTION',
+  'SECURITY_INCIDENT',
+  'OTHER',
+]);
+export const operatorRequestStatusEnum = pgEnum('operator_request_status', [
+  'OPEN',
+  'WAITING_CUSTOMER',
+  'RESOLVED',
+]);
+export const operatorRequestPriorityEnum = pgEnum('operator_request_priority', ['NORMAL', 'HIGH']);
+
+/** Gapless request references per Kosovo calendar year: REQ-2026-00001 (row-locked counter). */
+export const operatorRequestCounters = pgTable('operator_request_counters', {
+  year: integer('year').primaryKey(),
+  last: integer('last').notNull().default(0),
+});
+
+/**
+ * A facility's request to the operator of the service (billing, accounts, technical problems,
+ * data protection, security incidents), raised by its directors or IT support. Never about a
+ * patient: forms refuse texts that look like a personal number.
+ */
+export const operatorRequests = pgTable(
+  'operator_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reference: varchar('reference', { length: 20 }).notNull(),
+    facilityId: uuid('facility_id')
+      .notNull()
+      .references(() => facilities.id, { onDelete: 'restrict' }),
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    category: operatorRequestCategoryEnum('category').notNull(),
+    subject: varchar('subject', { length: 200 }).notNull(),
+    status: operatorRequestStatusEnum('status').notNull().default('OPEN'),
+    priority: operatorRequestPriorityEnum('priority').notNull().default('NORMAL'),
+    ...timestamps,
+    /** The first answer by the operator. */
+    firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
+    /** Set exactly while the request is resolved (cleared when it is opened again). */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('operator_requests_reference_uq').on(t.reference),
+    index('operator_requests_status_idx').on(t.status, t.updatedAt),
+    index('operator_requests_facility_idx').on(t.facilityId, t.createdAt),
+    index('operator_requests_requester_idx').on(t.requesterId),
+    check('operator_requests_subject_ck', sql`length(trim(${t.subject})) > 0`),
+    check(
+      'operator_requests_resolved_ck',
+      sql`(${t.status} = 'RESOLVED') = (${t.resolvedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** The conversation of a request (append-only). */
+export const operatorRequestMessages = pgTable(
+  'operator_request_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => operatorRequests.id, { onDelete: 'restrict' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('operator_request_messages_request_idx').on(t.requestId, t.createdAt),
+    check(
+      'operator_request_messages_body_ck',
+      sql`length(trim(${t.body})) > 0 AND length(${t.body}) <= 4000`,
+    ),
   ],
 );

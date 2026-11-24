@@ -21,3 +21,14 @@ export const notFound = (message = 'Resource not found') =>
 export const conflict = (message: string) => new HttpError(409, 'CONFLICT', message);
 export const tooManyRequests = (message: string) =>
   new HttpError(429, 'TOO_MANY_REQUESTS', message);
+
+/**
+ * The action needs proof that the account holder is at the keyboard: a recent sign-in or the
+ * password again (code REAUTH_REQUIRED). The passkey settings answer 403 as they always have;
+ * requireRecentAuth() answers 401 so the web client knows to ask for the password and retry.
+ */
+export const reauthRequired = (status: 401 | 403 = 403) =>
+  new HttpError(status, 'REAUTH_REQUIRED', 'Confirm your password to continue');
+/** A route or function that is declared but not built yet. */
+export const notImplemented = (message = 'Not implemented yet') =>
+  new HttpError(501, 'NOT_IMPLEMENTED', message);

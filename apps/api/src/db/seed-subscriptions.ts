@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm';
 import { db, type Executor } from './client.js';
 import {
   facilities,
+  invoicePayments,
   invoices,
   subscriptionPlans,
   subscriptions,
@@ -451,6 +452,18 @@ async function issueSeedInvoice(
     at: spec.issuedAt,
   });
   if (spec.paidAt) {
+    // A paid invoice has its payment as a row of its own, as one recorded by the administrator.
+    if (invoice!.totalCents > 0) {
+      await tx.insert(invoicePayments).values({
+        invoiceId: invoice!.id,
+        amountCents: invoice!.totalCents,
+        paidAt: spec.paidAt,
+        method: spec.method ?? 'OTHER',
+        reference: spec.reference ?? null,
+        recordedById: admin.userId,
+        createdAt: spec.paidAt,
+      });
+    }
     await recordEvent(tx, {
       subscription: s,
       type: 'PAYMENT_RECORDED',

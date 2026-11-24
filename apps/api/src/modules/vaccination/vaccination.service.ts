@@ -5,6 +5,7 @@ import { logger } from '../../lib/logger.js';
 import { isTest } from '../../config/env.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient, notifyUsers } from '../notifications/notifications.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * National childhood vaccination calendar. Each active row of `vaccine_schedule` is one
@@ -268,9 +269,8 @@ let first: ReturnType<typeof setTimeout> | undefined;
 const SIX_HOURS = 6 * 3_600_000;
 
 function runSafely() {
-  runVaccinationRemindersOnce().then(
+  void recordRun('vaccination-reminders', () => runVaccinationRemindersOnce()).then(
     (n) => n && logger.info({ reminders: n }, 'Vaccination reminders sent'),
-    (err: unknown) => logger.error({ err }, 'Vaccination reminders failed'),
   );
 }
 
@@ -279,6 +279,7 @@ export function startVaccinationReminderWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 60_000);
   first.unref();
+  registerWorker('vaccination-reminders', SIX_HOURS);
   timer = setInterval(runSafely, SIX_HOURS);
   timer.unref();
 }

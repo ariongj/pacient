@@ -20,10 +20,12 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import {
   auditLogs,
+  creditNotes,
   facilities,
   invoices,
   legalAcceptances,
   legalDocuments,
+  operatorRequests,
   platformSettings,
   subscriptionEvents,
   subscriptionPlans,
@@ -76,18 +78,32 @@ const CATEGORY_FILTERS: Record<AuditCategory, SQL> = {
       AuditAction.USER_INVITED,
       AuditAction.USER_DEACTIVATED,
       AuditAction.USER_REACTIVATED,
+      // An administrator confirming the password for a sensitive action.
+      AuditAction.AUTH_REAUTHENTICATED,
     ]),
   )!,
   // The operator's customers and their billing (facilities created for a customer, plans,
-  // subscriptions, invoices): the facilities' own patient billing (co-payments, claims) also
-  // writes billing.* actions and is not administration.
+  // subscriptions, invoices, billing details, payments, credit notes, exports, agreements,
+  // requests to the operator): the facilities' own patient billing (co-payments, claims) also
+  // writes billing.* actions and is not administration, so the new billing actions are listed.
   billing: or(
     like(auditLogs.action, 'facility.%'),
     like(auditLogs.action, 'billing.plan.%'),
     like(auditLogs.action, 'billing.subscription.%'),
     like(auditLogs.action, 'billing.invoice.%'),
+    like(auditLogs.action, 'operator_request.%'),
+    inArray(auditLogs.action, [
+      AuditAction.BILLING_PROFILE_CHANGED,
+      AuditAction.BILLING_INVOICE_SENT,
+      AuditAction.BILLING_PAYMENT_RECORDED,
+      AuditAction.BILLING_PAYMENT_REVERSED,
+      AuditAction.BILLING_CREDIT_NOTE_ISSUED,
+      AuditAction.BILLING_EXPORTED,
+      AuditAction.LEGAL_ORGANIZATION_ACCEPTED,
+    ]),
   )!,
   // Acceptances by users (legal.accepted) are not administrative actions: see /legal/acceptances.
+  // platform.% includes the test e-mail and operator alerts raised and resolved.
   platform: or(like(auditLogs.action, 'platform.%'), like(auditLogs.action, 'legal.document.%'))!,
 };
 
@@ -836,6 +852,24 @@ async function targetNames(rows: { resourceType: string | null; resourceId: stri
       .from(subscriptionPlans)
       .where(inArray(subscriptionPlans.id, planIds))) {
       names.set(p.id, p.name);
+    }
+  }
+  const creditNoteIds = idsOf('credit_note');
+  if (creditNoteIds.length) {
+    for (const c of await db
+      .select({ id: creditNotes.id, name: creditNotes.number })
+      .from(creditNotes)
+      .where(inArray(creditNotes.id, creditNoteIds))) {
+      names.set(c.id, c.name);
+    }
+  }
+  const requestIds = idsOf('operator_request');
+  if (requestIds.length) {
+    for (const r of await db
+      .select({ id: operatorRequests.id, name: operatorRequests.reference })
+      .from(operatorRequests)
+      .where(inArray(operatorRequests.id, requestIds))) {
+      names.set(r.id, r.name);
     }
   }
   const docIds = idsOf('legal_document');

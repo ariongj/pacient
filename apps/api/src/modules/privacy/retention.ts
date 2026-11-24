@@ -5,6 +5,7 @@ import { retentionPolicies } from '../../db/schema.js';
 import type { AuthContext } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Retention of OPERATIONAL data (Law No. 06/L-082 on Protection of Personal Data, art. 4 –
@@ -51,8 +52,11 @@ export const RETENTION_CATEGORIES: RetentionCategory[] = [
     defaultDays: 90,
     legalBasis: BASIS_OPERATIONAL,
     table: 'email_outbox',
+    // Messages that carried an invoice or credit note stay: their delivery records are billing
+    // records, kept for the statutory accounting period (see docs/PRIVACY.md).
     where: (c) =>
-      sql`status IN ('SENT', 'FAILED') AND created_at < ${c} AND NOT ${userOnHold(sql`email_outbox.user_id`)}`,
+      sql`status IN ('SENT', 'FAILED') AND created_at < ${c} AND NOT ${userOnHold(sql`email_outbox.user_id`)}
+        AND NOT EXISTS (SELECT 1 FROM billing_deliveries bd WHERE bd.email_outbox_id = email_outbox.id)`,
   },
   {
     category: 'SMS_OUTBOX',
@@ -230,13 +234,15 @@ const localParts = (d: Date) => {
 /** Checks every 15 minutes and runs once per night between 02:00 and 03:00 local time. */
 export function startRetentionWorker() {
   if (isTest || timer) return;
+  // Checked every 15 minutes, it runs once a day (02:00 Kosovo time).
+  registerWorker('retention', 24 * 60 * 60_000);
   timer = setInterval(() => {
     const { day, hour } = localParts(new Date());
     if (hour !== RUN_HOUR_LOCAL || lastRunDay === day) return;
     lastRunDay = day;
-    runRetentionOnce()
-      .then((r) => logger.info({ total: r.total }, 'Retention run completed'))
-      .catch((err: unknown) => logger.error({ err }, 'Retention run failed'));
+    void recordRun('retention', () => runRetentionOnce()).then(
+      (r) => r && logger.info({ total: r.total }, 'Retention run completed'),
+    );
   }, 15 * 60_000);
   timer.unref();
 }

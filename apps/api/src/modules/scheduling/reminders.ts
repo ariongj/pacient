@@ -5,6 +5,7 @@ import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { notifyPatient } from '../notifications/notifications.service.js';
 import { localTime } from './time.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /** Reminders go out for confirmed appointments that start 20–28 hours from now. */
 const WINDOW_FROM_H = 20;
@@ -72,10 +73,10 @@ let first: ReturnType<typeof setTimeout> | undefined;
 export function startAppointmentReminderWorker() {
   if (isTest || timer) return;
   const run = () =>
-    runAppointmentRemindersOnce().then(
+    recordRun('appointment-reminders', () => runAppointmentRemindersOnce()).then(
       (n) => n && logger.info({ reminders: n }, 'Appointment reminders sent'),
-      (err: unknown) => logger.error({ err }, 'Appointment reminders failed'),
     );
+  registerWorker('appointment-reminders', INTERVAL_MS);
   first = setTimeout(run, 30_000);
   first.unref();
   timer = setInterval(run, INTERVAL_MS);

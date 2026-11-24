@@ -75,4 +75,8 @@ export const security: Record<string, string> = {
   'Staff accounts need a second factor. Add another passkey or set up an authenticator app first.':
     'Llogaritë e stafit kanë nevojë për një faktor të dytë. Shtoni një çelës tjetër kalimi ose konfiguroni së pari një aplikacion vërtetimi.',
   'Invalid passkey response': 'Përgjigje e pavlefshme e çelësit të kalimit',
+  // Asking for the password again before a sensitive action.
+  'Confirm it is you': 'Konfirmoni që jeni ju',
+  'This action needs your password again.': 'Ky veprim kërkon përsëri fjalëkalimin tuaj.',
+  'The password is not correct. Try again.': 'Fjalëkalimi nuk është i saktë. Provoni përsëri.',
 };

@@ -19,6 +19,7 @@ import {
   passkeysSupported,
   signInWithPasskey,
 } from '../../api/security';
+import { ContactOperator } from '../../components/ContactOperator';
 
 const DEMO = import.meta.env.DEV
   ? [
@@ -300,6 +301,7 @@ export function LoginPage() {
       <p className="muted" style={{ fontSize: '0.85rem' }}>
         <Link to="/open-data">{t('Open health data')}</Link>
       </p>
+      <ContactOperator variant="login" />
       {DEMO.length > 0 && (
         <div className="demo-accounts">
           <p className="muted">

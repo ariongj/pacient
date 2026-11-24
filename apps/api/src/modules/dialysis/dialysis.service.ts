@@ -11,6 +11,7 @@ import {
 import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
 import type { AuthContext } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
  * Haemodialysis.
@@ -411,9 +412,8 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let first: ReturnType<typeof setTimeout> | undefined;
 
 function runSafely() {
-  planSessions().then(
+  void recordRun('dialysis', () => planSessions()).then(
     (n) => n && logger.info({ sessions: n }, 'Dialysis sessions planned'),
-    (err: unknown) => logger.error({ err }, 'Dialysis planning worker failed'),
   );
 }
 
@@ -422,6 +422,7 @@ export function startDialysisWorker() {
   if (isTest || timer) return;
   first = setTimeout(runSafely, 5 * 60_000);
   first.unref();
+  registerWorker('dialysis', 24 * 60 * 60_000);
   timer = setInterval(runSafely, 24 * 60 * 60_000);
   timer.unref();
 }

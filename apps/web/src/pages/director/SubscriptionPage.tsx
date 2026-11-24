@@ -23,6 +23,11 @@ import { t } from '../../i18n';
 import { SubscriptionHistory } from '../admin/billing/History';
 import { InvoiceTable } from '../admin/billing/InvoiceTable';
 import { SeatsMeter, SubscriptionBadge } from '../admin/billing/parts';
+import { ContactOperator } from '../../components/ContactOperator';
+import { AgreementsCard } from './subscription/AgreementsCard';
+import { BillingDetailsCard } from './subscription/BillingDetailsCard';
+import { CreditNotesCard } from './subscription/CreditNotesCard';
+import { DocumentsCard } from './subscription/DocumentsCard';
 
 /** The subscription's state in plain words, with what it means for the facility. */
 function StatusExplained({ data }: { data: MySubscription }) {
@@ -65,6 +70,7 @@ function StatusExplained({ data }: { data: MySubscription }) {
               invoices: overdue.map((i) => i.number).join(', ') || '—',
             },
           )}
+          <ContactOperator variant="inline" />
         </Alert>
       );
     case 'SUSPENDED':
@@ -77,6 +83,7 @@ function StatusExplained({ data }: { data: MySubscription }) {
           {t(
             'Clinical work, sign-in and existing accounts are not affected. Please contact the service operator.',
           )}
+          <ContactOperator variant="inline" />
         </Alert>
       );
     default:
@@ -85,6 +92,7 @@ function StatusExplained({ data }: { data: MySubscription }) {
           {t(
             'Patient records and existing accounts stay available. Contact the service operator to subscribe again.',
           )}
+          <ContactOperator variant="inline" />
         </Alert>
       );
   }
@@ -108,6 +116,7 @@ export function SubscriptionPage() {
                 <EmptyState title={t('Your facility has no subscription yet.')}>
                   {t('Contact the service operator.')}
                 </EmptyState>
+                <ContactOperator variant="inline" />
                 <SeatsMeter used={data.seatsUsed} limit={null} />
               </Card>
             );
@@ -163,9 +172,13 @@ export function SubscriptionPage() {
                   </p>
                 </div>
               </Card>
+              <BillingDetailsCard data={data} />
               <Card title={t('Invoices')}>
                 <InvoiceTable invoices={data.invoices} audience="director" />
               </Card>
+              <DocumentsCard data={data} />
+              <CreditNotesCard data={data} />
+              <AgreementsCard data={data} />
               <Card title={t('History')}>
                 <SubscriptionHistory events={data.events} audience="director" />
               </Card>

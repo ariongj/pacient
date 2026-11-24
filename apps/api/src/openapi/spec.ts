@@ -41,6 +41,11 @@ import { CERTIFICATES_OPERATIONS, CERTIFICATES_TAGS } from './certificates.js';
 import { WAITING_OPERATIONS, WAITING_TAGS } from './waiting.js';
 import { REGISTERS_OPERATIONS, REGISTERS_TAGS } from './registers.js';
 import { INCIDENTS_OPERATIONS, INCIDENTS_TAGS } from './incidents.js';
+import { BILLINGDOCS_OPERATIONS, BILLINGDOCS_TAGS } from './billingdocs.js';
+import { BILLINGCORRECTIONS_OPERATIONS, BILLINGCORRECTIONS_TAGS } from './billingcorrections.js';
+import { AGREEMENTS_OPERATIONS, AGREEMENTS_TAGS } from './agreements.js';
+import { OPERATORREQUESTS_OPERATIONS, OPERATORREQUESTS_TAGS } from './operatorrequests.js';
+import { OPERATIONS_OPERATIONS, OPERATIONS_TAGS } from './operations.js';
 
 type Schema = Record<string, unknown>;
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -161,6 +166,11 @@ export const TAGS: { name: string; description: string }[] = [
   ...WAITING_TAGS,
   ...REGISTERS_TAGS,
   ...INCIDENTS_TAGS,
+  ...BILLINGDOCS_TAGS,
+  ...BILLINGCORRECTIONS_TAGS,
+  ...AGREEMENTS_TAGS,
+  ...OPERATORREQUESTS_TAGS,
+  ...OPERATIONS_TAGS,
   { name: 'FHIR', description: 'HL7 FHIR R4 export for authorised staff and patients.' },
   {
     name: 'Partner API',
@@ -901,6 +911,11 @@ OPERATIONS.push(
   ...WAITING_OPERATIONS,
   ...REGISTERS_OPERATIONS,
   ...INCIDENTS_OPERATIONS,
+  ...BILLINGDOCS_OPERATIONS,
+  ...BILLINGCORRECTIONS_OPERATIONS,
+  ...AGREEMENTS_OPERATIONS,
+  ...OPERATORREQUESTS_OPERATIONS,
+  ...OPERATIONS_OPERATIONS,
 );
 
 export function partnerOperations() {

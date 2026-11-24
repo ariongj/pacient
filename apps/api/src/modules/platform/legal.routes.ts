@@ -10,10 +10,10 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import {
   currentDocument,
   getSettings,
-  LEGAL_KINDS,
   LEGAL_LOCALES,
   pendingDocuments,
   presentDocument,
+  USER_LEGAL_KINDS,
 } from './platform.service.js';
 
 /**
@@ -26,8 +26,9 @@ const LocaleQuery = z.object({ locale: z.enum(LEGAL_LOCALES).optional() });
 const KindParam = z.object({
   kind: z.enum(['terms', 'privacy']).transform((k) => (k === 'terms' ? 'TERMS' : 'PRIVACY')),
 });
+// Only the texts of the legal gate: agreements are accepted for a facility (/subscription).
 const AcceptInput = z.object({
-  kind: z.enum(LEGAL_KINDS),
+  kind: z.enum(USER_LEGAL_KINDS),
   version: z.string().trim().min(1).max(20),
 });
 

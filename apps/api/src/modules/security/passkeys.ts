@@ -10,7 +10,7 @@ import { and, asc, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import { env } from '../../config/env.js';
 import { db } from '../../db/client.js';
 import { authChallenges, refreshTokens, users, webauthnCredentials } from '../../db/schema.js';
-import { badRequest, conflict, HttpError, notFound, unauthorized } from '../../lib/errors.js';
+import { badRequest, conflict, notFound, reauthRequired, unauthorized } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { verifyPassword } from '../../lib/password.js';
 import { hashToken, verifyMfaChallenge } from '../../lib/tokens.js';
@@ -34,8 +34,6 @@ const RECENT_AUTH_MS = 10 * 60_000;
 
 type Purpose = 'REGISTER' | 'AUTHENTICATE';
 
-const reauthRequired = () =>
-  new HttpError(403, 'REAUTH_REQUIRED', 'Confirm your password to continue');
 const passkeyFailed = () => unauthorized('The passkey could not be verified');
 
 /** The challenge the browser signed, from the clientDataJSON of a WebAuthn response. */

@@ -11,7 +11,6 @@ import {
 } from '../../db/schema.js';
 import { forbidden } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
-import { logger } from '../../lib/logger.js';
 import {
   assertClinicalWriteAccess,
   hasActiveCareAssignment,
@@ -21,6 +20,7 @@ import {
 import { audit, AuditAction, auditSafe } from '../audit/audit.service.js';
 import { notifyUsers } from '../notifications/notifications.service.js';
 import { legalSteps, type LegalStep } from './definitions.js';
+import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 type Role = AuthContext['role'];
 
@@ -203,9 +203,7 @@ async function runSafely() {
   if (running) return;
   running = true;
   try {
-    await runDeadlineRemindersOnce();
-  } catch (err) {
-    logger.error({ err }, 'Mental health deadline reminders failed');
+    await recordRun('mental-health', () => runDeadlineRemindersOnce());
   } finally {
     running = false;
   }
@@ -215,6 +213,7 @@ async function runSafely() {
 export function startMentalHealthWorker() {
   if (isTest || timer) return;
   setTimeout(() => void runSafely(), 5 * 60_000).unref();
+  registerWorker('mental-health', 3_600_000);
   timer = setInterval(() => void runSafely(), 3_600_000);
   timer.unref();
 }

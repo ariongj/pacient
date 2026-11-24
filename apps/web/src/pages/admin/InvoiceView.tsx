@@ -4,6 +4,9 @@ import { useUser } from '../../auth/AuthContext';
 import { Alert, Button, PageHeader, QueryView } from '../../components/ui';
 import { t } from '../../i18n';
 import { InvoiceActions } from './billing/InvoiceTable';
+import { InvoiceCreditNotes } from './billing/InvoiceCreditNotes';
+import { InvoiceDeliveries } from './billing/InvoiceDeliveries';
+import { InvoicePayments } from './billing/InvoicePayments';
 import { INVOICE_PRINT_CSS, InvoiceSheet } from './billing/InvoiceSheet';
 import { InvoiceBadge } from './billing/parts';
 
@@ -47,6 +50,9 @@ export function InvoiceView() {
             </div>
           )}
           <InvoiceSheet invoice={invoice} />
+          <InvoicePayments invoice={invoice} admin={admin} />
+          <InvoiceCreditNotes invoice={invoice} admin={admin} />
+          {admin && <InvoiceDeliveries invoice={invoice} />}
         </>
       )}
     </QueryView>

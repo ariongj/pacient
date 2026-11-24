@@ -11,21 +11,28 @@ export const PLATFORM_TAGS = [
 
 const T = 'Platform';
 const ADMIN = 'ADMIN (platform administrator); never clinical data';
-const kindEnum = enumOf('TERMS', 'PRIVACY');
+const kindEnum = enumOf('TERMS', 'PRIVACY', 'SERVICE_AGREEMENT', 'DPA');
+/** The texts users accept at sign-in; agreements are accepted per facility (/subscription). */
+const userKindEnum = enumOf('TERMS', 'PRIVACY');
 const localeEnum = enumOf('sq', 'sr', 'en');
 const version = str({ pattern: '^[0-9A-Za-z][0-9A-Za-z._-]{0,19}$' });
 
-/** The public legal text is addressed by its kind ("terms" or "privacy"), not by an id. */
+/** The public legal text is addressed by its kind ("terms", "privacy", …), not by an id. */
 const legalByKind: ModuleOperation = {
-  ...op('get', '/legal/{kind}', T, 'The current terms of use or privacy notice', {
+  ...op('get', '/legal/{kind}', T, 'The current text of a kind', {
     auth: 'none',
     access: 'Public',
     description:
-      'Newest published version in the requested language (fallback Albanian, then English), with the operator details as they were when it was published (texts published before the details were written into them are filled in from the current settings). 404 while nothing is published.',
+      'Terms of use, privacy notice, service agreement or data processing agreement: the newest published version in the requested language (fallback Albanian, then English), with the operator details as they were when it was published (texts published before the details were written into them are filled in from the current settings). 404 while nothing is published.',
     params: [q('locale', localeEnum)],
   }),
   params: [
-    { name: 'kind', in: 'path', required: true, schema: enumOf('terms', 'privacy') },
+    {
+      name: 'kind',
+      in: 'path',
+      required: true,
+      schema: enumOf('terms', 'privacy', 'service-agreement', 'dpa'),
+    },
     q('locale', localeEnum),
   ],
 };
@@ -39,6 +46,7 @@ const settingsBody = obj({
   operatorBank: str({ maxLength: 120, nullable: true }),
   supportEmail: str({ format: 'email', nullable: true }),
   supportPhone: str({ maxLength: 40, nullable: true }),
+  supportHours: str({ maxLength: 120, nullable: true }),
   privacyEmail: str({ format: 'email', nullable: true }),
   invoicePrefix: str({ pattern: '^[A-Z0-9-]{1,10}$' }),
   paymentTermsDays: int({ minimum: 0, maximum: 120 }),
@@ -55,7 +63,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
     auth: 'none',
     access: 'Public',
     description:
-      'Operator name and address, support and privacy contacts, and the notice to all users while it is valid.',
+      'Operator name and address, support and privacy contacts with the support hours, and the notice to all users while it is valid.',
   }),
   op('get', '/legal/status', T, 'Terms and privacy versions the caller still has to accept', {
     access: 'Any signed-in user',
@@ -67,7 +75,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
     access: 'Any signed-in user (for their own account)',
     description:
       'Only the current version can be accepted; accepting twice is harmless. Recorded with time, IP address and browser, and audited.',
-    body: obj({ kind: kindEnum, version: str({ maxLength: 20 }) }, ['kind', 'version']),
+    body: obj({ kind: userKindEnum, version: str({ maxLength: 20 }) }, ['kind', 'version']),
     responses: { '200': 'Accepted; the versions still pending', '409': 'Not the current version' },
   }),
   legalByKind,
@@ -88,10 +96,10 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
       'Only the fields sent are changed; the changed field names are audited. A new IBAN must have its country’s length and valid check digits (02–98); the stored one sent back unchanged is not checked again, so it never blocks other changes. Published legal texts keep the details they were published with.',
     body: settingsBody,
   }),
-  op('get', '/admin/legal', T, 'Terms of use and privacy notice: every version and language', {
+  op('get', '/admin/legal', T, 'Legal texts: every version and language', {
     access: ADMIN,
     description:
-      'Drafts and published documents, the current version of each kind, acceptance counts against active accounts, and operator details the texts need that are still empty.',
+      'Terms of use, privacy notice, service agreement and data processing agreement: drafts and published documents, the current version of each kind, users’ acceptance counts against active accounts (facilities’ acceptances of the agreements: /admin/agreements/missing), and operator details the texts need that are still empty.',
   }),
   op('get', '/admin/legal/templates', T, 'Starting text for a new version (draft)', {
     access: ADMIN,
@@ -102,7 +110,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
     access: ADMIN,
     description:
       'The count against active accounts and the latest 50 acceptances; patient accounts by role and time only (no name).',
-    params: [q('kind', kindEnum), q('version', version)],
+    params: [q('kind', userKindEnum), q('version', version)],
   }),
   op('get', '/admin/legal/{id}', T, 'One document with its text', {
     access: ADMIN,
@@ -143,7 +151,8 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
       'The text is fixed from now on (database trigger), with the operator details it refers to written into it (each value as typed, in one pass) and the text as written kept in titleSource and bodySource. When it asks for acceptance, every user accepts it at their next sign-in. The operator details must be filled in first.',
     responses: {
       '200': 'Published',
-      '400': 'Operator settings missing, or the title too long with them filled in',
+      '400':
+        'Operator settings missing, the title too long with them filled in, or the draft note of an agreement template still in the text',
       '409': 'Already published',
     },
   }),

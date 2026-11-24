@@ -1,27 +1,42 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ApiError } from '../../api/client';
-import { kindPath, useLegalDocument, type LegalKind } from '../../api/platform';
+import {
+  isAgreement,
+  kindOfPath,
+  kindPath,
+  useLegalDocument,
+  type LegalKind,
+} from '../../api/platform';
 import { useAuth } from '../../auth/AuthContext';
 import { ErrorAlert, Loading } from '../../components/ui';
 import { formatDate } from '../../format';
 import { t, useLocale } from '../../i18n';
 import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
+import { legalKindLabel } from '../admin/platform/labels';
 import { LegalText } from '../admin/platform/LegalText';
 
+/** The text that goes with each one: the terms with the privacy notice, the two agreements. */
+const COMPANION: Record<LegalKind, LegalKind> = {
+  TERMS: 'PRIVACY',
+  PRIVACY: 'TERMS',
+  SERVICE_AGREEMENT: 'DPA',
+  DPA: 'SERVICE_AGREEMENT',
+};
+
 /**
- * Public terms of use (/legal/terms) and privacy notice (/legal/privacy): the current published
+ * Public terms of use (/legal/terms), privacy notice (/legal/privacy), service agreement
+ * (/legal/service-agreement) and data processing agreement (/legal/dpa): the current published
  * version in the reader's language, with the operator's contact details. No sign-in needed.
  */
 export function LegalPage() {
   const { pathname } = useLocation();
-  const kind: LegalKind = pathname.startsWith(kindPath('PRIVACY')) ? 'PRIVACY' : 'TERMS';
-  const other: LegalKind = kind === 'TERMS' ? 'PRIVACY' : 'TERMS';
+  const kind = kindOfPath(pathname);
+  const other = COMPANION[kind];
   const { locale } = useLocale();
   const { user } = useAuth();
   const doc = useLegalDocument(kind, locale);
-  const fallbackTitle = kind === 'TERMS' ? t('Terms of use') : t('Privacy notice');
-  const title = doc.data?.title ?? fallbackTitle;
+  const title = doc.data?.title ?? legalKindLabel(kind);
 
   useEffect(() => {
     document.title = `${title} · Pacient`;
@@ -47,6 +62,13 @@ export function LegalPage() {
           <p className="muted">
             {t(
               'Not published yet. The operator of the service publishes this text before go-live.',
+            )}
+          </p>
+        )}
+        {isAgreement(kind) && (
+          <p className="muted">
+            {t(
+              'Accepted once for each health facility by one of its directors, under Subscription and invoices.',
             )}
           </p>
         )}
@@ -89,10 +111,9 @@ export function LegalPage() {
           </>
         )}
         <p style={{ marginTop: '1.5rem' }}>
-          <Link to={kindPath(other)}>
-            {other === 'TERMS' ? t('Terms of use') : t('Privacy notice')}
-          </Link>{' '}
-          · <Link to={user ? '/' : '/login'}>{user ? t('Back to Pacient') : t('Sign in')}</Link>
+          <Link to={kindPath(other)}>{legalKindLabel(other)}</Link> ·{' '}
+          <Link to="/help">{t('Help and contact')}</Link> ·{' '}
+          <Link to={user ? '/' : '/login'}>{user ? t('Back to Pacient') : t('Sign in')}</Link>
         </p>
       </main>
     </div>

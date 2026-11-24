@@ -20,9 +20,10 @@ Demo sign-in (synthetic data only): `admin@pacient.local`.
 | **Customers and subscriptions › Facilities**            | Every facility with plan, status, seats and renewal; add a new customer        |
 | **Customers and subscriptions › Invoices and payments** | All invoices; record a payment, void, print, download, e-mail again            |
 | **Customers and subscriptions › Plans**                 | What facilities can subscribe to, and at what price                            |
+| **Customers and subscriptions › Requests**              | What facilities ask the operator: answer, set the status                       |
 | **Users**                                               | Every account of the service                                                   |
 | **Platform › Operator settings**                        | Company details, payment terms, VAT, trial and grace periods, notice to users  |
-| **Platform › Terms and privacy**                        | Versions of the two legal texts, publishing, who accepted                      |
+| **Platform › Terms and privacy**                        | Legal texts and agreements: versions, publishing, who accepted                 |
 | **Platform › System health**                            | Database, e-mail and SMS queues, background workers                            |
 | **Platform › Administrative actions**                   | Everything administrators did, by category                                     |
 
@@ -312,8 +313,8 @@ export and its period (nothing else). A period is at most one year.
 
 ## Operator settings
 
-Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts –
-printed on invoices and referred to by the legal texts. A new IBAN is checked before it is saved
+Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts and the
+support hours – printed on invoices, referred to by the legal texts and shown to users. A new IBAN is checked before it is saved
 (its country's length – 20 characters for Kosovo – and its check digits, which are always 02–98),
 because every invoice issued afterwards keeps it. An IBAN saved before the check was this strict
 is not checked again when you save other settings (an urgent notice is never held up by it), but
@@ -358,7 +359,38 @@ check:legal-gate` checks this in a browser before each release.
 
 ## Agreements
 
-To be written.
+The **service agreement** and the **data processing agreement** (the operator processes the
+facilities' data on their behalf) are versioned on **Platform › Terms and privacy** like the terms
+of use, each on its own tab: start a draft from the built-in template (Albanian, Serbian, English),
+have it reviewed, publish. The templates cover processing only on the facility's instructions, the
+categories of data and data subjects, the technical and organisational measures (referring to
+SECURITY.md), the sub-processors (hosting, e-mail, SMS – in square brackets in the text for you to
+fill in; there is no setting for them), help with a personal data breach within 72 hours, audits,
+returning and deleting the data at the end, and that clinical access is never withheld for
+non-payment. **Each template starts with a note asking for a lawyer's review, and publishing is
+refused while the note is still in the text**: delete it once the text is reviewed. The public pages
+are `/legal/service-agreement` and `/legal/dpa`.
+
+A facility accepts each agreement once, through one of its directors, under **Subscription and
+invoices › Agreements with the operator** (also when it has no subscription yet): they read the
+text, type the signer's name and title, and confirm. The acceptance – version, language, signer,
+the director's account, time, IP address and browser – is kept for good (the database refuses to
+change or delete it) and audited with it. A second director, or the same version in another
+language, records nothing new. A new version that asks for acceptance is asked again; one for
+information only is not asked of facilities that accepted an earlier version, but a facility that
+never accepted accepts the current one – the same rule as for the terms of use.
+
+**Nothing is blocked by a missing acceptance.** Until one of them accepts, the facility's directors
+see a notice with a link; nobody else sees anything, and the agreements are never part of the check
+of the terms of use at sign-in (hazards H74 and H75 in [CLINICAL-SAFETY.md](CLINICAL-SAFETY.md)).
+
+You see:
+
+- on the **Overview**, the customers (active facilities whose subscription has not ended) that have
+  not accepted the current agreements, or a reminder while an agreement is not published;
+- on **Terms and privacy**, per agreement, how many customers are up to date, which have not
+  accepted yet, and which facilities accepted a version (who signed, with which title, when);
+- on each **facility's page**, its acceptances.
 
 ## Administrative actions and system health
 
@@ -375,7 +407,33 @@ workers. Check it after go-live and when someone reports a missing e-mail.
 
 ## Requests
 
-To be written.
+The directors and IT support of a facility write to the operator under **Contact the operator**:
+billing and invoices, accounts and access, a technical problem, data protection, a security
+incident, or something else. Requests are numbered per year (`REQ-2026-00001`) and are a
+conversation, without attachments. **They are never about a patient**: a subject or message with a
+10-digit number (a personal number) is refused, and every form says not to include patient
+information – never ask for it in an answer either. The facility's directors and IT support see all
+of their facility's requests, and only those.
+
+Every administrator gets an important notification of a new request (also by e-mail, unless they
+turned e-mail notifications off). A **security incident** is of high priority and is e-mailed to
+every administrator at once, also to those who turned e-mail off. Notifications and e-mails name the
+reference and the facility, never the subject or the text.
+
+**Customers and subscriptions › Requests** lists every facility's requests, unresolved and high
+priority first, filtered by status, category and facility; the **Overview** shows how many are open,
+waiting for the facility, and of high priority. On a request, **answer** – the person who asked is
+notified, and the facility sees the answer as from "the operator", without your name – and choose
+the status it leaves: **waiting for the facility**, **resolved**, or as it is. The status can also
+be changed on its own (the person who asked is told when it is resolved). The first answer is
+recorded as the time of the first response. When the facility writes again, a request that was
+waiting for it or resolved is open again, and the administrators are notified. Every request,
+message and status change is audited in the same transaction, with the reference, category and
+statuses only – not the text.
+
+The support e-mail, phone and **support hours** (operator settings) are shown in the footer, on the
+sign-in page, in the directors' subscription notices and on the public help page `/help`, which also
+says to call 112 in an emergency and what the operator can and cannot see.
 
 ## Alerts and background jobs
 
@@ -388,7 +446,8 @@ To be written.
 ## Before the first customer
 
 1. **Operator settings** – complete them.
-2. **Terms and privacy** – reviewed by a lawyer, published in all three languages.
+2. **Terms and privacy** – the terms of use, privacy notice, service agreement and data
+   processing agreement reviewed by a lawyer, published in all three languages.
 3. **Plans** – names, prices and seat limits.
 4. E-mail works (send yourself an invitation or a password reset).
 5. A second administrator exists.

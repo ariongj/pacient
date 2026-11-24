@@ -1,4 +1,4 @@
-import type { AuditItem, SubscriptionStatus } from '../../../api/platform';
+import type { AuditItem, LegalKind, SubscriptionStatus } from '../../../api/platform';
 import type { Tone } from '../../../components/ui';
 import { t } from '../../../i18n';
 
@@ -47,6 +47,15 @@ export const subscriptionEventLabel = (type: string) =>
     NOTE: t('Note added'),
   })[type] ?? type;
 
+/** The legal texts by kind. */
+export const legalKindLabel = (k: LegalKind) =>
+  ({
+    TERMS: t('Terms of use'),
+    PRIVACY: t('Privacy notice'),
+    SERVICE_AGREEMENT: t('Service agreement'),
+    DPA: t('Data processing agreement'),
+  })[k] ?? k;
+
 /** Operator settings named in messages (e.g. "fill in before publishing"). */
 export const settingLabel = (key: string) =>
   ({
@@ -54,6 +63,7 @@ export const settingLabel = (key: string) =>
     operatorAddress: t('Operator address'),
     supportEmail: t('Support e-mail'),
     supportPhone: t('Support phone'),
+    supportHours: t('Support hours'),
     privacyEmail: t('Privacy e-mail'),
   })[key] ?? key;
 
@@ -66,7 +76,8 @@ export const auditTarget = (a: AuditItem) => {
   if (a.targetPatientAccount) return t('Patient account|user account');
   // Legal documents arrive as "TERMS 2.0 (sq)": name the text in the reader's language.
   const legal =
-    a.resourceType === 'legal_document' && a.targetName?.match(/^(TERMS|PRIVACY) (.+)$/);
-  if (legal) return `${legal[1] === 'TERMS' ? t('Terms of use') : t('Privacy notice')} ${legal[2]}`;
+    a.resourceType === 'legal_document' &&
+    a.targetName?.match(/^(TERMS|PRIVACY|SERVICE_AGREEMENT|DPA) (.+)$/);
+  if (legal) return `${legalKindLabel(legal[1] as LegalKind)} ${legal[2]}`;
   return a.targetName;
 };

@@ -5,9 +5,17 @@ import { intlLocale } from '../i18n';
 
 /* ------------------------------------------------------------------ types ------------------- */
 
-export type LegalKind = 'TERMS' | 'PRIVACY';
+/**
+ * TERMS and PRIVACY are accepted by every user at sign-in; the service agreement and the data
+ * processing agreement once per facility by a director (api/agreements.ts).
+ */
+export type LegalKind = 'TERMS' | 'PRIVACY' | 'SERVICE_AGREEMENT' | 'DPA';
 export type LegalLocale = 'sq' | 'sr' | 'en';
-export const LEGAL_KINDS: LegalKind[] = ['TERMS', 'PRIVACY'];
+export const LEGAL_KINDS: LegalKind[] = ['TERMS', 'PRIVACY', 'SERVICE_AGREEMENT', 'DPA'];
+export type AgreementKind = 'SERVICE_AGREEMENT' | 'DPA';
+export const AGREEMENT_KINDS: AgreementKind[] = ['SERVICE_AGREEMENT', 'DPA'];
+export const isAgreement = (k: LegalKind): k is AgreementKind =>
+  k === 'SERVICE_AGREEMENT' || k === 'DPA';
 export const LEGAL_LOCALES: LegalLocale[] = ['sq', 'sr', 'en'];
 
 export interface PlatformNotice {
@@ -21,6 +29,8 @@ export interface PlatformInfo {
   operatorAddress: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
+  /** When support answers, in the operator's words. */
+  supportHours: string | null;
   privacyEmail: string | null;
   notice: PlatformNotice | null;
 }
@@ -55,6 +65,7 @@ export interface PlatformSettings {
   operatorBank: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
+  supportHours: string | null;
   privacyEmail: string | null;
   invoicePrefix: string;
   paymentTermsDays: number;
@@ -195,8 +206,20 @@ export interface Paged<T> {
 export const formatMoney = (cents: number, currency = 'EUR') =>
   new Intl.NumberFormat(intlLocale(), { style: 'currency', currency }).format(cents / 100);
 
+/** The address of each text under /legal (and of its API: /api/v1/legal/<slug>). */
+const KIND_SLUG: Record<LegalKind, string> = {
+  TERMS: 'terms',
+  PRIVACY: 'privacy',
+  SERVICE_AGREEMENT: 'service-agreement',
+  DPA: 'dpa',
+};
+
 /** The public page of a text (/privacy itself is the directors' data protection workspace). */
-export const kindPath = (kind: LegalKind) => (kind === 'TERMS' ? '/legal/terms' : '/legal/privacy');
+export const kindPath = (kind: LegalKind) => `/legal/${KIND_SLUG[kind]}`;
+
+/** The text whose public page this is (the terms of use for anything unknown). */
+export const kindOfPath = (pathname: string): LegalKind =>
+  LEGAL_KINDS.find((k) => pathname.startsWith(kindPath(k))) ?? 'TERMS';
 
 /* ------------------------------------------------------------------ public + signed-in ------- */
 
@@ -219,14 +242,11 @@ export function usePlatformInfo() {
   });
 }
 
-/** The current published terms of use or privacy notice in a language (public). */
+/** The current published text of a kind in a language (public). */
 export function useLegalDocument(kind: LegalKind, locale: string) {
   return useQuery({
     queryKey: ['legal', 'document', kind, locale],
-    queryFn: () =>
-      api<PublicLegalDocument>(`/legal/${kind === 'TERMS' ? 'terms' : 'privacy'}`, {
-        query: { locale },
-      }),
+    queryFn: () => api<PublicLegalDocument>(`/legal/${KIND_SLUG[kind]}`, { query: { locale } }),
     retry: false,
   });
 }

@@ -1,12 +1,13 @@
 /**
- * Starting texts for the terms of use and the privacy notice, in Albanian, Serbian (Latin) and
- * English. They describe how Pacient actually works, but they are DRAFTS: the operator's lawyer
- * must review them before they are published. Placeholders such as {operatorName} are filled from
- * the operator settings when the text is published.
+ * Starting texts for the terms of use, the privacy notice, the service agreement and the data
+ * processing agreement, in Albanian, Serbian (Latin) and English. They describe how Pacient
+ * actually works, but they are DRAFTS: the operator's lawyer must review them before they are
+ * published. Placeholders such as {operatorName} are filled from the operator settings when the
+ * text is published.
  *
  * Format: plain text; "# " starts a heading, "- " a list item, a blank line separates paragraphs.
  */
-export type LegalKind = 'TERMS' | 'PRIVACY';
+export type LegalKind = 'TERMS' | 'PRIVACY' | 'SERVICE_AGREEMENT' | 'DPA';
 export type LegalLocale = 'sq' | 'sr' | 'en';
 
 export interface LegalTemplate {
@@ -212,7 +213,303 @@ Zdravstveni kartoni se čuvaju u rokovima utvrđenim nacionalnim pravilima o zdr
 
 Za ostvarivanje prava ili pitanja pišite na {privacyEmail}. Za pomoć sa nalogom: {supportEmail}.`;
 
+/*
+ * The service agreement and the data processing agreement, accepted once per facility by one of
+ * its directors. A contract a facility signs must not go out unreviewed, so each starts with a
+ * note asking for the lawyer's review: publishing refuses a text that still contains it.
+ * Sub-processors are listed in the text for the operator to fill in (there is no setting for
+ * them).
+ */
+
+/** The note at the top of the agreement templates, deleted once a lawyer has reviewed the text. */
+export const REVIEW_NOTES: Record<LegalLocale, string> = {
+  en: 'DRAFT – have a lawyer review this text before you publish it, then delete this paragraph.',
+  sq: 'DRAFT – kërkojini një juristi ta rishikojë këtë tekst para se ta publikoni, pastaj fshijeni këtë paragraf.',
+  sr: 'NACRT – neka pravnik pregleda ovaj tekst pre nego što ga objavite, a zatim obrišite ovaj pasus.',
+};
+
+/** Whether a text still carries the review note of an agreement template, in any language. */
+export const hasReviewNote = (text: string) =>
+  Object.values(REVIEW_NOTES).some((note) => text.includes(note));
+
+const SERVICE_AGREEMENT_EN = `${REVIEW_NOTES.en}
+
+This agreement is between {operatorName}, {operatorAddress} (the operator), and the health facility that accepts it through one of its directors (the facility). The director who accepts it confirms that they may sign for the facility.
+
+# The service
+The operator provides Pacient, the electronic health record, to the facility as a service over the internet: the software, its hosting, updates, backups and support. The facility's subscription (plan, number of staff accounts, price and billing cycle) is shown to its directors under Subscription and invoices.
+
+# Payment
+- The facility pays the invoices of its subscription by bank transfer within the payment terms printed on them.
+- When an invoice is overdue, the facility's directors are told. After the grace period the subscription may be suspended: then no new staff accounts can be added.
+- Clinical access is never withheld for non-payment. Whatever the state of the subscription, staff keep signing in and working with patient records, and patients keep their access.
+
+# What the facility does
+- It creates accounts only for its own staff, with the role they need, and closes them when they leave.
+- It makes sure its staff open a patient's record only when they take part in the patient's care, and it carries out the access reviews.
+- It keeps its devices and networks secure and has procedures for working while the service is not available.
+- It answers its patients' requests about their data, with the operator's help where needed.
+
+# What the operator does
+- It runs the service with care, keeps it secure and up to date, and makes encrypted backups.
+- It announces planned maintenance in the service in advance.
+- It answers the requests of the facility's directors and IT support: {supportEmail}, {supportPhone}.
+- It processes the personal data of patients and staff only as set out in the data processing agreement, which is part of this agreement.
+
+# Data
+The facility remains responsible for its patients' records (the controller). The operator processes them only on the facility's behalf. The operator's staff do not open health records.
+
+# Duration and end
+This agreement applies for as long as the facility has a subscription. When the subscription ends, the operator returns the facility's data and then deletes it as set out in the data processing agreement.
+
+# Changes
+The operator may publish a new version of this agreement. The facility's directors are asked to accept it; until then the version accepted last applies.
+
+# Applicable law
+This agreement is governed by the law of Kosovo.
+
+# Contact
+Questions about this agreement: {supportEmail}. Personal data: {privacyEmail}.`;
+
+const DPA_EN = `${REVIEW_NOTES.en}
+
+This data processing agreement is part of the service agreement between {operatorName}, {operatorAddress} (the operator, as processor), and the health facility that accepts it through one of its directors (the facility, as controller). It sets out how the operator processes personal data for the facility in Pacient, under the law of Kosovo on the protection of personal data.
+
+# Subject and duration
+The operator hosts and runs Pacient for the facility for as long as the service agreement applies. Processing means storing, organising, showing and sending the data (e-mail and SMS notifications), backing it up, and finally returning and deleting it.
+
+# Data subjects and categories of data
+- Patients of the facility and their guardians: identity and contact details (name, personal number, date of birth, sex, address, phone, e-mail) and the health data recorded during care (visits, diagnoses, allergies, medicines, results, documents and certificates).
+- Staff of the facility: name, role, contact details, licence number, sign-ins and two-step sign-in settings.
+- Everyone: a log of every access to a record and of every change.
+
+Health data is a special category of personal data and is processed only for health care.
+
+# Instructions
+The operator processes the data only on the documented instructions of the facility: this agreement, the service agreement and the way the facility configures and uses Pacient. The operator tells the facility at once if it believes that an instruction breaks the law. It does not use the data for its own purposes.
+
+# Confidentiality
+Everyone at the operator who may come into contact with the data is bound to confidentiality. The operator's staff manage accounts and the service; they do not open health records.
+
+# Technical and organisational measures
+The operator takes the measures described in the security documentation of Pacient (SECURITY.md), among them: encrypted connections, two-step sign-in for staff, access that follows the care relationship, a log of every access that patients can see, encrypted backups whose restore is tested, and the separation of the operator's administration from clinical data.
+
+# Sub-processors
+The operator uses the following sub-processors; the facility agrees to them by accepting this agreement:
+- Hosting: [name, country of the data centre]
+- E-mail delivery: [name, country]
+- SMS delivery: [name, country]
+
+The operator tells the facility in advance about a new or replaced sub-processor, and the facility may object for good reason. Every sub-processor is bound by the same obligations as the operator. Data is not transferred outside Kosovo without appropriate safeguards.
+
+# Assistance
+The operator helps the facility to answer patients' requests (access, a copy, correction, restriction), and with data protection impact assessments and consultations of the supervisory authority.
+
+# Personal data breaches
+The operator tells the facility without undue delay, and at the latest within 72 hours of becoming aware of it, about a breach that affects the facility's data: what happened, which data and how many people are concerned, the likely consequences and what was done. It helps the facility to notify the authority and the people concerned.
+
+# Audits
+The operator gives the facility the information needed to show that this agreement is complied with, and allows audits by the facility or by an auditor it appoints, with reasonable notice and without access to other customers' data.
+
+# End of the agreement
+- When the service agreement ends, the operator gives the facility its data in a common, machine-readable format.
+- Afterwards it deletes the data, also from backups as they expire, unless the law requires it to keep them, and confirms the deletion in writing.
+
+# Access to clinical data
+Clinical access is never withheld for non-payment or because of a dispute: the facility's staff keep access to its patients' records for as long as the data is with the operator.
+
+# Contact
+Data protection questions and notices: {privacyEmail}. Support: {supportEmail}.`;
+
+const SERVICE_AGREEMENT_SQ = `${REVIEW_NOTES.sq}
+
+Kjo marrëveshje lidhet ndërmjet {operatorName}, {operatorAddress} (operatori), dhe institucionit shëndetësor që e pranon përmes njërit prej drejtorëve të tij (institucioni). Drejtori që e pranon konfirmon se ka të drejtë të nënshkruajë në emër të institucionit.
+
+# Shërbimi
+Operatori i ofron institucionit Pacient, kartelën elektronike shëndetësore, si shërbim përmes internetit: softuerin, hostimin, përditësimet, kopjet rezervë dhe ndihmën. Abonimi i institucionit (plani, numri i llogarive të stafit, çmimi dhe cikli i faturimit) u shfaqet drejtorëve të tij te Abonimi dhe faturat.
+
+# Pagesa
+- Institucioni i paguan faturat e abonimit me transfer bankar brenda afatit të pagesës të shënuar në to.
+- Kur një faturë është me vonesë, drejtorët e institucionit njoftohen. Pas afatit shtesë abonimi mund të pezullohet: atëherë nuk mund të shtohen llogari të reja të stafit.
+- Qasja klinike nuk ndalohet kurrë për shkak të mospagesës. Cilado qoftë gjendja e abonimit, stafi vazhdon të kyçet dhe të punojë me kartelat e pacientëve, dhe pacientët e ruajnë qasjen e tyre.
+
+# Çfarë bën institucioni
+- Krijon llogari vetëm për stafin e vet, me rolin që i nevojitet secilit, dhe i mbyll kur ata largohen.
+- Kujdeset që stafi i tij ta hapë kartelën e një pacienti vetëm kur merr pjesë në kujdesin e tij, dhe i kryen rishikimet e qasjeve.
+- I mban të sigurta pajisjet dhe rrjetet e veta dhe ka procedura për punën gjatë kohës kur shërbimi nuk është i disponueshëm.
+- U përgjigjet kërkesave të pacientëve të vet për të dhënat e tyre, me ndihmën e operatorit kur nevojitet.
+
+# Çfarë bën operatori
+- E drejton shërbimin me kujdes, e mban të sigurt dhe të përditësuar, dhe bën kopje rezervë të enkriptuara.
+- E njofton paraprakisht në shërbim mirëmbajtjen e planifikuar.
+- U përgjigjet kërkesave të drejtorëve dhe të mbështetjes IT të institucionit: {supportEmail}, {supportPhone}.
+- I përpunon të dhënat personale të pacientëve dhe të stafit vetëm siç përcaktohet në marrëveshjen për përpunimin e të dhënave, e cila është pjesë e kësaj marrëveshjeje.
+
+# Të dhënat
+Institucioni mbetet përgjegjës për kartelat e pacientëve të vet (kontrollues). Operatori i përpunon ato vetëm në emër të institucionit. Stafi i operatorit nuk hap kartela shëndetësore.
+
+# Kohëzgjatja dhe përfundimi
+Kjo marrëveshje vlen për aq kohë sa institucioni ka abonim. Kur abonimi përfundon, operatori ia kthen institucionit të dhënat e tij dhe pastaj i fshin ato siç përcaktohet në marrëveshjen për përpunimin e të dhënave.
+
+# Ndryshimet
+Operatori mund të publikojë një version të ri të kësaj marrëveshjeje. Drejtorëve të institucionit u kërkohet ta pranojnë; deri atëherë vlen versioni i pranuar së fundi.
+
+# Ligji në fuqi
+Për këtë marrëveshje zbatohet ligji i Kosovës.
+
+# Kontakti
+Pyetje për këtë marrëveshje: {supportEmail}. Të dhënat personale: {privacyEmail}.`;
+
+const DPA_SQ = `${REVIEW_NOTES.sq}
+
+Kjo marrëveshje për përpunimin e të dhënave është pjesë e marrëveshjes së shërbimit ndërmjet {operatorName}, {operatorAddress} (operatori, si përpunues), dhe institucionit shëndetësor që e pranon përmes njërit prej drejtorëve të tij (institucioni, si kontrollues). Ajo përcakton si i përpunon operatori të dhënat personale për institucionin në Pacient, sipas ligjit të Kosovës për mbrojtjen e të dhënave personale.
+
+# Objekti dhe kohëzgjatja
+Operatori e hoston dhe e drejton Pacient për institucionin për aq kohë sa vlen marrëveshja e shërbimit. Përpunimi do të thotë ruajtja, organizimi, shfaqja dhe dërgimi i të dhënave (njoftimet me e-mail dhe SMS), kopjimi rezervë i tyre dhe, në fund, kthimi dhe fshirja e tyre.
+
+# Subjektet e të dhënave dhe kategoritë e të dhënave
+- Pacientët e institucionit dhe kujdestarët e tyre: të dhënat e identitetit dhe të kontaktit (emri, numri personal, data e lindjes, gjinia, adresa, telefoni, e-maili) dhe të dhënat shëndetësore të regjistruara gjatë kujdesit (vizitat, diagnozat, alergjitë, barnat, rezultatet, dokumentet dhe vërtetimet).
+- Stafi i institucionit: emri, roli, të dhënat e kontaktit, numri i licencës, hyrjet dhe cilësimet e verifikimit me dy hapa.
+- Të gjithë: regjistri i çdo qasjeje në kartelë dhe i çdo ndryshimi.
+
+Të dhënat shëndetësore janë kategori e veçantë e të dhënave personale dhe përpunohen vetëm për kujdes shëndetësor.
+
+# Udhëzimet
+Operatori i përpunon të dhënat vetëm sipas udhëzimeve të dokumentuara të institucionit: kësaj marrëveshjeje, marrëveshjes së shërbimit dhe mënyrës si institucioni e konfiguron dhe e përdor Pacient. Operatori e njofton menjëherë institucionin nëse mendon se një udhëzim e shkel ligjin. Ai nuk i përdor të dhënat për qëllimet e veta.
+
+# Konfidencialiteti
+Të gjithë te operatori që mund të vijnë në kontakt me të dhënat janë të detyruar të ruajnë konfidencialitetin. Stafi i operatorit menaxhon llogaritë dhe shërbimin; ai nuk hap kartela shëndetësore.
+
+# Masat teknike dhe organizative
+Operatori merr masat e përshkruara në dokumentacionin e sigurisë së Pacient (SECURITY.md), ndër to: lidhje të enkriptuara, verifikim me dy hapa për stafin, qasje që i ndjek marrëdhënies së kujdesit, regjistër të çdo qasjeje që pacientët mund ta shohin, kopje rezervë të enkriptuara, rikthimi i të cilave testohet, dhe ndarjen e administrimit të operatorit nga të dhënat klinike.
+
+# Nënpërpunuesit
+Operatori përdor nënpërpunuesit e mëposhtëm; institucioni pajtohet me ta duke e pranuar këtë marrëveshje:
+- Hostimi: [emri, shteti i qendrës së të dhënave]
+- Dërgimi i e-mailave: [emri, shteti]
+- Dërgimi i SMS-ve: [emri, shteti]
+
+Operatori e njofton paraprakisht institucionin për një nënpërpunues të ri ose të zëvendësuar, dhe institucioni mund të kundërshtojë me arsye të bazuar. Çdo nënpërpunues ka të njëjtat detyrime si operatori. Të dhënat nuk transferohen jashtë Kosovës pa masa të përshtatshme mbrojtëse.
+
+# Ndihma
+Operatori e ndihmon institucionin t'u përgjigjet kërkesave të pacientëve (qasje, kopje, korrigjim, kufizim), si dhe në vlerësimet e ndikimit në mbrojtjen e të dhënave dhe në konsultimet me autoritetin mbikëqyrës.
+
+# Cenimi i të dhënave personale
+Operatori e njofton institucionin pa vonesë të panevojshme, e më së voni brenda 72 orëve pasi të ketë marrë dijeni, për një cenim që prek të dhënat e institucionit: çfarë ndodhi, cilat të dhëna dhe sa persona preken, pasojat e mundshme dhe çfarë u bë. Ai e ndihmon institucionin të njoftojë autoritetin dhe personat e prekur.
+
+# Auditimet
+Operatori i jep institucionit informacionin e nevojshëm për të treguar se kjo marrëveshje respektohet, dhe lejon auditime nga institucioni ose nga një auditor që ai cakton, me njoftim të arsyeshëm paraprak dhe pa qasje në të dhënat e klientëve të tjerë.
+
+# Përfundimi i marrëveshjes
+- Kur përfundon marrëveshja e shërbimit, operatori ia jep institucionit të dhënat e tij në një format të zakonshëm, të lexueshëm nga makina.
+- Pastaj i fshin të dhënat, edhe nga kopjet rezervë kur atyre u skadon afati, përveç kur ligji kërkon që të ruhen, dhe e konfirmon fshirjen me shkrim.
+
+# Qasja në të dhënat klinike
+Qasja klinike nuk ndalohet kurrë për shkak të mospagesës ose të një mosmarrëveshjeje: stafi i institucionit e ruan qasjen në kartelat e pacientëve të tij për aq kohë sa të dhënat janë te operatori.
+
+# Kontakti
+Pyetje dhe njoftime për mbrojtjen e të dhënave: {privacyEmail}. Ndihma: {supportEmail}.`;
+
+const SERVICE_AGREEMENT_SR = `${REVIEW_NOTES.sr}
+
+Ovaj ugovor zaključuju {operatorName}, {operatorAddress} (operater), i zdravstvena ustanova koja ga prihvata preko jednog od svojih direktora (ustanova). Direktor koji ga prihvata potvrđuje da je ovlašćen da potpiše u ime ustanove.
+
+# Usluga
+Operater ustanovi pruža Pacient, elektronski zdravstveni karton, kao uslugu preko interneta: softver, hosting, ažuriranja, rezervne kopije i podršku. Pretplata ustanove (plan, broj naloga osoblja, cena i ciklus naplate) prikazana je njenim direktorima pod Pretplata i fakture.
+
+# Plaćanje
+- Ustanova plaća fakture svoje pretplate bankovnim prenosom u roku plaćanja navedenom na njima.
+- Kada faktura kasni, direktori ustanove se obaveštavaju. Posle dodatnog roka pretplata može biti suspendovana: tada se ne mogu dodavati novi nalozi osoblja.
+- Klinički pristup se nikada ne uskraćuje zbog neplaćanja. Bez obzira na stanje pretplate, osoblje se i dalje prijavljuje i radi sa kartonima pacijenata, a pacijenti zadržavaju svoj pristup.
+
+# Šta čini ustanova
+- Otvara naloge samo za svoje osoblje, sa ulogom koja je svakome potrebna, i zatvara ih kada odu.
+- Stara se da njeno osoblje otvara karton pacijenta samo kada učestvuje u njegovoj nezi i sprovodi preglede pristupa.
+- Održava bezbednost svojih uređaja i mreža i ima postupke za rad dok usluga nije dostupna.
+- Odgovara na zahteve svojih pacijenata u vezi sa njihovim podacima, uz pomoć operatera kada je potrebno.
+
+# Šta čini operater
+- Pažljivo vodi uslugu, održava je bezbednom i ažurnom i pravi šifrovane rezervne kopije.
+- Planirano održavanje unapred najavljuje u usluzi.
+- Odgovara na zahteve direktora i IT podrške ustanove: {supportEmail}, {supportPhone}.
+- Lične podatke pacijenata i osoblja obrađuje samo kako je utvrđeno ugovorom o obradi podataka, koji je deo ovog ugovora.
+
+# Podaci
+Ustanova ostaje odgovorna za kartone svojih pacijenata (rukovalac). Operater ih obrađuje samo u ime ustanove. Osoblje operatera ne otvara zdravstvene kartone.
+
+# Trajanje i prestanak
+Ovaj ugovor važi dok ustanova ima pretplatu. Kada pretplata prestane, operater ustanovi vraća njene podatke, a zatim ih briše kako je utvrđeno ugovorom o obradi podataka.
+
+# Izmene
+Operater može da objavi novu verziju ovog ugovora. Od direktora ustanove se traži da je prihvate; do tada važi poslednja prihvaćena verzija.
+
+# Merodavno pravo
+Na ovaj ugovor primenjuje se pravo Kosova.
+
+# Kontakt
+Pitanja o ovom ugovoru: {supportEmail}. Lični podaci: {privacyEmail}.`;
+
+const DPA_SR = `${REVIEW_NOTES.sr}
+
+Ovaj ugovor o obradi podataka deo je ugovora o usluzi između {operatorName}, {operatorAddress} (operater, kao obrađivač), i zdravstvene ustanove koja ga prihvata preko jednog od svojih direktora (ustanova, kao rukovalac). On utvrđuje kako operater obrađuje lične podatke za ustanovu u sistemu Pacient, u skladu sa zakonom Kosova o zaštiti ličnih podataka.
+
+# Predmet i trajanje
+Operater hostuje i vodi Pacient za ustanovu dok važi ugovor o usluzi. Obrada podrazumeva čuvanje, organizovanje, prikazivanje i slanje podataka (obaveštenja e-poštom i SMS-om), izradu rezervnih kopija i, na kraju, vraćanje i brisanje podataka.
+
+# Lica na koja se podaci odnose i vrste podataka
+- Pacijenti ustanove i njihovi staratelji: podaci o identitetu i kontaktu (ime, lični broj, datum rođenja, pol, adresa, telefon, e-pošta) i zdravstveni podaci zabeleženi tokom nege (posete, dijagnoze, alergije, lekovi, rezultati, dokumenti i potvrde).
+- Osoblje ustanove: ime, uloga, kontakt podaci, broj licence, prijave i podešavanja prijave u dva koraka.
+- Svi: evidencija svakog pristupa kartonu i svake izmene.
+
+Zdravstveni podaci su posebna vrsta ličnih podataka i obrađuju se samo radi zdravstvene zaštite.
+
+# Uputstva
+Operater obrađuje podatke samo po dokumentovanim uputstvima ustanove: ovom ugovoru, ugovoru o usluzi i načinu na koji ustanova podešava i koristi Pacient. Operater odmah obaveštava ustanovu ako smatra da je neko uputstvo protivno zakonu. Podatke ne koristi u sopstvene svrhe.
+
+# Poverljivost
+Svi kod operatera koji mogu doći u dodir sa podacima obavezni su na poverljivost. Osoblje operatera upravlja nalozima i uslugom; ono ne otvara zdravstvene kartone.
+
+# Tehničke i organizacione mere
+Operater preduzima mere opisane u bezbednosnoj dokumentaciji sistema Pacient (SECURITY.md), među njima: šifrovane veze, prijavu u dva koraka za osoblje, pristup koji prati odnos nege, evidenciju svakog pristupa koju pacijenti mogu da vide, šifrovane rezervne kopije čije se vraćanje proverava i odvajanje administracije operatera od kliničkih podataka.
+
+# Podobrađivači
+Operater koristi sledeće podobrađivače; ustanova se sa njima saglašava prihvatanjem ovog ugovora:
+- Hosting: [naziv, država centra podataka]
+- Slanje e-pošte: [naziv, država]
+- Slanje SMS poruka: [naziv, država]
+
+Operater unapred obaveštava ustanovu o novom ili zamenjenom podobrađivaču, a ustanova može da uloži prigovor iz opravdanog razloga. Svaki podobrađivač ima iste obaveze kao operater. Podaci se ne prenose van Kosova bez odgovarajućih zaštitnih mera.
+
+# Pomoć
+Operater pomaže ustanovi da odgovori na zahteve pacijenata (pristup, kopija, ispravka, ograničenje), kao i u procenama uticaja na zaštitu podataka i konsultacijama sa nadzornim organom.
+
+# Povrede ličnih podataka
+Operater obaveštava ustanovu bez nepotrebnog odlaganja, a najkasnije u roku od 72 sata od saznanja, o povredi koja pogađa podatke ustanove: šta se dogodilo, koji podaci i koliko osoba su pogođeni, verovatne posledice i šta je preduzeto. Pomaže ustanovi da obavesti nadležni organ i pogođena lica.
+
+# Revizije
+Operater ustanovi daje informacije potrebne da se pokaže da se ovaj ugovor poštuje i dozvoljava revizije koje sprovodi ustanova ili revizor koga ona odredi, uz razumnu prethodnu najavu i bez pristupa podacima drugih korisnika.
+
+# Prestanak ugovora
+- Kada ugovor o usluzi prestane, operater ustanovi predaje njene podatke u uobičajenom, mašinski čitljivom formatu.
+- Zatim briše podatke, i iz rezervnih kopija kako one ističu, osim ako zakon zahteva da se čuvaju, i brisanje potvrđuje pisanim putem.
+
+# Pristup kliničkim podacima
+Klinički pristup se nikada ne uskraćuje zbog neplaćanja ili spora: osoblje ustanove zadržava pristup kartonima svojih pacijenata dok su podaci kod operatera.
+
+# Kontakt
+Pitanja i obaveštenja o zaštiti podataka: {privacyEmail}. Podrška: {supportEmail}.`;
+
 export const LEGAL_TEMPLATES: Record<LegalKind, Record<LegalLocale, LegalTemplate>> = {
+  SERVICE_AGREEMENT: {
+    sq: { title: 'Marrëveshja e shërbimit', body: SERVICE_AGREEMENT_SQ },
+    sr: { title: 'Ugovor o usluzi', body: SERVICE_AGREEMENT_SR },
+    en: { title: 'Service agreement', body: SERVICE_AGREEMENT_EN },
+  },
+  DPA: {
+    sq: { title: 'Marrëveshja për përpunimin e të dhënave', body: DPA_SQ },
+    sr: { title: 'Ugovor o obradi podataka', body: DPA_SR },
+    en: { title: 'Data processing agreement', body: DPA_EN },
+  },
   TERMS: {
     sq: { title: 'Kushtet e përdorimit', body: TERMS_SQ },
     sr: { title: 'Uslovi korišćenja', body: TERMS_SR },

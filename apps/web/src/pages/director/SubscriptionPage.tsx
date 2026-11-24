@@ -112,13 +112,17 @@ export function SubscriptionPage() {
           const s = data.subscription;
           if (!s || !data.plan) {
             return (
-              <Card>
-                <EmptyState title={t('Your facility has no subscription yet.')}>
-                  {t('Contact the service operator.')}
-                </EmptyState>
-                <ContactOperator variant="inline" />
-                <SeatsMeter used={data.seatsUsed} limit={null} />
-              </Card>
+              <div className="stack">
+                <Card>
+                  <EmptyState title={t('Your facility has no subscription yet.')}>
+                    {t('Contact the service operator.')}
+                  </EmptyState>
+                  <ContactOperator variant="inline" />
+                  <SeatsMeter used={data.seatsUsed} limit={null} />
+                </Card>
+                {/* The agreements are with the facility, whether or not it subscribes yet. */}
+                <AgreementsCard data={data} />
+              </div>
             );
           }
           const ended = s.status === 'CANCELLED' || s.status === 'EXPIRED';

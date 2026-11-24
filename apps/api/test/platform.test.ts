@@ -442,7 +442,14 @@ describe('terms of use and privacy notice', () => {
     ).rejects.toThrow();
 
     const list = await api().get('/api/v1/admin/legal').set(asAdmin());
-    expect(list.body.current).toEqual({ TERMS: '2.0', PRIVACY: '1.0' });
+    // The agreements are versioned on the same page (their versions: see agreements.test.ts).
+    expect(list.body.current).toMatchObject({ TERMS: '2.0', PRIVACY: '1.0' });
+    expect(Object.keys(list.body.current).sort()).toEqual([
+      'DPA',
+      'PRIVACY',
+      'SERVICE_AGREEMENT',
+      'TERMS',
+    ]);
     expect(list.body.missingSettings).toEqual([]);
     expect(list.body.documents.every((d: Record<string, unknown>) => !('body' in d))).toBe(true);
     expect(list.body.acceptance).toEqual(

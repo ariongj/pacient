@@ -1,8 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  useAgreementAcceptances,
+  useAgreementsOverview,
+  type AgreementsOverview,
+} from '../../api/agreements';
 import { api } from '../../api/client';
 import {
   fetchTemplate,
+  isAgreement,
   kindPath,
   LEGAL_KINDS,
   LEGAL_LOCALES,
@@ -10,6 +16,7 @@ import {
   useLegalAdmin,
   useLegalDocumentAdmin,
   useLegalMutation,
+  type AgreementKind,
   type LegalAdminList,
   type LegalDocumentFull,
   type LegalDocumentSummary,
@@ -29,15 +36,21 @@ import {
   QueryView,
   SelectField,
   Table,
+  TabPanel,
+  Tabs,
   TextAreaField,
   TextField,
 } from '../../components/ui';
 import { formatDate, formatDateTime, humanize } from '../../format';
-import { LOCALES, t } from '../../i18n';
+import { LOCALES, t, tn } from '../../i18n';
 import { LegalText } from './platform/LegalText';
-import { settingLabel } from './platform/labels';
+import { legalKindLabel as kindLabel, settingLabel } from './platform/labels';
 
-const kindLabel = (k: LegalKind) => (k === 'TERMS' ? t('Terms of use') : t('Privacy notice'));
+/** The checkbox of a version: users accept the terms at sign-in, directors the agreements. */
+const mustAcceptLabel = (k: LegalKind) =>
+  isAgreement(k)
+    ? t('Directors must accept this version for their facility')
+    : t('Users must accept this version at their next sign-in');
 const languageLabel = (l: string) => LOCALES.find((x) => x.value === l)?.label ?? l;
 /** Newest version first ("10.0" after "9.1"), then the languages in a fixed order. */
 const byVersion = (a: LegalDocumentSummary, b: LegalDocumentSummary) =>
@@ -56,11 +69,20 @@ const askedElsewhere = (
   list.documents.some((d) => d.kind === kind && !self(d) && d.publishedAt && d.requiresAcceptance);
 
 /**
- * Terms of use and privacy notice: versions per language, drafts, publishing and who accepted.
- * A published text is fixed; a change is a new version that users accept at their next sign-in.
+ * Terms of use, privacy notice, service agreement and data processing agreement, one tab each:
+ * versions per language, drafts, publishing and who accepted. A published text is fixed; a change
+ * is a new version that users accept at their next sign-in (the terms) or directors for their
+ * facility (the agreements, which never block anything).
  */
 export function LegalAdmin() {
   const list = useLegalAdmin();
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('kind') as LegalKind | null;
+  const tab: LegalKind = requested && LEGAL_KINDS.includes(requested) ? requested : 'TERMS';
+  const setTab = (k: LegalKind) => {
+    params.set('kind', k);
+    setParams(params, { replace: true });
+  };
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<LegalDocumentSummary | null>(null);
@@ -71,7 +93,9 @@ export function LegalAdmin() {
     <>
       <PageHeader
         title={t('Terms and privacy')}
-        subtitle={t('Terms of use and privacy notice: drafts, publishing, acceptance.')}
+        subtitle={t(
+          'Terms of use, privacy notice and the agreements with facilities: drafts, publishing, acceptance.',
+        )}
         actions={<Button onClick={() => setCreating(true)}>{t('New version')}</Button>}
       />
       <Alert tone="warning" title={t('The starting texts are drafts')}>
@@ -89,17 +113,30 @@ export function LegalAdmin() {
                 <Link to="/admin/settings">{t('Fill them in under operator settings.')}</Link>
               </Alert>
             )}
-            {LEGAL_KINDS.map((kind) => (
+            <Tabs
+              label={t('Legal texts')}
+              tabs={LEGAL_KINDS.map((k) => ({ id: k, label: kindLabel(k) }))}
+              active={tab}
+              onChange={setTab}
+            />
+            <TabPanel id={tab}>
+              {isAgreement(tab) && (
+                <Alert tone="info" title={t('Agreements with the facilities')}>
+                  {t(
+                    'Accepted once for each customer facility by one of its directors, with name and title. Until then its directors see a notice; nothing is ever blocked. The templates start with a note for the lawyer: delete it after the review, or the text cannot be published.',
+                  )}
+                </Alert>
+              )}
               <KindCard
-                key={kind}
-                kind={kind}
+                key={tab}
+                kind={tab}
                 list={l}
                 onEdit={setEditing}
                 onPublish={setPublishing}
                 onDelete={setDeleting}
-                onWho={(version) => setWho({ kind, version })}
+                onWho={(version) => setWho({ kind: tab, version })}
               />
-            ))}
+            </TabPanel>
           </>
         )}
       </QueryView>
@@ -108,6 +145,7 @@ export function LegalAdmin() {
         {creating && list.data && (
           <NewVersionForm
             list={list.data}
+            initialKind={tab}
             onCancel={() => setCreating(false)}
             onCreated={(id) => {
               setCreating(false);
@@ -157,7 +195,12 @@ export function LegalAdmin() {
         {deleting && <DeleteConfirm doc={deleting} onClose={() => setDeleting(null)} />}
       </Dialog>
       <Dialog open={who !== null} onClose={() => setWho(null)} title={t('Who accepted')} wide>
-        {who && <WhoAccepted kind={who.kind} version={who.version} />}
+        {who &&
+          (isAgreement(who.kind) ? (
+            <FacilitiesAccepted kind={who.kind} version={who.version} />
+          ) : (
+            <WhoAccepted kind={who.kind} version={who.version} />
+          ))}
       </Dialog>
     </>
   );
@@ -196,7 +239,9 @@ function KindCard({
         ) : undefined
       }
     >
-      {current ? (
+      {current && isAgreement(kind) ? (
+        <AgreementStatus kind={kind} current={current} onWho={onWho} />
+      ) : current ? (
         <p>
           {t('Current version: {version}.', { version: current })}{' '}
           {requires || acceptedByNewcomers ? (
@@ -255,7 +300,11 @@ function KindCard({
                 <td>
                   {d.title}
                   <div className="muted">
-                    {d.requiresAcceptance ? t('Users must accept it') : t('For information only')}
+                    {d.requiresAcceptance
+                      ? isAgreement(kind)
+                        ? t('Facilities must accept it')
+                        : t('Users must accept it')
+                      : t('For information only')}
                   </div>
                 </td>
                 <td>
@@ -307,17 +356,85 @@ function KindCard({
   );
 }
 
+/**
+ * Where the facilities stand with the current version of an agreement: how many customer
+ * facilities are up to date, and who accepted it.
+ */
+function AgreementStatus({
+  kind,
+  current,
+  onWho,
+}: {
+  kind: AgreementKind;
+  current: string;
+  onWho: (version: string) => void;
+}) {
+  const overview = useAgreementsOverview();
+  const k = overview.data?.kinds.find((x) => x.kind === kind);
+  return (
+    <>
+      <p>
+        {t('Current version: {version}.', { version: current })}{' '}
+        {k &&
+          (k.requiresAcceptance || k.pending > 0 ? (
+            <>
+              {t('{upToDate} of {customers} customer facilities are up to date.', {
+                upToDate: k.upToDate,
+                customers: overview.data!.customers,
+              })}{' '}
+              <Button size="sm" variant="secondary" onClick={() => onWho(current)}>
+                {t('Who accepted')}
+              </Button>
+            </>
+          ) : (
+            <span className="muted">{t('Facilities are not asked to accept this version.')}</span>
+          ))}
+      </p>
+      {overview.data && <MissingFacilities overview={overview.data} kind={kind} />}
+      <ErrorAlert error={overview.error} />
+    </>
+  );
+}
+
+/** Customer facilities that have not accepted the current version yet (links to their page). */
+function MissingFacilities({
+  overview,
+  kind,
+}: {
+  overview: AgreementsOverview;
+  kind: AgreementKind;
+}) {
+  const missing = overview.items.filter((i) => i.missing.includes(kind));
+  if (!missing.length) return null;
+  const shown = missing.slice(0, 10);
+  return (
+    <p className="muted">
+      {t('Not accepted yet:')}{' '}
+      {shown.map((f, i) => (
+        <span key={f.facilityId}>
+          {i > 0 && ', '}
+          <Link to={`/admin/organizations/${f.facilityId}`}>{f.facilityName}</Link>
+        </span>
+      ))}
+      {missing.length > shown.length &&
+        ` ${t('and {count} more', { count: missing.length - shown.length })}`}
+    </p>
+  );
+}
+
 /** A new draft, started from the draft template or from the current version's text. */
 function NewVersionForm({
   list,
+  initialKind,
   onCancel,
   onCreated,
 }: {
   list: LegalAdminList;
+  initialKind: LegalKind;
   onCancel: () => void;
   onCreated: (id: string) => void;
 }) {
-  const [kind, setKind] = useState<LegalKind>('TERMS');
+  const [kind, setKind] = useState<LegalKind>(initialKind);
   const [locale, setLocale] = useState<LegalLocale>('sq');
   const [start, setStart] = useState<'copy' | 'template' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -423,8 +540,7 @@ function NewVersionForm({
         />
       </div>
       <label className="checkbox" style={{ margin: '0.75rem 0' }}>
-        <input type="checkbox" name="requiresAcceptance" defaultChecked />{' '}
-        {t('Users must accept this version at their next sign-in')}
+        <input type="checkbox" name="requiresAcceptance" defaultChecked /> {mustAcceptLabel(kind)}
       </label>
       <p className="muted">
         {t(
@@ -543,7 +659,7 @@ function EditorForm({ doc, onClose }: { doc: LegalDocumentFull; onClose: () => v
       )}
       <label className="checkbox" style={{ margin: '0.75rem 0' }}>
         <input type="checkbox" name="requiresAcceptance" defaultChecked={doc.requiresAcceptance} />{' '}
-        {t('Users must accept this version at their next sign-in')}
+        {mustAcceptLabel(doc.kind)}
       </label>
       <ErrorAlert error={save.error} />
       <div className="form-actions">
@@ -596,13 +712,23 @@ function PublishConfirm({
         )}
       </p>
       <p>
-        {doc.requiresAcceptance || versionAsks
-          ? t('Every user is asked to accept this version the next time they sign in.')
-          : othersAsk
+        {isAgreement(doc.kind)
+          ? doc.requiresAcceptance || versionAsks
             ? t(
-                'The text is shown on the public page. Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.',
+                'The directors of every customer facility are asked to accept this version for their facility. Nothing is blocked until they do.',
               )
-            : t('The text is shown on the public page; users are not asked to accept it.')}
+            : othersAsk
+              ? t(
+                  'The text is shown on the public page. Facilities that accepted an earlier version are not asked again; a facility that never accepted the latest version that required acceptance accepts this one.',
+                )
+              : t('The text is shown on the public page; facilities are not asked to accept it.')
+          : doc.requiresAcceptance || versionAsks
+            ? t('Every user is asked to accept this version the next time they sign in.')
+            : othersAsk
+              ? t(
+                  'The text is shown on the public page. Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.',
+                )
+              : t('The text is shown on the public page; users are not asked to accept it.')}
       </p>
       <ErrorAlert error={publish.error} />
       <div className="form-actions">
@@ -690,6 +816,53 @@ function WhoAccepted({ kind, version }: { kind: LegalKind; version: string }) {
             {t('The latest 50 acceptances are listed.')}{' '}
             {t('Patients are not named: only that a patient account accepted, and when.')}
           </p>
+        </div>
+      )}
+    </QueryView>
+  );
+}
+
+/** Which facilities accepted a version of an agreement: who signed, with which title, when. */
+function FacilitiesAccepted({ kind, version }: { kind: AgreementKind; version: string }) {
+  const list = useAgreementAcceptances(kind, version);
+  return (
+    <QueryView query={list}>
+      {(l) => (
+        <div className="stack">
+          <p>
+            {kindLabel(kind)} · {t('Version {version}', { version })}:{' '}
+            {tn(l.accepted, 'accepted by {count} facility.', 'accepted by {count} facilities.')}
+          </p>
+          {l.latest.length === 0 ? (
+            <EmptyState title={t('No facility has accepted this version yet')} />
+          ) : (
+            <Table caption={t('Latest acceptances')}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('Facility')}</th>
+                  <th scope="col">{t('Signed by')}</th>
+                  <th scope="col">{t('Language')}</th>
+                  <th scope="col">{t('Accepted')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {l.latest.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      <Link to={`/admin/organizations/${a.facilityId}`}>{a.facilityName}</Link>
+                    </td>
+                    <td>
+                      {a.signerName}
+                      <div className="muted">{a.signerTitle}</div>
+                    </td>
+                    <td>{languageLabel(a.locale)}</td>
+                    <td>{formatDateTime(a.acceptedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          <p className="muted">{t('The latest 50 acceptances are listed.')}</p>
         </div>
       )}
     </QueryView>

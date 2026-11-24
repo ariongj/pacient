@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { activeNotice, getSettings } from './platform.service.js';
 
-/** Public operator details (name, support contact) and the current notice to users (/platform). */
+/**
+ * Public operator details (name, support contact and hours) and the current notice to users
+ * (/platform).
+ */
 export const platformRouter = Router();
 
 const orNull = (v: string | null) => (v?.trim() ? v.trim() : null);
@@ -18,6 +21,7 @@ platformRouter.get('/info', async (_req, res) => {
     operatorAddress: orNull(s.operatorAddress),
     supportEmail: orNull(s.supportEmail),
     supportPhone: orNull(s.supportPhone),
+    supportHours: orNull(s.supportHours),
     privacyEmail: orNull(s.privacyEmail),
     notice: activeNotice(s),
   });

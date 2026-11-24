@@ -18,13 +18,21 @@ import {
 
 /**
  * Terms of use and privacy notice (/legal): the current published text is public; signed-in users
- * see which versions they still have to accept and accept them.
+ * see which versions they still have to accept and accept them. The service agreement and the data
+ * processing agreement are public here too, but they are accepted per facility (/subscription).
  */
 export const legalRouter = Router();
 
 const LocaleQuery = z.object({ locale: z.enum(LEGAL_LOCALES).optional() });
+/** The public address of each text: /legal/terms, /legal/privacy, /legal/service-agreement, /legal/dpa. */
+const KIND_BY_SLUG = {
+  terms: 'TERMS',
+  privacy: 'PRIVACY',
+  'service-agreement': 'SERVICE_AGREEMENT',
+  dpa: 'DPA',
+} as const;
 const KindParam = z.object({
-  kind: z.enum(['terms', 'privacy']).transform((k) => (k === 'terms' ? 'TERMS' : 'PRIVACY')),
+  kind: z.enum(['terms', 'privacy', 'service-agreement', 'dpa']).transform((k) => KIND_BY_SLUG[k]),
 });
 // Only the texts of the legal gate: agreements are accepted for a facility (/subscription).
 const AcceptInput = z.object({
@@ -94,7 +102,7 @@ legalRouter.post('/accept', authenticate, async (req, res) => {
   res.json({ accepted: true, pending: pending.map((p) => presentDocument(p, settings)) });
 });
 
-/** The current published terms of use or privacy notice (public; language fallback sq, en). */
+/** The current published text of a kind (public; language fallback sq, en). */
 legalRouter.get('/:kind', async (req, res) => {
   const { kind } = parse(KindParam, req.params);
   const { locale } = parse(LocaleQuery, req.query);

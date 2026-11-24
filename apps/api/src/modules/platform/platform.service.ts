@@ -3,13 +3,28 @@ import { db, type Executor } from '../../db/client.js';
 import { legalAcceptances, legalDocuments, platformSettings } from '../../db/schema.js';
 import type { LegalKind, LegalLocale } from './legal-templates.js';
 
-export const LEGAL_KINDS = ['TERMS', 'PRIVACY'] as const satisfies readonly LegalKind[];
+/** Every kind of legal text the administrator drafts, publishes and versions. */
+export const LEGAL_KINDS = [
+  'TERMS',
+  'PRIVACY',
+  'SERVICE_AGREEMENT',
+  'DPA',
+] as const satisfies readonly LegalKind[];
 /**
  * The texts every user accepts at sign-in (the legal gate). The service agreement and the data
  * processing agreement are accepted once per facility by a director and never gate anyone, so
  * they must never be added here.
  */
 export const USER_LEGAL_KINDS = ['TERMS', 'PRIVACY'] as const satisfies readonly LegalKind[];
+/**
+ * The agreements a facility accepts once, through one of its directors (organization_acceptances).
+ * A missing acceptance shows a notice to the directors and blocks nothing (H74).
+ */
+export const ORGANIZATION_LEGAL_KINDS = [
+  'SERVICE_AGREEMENT',
+  'DPA',
+] as const satisfies readonly LegalKind[];
+export type OrganizationLegalKind = (typeof ORGANIZATION_LEGAL_KINDS)[number];
 export const LEGAL_LOCALES = ['sq', 'sr', 'en'] as const satisfies readonly LegalLocale[];
 
 export type Settings = typeof platformSettings.$inferSelect;

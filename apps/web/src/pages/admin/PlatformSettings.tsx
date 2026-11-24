@@ -87,6 +87,7 @@ function SettingsForm({
         operatorBank: orNull('operatorBank'),
         supportEmail: orNull('supportEmail'),
         supportPhone: orNull('supportPhone'),
+        supportHours: orNull('supportHours'),
         privacyEmail: orNull('privacyEmail'),
         invoicePrefix: v.invoicePrefix,
         paymentTermsDays: int('paymentTermsDays'),
@@ -175,6 +176,15 @@ function SettingsForm({
             type="tel"
             maxLength={40}
             defaultValue={s.supportPhone ?? ''}
+          />
+          <TextField
+            label={t('Support hours')}
+            name="supportHours"
+            maxLength={120}
+            defaultValue={s.supportHours ?? ''}
+            hint={t(
+              'When support answers, e.g. Mon–Fri 08:00–16:00. Shown with the support e-mail and phone in the footer, on the sign-in page and on the help page.',
+            )}
           />
           <TextField
             label={t('Privacy e-mail')}

@@ -36,7 +36,7 @@ import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
-import { LEGAL_TEMPLATES } from './legal-templates.js';
+import { hasReviewNote, LEGAL_TEMPLATES } from './legal-templates.js';
 import {
   currentVersion,
   fillPlaceholders,
@@ -44,6 +44,7 @@ import {
   LEGAL_KINDS,
   LEGAL_LOCALES,
   missingPlaceholders,
+  USER_LEGAL_KINDS,
   type Settings,
 } from './platform.service.js';
 
@@ -376,6 +377,8 @@ const SettingsInput = z
     operatorBank: nullableText(120),
     supportEmail: email,
     supportPhone: nullableText(40),
+    // When support answers, in the operator's words (shown with the contact details).
+    supportHours: nullableText(120),
     privacyEmail: email,
     invoicePrefix: z
       .string()
@@ -545,10 +548,9 @@ adminPlatformRouter.get('/legal', async (_req, res) => {
   const settings = await getSettings();
   res.json({
     documents,
-    current: {
-      TERMS: await currentVersion('TERMS'),
-      PRIVACY: await currentVersion('PRIVACY'),
-    },
+    current: Object.fromEntries(
+      await Promise.all(LEGAL_KINDS.map(async (k) => [k, await currentVersion(k)] as const)),
+    ),
     acceptance,
     activeAccounts: await activeAccounts(),
     // Details the texts refer to that are still empty in the operator settings.
@@ -566,7 +568,8 @@ adminPlatformRouter.get('/legal/templates', async (req, res) => {
   res.json({ kind, locale, ...LEGAL_TEMPLATES[kind][locale] });
 });
 
-const AcceptanceQuery = z.object({ kind: Kind, version: Version });
+// Users' acceptances only: a facility's acceptance of an agreement is listed under /agreements.
+const AcceptanceQuery = z.object({ kind: z.enum(USER_LEGAL_KINDS), version: Version });
 
 /**
  * Who accepted a version: count against active accounts, and the latest 50 acceptances. Patient
@@ -732,6 +735,13 @@ adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
       throw badRequest(
         'Fill in the operator settings this text refers to before publishing it',
         missing.map((path) => ({ path, message: 'Not set' })),
+      );
+    }
+    // An agreement template starts with a note asking for the lawyer's review: a facility must
+    // never sign a text that still says it is a draft.
+    if (hasReviewNote(`${doc.title}\n${doc.body}`)) {
+      throw badRequest(
+        'This text still contains the draft note at its start. Have a lawyer review it, then delete the note before publishing.',
       );
     }
     const title = fillPlaceholders(doc.title, settings);

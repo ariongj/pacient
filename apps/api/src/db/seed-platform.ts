@@ -39,7 +39,8 @@ export async function seedPlatform(opts: { adminId: string }) {
     .where(eq(legalDocuments.version, VERSION));
   if ((existing?.count ?? 0) > 0) return;
 
-  // Published as the API publishes: with the operator details written into the text.
+  // Published as the API publishes: with the operator details written into the text, and the
+  // text as written (with its placeholders) kept for the next version to start from.
   const settings = await getSettings();
   const publishedAt = new Date();
   await db.insert(legalDocuments).values(
@@ -50,6 +51,8 @@ export async function seedPlatform(opts: { adminId: string }) {
         locale,
         title: fillPlaceholders(LEGAL_TEMPLATES[kind][locale].title, settings),
         body: fillPlaceholders(LEGAL_TEMPLATES[kind][locale].body, settings),
+        titleSource: LEGAL_TEMPLATES[kind][locale].title,
+        bodySource: LEGAL_TEMPLATES[kind][locale].body,
         requiresAcceptance: true,
         publishedAt,
         createdById: opts.adminId,

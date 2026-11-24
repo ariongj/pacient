@@ -164,9 +164,11 @@ and invoices**, and can print every invoice.
 ## Operator settings
 
 Company name, address, fiscal and VAT number, bank and IBAN, support and privacy contacts –
-printed on invoices and referred to by the legal texts. The IBAN is checked before it is saved
-(its country's length – 20 characters for Kosovo – and its check digits), because every invoice
-issued afterwards keeps it. Payment terms (days until an invoice is due), VAT rate (0 when not
+printed on invoices and referred to by the legal texts. A new IBAN is checked before it is saved
+(its country's length – 20 characters for Kosovo – and its check digits, which are always 02–98),
+because every invoice issued afterwards keeps it. An IBAN saved before the check was this strict
+is not checked again when you save other settings (an urgent notice is never held up by it), but
+the page warns until you correct it. Payment terms (days until an invoice is due), VAT rate (0 when not
 VAT-registered), trial length and grace period apply to invoices and subscriptions from then on;
 issued invoices and published legal texts do not change.
 
@@ -181,27 +183,39 @@ draft from the built-in template, edit it, and publish. **The templates are draf
 review them before you publish.** The operator's details must be filled in first, because the texts
 refer to them: on publishing, `{operatorName}`, `{privacyEmail}` and the other details are written
 into the text, so a later change to the operator settings never changes a published version – what
-users read is what they accepted.
+users read is what they accepted. Each value is written in once, as typed (a value that looks like
+a placeholder stays as it is). The text as written, with its placeholders, is kept with the
+version: **New version › Start from the current version** copies that, so the new version gets the
+details of the day it is published. A version published before the text as written was kept is
+copied as published, with the operator details of that day: the form warns, and you check them in
+the draft (or put the placeholders back) before publishing.
 
 A published version cannot be changed or deleted – publish a new version instead. When a version
 asks for acceptance, every user accepts it at their next sign-in before continuing; the acceptance
 (who, which version, when) is stored and listed under the version (patient accounts by role and
 time only, without a name). Administrators are not asked. A later version for information only
 (for example a typo correction) does not ask those who accepted already, but whoever never
-accepted the latest version that asked – a new account, say – accepts the current one.
+accepted the latest version that asked – a new account, say – accepts the current one; the page
+then shows those acceptances under the current version too.
 The public pages `/legal/terms` and `/legal/privacy` always show the current version (`/terms`
 leads there too; `/privacy` is the directors' and the Ministry's data protection workspace).
 
-If the check for pending texts cannot be reached or is slow, or the acceptance cannot be recorded,
-the user is let in (**Continue – you will be asked again next time**), and once the workspace is
-open it stays open until the next sign-in or page load, when the text is shown again: the legal
-gate never stands between a clinician and a patient (hazard H75).
+If the check for pending texts cannot be reached or is slow, or the acceptance cannot be recorded
+(an error, no answer within 10 seconds, or a conflict that fetching the current text again does
+not resolve), the user is let in (**Continue – you will be asked again next time**), and once the
+workspace is open it stays open until the next sign-in or page load, when the text is shown again:
+the legal gate never stands between a clinician and a patient (hazard H75). `npm run
+check:legal-gate` checks this in a browser before each release.
 
 ## Administrative actions and system health
 
 **Administrative actions** lists what administrators did – accounts, subscriptions and invoices,
 platform settings and legal texts – with the person, the target and the reason. It is part of the
-same append-only audit trail as everything else.
+same append-only audit trail as everything else. A patient's portal account is never named there
+(only "Patient account"), and what the system did to one – closing it when a death is registered,
+opening it again when the registration is withdrawn – is not listed at all: a list of those would
+be a list of deceased patients. Those entries stay in the audit trail and in that account's own
+history under **Users**.
 
 **System health** shows the database, e-mail and SMS waiting or failed, and the background
 workers. Check it after go-live and when someone reports a missing e-mail.

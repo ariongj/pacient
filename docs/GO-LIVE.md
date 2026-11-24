@@ -128,6 +128,8 @@ signed in) and sign out.
 
 ## 7. Upgrades
 
+Before each release, `npm run check:legal-gate` (Playwright with Chromium) must end with **All scenarios passed**: the terms and privacy gate never locks anyone out (hazard H75).
+
 ```bash
 git pull
 ```

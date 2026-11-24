@@ -72,6 +72,9 @@ describe('operator settings and the notice to users', () => {
       { operatorIban: 'XK05 1212 0123 4567 8960' },
       { operatorIban: 'XK05 1212 0123 4567 890' },
       { operatorIban: 'DE89 3704 0044 0532 0130 01' },
+      // Check digits are 02–98: 01 and 00 pass the sum where 98 and 97 are right.
+      { operatorIban: 'XK01 1212 0123 4500 0075' },
+      { operatorIban: 'XK00 1212 0123 4500 0093' },
       { invoicePrefix: 'P A C' },
       { vatRateBp: 6000 },
       { paymentTermsDays: -1 },
@@ -131,7 +134,43 @@ describe('operator settings and the notice to users', () => {
     // Other countries' IBANs pass with their own length and check digits.
     const albanian = await putSettings({ operatorIban: 'AL47 2121 1009 0000 0002 3569 8741' });
     expect(albanian.status).toBe(200);
+    expect((await putSettings({ operatorIban: 'XK98 1212 0123 4500 0075' })).status).toBe(200);
     expect((await putSettings({ operatorIban: 'XK05 1212 0123 4567 8906' })).status).toBe(200);
+  });
+
+  it('checks the IBAN only when it changes, and says when the stored one fails the check', async () => {
+    // Stored before the check was stricter (two digits swapped).
+    await db
+      .update(platformSettings)
+      .set({ operatorIban: 'XK05 1212 0123 4567 8960' })
+      .where(eq(platformSettings.id, 1));
+    const page = await api().get('/api/v1/admin/settings').set(asAdmin());
+    expect(page.body).toMatchObject({
+      operatorIban: 'XK05 1212 0123 4567 8960',
+      operatorIbanValid: false,
+    });
+    // The settings page sends every field back: an urgent notice is saved all the same.
+    const saved = await putSettings({
+      operatorIban: 'xk05 1212 0123 4567  8960',
+      noticeText: 'Maintenance tonight',
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({
+      noticeText: 'Maintenance tonight',
+      operatorIban: 'XK05 1212 0123 4567 8960',
+      operatorIbanValid: false,
+    });
+    // A new IBAN is checked; a valid one clears the warning.
+    const refused = await putSettings({ operatorIban: 'XK01 1212 0123 4500 0075' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.details).toEqual([
+      { path: 'operatorIban', message: 'This IBAN is not valid: check its length and digits' },
+    ]);
+    const fixed = await putSettings({ operatorIban: 'XK05 1212 0123 4567 8906', noticeText: null });
+    expect(fixed.status).toBe(200);
+    expect(fixed.body).toMatchObject({ operatorIbanValid: true, noticeText: null });
+    expect((await putSettings({ operatorIban: null })).body.operatorIbanValid).toBe(true);
+    await putSettings({ operatorIban: 'XK05 1212 0123 4567 8906' });
   });
 
   it('shows the operator and the notice publicly, only while the notice is valid', async () => {
@@ -471,6 +510,92 @@ describe('terms of use and privacy notice', () => {
     expect(await terms(w.tokens.doctor)).toEqual([]);
     expect(await terms(newcomerToken)).toMatchObject([{ version: '2.2' }]);
   });
+
+  it('keeps the text as written, so a new version starts from its placeholders', async () => {
+    const privacy = await api().get('/api/v1/legal/privacy');
+    const doc = await api().get(`/api/v1/admin/legal/${privacy.body.id}`).set(asAdmin());
+    expect(doc.body).toMatchObject({
+      title: 'Privacy notice',
+      body: privacy.body.body,
+      titleSource: 'Privacy notice',
+      bodySource: `${LONG} Contact: {privacyEmail}.`,
+    });
+    const list = await api().get('/api/v1/admin/legal').set(asAdmin());
+    const listed = (id: string) =>
+      list.body.documents.find((d: { id: string }) => d.id === id) as { hasSource: boolean };
+    expect(listed(privacy.body.id).hasSource).toBe(true);
+    // The database keeps the source fixed with the text, and only a published text has one.
+    await expect(
+      db
+        .update(legalDocuments)
+        .set({ bodySource: `${LONG} Changed behind the API.` })
+        .where(eq(legalDocuments.id, privacy.body.id)),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(legalDocuments).values({
+        kind: 'PRIVACY',
+        version: 'draft-src',
+        locale: 'sq',
+        title: 'Draft',
+        body: LONG,
+        titleSource: 'Draft',
+        bodySource: LONG,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('never fills a published text in again; only older texts without a source are', async () => {
+    const read = async () =>
+      (await api().get('/api/v1/legal/privacy').query({ locale: 'en' })).body as {
+        version: string;
+        body: string;
+      };
+    // A value that looks like a placeholder is written in as typed, and stays so.
+    expect((await putSettings({ operatorName: 'Op {privacyEmail}' })).status).toBe(200);
+    const v11 = await createDoc({
+      kind: 'PRIVACY',
+      version: '1.1',
+      locale: 'en',
+      title: 'Privacy notice',
+      body: `${LONG} Controller: {operatorName}.`,
+      requiresAcceptance: false,
+    });
+    expect((await publish(v11.body.id)).status).toBe(200);
+    expect(await read()).toMatchObject({
+      version: '1.1',
+      body: `${LONG} Controller: Op {privacyEmail}.`,
+    });
+    await putSettings({ privacyEmail: 'new@example.org' });
+    expect((await read()).body).toBe(`${LONG} Controller: Op {privacyEmail}.`);
+    expect((await status(w.tokens.nurse)).body.pending).toEqual([]);
+
+    // A text published before the details were written in still holds its placeholders: they
+    // are filled in from the current settings when it is read.
+    const [legacy] = await db
+      .insert(legalDocuments)
+      .values({
+        kind: 'PRIVACY',
+        version: '1.2',
+        locale: 'en',
+        title: 'Privacy notice',
+        body: `${LONG} Write to {privacyEmail}.`,
+        requiresAcceptance: false,
+        publishedAt: new Date(),
+      })
+      .returning();
+    expect(await read()).toMatchObject({
+      version: '1.2',
+      body: `${LONG} Write to new@example.org.`,
+    });
+    const list = await api().get('/api/v1/admin/legal').set(asAdmin());
+    expect(list.body.documents.find((d: { id: string }) => d.id === legacy!.id)).toMatchObject({
+      hasSource: false,
+    });
+    await putSettings({
+      operatorName: 'Operator Test SH.P.K.',
+      privacyEmail: 'privacy@example.org',
+    });
+  });
 });
 
 describe('overview', () => {
@@ -563,6 +688,94 @@ describe('overview', () => {
     });
     // Nothing clinical in the overview.
     expect(JSON.stringify(after)).not.toMatch(/diagnos|nationalId|dateOfBirth/i);
+  });
+
+  it('shows what a renewal bills, what a scheduled cancellation ends, and no zero totals as overdue', async () => {
+    const before = (await api().get('/api/v1/admin/overview').set(asAdmin())).body;
+    const [plan] = await db
+      .insert(subscriptionPlans)
+      .values({
+        code: `R-${Date.now()}`,
+        name: 'Renewals',
+        monthlyPriceCents: 14900,
+        yearlyPriceCents: 149000,
+      })
+      .returning();
+    const now = Date.now();
+    const period = (endInDays: number) => ({
+      currentPeriodStart: new Date(now - 20 * 86_400_000),
+      currentPeriodEnd: new Date(now + endInDays * 86_400_000),
+    });
+    const [toYearly, ending, suspended] = [
+      await createFacility(),
+      await createFacility(),
+      await createFacility(),
+    ];
+    const [yearlySub] = await db
+      .insert(subscriptions)
+      .values({
+        facilityId: toYearly.id,
+        planId: plan!.id,
+        status: 'ACTIVE',
+        billingCycle: 'MONTHLY',
+        priceCents: 14900,
+        nextBillingCycle: 'YEARLY',
+        nextPriceCents: 149000,
+        ...period(3),
+      })
+      .returning();
+    await db.insert(subscriptions).values([
+      {
+        facilityId: ending.id,
+        planId: plan!.id,
+        status: 'SUSPENDED',
+        suspensionCause: 'MANUAL',
+        suspendedAt: new Date(now - 86_400_000),
+        cancelAtPeriodEnd: true,
+        priceCents: 14900,
+        ...period(4),
+      },
+      // Suspended without a scheduled end: it neither renews nor ends on that date.
+      {
+        facilityId: suspended.id,
+        planId: plan!.id,
+        status: 'SUSPENDED',
+        suspensionCause: 'NON_PAYMENT',
+        suspendedAt: new Date(now - 86_400_000),
+        priceCents: 14900,
+        ...period(4),
+      },
+    ]);
+    // An open invoice with nothing to pay is never overdue.
+    await db.insert(invoices).values({
+      number: `Z-${now}`,
+      facilityId: toYearly.id,
+      subscriptionId: yearlySub!.id,
+      periodStart: new Date(now - 20 * 86_400_000),
+      periodEnd: new Date(now + 3 * 86_400_000),
+      description: 'Plan Renewals (discounted to zero)',
+      netCents: 0,
+      totalCents: 0,
+      dueAt: new Date(now - 5 * 86_400_000),
+      issuer: { name: 'Operator' },
+      customer: { name: toYearly.name },
+    });
+
+    const after = (await api().get('/api/v1/admin/overview').set(asAdmin())).body;
+    expect(after.revenue.overdueCount).toBe(before.revenue.overdueCount);
+    expect(after.revenue.overdueCents).toBe(before.revenue.overdueCents);
+    type Renewal = { facilityId: string };
+    const renewal = (id: string) => after.renewals.find((r: Renewal) => r.facilityId === id);
+    expect(renewal(toYearly.id)).toMatchObject({
+      status: 'ACTIVE',
+      billingCycle: 'MONTHLY',
+      priceCents: 14900,
+      nextBillingCycle: 'YEARLY',
+      nextPriceCents: 149000,
+      cancelAtPeriodEnd: false,
+    });
+    expect(renewal(ending.id)).toMatchObject({ status: 'SUSPENDED', cancelAtPeriodEnd: true });
+    expect(renewal(suspended.id)).toBeUndefined();
   });
 });
 
@@ -699,6 +912,108 @@ describe('administrative audit', () => {
     // The invitation is audited all the same, for the patient's access log and the facility.
     const rows = await db.select().from(auditLogs).where(eq(auditLogs.resourceId, linked!.userId!));
     expect(rows.map((r) => r.action)).toContain(AuditAction.USER_INVITED);
+  });
+
+  it('never lists what the system did to a patient’s portal account, nor names one', async () => {
+    // A patient with a portal account dies; their doctor signs the certificate (the real flow),
+    // which closes the account. The Ministry then withdraws it, which opens the account again.
+    const portal = await createUser('PATIENT');
+    const patient = await createPatient(w.facility.id, {
+      doctorId: w.users.doctor.id,
+      userId: portal.id,
+    });
+    await db
+      .update(patients)
+      .set({ dateOfBirth: '1940-03-01', sex: 'MALE' })
+      .where(eq(patients.id, patient.id));
+    const draft = await api()
+      .post(`/api/v1/deaths/patients/${patient.id}`)
+      .set(bearer(w.tokens.doctor))
+      .send({
+        placeOfDeath: 'HOSPITAL',
+        mannerOfDeath: 'NATURAL',
+        diedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+        causes: [
+          { line: 'a', text: 'Acute myocardial infarction', icd10: 'I21.9', interval: '2 hours' },
+          { line: 'b', text: 'Coronary atherosclerosis', icd10: 'I25.1', interval: '10 years' },
+        ],
+        underlyingCauseIcd10: 'I25.1',
+      });
+    expect(draft.status).toBe(201);
+    const signed = await api()
+      .post(`/api/v1/deaths/${draft.body.id}/sign`)
+      .set(bearer(w.tokens.doctor))
+      .send({});
+    expect(signed.status).toBe(200);
+    expect(signed.body.effects.portalDisabled).toBe(true);
+
+    const get = (category: string) =>
+      api().get('/api/v1/admin/audit').query({ category, pageSize: 100 }).set(asAdmin());
+    type Item = {
+      action: string;
+      resourceId: string | null;
+      targetName: string | null;
+      targetPatientAccount: boolean;
+    };
+    const shown = async () => {
+      const overview = (await api().get('/api/v1/admin/overview').set(asAdmin())).body;
+      return [
+        ...((await get('users')).body.items as Item[]),
+        ...((await get('all')).body.items as Item[]),
+        ...(overview.recentActions as Item[]),
+      ];
+    };
+    const notListed = async () => {
+      const items = await shown();
+      expect(items.filter((i) => i.resourceId === portal.id)).toEqual([]);
+      const text = JSON.stringify(items);
+      expect(text).not.toContain(portal.fullName);
+      expect(text).not.toContain(patient.lastName);
+      expect(text).not.toMatch(/death_registration/);
+    };
+    await notListed();
+
+    const withdrawn = await api()
+      .post(`/api/v1/deaths/${draft.body.id}/withdraw`)
+      .set(bearer(w.tokens.ministry))
+      .send({ reason: 'Certified for the wrong person by mistake (identity mix-up)' });
+    expect(withdrawn.status).toBe(200);
+    await notListed();
+
+    // Both rows stay in the trail and in the account's own history.
+    const rows = await db.select().from(auditLogs).where(eq(auditLogs.resourceId, portal.id));
+    expect(rows.map((r) => r.action)).toEqual(
+      expect.arrayContaining([AuditAction.USER_DEACTIVATED, AuditAction.USER_REACTIVATED]),
+    );
+    const page = await api().get(`/api/v1/admin/users/${portal.id}`).set(asAdmin());
+    expect(page.body.adminHistory.map((h: { source: string }) => h.source)).toEqual(
+      expect.arrayContaining(['death_registration', 'death_registration_withdrawn']),
+    );
+
+    // What an administrator does to a patient account is listed, without the patient's name.
+    await audit({
+      action: AuditAction.ADMIN_SESSIONS_REVOKED,
+      actor: { userId: admin.id, role: 'ADMIN', facilityId: null },
+      resourceType: 'user',
+      resourceId: w.users.otherPatientUser.id,
+      metadata: { reason: 'Lost phone' },
+    });
+    const items = await shown();
+    const revoked = items.filter((i) => i.resourceId === w.users.otherPatientUser.id);
+    expect(revoked).toHaveLength(3);
+    for (const i of revoked) {
+      expect(i).toMatchObject({
+        action: AuditAction.ADMIN_SESSIONS_REVOKED,
+        targetName: null,
+        targetPatientAccount: true,
+      });
+    }
+    expect(JSON.stringify(items)).not.toContain(w.users.otherPatientUser.fullName);
+    // Staff accounts keep their names.
+    expect(items.find((i) => i.resourceId === w.users.nurse.id)).toMatchObject({
+      targetName: w.users.nurse.fullName,
+      targetPatientAccount: false,
+    });
   });
 
   it('lists the facilities the administrator creates for a customer', async () => {

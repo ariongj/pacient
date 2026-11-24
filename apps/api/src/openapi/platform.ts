@@ -21,7 +21,7 @@ const legalByKind: ModuleOperation = {
     auth: 'none',
     access: 'Public',
     description:
-      'Newest published version in the requested language (fallback Albanian, then English), with the operator details as they were when it was published. 404 while nothing is published.',
+      'Newest published version in the requested language (fallback Albanian, then English), with the operator details as they were when it was published (texts published before the details were written into them are filled in from the current settings). 404 while nothing is published.',
     params: [q('locale', localeEnum)],
   }),
   params: [
@@ -75,13 +75,17 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/overview', T, 'The administrator’s overview', {
     access: ADMIN,
     description:
-      'Facilities and subscriptions by status, accounts (active staff, pending activations, locked, staff without two-step sign-in, patient accounts), monthly recurring revenue, open and overdue invoices, renewals in the next 30 days, recent subscription events and administrative actions.',
+      'Facilities and subscriptions by status, accounts (active staff, pending activations, locked, staff without two-step sign-in, patient accounts), monthly recurring revenue, open and overdue invoices (overdue: with an amount to pay), renewals and scheduled endings in the next 30 days (with the billing cycle and price a scheduled change applies), recent subscription events and administrative actions.',
   }),
-  op('get', '/admin/settings', T, 'Operator settings', { access: ADMIN }),
+  op('get', '/admin/settings', T, 'Operator settings', {
+    access: ADMIN,
+    description:
+      'The settings, and operatorIbanValid: false when the stored IBAN does not pass the check (one stored before the check was stricter).',
+  }),
   op('put', '/admin/settings', T, 'Change operator settings', {
     access: ADMIN,
     description:
-      'Only the fields sent are changed; the changed field names are audited. The IBAN must have its country’s length and valid check digits. Published legal texts keep the details they were published with.',
+      'Only the fields sent are changed; the changed field names are audited. A new IBAN must have its country’s length and valid check digits (02–98); the stored one sent back unchanged is not checked again, so it never blocks other changes. Published legal texts keep the details they were published with.',
     body: settingsBody,
   }),
   op('get', '/admin/legal', T, 'Terms of use and privacy notice: every version and language', {
@@ -100,7 +104,11 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
       'The count against active accounts and the latest 50 acceptances; patient accounts by role and time only (no name).',
     params: [q('kind', kindEnum), q('version', version)],
   }),
-  op('get', '/admin/legal/{id}', T, 'One document with its text', { access: ADMIN }),
+  op('get', '/admin/legal/{id}', T, 'One document with its text', {
+    access: ADMIN,
+    description:
+      'A published text has the operator details written in; titleSource and bodySource hold it as written, with its {placeholders} (null for drafts and for texts published before they were kept).',
+  }),
   op('post', '/admin/legal', T, 'Create a draft', {
     access: ADMIN,
     body: obj(
@@ -132,7 +140,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/legal/{id}/publish', T, 'Publish a draft', {
     access: ADMIN,
     description:
-      'The text is fixed from now on (database trigger), with the operator details it refers to written into it. When it asks for acceptance, every user accepts it at their next sign-in. The operator details must be filled in first.',
+      'The text is fixed from now on (database trigger), with the operator details it refers to written into it (each value as typed, in one pass) and the text as written kept in titleSource and bodySource. When it asks for acceptance, every user accepts it at their next sign-in. The operator details must be filled in first.',
     responses: {
       '200': 'Published',
       '400': 'Operator settings missing, or the title too long with them filled in',
@@ -142,7 +150,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/audit', T, 'Administrative audit trail', {
     access: ADMIN,
     description:
-      'What administrators and the system did to accounts, customers (facilities), subscriptions and invoices, operator settings and legal texts, with actor and target names. Actions by facility staff and rows about a patient are never listed.',
+      'What administrators and the system did to accounts, customers (facilities), subscriptions and invoices, operator settings and legal texts, with actor and target names. Actions by facility staff, rows about a patient and what the system did to a patient’s portal account (closing it when a death is registered) are never listed; a patient account is never named (targetName null, targetPatientAccount true).',
     params: [
       q('category', enumOf('all', 'users', 'billing', 'platform')),
       q('page', int({ minimum: 1 })),

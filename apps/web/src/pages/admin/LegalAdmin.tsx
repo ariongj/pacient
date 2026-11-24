@@ -43,6 +43,17 @@ const languageLabel = (l: string) => LOCALES.find((x) => x.value === l)?.label ?
 const byVersion = (a: LegalDocumentSummary, b: LegalDocumentSummary) =>
   b.version.localeCompare(a.version, undefined, { numeric: true }) ||
   LEGAL_LOCALES.indexOf(a.locale) - LEGAL_LOCALES.indexOf(b.locale);
+/**
+ * Whether another published text of this kind (not `self`) asked for acceptance. Then a version
+ * that does not ask is still accepted by everyone who never accepted the latest one that did (new
+ * accounts among them); otherwise nobody is asked.
+ */
+const askedElsewhere = (
+  list: LegalAdminList,
+  kind: LegalKind,
+  self: (d: LegalDocumentSummary) => boolean,
+) =>
+  list.documents.some((d) => d.kind === kind && !self(d) && d.publishedAt && d.requiresAcceptance);
 
 /**
  * Terms of use and privacy notice: versions per language, drafts, publishing and who accepted.
@@ -118,7 +129,16 @@ export function LegalAdmin() {
         onClose={() => setPublishing(null)}
         title={t('Publish this text?')}
       >
-        {publishing && <PublishConfirm doc={publishing} onClose={() => setPublishing(null)} />}
+        {publishing && (
+          <PublishConfirm
+            doc={publishing}
+            othersAsk={Boolean(
+              list.data &&
+              askedElsewhere(list.data, publishing.kind, (d) => d.id === publishing.id),
+            )}
+            onClose={() => setPublishing(null)}
+          />
+        )}
       </Dialog>
       <Dialog
         open={deleting !== null}
@@ -153,6 +173,9 @@ function KindCard({
   const current = list.current[kind];
   const accepted = list.acceptance.find((a) => a.kind === kind && a.version === current)?.accepted;
   const requires = docs.some((d) => d.version === current && d.publishedAt && d.requiresAcceptance);
+  // A current version that does not ask for acceptance is still accepted by those who never
+  // accepted the latest one that did: their acceptances are recorded and shown here too.
+  const acceptedByNewcomers = !requires && askedElsewhere(list, kind, (d) => d.version === current);
   return (
     <Card
       title={kindLabel(kind)}
@@ -167,8 +190,15 @@ function KindCard({
       {current ? (
         <p>
           {t('Current version: {version}.', { version: current })}{' '}
-          {requires ? (
+          {requires || acceptedByNewcomers ? (
             <>
+              {acceptedByNewcomers && (
+                <span className="muted">
+                  {t(
+                    'Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.',
+                  )}{' '}
+                </span>
+              )}
               {t('{accepted} of {active} active accounts have accepted it.', {
                 accepted: accepted ?? 0,
                 active: list.activeAccounts,
@@ -279,6 +309,8 @@ function NewVersionForm({
   onCreated: (id: string) => void;
 }) {
   const [kind, setKind] = useState<LegalKind>('TERMS');
+  const [locale, setLocale] = useState<LegalLocale>('sq');
+  const [start, setStart] = useState<'copy' | 'template' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const create = useLegalMutation((body: Record<string, unknown>) => ({
@@ -287,21 +319,31 @@ function NewVersionForm({
     body,
   }));
   const current = list.current[kind];
+  const startFrom = current ? (start ?? 'copy') : 'template';
+  // The published translation of the current version a copy starts from (else any of them).
+  const copied = (() => {
+    const docs = list.documents.filter(
+      (d) => d.kind === kind && d.version === current && d.publishedAt,
+    );
+    return docs.find((d) => d.locale === locale) ?? docs[0];
+  })();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const v = formValues(e.currentTarget);
-    const locale = v.locale as LegalLocale;
     setBusy(true);
     setError(null);
     try {
       let source: { title: string; body: string };
-      if (v.start === 'copy' && current) {
-        const docs = list.documents.filter(
-          (d) => d.kind === kind && d.version === current && d.publishedAt,
-        );
-        const from = docs.find((d) => d.locale === locale) ?? docs[0]!;
-        source = await api<LegalDocumentFull>(`/admin/legal/${from.id}`);
+      if (startFrom === 'copy' && copied) {
+        // The text as written, with its placeholders, so this version gets the operator details
+        // of its own publication. Texts published before that was kept have only the filled-in
+        // text (the form says so).
+        const doc = await api<LegalDocumentFull>(`/admin/legal/${copied.id}`);
+        source =
+          doc.titleSource !== null && doc.bodySource !== null
+            ? { title: doc.titleSource, body: doc.bodySource }
+            : doc;
       } else {
         source = await fetchTemplate(kind, locale);
       }
@@ -349,13 +391,15 @@ function NewVersionForm({
         <SelectField
           label={t('Language')}
           name="locale"
-          defaultValue="sq"
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as LegalLocale)}
           options={LEGAL_LOCALES.map((l) => ({ value: l, label: languageLabel(l) }))}
         />
         <SelectField
           label={t('Start from')}
           name="start"
-          defaultValue={current ? 'copy' : 'template'}
+          value={startFrom}
+          onChange={(e) => setStart(e.target.value as 'copy' | 'template')}
           options={[
             ...(current
               ? [
@@ -378,6 +422,13 @@ function NewVersionForm({
           'Details such as {operatorName} or {privacyEmail} are filled in from the operator settings when the text is published.',
         )}
       </p>
+      {startFrom === 'copy' && copied && !copied.hasSource && (
+        <Alert tone="warning" title={t('Check the operator details in the copy')}>
+          {t(
+            'This version was published before the text as written was kept: the copy may contain the operator details as they were when it was published instead of placeholders. Check them against the operator settings, or replace them with placeholders, before you publish.',
+          )}
+        </Alert>
+      )}
       <ErrorAlert error={error} />
       <div className="form-actions">
         <Button variant="secondary" onClick={onCancel}>
@@ -501,7 +552,16 @@ function EditorForm({ doc, onClose }: { doc: LegalDocumentFull; onClose: () => v
   );
 }
 
-function PublishConfirm({ doc, onClose }: { doc: LegalDocumentSummary; onClose: () => void }) {
+function PublishConfirm({
+  doc,
+  othersAsk,
+  onClose,
+}: {
+  doc: LegalDocumentSummary;
+  /** Another published text of this kind asked for acceptance. */
+  othersAsk: boolean;
+  onClose: () => void;
+}) {
   const publish = useLegalMutation(
     () => ({ path: `/admin/legal/${doc.id}/publish`, method: 'POST', body: {} }),
     onClose,
@@ -523,7 +583,11 @@ function PublishConfirm({ doc, onClose }: { doc: LegalDocumentSummary; onClose: 
       <p>
         {doc.requiresAcceptance
           ? t('Every user is asked to accept this version the next time they sign in.')
-          : t('The text is shown on the public page; users are not asked to accept it.')}
+          : othersAsk
+            ? t(
+                'The text is shown on the public page. Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.',
+              )
+            : t('The text is shown on the public page; users are not asked to accept it.')}
       </p>
       <ErrorAlert error={publish.error} />
       <div className="form-actions">

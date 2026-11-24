@@ -109,6 +109,14 @@ function SettingsForm({
             'Printed on invoices and filled into the terms of use and the privacy notice. Use the registered legal name.',
           )}
         </p>
+        {/* Saved before the check was stricter: it does not block saving the other settings. */}
+        {!s.operatorIbanValid && (
+          <Alert tone="warning" title={t('The saved IBAN is not valid')}>
+            {t(
+              'Its length or check digits are wrong, and it is printed on every new invoice. Correct it; the other settings can be saved meanwhile.',
+            )}
+          </Alert>
+        )}
         <div className="form-grid">
           <TextField
             label={t('Operator name')}

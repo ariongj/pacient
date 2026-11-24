@@ -88,6 +88,27 @@ export function AdminHome() {
   );
 }
 
+/** What the renewal will bill: a change of billing cycle scheduled for it applies its price. */
+function RenewalPrice({ r }: { r: AdminOverview['renewals'][number] }) {
+  if (r.cancelAtPeriodEnd) return <span className="muted">{t('No renewal')}</span>;
+  if (r.nextBillingCycle && r.nextPriceCents !== null) {
+    const price = formatMoney(r.nextPriceCents, r.currency);
+    return (
+      <>
+        {r.nextBillingCycle === 'YEARLY'
+          ? t('Changes to yearly with the next period: {price} per year', { price })
+          : t('Changes to monthly with the next period: {price} per month', { price })}
+      </>
+    );
+  }
+  return (
+    <>
+      {formatMoney(r.priceCents, r.currency)}{' '}
+      <span className="muted">{r.billingCycle === 'YEARLY' ? t('per year') : t('per month')}</span>
+    </>
+  );
+}
+
 function Overview({ o }: { o: AdminOverview }) {
   const s = o.facilities.byStatus;
   const money = (cents: number) => formatMoney(cents, o.revenue.currency);
@@ -144,6 +165,7 @@ function Overview({ o }: { o: AdminOverview }) {
         <Stat label={t('Patients with a portal account')} value={o.users.patientAccounts} />
       </Grid>
 
+      {/* What renews, with what it will bill, and what a scheduled cancellation ends. */}
       <Card title={t('Renewals in the next 30 days')}>
         {o.renewals.length === 0 ? (
           <EmptyState title={t('No renewals in the next 30 days')} />
@@ -178,10 +200,7 @@ function Overview({ o }: { o: AdminOverview }) {
                     {r.status === 'TRIAL' && <div className="muted">{t('Trial ends')}</div>}
                   </td>
                   <td>
-                    {formatMoney(r.priceCents, r.currency)}{' '}
-                    <span className="muted">
-                      {r.billingCycle === 'YEARLY' ? t('per year') : t('per month')}
-                    </span>
+                    <RenewalPrice r={r} />
                   </td>
                 </tr>
               ))}

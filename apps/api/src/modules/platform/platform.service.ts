@@ -40,7 +40,10 @@ export function missingPlaceholders(text: string, s: Settings): Placeholder[] {
   return [...used].filter((k) => !settingValue(s, k));
 }
 
-/** Fills the operator details into a legal text ("—" where a detail is not set). */
+/**
+ * Fills the operator details into a legal text ("—" where a detail is not set), in one pass: a
+ * value is inserted as it is, even if it looks like a placeholder itself.
+ */
 export function fillPlaceholders(text: string, s: Settings): string {
   return text.replace(PLACEHOLDER_RE, (_, key: Placeholder) => settingValue(s, key) || '—');
 }
@@ -159,18 +162,21 @@ export async function pendingDocuments(
 }
 
 /**
- * A legal document as shown to readers. Publishing writes the operator details into the text, so
- * a published text reads as it was accepted whatever the settings say today; only texts published
- * before that still hold placeholders, which are filled from the current settings.
+ * A legal document as shown to readers. Publishing writes the operator details into the text and
+ * keeps the text as written beside it (the source), so a published text with a source is shown
+ * exactly as stored: it reads as it was accepted whatever the settings say today, even where a
+ * value written into it looks like a placeholder. Only texts published before the details were
+ * written in (no source) still hold placeholders, which are filled from the current settings.
  */
 export function presentDocument(c: CurrentDocument, s: Settings) {
+  const legacy = c.doc.bodySource === null;
   return {
     id: c.doc.id,
     kind: c.doc.kind,
     version: c.version,
     locale: c.doc.locale,
-    title: fillPlaceholders(c.doc.title, s),
-    body: fillPlaceholders(c.doc.body, s),
+    title: legacy ? fillPlaceholders(c.doc.title, s) : c.doc.title,
+    body: legacy ? fillPlaceholders(c.doc.body, s) : c.doc.body,
     publishedAt: c.doc.publishedAt,
     requiresAcceptance: c.requiresAcceptance,
   };

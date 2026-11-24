@@ -60,6 +60,18 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   query?: Query;
+  /**
+   * Give up after this many milliseconds (each attempt, response body included). The request then
+   * fails like one that could not reach the server, with a message saying it timed out.
+   */
+  timeoutMs?: number;
+}
+
+/** A request that ran out of time fails like an unreachable server (a plain Error). */
+function timedOut(err: unknown): unknown {
+  return err instanceof DOMException && err.name === 'TimeoutError'
+    ? new Error(t('The server did not answer in time.'))
+    : err;
 }
 
 function buildUrl(path: string, query?: Query) {
@@ -81,6 +93,9 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
     headers,
     credentials: 'include',
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+  }).catch((err: unknown) => {
+    throw timedOut(err);
   });
 }
 
@@ -113,7 +128,11 @@ export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<R
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const res = await apiRaw(path, opts);
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch (err) {
+    throw timedOut(err);
+  }
 }
 
 /** Download an authenticated response as a file (record export, CSV reports). */

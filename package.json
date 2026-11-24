@@ -24,6 +24,7 @@
     "a11y": "node scripts/a11y-audit.mjs",
     "journey": "node scripts/patient-journey.mjs",
     "i18n:check": "tsx scripts/i18n-check.ts",
+    "check:legal-gate": "node scripts/legal-gate-check.mjs",
     "load-test": "node scripts/load-test.mjs"
   },
   "devDependencies": {

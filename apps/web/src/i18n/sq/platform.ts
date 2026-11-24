@@ -133,7 +133,6 @@ export const platform: Record<string, string> = {
   'Subscription reactivated': 'Abonimi u riaktivizua',
   'Subscription renewed': 'Abonimi u rinovua',
   'Subscription suspended': 'Abonimi u pezullua',
-  'Subscriptions and invoices': 'Abonimet dhe faturat',
   Support: 'Ndihma',
   'Support e-mail': 'E-maili i ndihmës',
   'Support phone': 'Telefoni i ndihmës',
@@ -212,4 +211,17 @@ export const platform: Record<string, string> = {
   'Your acceptance could not be recorded. You can work as usual; you will be asked again the next time you sign in.':
     'Pranimi juaj nuk u regjistrua dot. Mund të punoni si zakonisht; do t’ju kërkohet përsëri herën e ardhshme që hyni.',
   'Continue – you will be asked again next time': 'Vazhdo – do t’ju kërkohet përsëri herën tjetër',
+  // Operator follow-ups: legal versions, renewals, IBAN, timeouts.
+  'Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.':
+    'Përdoruesve që kanë pranuar një version të mëparshëm nuk u kërkohet përsëri; llogaritë e reja dhe kushdo që nuk ka pranuar kurrë versionin e fundit që kërkonte pranim e pranojnë këtë.',
+  'The text is shown on the public page. Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.':
+    'Teksti shfaqet në faqen publike. Përdoruesve që kanë pranuar një version të mëparshëm nuk u kërkohet përsëri; llogaritë e reja dhe kushdo që nuk ka pranuar kurrë versionin e fundit që kërkonte pranim e pranojnë këtë.',
+  'Check the operator details in the copy': 'Kontrolloni të dhënat e operatorit në kopje',
+  'This version was published before the text as written was kept: the copy may contain the operator details as they were when it was published instead of placeholders. Check them against the operator settings, or replace them with placeholders, before you publish.':
+    'Ky version u publikua para se të ruhej teksti siç është shkruar: kopja mund të përmbajë të dhënat e operatorit siç ishin kur u publikua, në vend të vendmbajtësve. Kontrollojini me cilësimet e operatorit ose zëvendësojini me vendmbajtës para se ta publikoni.',
+  'No renewal': 'Pa rinovim',
+  'The saved IBAN is not valid': 'IBAN-i i ruajtur nuk është i vlefshëm',
+  'Its length or check digits are wrong, and it is printed on every new invoice. Correct it; the other settings can be saved meanwhile.':
+    'Gjatësia ose shifrat e kontrollit të tij janë të gabuara, dhe ai shtypet në çdo faturë të re. Korrigjojeni; cilësimet e tjera mund të ruhen ndërkohë.',
+  'The server did not answer in time.': 'Serveri nuk u përgjigj me kohë.',
 };

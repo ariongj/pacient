@@ -48,10 +48,12 @@ const docKey = (doc: LegalText) => `${doc.kind}-${doc.version}`;
 /**
  * Before the workspace opens: the signed-in user accepts the current terms of use and privacy
  * notice when a new version requires it. Never locks anyone out (hazard H75): if the check fails
- * or is slow, or the acceptance cannot be recorded, the workspace opens (fail open) –
- * acceptance is a legal formality, care must not wait for it. Once the workspace is open it stays
- * open until the next sign-in or page load, whatever a late answer or a newly published version
- * says: replacing it would throw away whatever the user had started (a note, an administration).
+ * or is slow, or the acceptance cannot be recorded (an error, no answer within
+ * ACCEPT_TIMEOUT_MS, or a conflict that asking again does not resolve), the workspace opens (fail
+ * open) – acceptance is a legal formality, care must not wait for it. Once the workspace is open
+ * it stays open until the next sign-in or page load, whatever a late answer or a newly published
+ * version says: replacing it would throw away whatever the user had started (a note, an
+ * administration). Checked in a browser by `npm run check:legal-gate`.
  */
 export function LegalGate({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -73,6 +75,7 @@ export function LegalGate({ children }: { children: ReactNode }) {
       key={docKey(pending[0]!)}
       doc={pending[0]!}
       remaining={pending.length}
+      refreshing={status.isFetching}
       onDefer={() => {
         gate.deferred.add(docKey(pending[0]!));
         rerender();
@@ -90,22 +93,38 @@ export function LegalGateReset() {
   return null;
 }
 
+const isConflict = (err: unknown) => err instanceof ApiError && err.status === 409;
+
+/**
+ * One text to accept. Mounted per kind and version (keyed), so its state is about this version.
+ * `refreshing`: the acceptance status is being fetched again.
+ */
 function AcceptDocument({
   doc,
   remaining,
+  refreshing,
   onDefer,
 }: {
   doc: LegalText;
   remaining: number;
+  refreshing: boolean;
   onDefer: () => void;
 }) {
   const { logout } = useAuth();
   const accept = useAcceptLegal();
   const [checked, setChecked] = useState(false);
+  // Conflicts (409) on accepting this version, and whether one is waiting for the status asked
+  // for again.
+  const [conflicts, setConflicts] = useState(0);
+  const [rechecked, setRechecked] = useState(false);
   const textId = useId();
   const checkId = useId();
-  // A newer version was published meanwhile: the status is fetched again and shows it.
-  const superseded = accept.error instanceof ApiError && accept.error.status === 409;
+  // A 409 normally means a newer version was published meanwhile: the status is fetched again
+  // and shows it, which replaces this card. If it still shows this version (a stale read, or a
+  // conflict of another kind), or this version is refused twice, asking again cannot help:
+  // offer to continue, as for any other failure.
+  const superseded = isConflict(accept.error) && conflicts < 2 && (!rechecked || refreshing);
+  const canContinue = accept.error !== null && !superseded;
   return (
     <Card title={doc.title}>
       <p>
@@ -147,7 +166,7 @@ function AcceptDocument({
         <label htmlFor={checkId}>{t('I have read and accept this text')}</label>
       </div>
       <ErrorAlert error={accept.error} />
-      {accept.error !== null && !superseded && (
+      {canContinue && (
         <p>
           {t(
             'Your acceptance could not be recorded. You can work as usual; you will be asked again the next time you sign in.',
@@ -158,7 +177,7 @@ function AcceptDocument({
         <Button variant="secondary" onClick={() => void logout()}>
           {t('Sign out')}
         </Button>
-        {accept.error !== null && !superseded && (
+        {canContinue && (
           <Button variant="secondary" onClick={onDefer}>
             {t('Continue – you will be asked again next time')}
           </Button>
@@ -166,7 +185,18 @@ function AcceptDocument({
         <Button
           disabled={!checked}
           loading={accept.isPending}
-          onClick={() => accept.mutate({ kind: doc.kind, version: doc.version })}
+          onClick={() =>
+            accept.mutate(
+              { kind: doc.kind, version: doc.version },
+              {
+                onError: (err) => {
+                  if (!isConflict(err)) return;
+                  setConflicts((n) => n + 1);
+                  setRechecked(true);
+                },
+              },
+            )
+          }
         >
           {t('Accept and continue')}
         </Button>

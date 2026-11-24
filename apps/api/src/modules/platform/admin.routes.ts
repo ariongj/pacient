@@ -9,6 +9,7 @@ import {
   like,
   lte,
   ne,
+  notExists,
   or,
   sql,
   type SQL,
@@ -90,15 +91,31 @@ const CATEGORY_FILTERS: Record<AuditCategory, SQL> = {
   platform: or(like(auditLogs.action, 'platform.%'), like(auditLogs.action, 'legal.document.%'))!,
 };
 
+const patientAccount = alias(users, 'patient_account');
+
 /**
  * Only what the operator's administrators or the system (no actor) did. Facility staff write the
  * same generic actions (a clinician inviting a patient to the portal, a director managing staff);
  * such a row names a patient together with their clinician and so their facility, which the
- * administrator must never learn. Rows about a patient never belong here either.
+ * administrator must never learn. Rows about a patient never belong here either. Neither do rows
+ * the system wrote about a patient's portal account: it closes one when a death is registered
+ * (and opens it again when the registration is withdrawn), so a list of them would be a list of
+ * deceased patients. Those rows stay in the trail and in that account's own history.
  */
 const BY_OPERATOR = and(
   or(eq(auditLogs.actorRole, 'ADMIN'), isNull(auditLogs.actorUserId)),
   isNull(auditLogs.patientId),
+  or(
+    isNotNull(auditLogs.actorUserId),
+    notExists(
+      db
+        .select({ id: patientAccount.id })
+        .from(patientAccount)
+        .where(
+          and(eq(patientAccount.id, auditLogs.resourceId), eq(patientAccount.role, 'PATIENT')),
+        ),
+    ),
+  ),
 )!;
 
 const auditWhere = (category: AuditCategory | 'all') =>
@@ -132,10 +149,13 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
            FROM subscriptions WHERE status IN ('ACTIVE', 'PAST_DUE') AND currency = 'EUR') AS mrr,
         (SELECT coalesce(sum(total_cents), 0) FROM invoices
            WHERE status = 'OPEN' AND currency = 'EUR') AS open_cents,
+        -- Overdue as the subscription worker sees it: an invoice with nothing to pay is never
+        -- overdue (zero totals left open by earlier versions).
         (SELECT coalesce(sum(total_cents), 0) FROM invoices
-           WHERE status = 'OPEN' AND currency = 'EUR' AND due_at < now()) AS overdue_cents,
+           WHERE status = 'OPEN' AND currency = 'EUR' AND due_at < now()
+             AND total_cents > 0) AS overdue_cents,
         (SELECT count(*) FROM invoices
-           WHERE status = 'OPEN' AND due_at < now()) AS overdue_count
+           WHERE status = 'OPEN' AND due_at < now() AND total_cents > 0) AS overdue_count
     `)
   ).rows;
   const byStatusRows = await db
@@ -146,6 +166,9 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
     SUBSCRIPTION_STATUSES.map((s) => [s, byStatusRows.find((r) => r.status === s)?.count ?? 0]),
   ) as Record<(typeof SUBSCRIPTION_STATUSES)[number], number>;
 
+  // What renews (or ends) in the next 30 days. The next period applies a change of billing cycle
+  // scheduled for it, with its price, so that is what it bills. A suspended subscription does not
+  // renew, but a cancellation scheduled for the end of its period still ends it on that date.
   const renewals = await db
     .select({
       subscriptionId: subscriptions.id,
@@ -157,6 +180,8 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
       cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
       priceCents: subscriptions.priceCents,
       billingCycle: subscriptions.billingCycle,
+      nextBillingCycle: subscriptions.nextBillingCycle,
+      nextPriceCents: subscriptions.nextPriceCents,
       currency: subscriptions.currency,
     })
     .from(subscriptions)
@@ -164,7 +189,10 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
     .innerJoin(subscriptionPlans, eq(subscriptionPlans.id, subscriptions.planId))
     .where(
       and(
-        inArray(subscriptions.status, ['TRIAL', 'ACTIVE', 'PAST_DUE']),
+        or(
+          inArray(subscriptions.status, ['TRIAL', 'ACTIVE', 'PAST_DUE']),
+          and(eq(subscriptions.status, 'SUSPENDED'), eq(subscriptions.cancelAtPeriodEnd, true)),
+        ),
         lte(subscriptions.currentPeriodEnd, in30),
       ),
     )
@@ -275,11 +303,14 @@ const IBAN_LENGTH: Record<string, number> = {
  * The country's IBAN length (15–34 for countries not in the table) and the ISO 13616 check
  * digits: the first four characters moved to the end, letters as numbers (A = 10 … Z = 35), the
  * whole number modulo 97 must be 1. This catches a mistyped character or two swapped neighbours.
+ * Check digits are always 02–98: 00 and 01 would pass the sum where 97 and 98 are right.
  */
 function validIban(iban: string): boolean {
   const s = iban.replace(/ /g, '');
   const expected = IBAN_LENGTH[s.slice(0, 2)];
   if (expected ? s.length !== expected : s.length < 15 || s.length > 34) return false;
+  const check = Number(s.slice(2, 4));
+  if (check < 2 || check > 98) return false;
   let rest = 0;
   for (const ch of s.slice(4) + s.slice(0, 4)) {
     const value = /\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55);
@@ -288,24 +319,36 @@ function validIban(iban: string): boolean {
   return rest === 1;
 }
 
+/**
+ * What is wrong with an IBAN, if anything. Printed on every invoice and frozen there: a mistyped
+ * account must not get that far.
+ */
+function ibanProblem(v: string): string | null {
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) || v.length > 40) {
+    return 'Enter the IBAN as printed by the bank, e.g. XK05 1212 0123 4567 8906';
+  }
+  return validIban(v) ? null : 'This IBAN is not valid: check its length and digits';
+}
+
+/**
+ * The settings as the administrator's page shows them, with whether the stored IBAN passes the
+ * check (one stored before the check was stricter may not): the page warns about it.
+ */
+const presentSettings = (s: Settings) => ({
+  ...s,
+  operatorIbanValid: !s.operatorIban || ibanProblem(s.operatorIban) === null,
+});
+
 const SettingsInput = z
   .object({
     operatorName: text(200).optional(),
     operatorAddress: text(500).optional(),
     operatorFiscalNumber: nullableText(40),
     operatorVatNumber: nullableText(40),
+    // Checked in the handler, and only when it changes (see PUT /settings).
     operatorIban: z
-      .union([z.string(), z.null()])
+      .union([z.string().max(100), z.null()])
       .transform((v) => (v ? v.toUpperCase().replace(/\s+/g, ' ').trim() : null))
-      .refine(
-        (v) => !v || (/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) && v.length <= 40),
-        'Enter the IBAN as printed by the bank, e.g. XK05 1212 0123 4567 8906',
-      )
-      // Printed on every invoice and frozen there: a mistyped account must not get that far.
-      .refine(
-        (v) => !v || !/^[A-Z]{2}\d{2}[A-Z0-9 ]+$/.test(v) || validIban(v),
-        'This IBAN is not valid: check its length and digits',
-      )
       .optional(),
     operatorBank: nullableText(120),
     supportEmail: email,
@@ -333,7 +376,7 @@ const SettingsInput = z
 const comparable = (v: unknown) => (v instanceof Date ? v.getTime() : (v ?? null));
 
 adminPlatformRouter.get('/settings', async (_req, res) => {
-  res.json(await getSettings());
+  res.json(presentSettings(await getSettings()));
 });
 
 adminPlatformRouter.put('/settings', async (req, res) => {
@@ -347,6 +390,15 @@ adminPlatformRouter.put('/settings', async (req, res) => {
     const changed = Object.keys(patch).filter(
       (k) => comparable(patch[k as keyof Settings]) !== comparable(before[k as keyof Settings]),
     );
+    // The page sends every field. An IBAN stored before the check was stricter is sent back
+    // unchanged and must not block another change (say, an urgent notice to all users); a new
+    // IBAN is checked.
+    if (changed.includes('operatorIban') && patch.operatorIban) {
+      const problem = ibanProblem(patch.operatorIban);
+      if (problem) {
+        throw badRequest('Validation failed', [{ path: 'operatorIban', message: problem }]);
+      }
+    }
     if (!changed.length) return before;
     const [row] = await tx
       .update(platformSettings)
@@ -365,7 +417,7 @@ adminPlatformRouter.put('/settings', async (req, res) => {
     );
     return row!;
   });
-  res.json(updated);
+  res.json(presentSettings(updated));
 });
 
 /* ------------------------------------------------------------------ legal documents --------- */
@@ -401,6 +453,8 @@ const docColumns = {
   title: legalDocuments.title,
   requiresAcceptance: legalDocuments.requiresAcceptance,
   publishedAt: legalDocuments.publishedAt,
+  /** Published with its text as written kept (a new version can start from that). */
+  hasSource: sql<boolean>`${legalDocuments.bodySource} IS NOT NULL`,
   createdAt: legalDocuments.createdAt,
   updatedAt: legalDocuments.updatedAt,
   createdByName: users.fullName,
@@ -615,7 +669,10 @@ adminPlatformRouter.delete('/legal/:id', async (req, res) => {
  * acceptance, every user accepts it at their next sign-in. The operator details the text refers
  * to must be filled in first, so nobody reads an empty "operator" or contact address, and they
  * are written into the text now: a later change to the operator settings must not change what
- * users read and accepted (a new version does).
+ * users read and accepted (a new version does). Each value is written as it is, in one pass: a
+ * value that looks like a {placeholder} stays as typed. The text as written, with its
+ * placeholders, is kept beside it, so that a new version started from this one picks up the
+ * operator details of its own publication.
  */
 adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
   const ctx = requireAuth(req);
@@ -643,7 +700,13 @@ adminPlatformRouter.post('/legal/:id/publish', async (req, res) => {
     // Same statement as publishedAt: the trigger that fixes published texts still lets it through.
     const [row] = await tx
       .update(legalDocuments)
-      .set({ title, body: fillPlaceholders(doc.body, settings), publishedAt: new Date() })
+      .set({
+        title,
+        body: fillPlaceholders(doc.body, settings),
+        titleSource: doc.title,
+        bodySource: doc.body,
+        publishedAt: new Date(),
+      })
       .where(eq(legalDocuments.id, id))
       .returning();
     await audit(
@@ -675,7 +738,8 @@ const AuditQuery = PaginationSchema.extend({
 
 /**
  * Audit rows with actor and target names. Targets are resolved per resource type; unknown types
- * keep their id only.
+ * keep their id only. A patient's portal account is never named (as in the acceptances): the row
+ * says only that it was a patient account.
  */
 async function auditItems(where: SQL, page: { limit: number; offset: number }) {
   const actor = alias(users, 'audit_actor');
@@ -698,7 +762,7 @@ async function auditItems(where: SQL, page: { limit: number; offset: number }) {
     .orderBy(desc(auditLogs.occurredAt))
     .limit(page.limit)
     .offset(page.offset);
-  const names = await targetNames(rows);
+  const { names, patientAccounts } = await targetNames(rows);
   return rows.map((r) => ({
     ...r,
     targetName:
@@ -707,6 +771,7 @@ async function auditItems(where: SQL, page: { limit: number; offset: number }) {
         : r.resourceId
           ? (names.get(r.resourceId) ?? null)
           : null,
+    targetPatientAccount: Boolean(r.resourceId && patientAccounts.has(r.resourceId)),
   }));
 }
 
@@ -719,13 +784,15 @@ async function targetNames(rows: { resourceType: string | null; resourceId: stri
     ),
   ];
   const names = new Map<string, string>();
+  const patientAccounts = new Set<string>();
   const userIds = idsOf('user');
   if (userIds.length) {
     for (const u of await db
-      .select({ id: users.id, name: users.fullName })
+      .select({ id: users.id, name: users.fullName, role: users.role })
       .from(users)
       .where(inArray(users.id, userIds))) {
-      names.set(u.id, u.name);
+      if (u.role === 'PATIENT') patientAccounts.add(u.id);
+      else names.set(u.id, u.name);
     }
   }
   const facilityIds = idsOf('facility');
@@ -779,7 +846,7 @@ async function targetNames(rows: { resourceType: string | null; resourceId: stri
       names.set(d.id, `${d.kind} ${d.version} (${d.locale})`);
     }
   }
-  return names;
+  return { names, patientAccounts };
 }
 
 /**

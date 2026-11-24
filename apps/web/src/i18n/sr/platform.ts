@@ -134,7 +134,6 @@ export const platform: Record<string, string> = {
   'Subscription reactivated': 'Pretplata je ponovo aktivirana',
   'Subscription renewed': 'Pretplata je obnovljena',
   'Subscription suspended': 'Pretplata je suspendovana',
-  'Subscriptions and invoices': 'Pretplate i fakture',
   Support: 'Podrška',
   'Support e-mail': 'E-pošta podrške',
   'Support phone': 'Telefon podrške',
@@ -214,4 +213,17 @@ export const platform: Record<string, string> = {
     'Vaše prihvatanje nije moglo da se zabeleži. Možete da radite kao i obično; ponovo će vam biti zatraženo pri sledećoj prijavi.',
   'Continue – you will be asked again next time':
     'Nastavi – ponovo će vam biti zatraženo sledeći put',
+  // Operator follow-ups: legal versions, renewals, IBAN, timeouts.
+  'Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.':
+    'Od korisnika koji su prihvatili raniju verziju to se ne traži ponovo; novi nalozi i svi koji nikada nisu prihvatili poslednju verziju koja je zahtevala prihvatanje prihvataju ovu.',
+  'The text is shown on the public page. Users who accepted an earlier version are not asked again; new accounts and anyone who never accepted the latest version that required acceptance accept this one.':
+    'Tekst se prikazuje na javnoj stranici. Od korisnika koji su prihvatili raniju verziju to se ne traži ponovo; novi nalozi i svi koji nikada nisu prihvatili poslednju verziju koja je zahtevala prihvatanje prihvataju ovu.',
+  'Check the operator details in the copy': 'Proverite podatke operatera u kopiji',
+  'This version was published before the text as written was kept: the copy may contain the operator details as they were when it was published instead of placeholders. Check them against the operator settings, or replace them with placeholders, before you publish.':
+    'Ova verzija je objavljena pre nego što se tekst počeo čuvati onako kako je napisan: kopija može sadržati podatke operatera kakvi su bili prilikom objavljivanja umesto oznaka za zamenu. Pre objavljivanja ih proverite prema podešavanjima operatera ili ih zamenite oznakama za zamenu.',
+  'No renewal': 'Bez obnove',
+  'The saved IBAN is not valid': 'Sačuvani IBAN nije ispravan',
+  'Its length or check digits are wrong, and it is printed on every new invoice. Correct it; the other settings can be saved meanwhile.':
+    'Njegova dužina ili kontrolne cifre nisu ispravne, a štampa se na svakoj novoj fakturi. Ispravite ga; ostala podešavanja se u međuvremenu mogu sačuvati.',
+  'The server did not answer in time.': 'Server nije odgovorio na vreme.',
 };

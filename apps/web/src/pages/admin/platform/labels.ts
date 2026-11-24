@@ -57,9 +57,13 @@ export const settingLabel = (key: string) =>
     privacyEmail: t('Privacy e-mail'),
   })[key] ?? key;
 
-/** What an audit entry was about: a person, facility, invoice, plan, document or the settings. */
+/**
+ * What an audit entry was about: a person, facility, invoice, plan, document or the settings. A
+ * patient's portal account is never named (as in the list of acceptances).
+ */
 export const auditTarget = (a: AuditItem) => {
   if (a.resourceType === 'platform_settings') return t('Operator settings');
+  if (a.targetPatientAccount) return t('Patient account|user account');
   // Legal documents arrive as "TERMS 2.0 (sq)": name the text in the reader's language.
   const legal =
     a.resourceType === 'legal_document' && a.targetName?.match(/^(TERMS|PRIVACY) (.+)$/);

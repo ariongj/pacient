@@ -4843,7 +4843,7 @@ export const subscriptions = pgTable(
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
     /**
      * Why it is suspended: NON_PAYMENT (by the subscription worker; a payment lifts it) or MANUAL
-     * (by an administrator; only reactivating lifts it). Only set while suspended.
+     * (by an administrator; only reactivating lifts it). Set exactly while suspended.
      */
     suspensionCause: varchar('suspension_cause', { length: 20 }).$type<'NON_PAYMENT' | 'MANUAL'>(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -4865,9 +4865,10 @@ export const subscriptions = pgTable(
       'subscriptions_next_cycle_ck',
       sql`(${t.nextBillingCycle} IS NULL) = (${t.nextPriceCents} IS NULL) AND (${t.nextBillingCycle} IS NULL OR ${t.nextBillingCycle} <> ${t.billingCycle}) AND (${t.nextPriceCents} IS NULL OR ${t.nextPriceCents} >= 0)`,
     ),
+    // A suspension always says why (a payment lifts only a NON_PAYMENT one), and only then.
     check(
       'subscriptions_suspension_ck',
-      sql`${t.suspensionCause} IS NULL OR (${t.suspensionCause} IN ('NON_PAYMENT', 'MANUAL') AND ${t.status} = 'SUSPENDED')`,
+      sql`(${t.status} = 'SUSPENDED') = (${t.suspensionCause} IS NOT NULL) AND (${t.suspensionCause} IS NULL OR ${t.suspensionCause} IN ('NON_PAYMENT', 'MANUAL'))`,
     ),
   ],
 );
@@ -5007,7 +5008,8 @@ export const legalDocumentKindEnum = pgEnum('legal_document_kind', ['TERMS', 'PR
 /**
  * Terms of use and privacy notice, versioned per language. A draft (published_at null) can be
  * edited; once published, title and body are fixed (database trigger). The current version of a
- * kind is the newest published version.
+ * kind is the newest published version. Publishing writes the operator details into title and
+ * body and keeps the text as written, with its {placeholders}, in title_source and body_source.
  */
 export const legalDocuments = pgTable(
   'legal_documents',
@@ -5022,12 +5024,24 @@ export const legalDocuments = pgTable(
     /** Users must accept this version at their next sign-in. */
     requiresAcceptance: boolean('requires_acceptance').notNull().default(true),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    /**
+     * The title and body as written, with their {placeholders}, kept when publishing fills them
+     * in: a new version starts from these, not from the details of the day it was published.
+     * Null for drafts and for texts published before they were kept (those still hold their
+     * placeholders, filled in when read).
+     */
+    titleSource: varchar('title_source', { length: 200 }),
+    bodySource: text('body_source'),
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'restrict' }),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('legal_documents_version_uq').on(t.kind, t.version, t.locale),
     index('legal_documents_published_idx').on(t.kind, t.publishedAt),
+    check(
+      'legal_documents_source_ck',
+      sql`(${t.titleSource} IS NULL) = (${t.bodySource} IS NULL) AND (${t.titleSource} IS NULL OR ${t.publishedAt} IS NOT NULL)`,
+    ),
   ],
 );
 

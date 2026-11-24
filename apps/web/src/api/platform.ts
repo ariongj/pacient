@@ -65,6 +65,8 @@ export interface PlatformSettings {
   noticeTone: 'INFO' | 'WARNING';
   noticeUntil: string | null;
   updatedAt: string;
+  /** False when the stored IBAN does not pass the check (stored before it was stricter). */
+  operatorIbanValid: boolean;
 }
 
 export type SubscriptionStatus =
@@ -80,7 +82,9 @@ export interface AuditItem {
   actorRole: Role | null;
   resourceType: string | null;
   resourceId: string | null;
+  /** Null for a patient's portal account, which is never named (targetPatientAccount). */
   targetName: string | null;
+  targetPatientAccount: boolean;
   metadata: Record<string, unknown> | null;
 }
 
@@ -116,6 +120,9 @@ export interface AdminOverview {
     cancelAtPeriodEnd: boolean;
     priceCents: number;
     billingCycle: 'MONTHLY' | 'YEARLY';
+    /** A change of billing cycle the next period applies, with its price. */
+    nextBillingCycle: 'MONTHLY' | 'YEARLY' | null;
+    nextPriceCents: number | null;
     currency: string;
   }[];
   recentEvents: {
@@ -140,13 +147,21 @@ export interface LegalDocumentSummary {
   title: string;
   requiresAcceptance: boolean;
   publishedAt: string | null;
+  /** Published with its text as written (placeholders) kept beside the filled-in text. */
+  hasSource: boolean;
   createdAt: string;
   updatedAt: string;
   createdByName: string | null;
 }
 
-export interface LegalDocumentFull extends Omit<LegalDocumentSummary, 'createdByName'> {
+export interface LegalDocumentFull extends Omit<
+  LegalDocumentSummary,
+  'createdByName' | 'hasSource'
+> {
   body: string;
+  /** A published text as written, with its {placeholders}; null for drafts and older texts. */
+  titleSource: string | null;
+  bodySource: string | null;
 }
 
 export interface LegalAdminList {
@@ -229,11 +244,22 @@ export function useLegalStatus(userId: string | undefined, locale: string) {
   });
 }
 
+/**
+ * How long recording an acceptance may take before the gate offers to continue without it: a
+ * request that hangs (a database lock, a stalled connection) must not hold a clinician at the
+ * gate until a proxy gives up.
+ */
+export const ACCEPT_TIMEOUT_MS = 10_000;
+
 export function useAcceptLegal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { kind: LegalKind; version: string }) =>
-      api<{ accepted: true; pending: LegalText[] }>('/legal/accept', { method: 'POST', body: v }),
+      api<{ accepted: true; pending: LegalText[] }>('/legal/accept', {
+        method: 'POST',
+        body: v,
+        timeoutMs: ACCEPT_TIMEOUT_MS,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: LEGAL_STATUS_KEY }),
     onError: (err) => {
       // A newer version was published meanwhile: show it at once instead of asking for a reload.

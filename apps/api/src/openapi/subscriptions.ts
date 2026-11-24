@@ -207,22 +207,31 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/invoices/{id}/payments', T, 'Record a payment', {
     access: ADMIN,
     description:
-      'Marks the invoice paid. When nothing is overdue any more, a past-due subscription, or one suspended for non-payment, is active again; otherwise the grace period counts from the oldest invoice still overdue. A suspension by the administrator stays until reactivated. A cancellation scheduled for a date that has passed takes effect.',
+      'Records money received (amountCents; default: the balance still owed). A part leaves the invoice open with the rest as its balance; the payment that brings the balance to 0 settles it (PAID). More than the balance is refused. When nothing is overdue any more, a past-due subscription, or one suspended for non-payment, is active again; otherwise the grace period counts from the oldest invoice still overdue. A suspension by the administrator stays until reactivated. A cancellation scheduled for a date that has passed takes effect. Audited as billing.payment_recorded with the amount.',
     body: obj(
       {
+        amountCents: int({ minimum: 1, maximum: 100_000_000 }),
         paidAt: dateTime,
         method: enumOf('BANK_TRANSFER', 'CASH', 'CARD', 'OTHER'),
         reference: str({ maxLength: 120 }),
       },
       ['method'],
     ),
-    responses: { '200': 'The invoice', '409': 'Already paid or voided' },
+    responses: {
+      '200': 'The invoice',
+      '409': 'Already paid or voided, or more than the balance',
+    },
   }),
   op('post', '/admin/invoices/{id}/void', T, 'Void an open invoice', {
     access: ADMIN,
     description:
-      'Paid invoices cannot be voided; invoices are never deleted. Afterwards the subscription’s standing is checked as after a payment.',
+      'Needs the password again in the X-Reauth-Password header, or a sign-in within the last 10 minutes (otherwise 401 REAUTH_REQUIRED). Only for an invoice without payments (also reversed ones) or credit notes, issued in the current month in Kosovo and not yet e-mailed to the customer; otherwise 409 – issue a credit note instead. Invoices are never deleted. Afterwards the subscription’s standing is checked as after a payment.',
     body: reasonBody,
+    responses: {
+      '200': 'The invoice',
+      '401': 'REAUTH_REQUIRED',
+      '409': 'Not open, or no longer voidable: issue a credit note instead',
+    },
   }),
   op('get', '/subscription', T, 'My facility’s subscription', {
     access: 'DIRECTOR (own facility)',

@@ -7,6 +7,7 @@ import {
 } from '../../api/subscriptions';
 import { Grid, PageHeader, Pagination, QueryView, SelectField, Stat } from '../../components/ui';
 import { t, tn } from '../../i18n';
+import { ExportMenu } from './billing/ExportMenu';
 import { InvoiceTable } from './billing/InvoiceTable';
 
 const FILTERS: InvoiceFilter[] = ['all', 'open', 'overdue', 'paid', 'void'];
@@ -40,6 +41,7 @@ export function Invoices() {
       <PageHeader
         title={t('Invoices and payments')}
         subtitle={t('All invoices; record payments.')}
+        actions={<ExportMenu />}
       />
       <QueryView query={query}>
         {(data) => (

@@ -19,7 +19,15 @@ import {
   runSubscriptionLifecycle,
   yearStartOf,
 } from '../src/modules/subscriptions/subscriptions.service.js';
-import { api, bearer, createFacility, createUser, createWorld, login } from './helpers.js';
+import {
+  api,
+  bearer,
+  createFacility,
+  createUser,
+  createWorld,
+  login,
+  PASSWORD,
+} from './helpers.js';
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -34,6 +42,9 @@ let small: { id: string };
 const adminGet = (path: string) => api().get(`/api/v1/admin${path}`).set(bearer(admin));
 const adminPost = (path: string, body: Record<string, unknown> = {}) =>
   api().post(`/api/v1/admin${path}`).set(bearer(admin)).send(body);
+/** Voiding asks for the password again (requireRecentAuth). */
+const voidInvoice = (invoiceId: string, reason: string) =>
+  adminPost(`/invoices/${invoiceId}/void`, { reason }).set('X-Reauth-Password', PASSWORD);
 
 async function subscribe(facilityId: string, body: Record<string, unknown> = {}) {
   const res = await adminPost(`/organizations/${facilityId}/subscription`, {
@@ -421,9 +432,7 @@ describe('administrator actions', () => {
     await adminPost(`/subscriptions/${id}/notes`, { note: 'Called the director about payment' });
     const invoiceId = activated.body.invoices[0].id as string;
     expect((await adminPost(`/invoices/${invoiceId}/void`, { reason: 'x' })).status).toBe(400);
-    const voided = await adminPost(`/invoices/${invoiceId}/void`, {
-      reason: 'Issued with the wrong price',
-    });
+    const voided = await voidInvoice(invoiceId, 'Issued with the wrong price');
     expect(voided.body).toMatchObject({
       status: 'VOID',
       voidReason: 'Issued with the wrong price',
@@ -543,9 +552,7 @@ describe('invoice integrity', () => {
         .set({ status: 'VOID', voidReason: 'after payment' })
         .where(eq(invoices.id, inv!.id)),
     ).rejects.toThrow();
-    expect(
-      (await adminPost(`/invoices/${inv!.id}/void`, { reason: 'Paid by mistake' })).status,
-    ).toBe(409);
+    expect((await voidInvoice(inv!.id, 'Paid by mistake')).status).toBe(409);
     const s = await subOf(f.id);
     await expect(
       db
@@ -820,7 +827,7 @@ describe('a change of billing cycle', () => {
 
     // Re-issued for the current period: still monthly, at the monthly price.
     const [first] = await invoicesOf(f.id);
-    await adminPost(`/invoices/${first!.id}/void`, { reason: 'Re-issue with the new terms' });
+    await voidInvoice(first!.id, 'Re-issue with the new terms');
     expect((await adminPost(`/subscriptions/${id}/invoices`)).status).toBe(201);
     const reissued = (await invoicesOf(f.id))[1]!;
     expect(reissued.netCents).toBe(14_900);
@@ -909,7 +916,7 @@ describe('suspensions', () => {
         { actor: null },
       ),
     );
-    await adminPost(`/invoices/${extra.id}/void`, { reason: 'Issued twice by mistake' });
+    await voidInvoice(extra.id, 'Issued twice by mistake');
     expect((await subOf(f.id)).status).toBe('SUSPENDED');
     expect((await invite(token, `desk-${id}@example.test`)).status).toBe(409);
     const director2 = await api().get('/api/v1/subscription').set(bearer(token));
@@ -1193,7 +1200,7 @@ describe('due dates and periods', () => {
     const f = await createFacility();
     await subscribe(f.id, { trial: false });
     const [first] = await invoicesOf(f.id);
-    await adminPost(`/invoices/${first!.id}/void`, { reason: 'Moved to the contract date' });
+    await voidInvoice(first!.id, 'Moved to the contract date');
     const s = await subOf(f.id);
     const anchor = localInstant(2027, 1, 31, 10);
     await setSub(s.id, {
@@ -1280,7 +1287,7 @@ describe('invoices with nothing to pay, restarts and notices', () => {
     });
     expect(refused.status).toBe(409);
     expect(refused.body.error.message).toMatch(/still open/);
-    await adminPost(`/invoices/${open!.id}/void`, { reason: 'Contract terminated early' });
+    await voidInvoice(open!.id, 'Contract terminated early');
     await subscribe(f.id, { trial: false });
     const r = await run(new Date(), f.id);
     expect(r).toMatchObject({ pastDue: 0, suspended: 0 });

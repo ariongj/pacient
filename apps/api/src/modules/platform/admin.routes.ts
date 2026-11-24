@@ -142,6 +142,12 @@ const auditWhere = (category: AuditCategory | 'all') =>
     BY_OPERATOR,
   )!;
 
+/** What is still owed on invoice `i`: its total less payments not reversed and credit notes. */
+const OWED = sql.raw(`greatest(i.total_cents
+  - (SELECT coalesce(sum(p.amount_cents), 0) FROM invoice_payments p
+      WHERE p.invoice_id = i.id AND p.reversed_at IS NULL)
+  - (SELECT coalesce(sum(c.total_cents), 0) FROM credit_notes c WHERE c.invoice_id = i.id), 0)`);
+
 adminPlatformRouter.get('/overview', async (_req, res) => {
   const now = new Date();
   const in30 = new Date(now.getTime() + 30 * 86_400_000);
@@ -163,11 +169,12 @@ adminPlatformRouter.get('/overview', async (_req, res) => {
         (SELECT coalesce(sum(CASE WHEN billing_cycle = 'YEARLY' THEN round(price_cents / 12.0)
                                   ELSE price_cents END), 0)
            FROM subscriptions WHERE status IN ('ACTIVE', 'PAST_DUE') AND currency = 'EUR') AS mrr,
-        (SELECT coalesce(sum(total_cents), 0) FROM invoices
+        -- What is still owed: an open invoice may be paid or credited in part.
+        (SELECT coalesce(sum(${OWED}), 0) FROM invoices i
            WHERE status = 'OPEN' AND currency = 'EUR') AS open_cents,
         -- Overdue as the subscription worker sees it: an invoice with nothing to pay is never
         -- overdue (zero totals left open by earlier versions).
-        (SELECT coalesce(sum(total_cents), 0) FROM invoices
+        (SELECT coalesce(sum(${OWED}), 0) FROM invoices i
            WHERE status = 'OPEN' AND currency = 'EUR' AND due_at < now()
              AND total_cents > 0) AS overdue_cents,
         (SELECT count(*) FROM invoices

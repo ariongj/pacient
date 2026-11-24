@@ -3,6 +3,7 @@ import type { Tone } from '../components/ui';
 import { formatDate, formatNumber } from '../format';
 import { intlLocale, t } from '../i18n';
 import { formatMoney as formatEuro } from './billing';
+import type { InvoiceAccount } from './billingcorrections';
 import { api } from './client';
 import type { Facility } from './types';
 
@@ -218,6 +219,8 @@ export interface Invoice {
   sending?: boolean;
   /** The plan and cycle the invoice was issued for. */
   line: { planName: string; cycle: BillingCycle } | null;
+  /** Paid, credited, still owed and to refund (lists and the invoice itself). */
+  account?: InvoiceAccount;
 }
 
 export interface InvoiceList {
@@ -577,30 +580,38 @@ export const seatsText = (used: number, limit: number | null) =>
     ? t('{used} (no limit)', { used: formatNumber(used) })
     : t('{used} of {limit}', { used: formatNumber(used), limit: formatNumber(limit) });
 
-/** Title of a history entry. */
-export const eventLabel = (type: SubscriptionEventType) =>
-  ({
-    CREATED: t('Subscription created'),
-    TRIAL_STARTED: t('Trial started'),
-    ACTIVATED: t('Subscription activated'),
-    PLAN_CHANGED: t('Plan changed'),
-    SEATS_CHANGED: t('Number of staff accounts changed'),
-    PRICE_CHANGED: t('Price changed'),
-    CYCLE_CHANGED: t('Billing cycle changed'),
-    RENEWED: t('Subscription renewed'),
-    INVOICE_ISSUED: t('Invoice issued'),
-    PAYMENT_RECORDED: t('Payment recorded'),
-    INVOICE_VOIDED: t('Invoice voided'),
-    MARKED_PAST_DUE: t('Payment overdue|subscription event'),
-    SUSPENDED: t('Subscription suspended'),
-    REACTIVATED: t('Subscription reactivated'),
-    CANCELLATION_SCHEDULED: t('Cancellation scheduled'),
-    CANCELLATION_WITHDRAWN: t('Cancellation withdrawn'),
-    CANCELLED: t('Subscription cancelled'),
-    EXPIRED: t('Subscription expired'),
-    REMINDER_SENT: t('Reminder sent'),
-    NOTE: t('Internal note'),
-  })[type] ?? type;
+/**
+ * Title of a history entry. A payment's reversal and a credit note are written with the types of
+ * a payment and an issued document, told apart by their data.
+ */
+export function eventLabel(type: SubscriptionEventType, data?: Record<string, unknown>) {
+  if (type === 'PAYMENT_RECORDED' && data?.reversal) return t('Payment reversed');
+  if (type === 'INVOICE_ISSUED' && data?.creditNote) return t('Credit note issued');
+  return (
+    {
+      CREATED: t('Subscription created'),
+      TRIAL_STARTED: t('Trial started'),
+      ACTIVATED: t('Subscription activated'),
+      PLAN_CHANGED: t('Plan changed'),
+      SEATS_CHANGED: t('Number of staff accounts changed'),
+      PRICE_CHANGED: t('Price changed'),
+      CYCLE_CHANGED: t('Billing cycle changed'),
+      RENEWED: t('Subscription renewed'),
+      INVOICE_ISSUED: t('Invoice issued'),
+      PAYMENT_RECORDED: t('Payment recorded'),
+      INVOICE_VOIDED: t('Invoice voided'),
+      MARKED_PAST_DUE: t('Payment overdue|subscription event'),
+      SUSPENDED: t('Subscription suspended'),
+      REACTIVATED: t('Subscription reactivated'),
+      CANCELLATION_SCHEDULED: t('Cancellation scheduled'),
+      CANCELLATION_WITHDRAWN: t('Cancellation withdrawn'),
+      CANCELLED: t('Subscription cancelled'),
+      EXPIRED: t('Subscription expired'),
+      REMINDER_SENT: t('Reminder sent'),
+      NOTE: t('Internal note'),
+    }[type] ?? type
+  );
+}
 
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
 const num = (v: unknown) => (typeof v === 'number' ? v : null);
@@ -619,6 +630,8 @@ const reasonText = (reason: string) =>
     paid: t('The overdue invoices were settled'),
     voided: t('No invoice is overdue any more after a voided invoice'),
     'billing details changed': t('Billing details changed'),
+    credited: t('No invoice is overdue any more after a credit note'),
+    'payment reversed': t('A payment was reversed'),
   })[reason] ?? reason;
 
 /** What a history entry says, in one line (besides its title and note). */
@@ -665,11 +678,14 @@ export function describeEvent(e: SubscriptionEvent): string | null {
     case 'INVOICE_ISSUED':
     case 'PAYMENT_RECORDED':
     case 'INVOICE_VOIDED': {
+      // A payment of part of an invoice names its own amount; earlier entries only the total.
+      const cents = num(d.amountCents) ?? num(d.totalCents);
       const parts = [
         str(d.number),
-        num(d.totalCents) !== null
-          ? formatMoney(num(d.totalCents), str(d.currency) ?? 'EUR')
+        d.creditNote && str(d.invoiceNumber)
+          ? t('for invoice {number}', { number: str(d.invoiceNumber) })
           : null,
+        cents !== null ? formatMoney(d.reversal ? -cents : cents, str(d.currency) ?? 'EUR') : null,
         e.type === 'PAYMENT_RECORDED' ? paymentMethodLabel(str(d.method)) : null,
         e.type === 'PAYMENT_RECORDED' && str(d.paidAt)
           ? t('paid on {date}', { date: formatDate(str(d.paidAt)) })
@@ -681,7 +697,10 @@ export function describeEvent(e: SubscriptionEvent): string | null {
       const numbers = Array.isArray(d.invoices)
         ? d.invoices.filter((x) => typeof x === 'string')
         : [];
-      return numbers.length ? t('Overdue: {invoices}', { invoices: numbers.join(', ') }) : null;
+      const overdue = numbers.length
+        ? t('Overdue: {invoices}', { invoices: numbers.join(', ') })
+        : null;
+      return [reason ? reasonText(reason) : null, overdue].filter(Boolean).join(' · ') || null;
     }
     case 'CANCELLATION_SCHEDULED':
       return str(d.endsAt) ? t('Ends on {date}', { date: formatDate(str(d.endsAt)) }) : null;

@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../../api/client';
 import {
+  centsToInput,
   formatMoney,
+  inputToCents,
   invoiceLineText,
   isNoCharge,
   PAYMENT_METHODS,
@@ -39,11 +41,25 @@ function PaymentForm({ invoice, onDone }: { invoice: Invoice; onDone: () => void
   const mutation = useBillingMutation((body: Record<string, unknown>) =>
     api<Invoice>(`/admin/invoices/${invoice.id}/payments`, { method: 'POST', body }),
   );
+  const [amountError, setAmountError] = useState<string>();
+  // What is still owed (a part may be paid or credited already).
+  const owed = invoice.account?.balanceCents ?? invoice.totalCents;
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const v = formValues(e.currentTarget);
+    const amountCents = inputToCents(v.amount ?? '');
+    if (!amountCents || Number.isNaN(amountCents) || amountCents > owed) {
+      setAmountError(
+        t('Enter an amount above 0 and at most {max}.', {
+          max: formatMoney(owed, invoice.currency),
+        }),
+      );
+      return;
+    }
+    setAmountError(undefined);
     mutation.mutate(
       {
+        amountCents,
         method: v.method,
         reference: v.reference || null,
         // Today: the moment of recording; an earlier day: midday of that day.
@@ -59,8 +75,20 @@ function PaymentForm({ invoice, onDone }: { invoice: Invoice; onDone: () => void
       <p>
         {t('Invoice {number}', { number: invoice.number })} ·{' '}
         <strong>{formatMoney(invoice.totalCents, invoice.currency)}</strong>
+        {owed !== invoice.totalCents && (
+          <> · {t('Still owed: {amount}', { amount: formatMoney(owed, invoice.currency) })}</>
+        )}
       </p>
       <div className="form-grid">
+        <TextField
+          label={t('Amount received (€)')}
+          name="amount"
+          inputMode="decimal"
+          required
+          defaultValue={centsToInput(owed)}
+          hint={t('Less than what is owed leaves the rest open.')}
+          error={amountError}
+        />
         <TextField
           label={t('Paid on')}
           name="paidAt"
@@ -114,6 +142,9 @@ function VoidForm({ invoice, onDone }: { invoice: Invoice; onDone: () => void })
       <Alert tone="warning" title={t('Invoice {number}', { number: invoice.number })}>
         {t(
           'A voided invoice stays on record with its number and is no longer owed. Issue a new invoice for the period if needed.',
+        )}{' '}
+        {t(
+          'Only for a mistake noticed straight away: an invoice of this month without payments or credit notes that was not yet e-mailed. You will be asked for your password.',
         )}
       </Alert>
       <TextAreaField label={t('Reason')} name="reason" required minLength={5} maxLength={1000} />
@@ -130,18 +161,24 @@ function VoidForm({ invoice, onDone }: { invoice: Invoice; onDone: () => void })
   );
 }
 
-/** "Record payment" and "Void" for an open invoice (administrator). */
+/**
+ * "Record payment" and "Void" for an open invoice (administrator). Void only while it is allowed;
+ * afterwards the invoice page offers a credit note instead.
+ */
 export function InvoiceActions({ invoice }: { invoice: Invoice }) {
   const [open, setOpen] = useState<'pay' | 'void' | null>(null);
   if (invoice.status !== 'OPEN') return null;
+  const voidBlock = invoice.account?.voidBlock ?? null;
   return (
     <>
       <Button size="sm" onClick={() => setOpen('pay')}>
         {t('Record payment')}
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => setOpen('void')}>
-        {t('Void|invoice action')}
-      </Button>
+      {voidBlock === null && (
+        <Button size="sm" variant="ghost" onClick={() => setOpen('void')}>
+          {t('Void|invoice action')}
+        </Button>
+      )}
       <Dialog open={open === 'pay'} onClose={() => setOpen(null)} title={t('Record payment')}>
         <PaymentForm invoice={invoice} onDone={() => setOpen(null)} />
       </Dialog>
@@ -150,6 +187,20 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
       </Dialog>
     </>
   );
+}
+
+/** What is still owed on an invoice, or what is to be refunded on a paid one. */
+function InvoiceBalance({ invoice: i }: { invoice: Invoice }) {
+  const a = i.account;
+  if (!a || i.status === 'VOID') return <>—</>;
+  if (a.toRefundCents > 0) {
+    return (
+      <span className="muted">
+        {t('To refund: {amount}', { amount: formatMoney(a.toRefundCents, i.currency) })}
+      </span>
+    );
+  }
+  return <>{i.status === 'OPEN' ? formatMoney(a.balanceCents, i.currency) : '—'}</>;
 }
 
 /** Invoices with their state; the administrator can also record payments and void. */
@@ -173,6 +224,7 @@ export function InvoiceTable({
           <th scope="col">{t('Issued')}</th>
           <th scope="col">{t('Due date')}</th>
           <th scope="col">{t('Total')}</th>
+          <th scope="col">{t('Still owed')}</th>
           <th scope="col">{t('Status')}</th>
           {audience === 'admin' && <th scope="col">{t('Sent on')}</th>}
           {audience === 'admin' && (
@@ -200,6 +252,9 @@ export function InvoiceTable({
             <td>{formatDate(i.issuedAt)}</td>
             <td>{formatDate(i.dueAt)}</td>
             <td>{formatMoney(i.totalCents, i.currency)}</td>
+            <td>
+              <InvoiceBalance invoice={i} />
+            </td>
             <td>
               <InvoiceBadge invoice={i} />
               {i.status === 'PAID' && (

@@ -14,6 +14,7 @@ import {
 } from '../../db/schema.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth, type AuthContext } from '../../lib/http.js';
+import { ensureRecentAuth } from '../../middleware/recent-auth.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
@@ -21,6 +22,7 @@ import { ensureDefaultChannels } from '../channels/channels.routes.js';
 import { FacilityInput } from '../facilities/facilities.routes.js';
 import { BillingProfileInput, saveBillingProfile } from './profile.routes.js';
 import {
+  accountOf,
   addCycle,
   addLocalDays,
   assertSeatAvailable,
@@ -49,6 +51,8 @@ import {
   seatsUsed,
   settingsOf,
   yearStartOf,
+  VOID_REFUSED,
+  withAccounts,
   type Plan,
   type Subscription,
 } from './subscriptions.service.js';
@@ -965,6 +969,13 @@ adminBillingRouter.post('/subscriptions/:id/invoices', async (req, res) => {
 
 /* ------------------------------------------------------------------ invoices ----------------- */
 
+/**
+ * The invoice's id inside a correlated subquery. Written out with its table: drizzle prints a
+ * column of the only table of a query without it, and in a subquery over payments a bare "id"
+ * would be the payment's own.
+ */
+const INVOICE_ID = sql.raw('"invoices"."id"');
+
 const InvoiceQuery = PaginationSchema.extend({
   status: z.enum(['open', 'overdue', 'paid', 'void', 'all']).default('all'),
   facilityId: z.string().uuid().optional(),
@@ -993,22 +1004,34 @@ adminBillingRouter.get('/invoices', async (req, res) => {
     .limit(toOffset(q).limit)
     .offset(toOffset(q).offset);
   const lines = await invoiceLines(rows.map((r) => r.invoice.id));
-  // The year in Kosovo, as in invoice numbers.
+  // The year in Kosovo, as in invoice numbers. Open and overdue amounts are what is still owed
+  // (a part may be paid or credited); "paid this year" is money received this year – payments
+  // not reversed, by their date – whichever invoice they settle.
   const yearStart = yearStartOf(now);
+  const balance = sql`greatest(${invoices.totalCents}
+    - (SELECT coalesce(sum(p.amount_cents), 0) FROM invoice_payments p
+        WHERE p.invoice_id = ${INVOICE_ID} AND p.reversed_at IS NULL)
+    - (SELECT coalesce(sum(c.total_cents), 0) FROM credit_notes c
+        WHERE c.invoice_id = ${INVOICE_ID}), 0)`;
   const [totals] = await db
     .select({
-      openCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${invoices.status} = 'OPEN'), 0)::int`,
+      openCents: sql<number>`coalesce(sum(${balance}) FILTER (WHERE ${invoices.status} = 'OPEN'), 0)::int`,
       openCount: sql<number>`count(*) FILTER (WHERE ${invoices.status} = 'OPEN')::int`,
-      overdueCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${overdueWhere(now)}), 0)::int`,
+      overdueCents: sql<number>`coalesce(sum(${balance}) FILTER (WHERE ${overdueWhere(now)}), 0)::int`,
       overdueCount: sql<number>`count(*) FILTER (WHERE ${overdueWhere(now)})::int`,
-      paidThisYearCents: sql<number>`coalesce(sum(${invoices.totalCents}) FILTER (WHERE ${invoices.status} = 'PAID' AND ${invoices.paidAt} >= ${yearStart}), 0)::int`,
+      paidThisYearCents: sql<number>`coalesce(sum((SELECT coalesce(sum(p.amount_cents), 0) FROM invoice_payments p
+        WHERE p.invoice_id = ${INVOICE_ID} AND p.reversed_at IS NULL AND p.paid_at >= ${yearStart})), 0)::int`,
     })
     .from(invoices)
     .where(q.facilityId ? eq(invoices.facilityId, q.facilityId) : undefined);
   res.json({
     ...paginated(
-      rows.map((r) =>
-        presentInvoice(r.invoice, lines.get(r.invoice.id) ?? null, now, r.facilityName),
+      await withAccounts(
+        db,
+        rows.map((r) =>
+          presentInvoice(r.invoice, lines.get(r.invoice.id) ?? null, now, r.facilityName),
+        ),
+        now,
       ),
       total,
       q,
@@ -1025,7 +1048,13 @@ async function loadInvoice(id: string) {
     .where(eq(invoices.id, id));
   if (!row) throw notFound('Invoice not found');
   const lines = await invoiceLines([id]);
-  return presentInvoice(row.invoice, lines.get(id) ?? null, new Date(), row.facilityName);
+  const now = new Date();
+  const [invoice] = await withAccounts(
+    db,
+    [presentInvoice(row.invoice, lines.get(id) ?? null, now, row.facilityName)],
+    now,
+  );
+  return invoice!;
 }
 
 adminBillingRouter.get('/invoices/:id', async (req, res) => {
@@ -1034,6 +1063,8 @@ adminBillingRouter.get('/invoices/:id', async (req, res) => {
 });
 
 const PaymentInput = z.object({
+  /** What was received, in cents; default: the balance (everything still owed). */
+  amountCents: z.number().int().min(1).max(100_000_000).optional(),
   paidAt: z.coerce.date().optional(),
   method: z.enum(['BANK_TRANSFER', 'CASH', 'CARD', 'OTHER']),
   reference: z.string().trim().max(120).optional().nullable(),
@@ -1073,6 +1104,13 @@ async function withOpenInvoice(
   return loadInvoice(id);
 }
 
+/**
+ * Records money received against an open invoice: by default everything still owed, or a part of
+ * it. A part leaves the invoice open with the rest as its balance (still overdue after its due
+ * date); the payment that brings the balance to 0 settles it (PAID, with that payment's date,
+ * method and reference). More than the balance is refused – a refund cannot be recorded as a
+ * negative payment. The subscription's standing is then checked as before payments had amounts.
+ */
 adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
   const input = parse(PaymentInput, req.body);
   const now = new Date();
@@ -1085,53 +1123,68 @@ adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
       if (paidAt < new Date(invoice.issuedAt.getTime() - 86_400_000 * 365)) {
         throw badRequest('The payment date is too far before the invoice date');
       }
-      // The payment settles the invoice in full (partial payments come with amounts). It is
-      // also kept as a row of its own, so that it can be reversed; an invoice with nothing to
-      // pay has no payment.
-      if (invoice.totalCents > 0) {
-        await tx.insert(invoicePayments).values({
+      const { balanceCents } = await accountOf(tx, invoice, now);
+      if (balanceCents <= 0) throw conflict('Nothing is owed on this invoice');
+      const amountCents = input.amountCents ?? balanceCents;
+      if (amountCents > balanceCents) {
+        throw conflict(
+          'The payment is more than what is still owed on the invoice. Record the amount owed and refund the rest outside Pacient.',
+        );
+      }
+      const [payment] = await tx
+        .insert(invoicePayments)
+        .values({
           invoiceId: invoice.id,
-          amountCents: invoice.totalCents,
+          amountCents,
           paidAt,
           method: input.method,
           reference: input.reference ?? null,
           recordedById: ctx.userId,
-        });
-      }
-      await tx
-        .update(invoices)
-        .set({
-          status: 'PAID',
-          paidAt,
-          paymentMethod: input.method,
-          paymentReference: input.reference ?? null,
         })
-        .where(eq(invoices.id, invoice.id));
+        .returning();
+      const settled = amountCents === balanceCents;
+      if (settled) {
+        await tx
+          .update(invoices)
+          .set({
+            status: 'PAID',
+            paidAt,
+            paymentMethod: input.method,
+            paymentReference: input.reference ?? null,
+          })
+          .where(eq(invoices.id, invoice.id));
+      }
       await recordEvent(tx, {
         subscription: s,
         type: 'PAYMENT_RECORDED',
         actor: ctx,
         data: {
           invoiceId: invoice.id,
+          paymentId: payment!.id,
           number: invoice.number,
+          amountCents,
           totalCents: invoice.totalCents,
+          balanceCents: balanceCents - amountCents,
           currency: invoice.currency,
           method: input.method,
           paidAt,
+          settled,
         },
       });
       await audit(
         {
-          action: AuditAction.INVOICE_PAID,
+          action: AuditAction.BILLING_PAYMENT_RECORDED,
           actor: ctx,
           resourceType: 'invoice',
           resourceId: invoice.id,
           meta,
           metadata: {
+            paymentId: payment!.id,
             number: invoice.number,
             method: input.method,
             facilityId: invoice.facilityId,
-            totalCents: invoice.totalCents,
+            amountCents,
+            settled,
           },
         },
         tx,
@@ -1141,10 +1194,18 @@ adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
   );
 });
 
+/**
+ * Voids an invoice issued by mistake: it keeps its number and is no longer owed. Only while
+ * nothing has happened to it yet (see VOID_REFUSED); otherwise a credit note corrects it. Needs
+ * the password again (or a recent sign-in), asked after the reason is checked.
+ */
 adminBillingRouter.post('/invoices/:id/void', async (req, res) => {
   const { reason } = parse(ReasonInput, req.body);
+  await ensureRecentAuth(req);
   res.json(
     await withOpenInvoice(req, async (tx, invoice, s, ctx, meta) => {
+      const { voidBlock } = await accountOf(tx, invoice);
+      if (voidBlock) throw conflict(VOID_REFUSED[voidBlock]);
       await tx
         .update(invoices)
         .set({ status: 'VOID', voidedAt: new Date(), voidReason: reason })

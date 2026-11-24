@@ -3,9 +3,11 @@ import { isTest } from '../../config/env.js';
 import { db, type Executor } from '../../db/client.js';
 import {
   billingDeliveries,
+  creditNotes,
   emailOutbox,
   facilities,
   facilityBillingProfiles,
+  invoicePayments,
   invoices,
   platformSettings,
   subscriptionEvents,
@@ -718,8 +720,8 @@ export const endAsScheduled = (
   });
 
 /**
- * After a payment or a void (`reason`), for a past-due subscription or one suspended for
- * non-payment:
+ * After a payment, a credit note that settled an invoice or a void (`reason`), for a past-due
+ * subscription or one suspended for non-payment:
  *  - a cancellation scheduled for a date that has passed takes effect (no new period, no invoice);
  *  - with nothing overdue any more it is active again. A suspended one whose period ended starts a
  *    new period now, with its invoice (no back-billing); a past-due one keeps its period and the
@@ -733,7 +735,7 @@ export const endAsScheduled = (
 export async function restoreStanding(
   executor: Executor,
   subscription: Subscription,
-  opts: { actor: Actor; meta?: RequestMeta; now?: Date; reason: 'paid' | 'voided' },
+  opts: { actor: Actor; meta?: RequestMeta; now?: Date; reason: 'paid' | 'voided' | 'credited' },
 ) {
   const now = opts.now ?? new Date();
   const s = subscription;
@@ -789,6 +791,284 @@ export async function restoreStanding(
       opts,
     );
   }
+}
+
+/* ------------------------------------------------------------------ payments and credit notes */
+
+/*
+ * An issued invoice never changes its amounts: what was paid is a row of invoice_payments (a
+ * mistake is reversed, never edited), what was taken back is a credit note. The invoice is
+ * settled (PAID) once payments that were not reversed plus its credit notes reach the total;
+ * anything beyond the total – a credit note on a paid invoice – is money to give back, which
+ * happens outside Pacient.
+ */
+
+/** Why an invoice can no longer be voided (a credit note corrects it instead). */
+export type VoidBlock = 'NOT_OPEN' | 'PAYMENTS' | 'CREDIT_NOTES' | 'NOT_THIS_MONTH' | 'EMAILED';
+
+export interface InvoiceAccount {
+  /** Payments that were not reversed. */
+  paidCents: number;
+  creditedCents: number;
+  /** Still owed; 0 once the invoice is settled or voided. */
+  balanceCents: number;
+  /** Received and credited beyond the total: to be refunded outside Pacient. */
+  toRefundCents: number;
+  /** What a further credit note may still cover: the total less earlier credit notes. */
+  creditableCents: number;
+  /** Null when the invoice may still be voided. */
+  voidBlock: VoidBlock | null;
+}
+
+/** Same calendar month in Kosovo. */
+const sameLocalMonth = (a: Date, b: Date) => {
+  const x = localParts(a);
+  const y = localParts(b);
+  return x.y === y.y && x.m === y.m;
+};
+
+/**
+ * Why an invoice cannot be voided any more, or null. A void makes an invoice disappear from what
+ * is owed while keeping its number, so it is only for a mistake noticed straight away: still open,
+ * without any payment (also a reversed one) or credit note, issued in the current month in Kosovo
+ * and not yet e-mailed to the customer. Anything later is corrected with a credit note, which the
+ * customer and the accountant see.
+ */
+function voidBlockOf(
+  inv: Pick<Invoice, 'status' | 'issuedAt'>,
+  counts: { payments: number; creditNotes: number; emailed: boolean },
+  now: Date,
+): VoidBlock | null {
+  if (inv.status !== 'OPEN') return 'NOT_OPEN';
+  if (counts.payments > 0) return 'PAYMENTS';
+  if (counts.creditNotes > 0) return 'CREDIT_NOTES';
+  if (!sameLocalMonth(inv.issuedAt, now)) return 'NOT_THIS_MONTH';
+  if (counts.emailed) return 'EMAILED';
+  return null;
+}
+
+/** The message refusing a void, for each reason. */
+export const VOID_REFUSED: Record<VoidBlock, string> = {
+  NOT_OPEN: 'Only an open invoice can be voided',
+  PAYMENTS: 'An invoice with payments cannot be voided. Issue a credit note instead.',
+  CREDIT_NOTES: 'An invoice with credit notes cannot be voided. Issue a credit note instead.',
+  NOT_THIS_MONTH: 'Only an invoice issued this month can be voided. Issue a credit note instead.',
+  EMAILED:
+    'An invoice already e-mailed to the customer cannot be voided. Issue a credit note instead.',
+};
+
+/**
+ * Payments, credit notes and balance of invoices, by invoice id. Inside a transaction that locked
+ * the invoice, the figures are those the change is about to build on.
+ */
+export async function accountsOf(
+  executor: Executor,
+  rows: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt'>[],
+  now = new Date(),
+): Promise<Map<string, InvoiceAccount>> {
+  const out = new Map<string, InvoiceAccount>();
+  if (!rows.length) return out;
+  const ids = rows.map((r) => r.id);
+  const paid = await executor
+    .select({
+      invoiceId: invoicePayments.invoiceId,
+      cents: sql<number>`coalesce(sum(${invoicePayments.amountCents}) FILTER (WHERE ${invoicePayments.reversedAt} IS NULL), 0)::int`,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(invoicePayments)
+    .where(inArray(invoicePayments.invoiceId, ids))
+    .groupBy(invoicePayments.invoiceId);
+  const credited = await executor
+    .select({
+      invoiceId: creditNotes.invoiceId,
+      cents: sql<number>`sum(${creditNotes.totalCents})::int`,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(creditNotes)
+    .where(inArray(creditNotes.invoiceId, ids))
+    .groupBy(creditNotes.invoiceId);
+  // "Sent" also while the worker is handing the message over: it may be out a moment later.
+  const openIds = rows.filter((r) => r.status === 'OPEN').map((r) => r.id);
+  const emailed = openIds.length
+    ? await executor
+        .selectDistinct({ invoiceId: billingDeliveries.invoiceId })
+        .from(billingDeliveries)
+        .innerJoin(emailOutbox, eq(emailOutbox.id, billingDeliveries.emailOutboxId))
+        .where(
+          and(
+            inArray(billingDeliveries.invoiceId, openIds),
+            inArray(emailOutbox.status, ['SENT', 'SENDING']),
+          ),
+        )
+    : [];
+  const paidBy = new Map(paid.map((p) => [p.invoiceId, p]));
+  const creditedBy = new Map(credited.map((c) => [c.invoiceId, c]));
+  const emailedIds = new Set(emailed.map((e) => e.invoiceId));
+  for (const inv of rows) {
+    const p = paidBy.get(inv.id);
+    const c = creditedBy.get(inv.id);
+    const paidCents = p?.cents ?? 0;
+    const creditedCents = c?.cents ?? 0;
+    out.set(inv.id, {
+      paidCents,
+      creditedCents,
+      balanceCents:
+        inv.status === 'OPEN' ? Math.max(0, inv.totalCents - paidCents - creditedCents) : 0,
+      toRefundCents:
+        inv.status === 'VOID' ? 0 : Math.max(0, paidCents + creditedCents - inv.totalCents),
+      creditableCents: inv.status === 'VOID' ? 0 : Math.max(0, inv.totalCents - creditedCents),
+      voidBlock: voidBlockOf(
+        inv,
+        { payments: p?.n ?? 0, creditNotes: c?.n ?? 0, emailed: emailedIds.has(inv.id) },
+        now,
+      ),
+    });
+  }
+  return out;
+}
+
+/** The account of one invoice (see accountsOf). */
+export async function accountOf(
+  executor: Executor,
+  inv: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt'>,
+  now = new Date(),
+) {
+  return (await accountsOf(executor, [inv], now)).get(inv.id)!;
+}
+
+/** Invoices for display with their account (paid, credited, balance, to refund). */
+export async function withAccounts<T extends Invoice>(
+  executor: Executor,
+  items: T[],
+  now = new Date(),
+): Promise<(T & { account: InvoiceAccount })[]> {
+  const accounts = await accountsOf(executor, items, now);
+  return items.map((i) => ({ ...i, account: accounts.get(i.id)! }));
+}
+
+/** Next credit note number of the year (`<prefix>-CN-2026-00001`); the counter row stays locked. */
+export async function nextCreditNoteNumber(executor: Executor, prefix: string, at: Date) {
+  const year = yearOf(at);
+  const result = await executor.execute<{ last_seq: number }>(sql`
+    INSERT INTO credit_note_counters (year, last_seq) VALUES (${year}, 1)
+    ON CONFLICT (year) DO UPDATE SET last_seq = credit_note_counters.last_seq + 1
+    RETURNING last_seq`);
+  const seq = Number(result.rows[0]!.last_seq);
+  return { year, seq, number: `${prefix}-CN-${year}-${String(seq).padStart(5, '0')}` };
+}
+
+/**
+ * Net and VAT of a credit note of `totalCents` (VAT included) at the rate of the invoice it
+ * corrects. The credit note that completes the invoice takes exactly what is left of its net and
+ * VAT, so that an invoice credited in full adds up to nothing in the sales book, whatever the
+ * rounding of earlier partial credit notes.
+ */
+export function creditSplit(
+  inv: Pick<Invoice, 'netCents' | 'taxCents' | 'totalCents' | 'taxRateBp'>,
+  earlier: { netCents: number; taxCents: number; totalCents: number },
+  totalCents: number,
+) {
+  if (earlier.totalCents + totalCents === inv.totalCents) {
+    const rest = {
+      netCents: inv.netCents - earlier.netCents,
+      taxCents: inv.taxCents - earlier.taxCents,
+    };
+    if (rest.netCents >= 0 && rest.taxCents >= 0) return rest;
+  }
+  const netCents = Math.round((totalCents * 10_000) / (10_000 + inv.taxRateBp));
+  return { netCents, taxCents: totalCents - netCents };
+}
+
+/** What settles an invoice: a payment, or a credit note (method CREDIT_NOTE). */
+export interface Settlement {
+  paidAt: Date;
+  paymentMethod: string;
+  paymentReference: string | null;
+}
+
+/**
+ * The payment or credit note that settles an invoice from what is still recorded on it – the one
+ * with which, in the order they happened, the total is reached – or null when it is not settled.
+ */
+export async function settlementOf(
+  executor: Executor,
+  inv: Pick<Invoice, 'id' | 'totalCents'>,
+): Promise<Settlement | null> {
+  const payments = await executor
+    .select()
+    .from(invoicePayments)
+    .where(and(eq(invoicePayments.invoiceId, inv.id), sql`${invoicePayments.reversedAt} IS NULL`));
+  const credits = await executor
+    .select()
+    .from(creditNotes)
+    .where(eq(creditNotes.invoiceId, inv.id));
+  const items = [
+    ...payments.map((p) => ({
+      at: p.paidAt,
+      cents: p.amountCents,
+      settlement: { paidAt: p.paidAt, paymentMethod: p.method, paymentReference: p.reference },
+    })),
+    ...credits.map((c) => ({
+      at: c.issuedAt,
+      cents: c.totalCents,
+      settlement: { paidAt: c.issuedAt, paymentMethod: 'CREDIT_NOTE', paymentReference: c.number },
+    })),
+  ].sort((a, b) => a.at.getTime() - b.at.getTime());
+  let sum = 0;
+  for (const item of items) {
+    sum += item.cents;
+    if (sum >= inv.totalCents) return item.settlement;
+  }
+  return null;
+}
+
+/**
+ * After a payment was reversed and its invoice is owed again: an active subscription with an
+ * invoice now overdue is past due again, the grace period counting from the oldest overdue due
+ * date, and the directors are told once, as by the subscription worker. It is never suspended
+ * here – the worker does that when the grace period is over, as for any overdue invoice. Any
+ * other state stays as it is: a past-due subscription keeps its grace period (an administrator
+ * may have given a fresh one), and a suspended, cancelled or ended one is not affected.
+ */
+export async function standingAfterReversal(
+  executor: Executor,
+  s: Subscription,
+  opts: { actor: Actor; meta?: RequestMeta; now?: Date },
+) {
+  const now = opts.now ?? new Date();
+  if (s.status !== 'ACTIVE') return;
+  const overdue = await overdueInvoices(executor, s.id, now);
+  if (!overdue.length) return;
+  const [updated] = await executor
+    .update(subscriptions)
+    .set({ status: 'PAST_DUE', pastDueSince: overdue[0]!.dueAt })
+    .where(eq(subscriptions.id, s.id))
+    .returning();
+  await recordEvent(executor, {
+    subscription: s,
+    type: 'MARKED_PAST_DUE',
+    actor: opts.actor,
+    fromStatus: 'ACTIVE',
+    toStatus: 'PAST_DUE',
+    data: { invoices: overdue.map((i) => i.number), reason: 'payment reversed' },
+    at: now,
+  });
+  await auditChange(
+    executor,
+    opts.actor,
+    s,
+    { event: 'MARKED_PAST_DUE', reason: 'payment reversed' },
+    opts.meta,
+  );
+  await remindOnce(
+    executor,
+    updated!,
+    pastDueKey(updated!.pastDueSince!),
+    PAST_DUE_NOTICE,
+    {},
+    now,
+    true,
+  );
 }
 
 /* ------------------------------------------------------------------ lifecycle ---------------- */
@@ -1308,5 +1588,9 @@ export async function invoicesOf(facilityId: string, executor: Executor = db, no
     rows.map((r) => r.id),
     executor,
   );
-  return rows.map((r) => presentInvoice(r, lines.get(r.id) ?? null, now));
+  return withAccounts(
+    executor,
+    rows.map((r) => presentInvoice(r, lines.get(r.id) ?? null, now)),
+    now,
+  );
 }

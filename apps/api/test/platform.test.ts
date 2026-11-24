@@ -833,6 +833,8 @@ describe('administrative audit', () => {
     // Customers (facilities the administrator created) and the operator's billing – with the
     // billing documents, agreements and requests of round 2 – never patients' hospital billing.
     const billing = (await get('billing')).body;
+    // Round 2 added the operator's billing details, documents, payments, credit notes and
+    // exports, agreements and requests to this category.
     expect(
       billing.items.every((i: { action: string }) =>
         /^((billing\.(plan|subscription|invoice)|facility|operator_request)\.|billing\.(profile_changed|invoice_sent|payment_recorded|payment_reversed|credit_note_issued|exported)$|legal\.organization_accepted$)/.test(

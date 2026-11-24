@@ -42,7 +42,7 @@ export function SubscriptionHistory({
               <div className="timeline-date">
                 {formatDateTime(e.createdAt)} · {who(e)}
               </div>
-              <strong>{eventLabel(e.type)}</strong>
+              <strong>{eventLabel(e.type, e.data)}</strong>
               {statusChange && (
                 <span className="muted">
                   {' '}

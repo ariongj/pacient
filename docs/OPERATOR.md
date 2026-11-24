@@ -148,15 +148,15 @@ invoice with nothing to pay (a free plan or an agreed price of 0) is issued as p
 and is never overdue.
 
 Pacient does not take card payments. Customers pay by bank transfer with the invoice number as
-the reference, and the administrator **records the payment** (date, method, reference). When
-nothing else is overdue, an overdue subscription, or one suspended for non-payment, is active again
-at once; a suspension made by hand stays until it is reactivated. When other invoices are still
-overdue, the grace period counts from the oldest of them – a subscription suspended because of the
-invoice just paid is overdue again if that invoice's grace period has not ended, and its directors
-are told that it is no longer suspended but an invoice is still overdue (never that it is active
-again). An invoice issued
-by mistake is **voided** with a reason; it keeps its number, and the subscription is checked as
-after a payment.
+the reference, and the administrator **records the payment** (amount, date, method, reference –
+see [Payments and credit notes](#payments-and-credit-notes)). When nothing else is overdue, an
+overdue subscription, or one suspended for non-payment, is active again at once; a suspension made
+by hand stays until it is reactivated. When other invoices are still overdue, the grace period
+counts from the oldest of them – a subscription suspended because of the invoice just paid is
+overdue again if that invoice's grace period has not ended, and its directors are told that it is
+no longer suspended but an invoice is still overdue (never that it is active again). An invoice
+issued by mistake and noticed straight away is **voided** with a reason; it keeps its number, and
+the subscription is checked as after a payment. Anything later is corrected with a credit note.
 
 **Paid this year** on the invoices page counts payments of the calendar year in Kosovo, like the
 invoice numbers.
@@ -230,11 +230,85 @@ their values) and noted in the facility's internal history. Directors see them, 
 
 ## Payments and credit notes
 
-To be written.
+An issued invoice never changes its amounts. What happens to it afterwards is recorded beside it,
+on the invoice page under **Payments and balance** and **Credit notes**: what was paid, what was
+credited, what is **still owed**, and – when more was paid and credited than the total – what is
+**to refund**. An invoice is settled (Paid) once its payments and credit notes reach its total.
+
+**Recording a payment.** _Record payment_ takes the amount received (by default everything still
+owed), the date, the method and the bank reference. A part leaves the invoice open with the rest
+as its balance – it is still overdue after its due date, and the subscription stays "payment
+overdue" until the invoice is paid in full. The payment that brings the balance to 0 settles the
+invoice, and the subscription's standing is checked as described under
+[Invoices and payments](#invoices-and-payments). More than what is still owed is refused: record
+what was owed and give the rest back outside Pacient.
+
+**Reversing a payment.** A payment recorded by mistake – a transfer the bank returned, or one
+recorded on the wrong invoice – is reversed from the invoice page with a reason, never edited or
+deleted. It stays in the list, struck through, with who reversed it, when and why. A settled
+invoice that is no longer paid in full opens again. If it is past its due date, an active
+subscription is "payment overdue" again, with the grace period counting from the oldest overdue due
+date, and its directors are told; it is never suspended by the reversal itself – the subscription
+worker does that once the grace period is over, as for any overdue invoice. Clinical work, sign-in
+and existing accounts are never affected (hazard H74).
+
+**Credit notes.** To reduce or cancel what an invoice charges after it was sent – a discount
+agreed later, days without service, an invoice issued twice – issue a **credit note** from the
+invoice page: an amount (VAT included) of at most the invoice total less earlier credit notes, and
+a reason, which is printed on it. A credit note:
+
+- is numbered without gaps per calendar year in Kosovo, `PAC-CN-2026-00001` (with the invoice
+  prefix of the operator settings);
+- copies the operator's and the customer's details from the invoice it corrects, not from today's
+  settings, and splits the VAT at that invoice's rate – the credit note that completes an invoice
+  takes exactly what is left of its net amount and VAT;
+- settles an open invoice when it brings what is still owed to 0 (the invoice shows "Credit note"
+  as the method, with the credit note's number), and the subscription's standing is checked as after
+  a payment;
+- on an invoice already paid, leaves the invoice paid and shows the amount **to refund**. Refunds
+  are made outside Pacient, by bank transfer; record the refund as a note in the subscription
+  history (_Add note_ on the organisation page);
+- is e-mailed with the invoice's recipients, and the facility's directors are notified and see it
+  next to their invoices (**Subscription and invoices › Credit notes**), printable like an
+  invoice;
+- can never be changed or deleted (the database refuses). A mistake in a credit note is corrected
+  by another document, never by editing it.
+
+**Voiding** is only for a mistake noticed straight away: an invoice issued in the current month in
+Kosovo, without any payment (also one reversed since) or credit note, and not yet e-mailed to the
+customer (no e-mail with it went out). Otherwise Pacient refuses and asks for a credit note
+instead. An e-mail with the invoice still waiting to be sent does not prevent the void.
+
+Reversing a payment, issuing a credit note and voiding ask for your password again (in a dialog
+that appears by itself). Every payment, reversal and credit note is recorded in the administrative
+audit with its amount, in the same transaction as the change.
 
 ## Exports for the accountant
 
-To be written.
+**Invoices and payments › Export for the accountant** downloads four CSV files for a month, a
+quarter or a year (the month before is preselected):
+
+- **Invoices** – invoices issued in the period (also voided ones, so the numbers have no gaps)
+  with the customer's numbers as frozen on the invoice, net amount, VAT rate and amount, total,
+  status, and what was paid and credited and the balance at the time of the export.
+- **Payments and reversals** – money received in the period by payment date; a reversal is a
+  separate negative row on the day it was reversed, with its reason. A period already handed over
+  never changes because of a later correction.
+- **Credit notes** – credit notes issued in the period, with the invoice each corrects, the
+  reason, net amount, VAT and total.
+- **Sales book (in Albanian)** – invoices and credit notes by number, credit notes as negative
+  amounts and voided invoices with nothing (marked "E anuluar"), then the totals per VAT rate and
+  the grand total. Column headers in Albanian.
+
+The files are UTF-8 with a byte order mark (Excel opens them with the right letters),
+comma-separated with every cell in quotes; dates are calendar days in Kosovo (2026-11-24) and
+amounts are euros with a decimal point (149.00, -50.00). Text that a spreadsheet would run as a
+formula (starting with `=`, `+`, `-` or `@`) is kept as text with a leading apostrophe. Column
+headers follow your language, except in the sales book.
+
+The files hold business data of the operator's customers only – never anything about patients.
+Each download asks for your password again and is recorded in the administrative audit with the
+export and its period (nothing else). A period is at most one year.
 
 ## Operator settings
 

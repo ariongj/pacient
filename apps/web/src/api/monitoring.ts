@@ -39,6 +39,33 @@ export interface SystemHealthReport {
     pool: { total: number; idle: number; waiting: number };
   };
   indicators: MonitoringIndicators;
+  /** Background workers (national view only; null for a director's facility view). */
+  workers: WorkerStatus[] | null;
+  /** The last backup reported by deploy/backup.sh (national view only). */
+  backups: BackupStatus | null;
+}
+
+export interface WorkerStatus {
+  name: string;
+  /** Started by the API process that answered (switched-off workers are not). */
+  running: boolean;
+  intervalSeconds: number | null;
+  lastRunAt: string | null;
+  lastRunOk: boolean | null;
+  lastOkAt: string | null;
+  /** The most recent failure in the last 7 days. */
+  lastError: { at: string; text: string | null } | null;
+  /** No successful run for three intervals. */
+  stale: boolean;
+}
+
+export interface BackupStatus {
+  /** OPS_HEARTBEAT_TOKEN is configured: backups report to the API and are watched. */
+  monitored: boolean;
+  lastOkAt: string | null;
+  detail: { sizeBytes?: number; durationSeconds?: number } | null;
+  stale: boolean;
+  maxAgeHours: number;
 }
 
 export const HEALTH_REFRESH_MS = 30_000;

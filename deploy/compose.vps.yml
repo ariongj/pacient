@@ -48,6 +48,9 @@ services:
       CLAMAV_HOST: ${CLAMAV_HOST:-}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}
       TRUST_PROXY: 1
+      # deploy/backup.sh reports each backup with this token; the API then alerts the operator
+      # when none arrived for 26 hours (docs/GO-LIVE.md, Backups). Empty: backups not watched.
+      OPS_HEARTBEAT_TOKEN: ${OPS_HEARTBEAT_TOKEN:-}
     networks: [database]
     mem_limit: 512m
     cpus: 1

@@ -14,6 +14,10 @@
 #   BACKUP_AGE_RECIPIENT  age public key; the dump is encrypted to it (strongly recommended: the
 #                         server that makes backups then cannot read them). Required unless
 #                         BACKUP_ALLOW_UNENCRYPTED=1 (development only).
+#   OPS_HEARTBEAT_TOKEN   reports each successful backup to the API (default: the value in the
+#                         private settings file), so the operator is alerted when backups stop
+#   OPS_HEARTBEAT_URL     where to report (default http://127.0.0.1:<PACIENTI_PORT or 18840>/api/v1/
+#                         ops/heartbeat/backup, the API of compose.vps.yml on this server)
 #
 # Output: pacient-<UTC timestamp>.dump[.age] plus a .sha256 checksum. Exit code is non-zero on any
 # failure so a scheduler (cron/systemd timer) can alert. Verify restores regularly with
@@ -24,6 +28,7 @@ umask 077
 BACKUP_DIR=${BACKUP_DIR:-/var/backups/pacient}
 RETENTION=${BACKUP_RETENTION_DAYS:-14}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+STARTED=$(date +%s)
 BASE="$BACKUP_DIR/pacient-$STAMP.dump"
 
 if [[ -z "${BACKUP_AGE_RECIPIENT:-}" && "${BACKUP_ALLOW_UNENCRYPTED:-0}" != 1 ]]; then
@@ -79,3 +84,29 @@ if [[ -n "${BACKUP_METRICS_FILE:-}" ]]; then
 fi
 
 echo "Backup written: $OUT ($(du -h "$OUT" | cut -f1))"
+
+# Tell the API that the backup worked: its watchdog alerts the operator (notification and e-mail)
+# when none was reported for 26 hours. Only the size and the duration are sent. A failed report
+# does not fail the backup – the missing report raises that alert in time.
+env_value() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1 | sed -e "s/^[\"']//" -e "s/[\"']$//"
+}
+HEARTBEAT_TOKEN=${OPS_HEARTBEAT_TOKEN:-$(env_value OPS_HEARTBEAT_TOKEN)}
+if [[ -n "$HEARTBEAT_TOKEN" ]]; then
+  API_PORT=${PACIENTI_PORT:-$(env_value PACIENTI_PORT)}
+  HEARTBEAT_URL=${OPS_HEARTBEAT_URL:-http://127.0.0.1:${API_PORT:-18840}/api/v1/ops/heartbeat/backup}
+  SIZE=$(wc -c <"$OUT" | tr -d ' ')
+  DURATION=$(($(date +%s) - STARTED))
+  # The token goes to curl on standard input, never on its command line (visible to `ps`).
+  if command -v curl >/dev/null &&
+    printf 'Authorization: Bearer %s\n' "$HEARTBEAT_TOKEN" |
+    curl --silent --show-error --fail --max-time 15 --header @- \
+      --header 'Content-Type: application/json' \
+      --data "{\"sizeBytes\":$SIZE,\"durationSeconds\":$DURATION}" \
+      "$HEARTBEAT_URL" >/dev/null; then
+    echo "Backup reported to the API."
+  else
+    echo "Warning: the backup is good, but reporting it to $HEARTBEAT_URL failed." >&2
+  fi
+fi

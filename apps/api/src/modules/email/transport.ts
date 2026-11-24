@@ -11,6 +11,8 @@ export interface EmailAttachment {
 
 export interface OutgoingEmail {
   to: string;
+  /** The operator's support address (Operator settings), so that replies reach a person. */
+  replyTo?: string;
   subject: string;
   text: string;
   html: string;
@@ -29,6 +31,7 @@ class SmtpTransport implements EmailTransport {
   async send(m: OutgoingEmail) {
     await this.mailer.sendMail({
       to: m.to,
+      replyTo: m.replyTo,
       subject: m.subject,
       text: m.text,
       html: m.html,

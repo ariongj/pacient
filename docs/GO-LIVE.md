@@ -78,6 +78,7 @@ Then apply it:
 deploy/go-live.sh
 ```
 
+Then make sure the mail is trusted – SPF, DKIM, DMARC and a test e-mail, see [E-mail](#e-mail).
 **Platform › System health** shows e-mail that is waiting or failed.
 
 Then, in the administrator's portal (see [OPERATOR.md](OPERATOR.md)):
@@ -114,12 +115,13 @@ In the repository on GitHub:
 ## 5. Check it
 
 ```bash
-node deploy/smoke-test.mjs --web https://pacienti.itdks.tech --api https://pacienti-api.itdks.tech
+node deploy/smoke-test.mjs --web https://pacienti.itdks.tech --api https://pacienti-api.itdks.tech --mail-domain pacienti.itdks.tech
 ```
 
 Fourteen checks (HTTPS, CORS, security headers, sign-in and live updates through the proxy,
 private metrics, the frontend built for this API, direct links, offline support, no source maps)
-must end with **All checks passed**. Then sign in as the administrator, reload the page (you stay
+and, with `--mail-domain` (the domain of `EMAIL_FROM`), the SPF and DMARC records must end with
+**All checks passed**. Then sign in as the administrator, reload the page (you stay
 signed in) and sign out.
 
 ## 6. Backups – the same day
@@ -131,6 +133,10 @@ signed in) and sign out.
    the nightly timer (commands at the top of the file).
 3. Once a month and after every upgrade, prove a backup restores on another machine:
    `deploy/restore-verify.sh` (see [deploy/README.md](../deploy/README.md#backups-and-restore-verification)).
+4. Let Pacient watch the backups: add a heartbeat token to `.env.vps` and apply it (see
+   [Monitoring and heartbeats](#monitoring-and-heartbeats)). From then on **System health ›
+   Backups** shows the last backup, and the administrators are alerted when none arrives for 26
+   hours.
 
 ## 7. Upgrades
 
@@ -164,6 +170,71 @@ renews the invitation (the earlier link stops working). The invitation is audite
 `~/pacienti-private/invite.txt` – open it, choose a password, set up two-step sign-in, then delete
 the file. If it is refused, nothing is created and no file is left behind. Once an administrator
 exists, further administrators are invited from **Users** in the portal.
+
+## E-mail
+
+Activation links, password resets, invoices and notifications reach people only if their mail
+servers trust yours. With the relay of an e-mail provider (step 3), in the DNS of the domain in
+`EMAIL_FROM`:
+
+1. **SPF** – one TXT record on the domain, as the provider gives it, e.g.
+   `v=spf1 include:_spf.provider.example -all`. Exactly one record starting with `v=spf1`; merge
+   them if another service already has one.
+2. **DKIM** – the provider's signing key: usually one or two CNAME or TXT records under
+   `<selector>._domainkey.<domain>`, from the provider's domain settings. Turn signing on there.
+3. **DMARC** – a TXT record at `_dmarc.<domain>`, to start with
+   `v=DMARC1; p=none; rua=mailto:dmarc@<domain>`; once the reports show only your provider, move
+   to `p=quarantine`.
+4. **PTR (reverse DNS)** – only if the server sends mail itself instead of through a relay: the
+   server's address must resolve back to its host name (ask the hosting company). With a relay,
+   the provider takes care of it.
+
+Then check from any computer with Node:
+
+```bash
+node deploy/smoke-test.mjs --mail-domain pacienti.itdks.tech
+```
+
+It checks that there is exactly one SPF record that does not allow everyone (`+all`) and a DMARC
+record with a policy. DKIM needs the provider's selector, so check it with a real message: in the
+portal, **Platform › System health › Send a test e-mail** sends one to your own address through
+the same queue as every other e-mail. It should arrive within a minute and not in spam. For a
+score, send a password reset or an invitation to the address that
+[mail-tester.com](https://www.mail-tester.com) shows and aim for 9/10 or more; it names what is
+missing. **Recent failures** on the same page shows what the mail server refused (addresses
+shortened, never the contents). Replies to Pacient's e-mails go to the **support e-mail** of
+**Operator settings** – set it, so that answers reach a person and not the no-reply sender.
+
+## Monitoring and heartbeats
+
+The API watches itself: every 10 minutes it checks that its background jobs still succeed, that
+e-mail and SMS go out, and that backups are reported, and alerts the administrators (notification
+and e-mail; [OPERATOR.md › Alerts and background jobs](OPERATOR.md#alerts-and-background-jobs)).
+Two things it cannot see on its own:
+
+**Backups.** The nightly backup runs outside the API. Give it a token to report with:
+
+```bash
+printf '\nOPS_HEARTBEAT_TOKEN=%s\n' "$(openssl rand -hex 32)" >> .env.vps && deploy/go-live.sh
+```
+
+`deploy/backup.sh` reads the token from `.env.vps` and, after each successful backup, reports its
+size and duration to the API on this server (`127.0.0.1`, the port of `PACIENTI_PORT`; another
+address with `OPS_HEARTBEAT_URL`). Run the backup once by hand
+(`sudo systemctl start pacienti-backup`); it ends with "Backup reported to the API." and **System
+health › Backups** shows it. Without the token the endpoint is off and backups are not watched.
+
+**Whether the service is up at all**, and its certificate. If the server or the API is down,
+nothing inside it can tell anyone. Use an external uptime service (any provider that checks a URL
+every few minutes and alerts by e-mail or SMS) on:
+
+- `https://pacienti-api.itdks.tech/health/ready` – expect 200 (the API and its database);
+- `https://pacienti.itdks.tech/` – expect 200 (the frontend);
+- the certificate of both names – alert 14 days before it expires (most uptime services offer
+  this; with Caddy or certbot renewal is automatic, the alert catches a renewal that failed).
+
+For a full monitoring stack (Prometheus rules, including a stalled background job, Grafana and log
+shipping), see [deploy/monitoring/README.md](../deploy/monitoring/README.md).
 
 ## Optional, any time
 

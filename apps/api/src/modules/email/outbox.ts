@@ -7,6 +7,7 @@ import { logger } from '../../lib/logger.js';
 import { open, seal } from '../../lib/secret-box.js';
 import { render, type EmailTemplate } from './templates.js';
 import { getTransport } from './transport.js';
+import { getSettings } from '../platform/platform.service.js';
 import { recordRun, registerWorker } from '../../lib/worker-runs.js';
 
 /**
@@ -101,6 +102,11 @@ export async function processOutboxOnce(): Promise<number> {
       attachment_id, attempts`);
 
   let delivered = 0;
+  // Replies go to the operator's support address when it is set, not to the no-reply sender
+  // (without it, if the settings cannot be read, the messages still go out).
+  const replyTo = claimed.rows.length
+    ? (await getSettings().catch(() => null))?.supportEmail?.trim() || undefined
+    : undefined;
   for (const row of claimed.rows) {
     try {
       // A document that cannot be rendered fails the delivery like the mail server would:
@@ -117,6 +123,7 @@ export async function processOutboxOnce(): Promise<number> {
           : undefined;
       await getTransport().send({
         to: row.to_email,
+        replyTo,
         subject: open(row.subject_sealed),
         text: open(row.text_sealed),
         html: open(row.html_sealed),

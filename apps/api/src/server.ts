@@ -68,6 +68,7 @@ import {
   startComplaintsWorker,
   stopComplaintsWorker,
 } from './modules/complaints/complaints.service.js';
+import { startWatchdog, stopWatchdog } from './modules/platform/watchdog.js';
 
 const app = createApp();
 startEmailWorker();
@@ -95,6 +96,8 @@ startPromsWorker();
 startAccessReviewsWorker();
 startChargeCaptureWorker();
 startSurveillanceWorker();
+// Watches the workers above, e-mail, SMS and backups, and alerts the operator (round 2, S2).
+startWatchdog();
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Pacient API listening');
 });
@@ -129,6 +132,7 @@ function shutdown(signal: string) {
   stopAccessReviewsWorker();
   stopChargeCaptureWorker();
   stopSurveillanceWorker();
+  stopWatchdog();
   server.close(() => {
     stopListening()
       .then(() => pool.end())

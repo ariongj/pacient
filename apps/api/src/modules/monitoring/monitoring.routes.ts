@@ -15,6 +15,7 @@ import {
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { dbLatencyMs, indicators, poolStats, versionInfo } from './monitoring.service.js';
+import { backupStatus, successReference, workerStatuses } from './operations.service.js';
 
 /* ------------------------------------------------------------------ /metrics (Prometheus) */
 
@@ -37,7 +38,13 @@ export async function metricsHandler(req: Request, res: Response) {
   } else if (isProd && !LOOPBACK.has(req.socket.remoteAddress ?? '')) {
     throw forbidden('Metrics are only available from this host or with METRICS_TOKEN');
   }
-  const [ind, latency] = await Promise.all([indicators(), dbLatencyMs()]);
+  const [ind, latency, workers] = await Promise.all([
+    indicators(),
+    dbLatencyMs(),
+    workerStatuses().catch(() => []),
+  ]);
+  // Workers started by this process only: the rule compares the two series per worker.
+  const running = workers.filter((w) => w.running);
   const mem = process.memoryUsage();
   const loop = eventLoopDelaySeconds();
   const pool = poolStats();
@@ -112,6 +119,19 @@ export async function metricsHandler(req: Request, res: Response) {
       ind.caseReportDraftsOver24h,
     ),
     g('facilities_in_downtime', 'Facilities currently in downtime mode.', ind.facilitiesInDowntime),
+    renderGauge(
+      'pacient_worker_last_success_timestamp_seconds',
+      'Unix time of the last successful run of each background worker started by this process, or of the process start if later (a restart is not a stall).',
+      running.map((w) => ({
+        labels: { worker: w.name },
+        value: Math.floor(successReference(w.lastOkAt).getTime() / 1000),
+      })),
+    ),
+    renderGauge(
+      'pacient_worker_expected_interval_seconds',
+      'How often each background worker should succeed; it is stalled after three intervals without success.',
+      running.map((w) => ({ labels: { worker: w.name }, value: w.intervalSeconds ?? 0 })),
+    ),
   ].join('\n');
   res.type('text/plain; version=0.0.4; charset=utf-8').set('Cache-Control', 'no-store');
   res.send(`${body}\n`);
@@ -124,13 +144,20 @@ monitoringRouter.use(authenticate);
 
 /**
  * Health summary for the System health page (Ministry and the platform administrator: national;
- * director: own facility). Counts only, never patient data.
+ * director: own facility). Counts only, never patient data. The background workers and the last
+ * backup concern the whole service, so only the national view (ADMIN, MINISTRY) has them.
  */
 monitoringRouter.get('/health', requireRole('MINISTRY', 'DIRECTOR', 'ADMIN'), async (req, res) => {
   const ctx = requireAuth(req);
   const facilityId = ctx.role === 'DIRECTOR' ? ctx.facilityId : null;
   if (ctx.role === 'DIRECTOR' && !facilityId) throw forbidden();
-  const [ind, latency] = await Promise.all([indicators(facilityId), dbLatencyMs()]);
+  const national = facilityId === null;
+  const [ind, latency, workers, backups] = await Promise.all([
+    indicators(facilityId),
+    dbLatencyMs(),
+    national ? workerStatuses() : null,
+    national ? backupStatus() : null,
+  ]);
   const mem = process.memoryUsage();
   res.json({
     generatedAt: new Date().toISOString(),
@@ -143,6 +170,8 @@ monitoringRouter.get('/health', requireRole('MINISTRY', 'DIRECTOR', 'ADMIN'), as
     },
     database: { up: latency !== null, latencyMs: latency, pool: poolStats() },
     indicators: ind,
+    workers,
+    backups,
   });
 });
 

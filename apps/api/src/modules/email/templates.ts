@@ -9,6 +9,8 @@ import { tr, type Locale } from '../../i18n/index.js';
 export type EmailTemplate = { locale: Locale } & (
   | { template: 'activation'; name: string; url: string }
   | { template: 'password_reset'; name: string; url: string }
+  /** Sent by an administrator to their own address to check delivery (System health). */
+  | { template: 'test_email'; name: string }
   /** `title` is already in the recipient's language. */
   | { template: 'notification'; name: string; title: string; link: string | null }
   | BillingDocumentEmail
@@ -157,6 +159,32 @@ export function render(t: EmailTemplate): RenderedEmail {
   const l = t.locale;
   const hello = t.name ? tr(l, 'Hello {name},', { name: t.name }) : tr(l, 'Hello,');
   switch (t.template) {
+    case 'test_email': {
+      const url = absolute('/admin/health');
+      const footer = tr(l, FOOTER_SECURITY);
+      const paragraphs = [
+        hello,
+        tr(
+          l,
+          'This is a test e-mail from Pacient, sent at your request from System health. If you can read it, e-mail delivery works.',
+        ),
+        tr(
+          l,
+          'If it arrived in the spam folder, check the SPF, DKIM and DMARC records of the sending domain.',
+        ),
+      ];
+      return {
+        subject: tr(l, 'Pacient: test e-mail'),
+        text: `${paragraphs.join('\n\n')}\n\n${tr(l, 'Open Pacient: {url}', { url })}\n\n${footer}\n`,
+        html: layout({
+          locale: l,
+          heading: tr(l, 'E-mail delivery works'),
+          paragraphs,
+          cta: { label: tr(l, 'Open Pacient'), url },
+          footer,
+        }),
+      };
+    }
     case 'activation': {
       const footer = tr(l, FOOTER_SECURITY);
       const paragraphs = [

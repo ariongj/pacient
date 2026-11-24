@@ -70,10 +70,15 @@ the database; all aggregate, no patient data):
 | `pacient_case_report_drafts_over_24h`              | Notifiable-disease reports still in draft      |
 | `pacient_facilities_in_downtime`                   | Facilities working on paper                    |
 
-Not yet exported (planned): number of open SSE connections and last-run timestamps of the
-background workers (outbox sender, escalation sweep, reminders). Those modules do not expose the
-values yet; once they do, add `pacient_sse_connections` and
-`pacient_worker_last_run_timestamp_seconds{worker}` plus a "worker stalled" alert.
+Background workers (every interval worker the API process started – outbox senders,
+escalations, reminders, the watchdog; each run is recorded in `worker_runs`, counts only):
+
+| Metric                                                  | Meaning                                                                                 |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `pacient_worker_last_success_timestamp_seconds{worker}` | Last successful run (the process start if later, so a restart is not a stall)           |
+| `pacient_worker_expected_interval_seconds{worker}`      | How often it should succeed; `PacientWorkerStalled` fires after three intervals without |
+
+Not yet exported (planned): the number of open SSE connections (`pacient_sse_connections`).
 
 ## 2. Prometheus, Alertmanager and Grafana
 
@@ -109,11 +114,16 @@ System health page, build the web app with `VITE_GRAFANA_URL=https://grafana.exa
 
 `PacientDiskSpaceLow` needs [node_exporter](https://github.com/prometheus/node_exporter) on the
 database host. `PacientBackupTooOld` expects the backup job to write a textfile metric after each
-successful run, for example at the end of `deploy/backup.sh`:
+successful run (`deploy/backup.sh` does it with `BACKUP_METRICS_FILE`):
 
 ```bash
 echo "pacient_backup_last_success_timestamp_seconds $(date +%s)" > /var/lib/node_exporter/textfile/pacient_backup.prom
 ```
+
+Without Prometheus the API watches backups itself: with `OPS_HEARTBEAT_TOKEN` set,
+`deploy/backup.sh` reports each successful backup to `POST /api/v1/ops/heartbeat/backup`, and the
+watchdog alerts the platform administrators when none was reported for 26 hours (System health ›
+Backups; [OPERATOR.md](../../docs/OPERATOR.md#alerts-and-background-jobs)).
 
 ## 3. Log shipping
 
@@ -197,9 +207,9 @@ curl -sf -H "Authorization: Bearer $TOKEN" "https://pacient.example/api/v1/monit
 
 ## 5. Health endpoints
 
-| Endpoint                        | Who                                | Use                                            |
-| ------------------------------- | ---------------------------------- | ---------------------------------------------- |
-| `GET /health/live`              | anyone                             | Liveness probe (process up)                    |
-| `GET /health/ready`             | anyone                             | Readiness probe (database reachable)           |
-| `GET /api/v1/monitoring/health` | Ministry; directors (own facility) | Versions, uptime, DB latency, pool, indicators |
-| `GET /metrics`                  | Prometheus (token)                 | Everything above as time series                |
+| Endpoint                        | Who                                               | Use                                                                                          |
+| ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /health/live`              | anyone                                            | Liveness probe (process up)                                                                  |
+| `GET /health/ready`             | anyone                                            | Readiness probe (database reachable)                                                         |
+| `GET /api/v1/monitoring/health` | Ministry, administrator; directors (own facility) | Versions, uptime, DB latency, pool, indicators; workers and last backup (national view only) |
+| `GET /metrics`                  | Prometheus (token)                                | Everything above as time series                                                              |

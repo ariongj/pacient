@@ -1071,7 +1071,9 @@ CORE_OPERATIONS.push(
   }),
   // Monitoring
   op('get', '/monitoring/health', MON, 'Health indicators (national or my facility)', {
-    access: 'MINISTRY, DIRECTOR',
+    access: 'MINISTRY, ADMIN, DIRECTOR (own facility)',
+    description:
+      'Counts only. The national view (MINISTRY, ADMIN) also lists the background workers (last run, last success, last error, stale after three intervals without success) and the last backup reported by deploy/backup.sh; directors get null for both.',
   }),
   op(
     'get',

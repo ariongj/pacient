@@ -86,6 +86,37 @@ groups:
           summary: '{{ $labels.channel }} delivery failures are increasing'
           description: More than 10 messages failed permanently in the last hour; check the provider.
 
+  # Background workers: stalled after three intervals without a successful run. The timestamp is
+  # the start of the API process when that is later, so a restart is not a stall. The API's own
+  # watchdog raises the same condition as an operator alert (OPERATOR.md, Alerts and background
+  # jobs); this rule also catches a stuck watchdog.
+  - name: pacient-workers
+    rules:
+      - alert: PacientWorkerStalled
+        expr: |
+          time() - pacient_worker_last_success_timestamp_seconds{worker=~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
+            > 3 * pacient_worker_expected_interval_seconds
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: 'The {{ $labels.worker }} worker has stalled'
+          description: >-
+            No successful run of {{ $labels.worker }} on {{ $labels.instance }} for
+            {{ $value | humanizeDuration }}. Notifications, escalations or the watchdog itself may
+            have stopped; check the API log and restart the API if it does not recover.
+
+      - alert: PacientWorkerStalled
+        expr: |
+          time() - pacient_worker_last_success_timestamp_seconds{worker!~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
+            > 3 * pacient_worker_expected_interval_seconds
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: 'The {{ $labels.worker }} worker has stalled'
+          description: >-
+            No successful run of {{ $labels.worker }} on {{ $labels.instance }} for
+            {{ $value | humanizeDuration }}. System health › Background jobs shows its last error.
+
   - name: pacient-clinical-safety
     rules:
       - alert: PacientCriticalResultsUnacknowledged

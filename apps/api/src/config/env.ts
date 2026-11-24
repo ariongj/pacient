@@ -130,6 +130,16 @@ const EnvSchema = z.object({
    * without it, production serves /metrics only to loopback (a scraper on the same host).
    */
   METRICS_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(16).optional()),
+  /**
+   * Heartbeats of jobs that run outside the API: deploy/backup.sh reports each successful backup
+   * to POST /api/v1/ops/heartbeat/backup with `Authorization: Bearer <token>`. With the token set
+   * the watchdog alerts the operator when no backup was reported for 26 hours; without it the
+   * endpoint is switched off and backups are not watched by the API.
+   */
+  OPS_HEARTBEAT_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(16).optional(),
+  ),
   /** Release identifier shown on the System health page (e.g. the git commit). */
   APP_VERSION: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(80).optional()),
   /**

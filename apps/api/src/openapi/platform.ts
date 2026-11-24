@@ -150,7 +150,7 @@ export const PLATFORM_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/audit', T, 'Administrative audit trail', {
     access: ADMIN,
     description:
-      'What administrators and the system did to accounts, customers (facilities), subscriptions and invoices, operator settings and legal texts, with actor and target names. Actions by facility staff, rows about a patient and what the system did to a patient’s portal account (closing it when a death is registered) are never listed; a patient account is never named (targetName null, targetPatientAccount true).',
+      'What administrators and the system did to accounts, customers (facilities), subscriptions and invoices, operator settings and legal texts, with actor and target names. Actions by facility staff, rows about a patient and what the system did to a patient’s portal account (closing it when a death is registered) are never listed; a patient account is never named or identified (targetName and resourceId null, targetPatientAccount true).',
     params: [
       q('category', enumOf('all', 'users', 'billing', 'platform')),
       q('page', int({ minimum: 1 })),

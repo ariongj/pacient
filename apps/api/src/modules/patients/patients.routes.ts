@@ -112,10 +112,13 @@ const listColumns = {
   sex: patients.sex,
   primaryFacilityId: patients.primaryFacilityId,
   hasPortalAccount: sql<boolean>`${patients.userId} IS NOT NULL`,
-  /** PENDING until the patient activates the portal account (the invitation can be renewed). */
+  /**
+   * PENDING until the patient activates the portal account (the invitation can be renewed);
+   * CLOSED when the account was disabled (e.g. by a death registration): no portal action applies.
+   */
   portalAccount: sql<
-    'PENDING' | 'ACTIVE' | null
-  >`(SELECT CASE WHEN ${users.passwordHash} IS NULL THEN 'PENDING' ELSE 'ACTIVE' END FROM ${users} WHERE ${users.id} = ${patients.userId})`,
+    'PENDING' | 'ACTIVE' | 'CLOSED' | null
+  >`(SELECT CASE WHEN NOT ${users.isActive} THEN 'CLOSED' WHEN ${users.passwordHash} IS NULL THEN 'PENDING' ELSE 'ACTIVE' END FROM ${users} WHERE ${users.id} = ${patients.userId})`,
   /** NEWBORN / UNIDENTIFIED while the national ID is a temporary number (TMP…). */
   temporaryIdentity: patients.temporaryIdentity,
 };
@@ -126,7 +129,7 @@ const listColumns = {
  */
 const portalTwoStepFor = (role: string) =>
   (IDENTITY_DESK as readonly string[]).includes(role)
-    ? sql<boolean>`coalesce((SELECT ${users.mfaEnabledAt} IS NOT NULL FROM ${users} WHERE ${users.id} = ${patients.userId}), false)`
+    ? sql<boolean>`coalesce((SELECT ${users.mfaEnabledAt} IS NOT NULL AND ${users.isActive} FROM ${users} WHERE ${users.id} = ${patients.userId}), false)`
     : sql<null>`NULL`;
 
 /** Correlated subquery: is the patient in the given doctor's active care? */
@@ -378,6 +381,13 @@ patientsRouter.post(
     const { id } = parse(IdParam, req.params);
     const patient = await assertDemographicsAccess(ctx, id);
     if (patient.userId) {
+      // A new link (possibly to a corrected address) needs the in-person identity check that
+      // reception and directors do; clinicians can send only the first invitation.
+      if (!(IDENTITY_DESK as readonly string[]).includes(ctx.role)) {
+        throw forbidden(
+          'The invitation is sent again by reception or a director, who verify the patient’s identity in person',
+        );
+      }
       res.status(201).json(await renewPortalInvitation(req, ctx, patient));
       return;
     }
@@ -488,6 +498,12 @@ patientsRouter.post(
     const patient = await assertDemographicsAccess(ctx, id);
     if (!patient.userId) throw conflict('This patient has no portal account');
     const userId = patient.userId;
+    const [account] = await db
+      .select({ isActive: users.isActive })
+      .from(users)
+      .where(eq(users.id, userId));
+    // A closed account (e.g. by a death registration) is not touched, as for a new invitation.
+    if (!account?.isActive) throw conflict('This patient’s portal account is closed');
     if (!(await hasSecondFactor(userId))) {
       throw conflict('Two-step sign-in is not set up for this account');
     }

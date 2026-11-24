@@ -8,7 +8,7 @@ import type { PatientListItem } from './types';
  */
 export interface PortalState {
   /** null: no portal account; PENDING: invited, not yet activated. */
-  portalAccount?: 'PENDING' | 'ACTIVE' | null;
+  portalAccount?: 'PENDING' | 'ACTIVE' | 'CLOSED' | null;
   /** Reception and directors only (null for other roles). */
   portalTwoStep?: boolean | null;
 }

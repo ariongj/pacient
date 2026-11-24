@@ -40,7 +40,8 @@ address (a support case), never by name or by browsing.
   in draft or prescriptions the pharmacy returned to them; these are handed over (or signed,
   resubmitted or cancelled) first.
 - **Disable / enable**, **unlock** after too many failed sign-ins, **send a password reset**,
-  **reset two-step sign-in** (the person sets it up again at the next sign-in and is notified), **sign out everywhere**, **send the invitation again**.
+  **reset two-step sign-in** (the person sets it up again at the next sign-in and is notified),
+  **sign out everywhere**, **send the invitation again**.
 
 Every action asks for a reason where it matters, is written to the audit trail together with the
 change, and appears in the account's history. An administrator cannot act on their own account
@@ -48,7 +49,9 @@ change, and appears in the account's history. An administrator cannot act on the
 password reset are offered; their personal details are kept by their facility. A patient whose
 invitation link expired, or who lost their authenticator and recovery codes, goes to their
 facility: reception or a director verifies their identity in person and, on the patient's page,
-sends the invitation again or resets their two-step sign-in.
+sends the invitation again (to the e-mail address on file, which they may correct first) or resets
+their two-step sign-in. Clinicians can send only the first invitation; a closed account is not
+touched.
 
 Directors keep inviting and managing their own staff, as before.
 
@@ -168,9 +171,9 @@ printed on invoices and referred to by the legal texts. A new IBAN is checked be
 (its country's length – 20 characters for Kosovo – and its check digits, which are always 02–98),
 because every invoice issued afterwards keeps it. An IBAN saved before the check was this strict
 is not checked again when you save other settings (an urgent notice is never held up by it), but
-the page warns until you correct it. Payment terms (days until an invoice is due), VAT rate (0 when not
-VAT-registered), trial length and grace period apply to invoices and subscriptions from then on;
-issued invoices and published legal texts do not change.
+the page warns until you correct it. Payment terms (days until an invoice is due), VAT rate (0 when
+not VAT-registered), trial length and grace period apply to invoices and subscriptions from then
+on; issued invoices and published legal texts do not change.
 
 **Notice to users** shows one line to everyone who is signed in, for example planned maintenance,
 until the time you set. Open sessions pick up a new or changed notice within a few minutes (or
@@ -187,8 +190,8 @@ users read is what they accepted. Each value is written in once, as typed (a val
 a placeholder stays as it is). The text as written, with its placeholders, is kept with the
 version: **New version › Start from the current version** copies that, so the new version gets the
 details of the day it is published. A version published before the text as written was kept is
-copied as published, with the operator details of that day: the form warns, and you check them in
-the draft (or put the placeholders back) before publishing.
+copied as it was published, so it may contain the operator details as they were then: the form
+warns, and you check them in the draft (or put the placeholders back) before publishing.
 
 A published version cannot be changed or deleted – publish a new version instead. When a version
 asks for acceptance, every user accepts it at their next sign-in before continuing; the acceptance

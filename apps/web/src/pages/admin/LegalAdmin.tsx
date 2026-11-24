@@ -132,9 +132,18 @@ export function LegalAdmin() {
         {publishing && (
           <PublishConfirm
             doc={publishing}
+            versionAsks={Boolean(
+              list.data?.documents.some(
+                (d) =>
+                  d.kind === publishing.kind &&
+                  d.version === publishing.version &&
+                  d.publishedAt &&
+                  d.requiresAcceptance,
+              ),
+            )}
             othersAsk={Boolean(
               list.data &&
-              askedElsewhere(list.data, publishing.kind, (d) => d.id === publishing.id),
+              askedElsewhere(list.data, publishing.kind, (d) => d.version === publishing.version),
             )}
             onClose={() => setPublishing(null)}
           />
@@ -554,11 +563,17 @@ function EditorForm({ doc, onClose }: { doc: LegalDocumentFull; onClose: () => v
 
 function PublishConfirm({
   doc,
+  versionAsks,
   othersAsk,
   onClose,
 }: {
   doc: LegalDocumentSummary;
-  /** Another published text of this kind asked for acceptance. */
+  /**
+   * A published translation of the same version asks for acceptance: the server treats the whole
+   * version as asking, whatever this translation says.
+   */
+  versionAsks: boolean;
+  /** A published text of an earlier version of this kind asked for acceptance. */
   othersAsk: boolean;
   onClose: () => void;
 }) {
@@ -581,7 +596,7 @@ function PublishConfirm({
         )}
       </p>
       <p>
-        {doc.requiresAcceptance
+        {doc.requiresAcceptance || versionAsks
           ? t('Every user is asked to accept this version the next time they sign in.')
           : othersAsk
             ? t(

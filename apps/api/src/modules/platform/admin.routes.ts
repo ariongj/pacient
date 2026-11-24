@@ -763,16 +763,22 @@ async function auditItems(where: SQL, page: { limit: number; offset: number }) {
     .limit(page.limit)
     .offset(page.offset);
   const { names, patientAccounts } = await targetNames(rows);
-  return rows.map((r) => ({
-    ...r,
-    targetName:
-      r.resourceType === 'platform_settings'
-        ? 'Operator settings'
-        : r.resourceId
-          ? (names.get(r.resourceId) ?? null)
-          : null,
-    targetPatientAccount: Boolean(r.resourceId && patientAccounts.has(r.resourceId)),
-  }));
+  return rows.map((r) => {
+    const patientAccount = Boolean(r.resourceId && patientAccounts.has(r.resourceId));
+    return {
+      ...r,
+      // A patient account is neither named nor identified: its id would resolve to the name on
+      // the account page, turning the audit view into a list of patients.
+      resourceId: patientAccount ? null : r.resourceId,
+      targetName:
+        r.resourceType === 'platform_settings'
+          ? 'Operator settings'
+          : r.resourceId && !patientAccount
+            ? (names.get(r.resourceId) ?? null)
+            : null,
+      targetPatientAccount: patientAccount,
+    };
+  });
 }
 
 async function targetNames(rows: { resourceType: string | null; resourceId: string | null }[]) {

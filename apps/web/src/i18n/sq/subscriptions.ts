@@ -345,4 +345,6 @@ export const subscriptions: Record<string, string> = {
     'Data e anulimit ka kaluar: abonimi përfundon siç ishte planifikuar, në vend që të riaktivizohet.',
   'The subscription was not reactivated: its cancellation date had passed, so it ended as scheduled.':
     'Abonimi nuk u riaktivizua: data e anulimit kishte kaluar, prandaj përfundoi siç ishte planifikuar.',
+  'Your facility’s trial is no longer suspended':
+    'Periudha provuese e institucionit tuaj nuk është më e pezulluar',
 };

@@ -128,6 +128,8 @@ async function openApp(browser, base, api) {
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1/, '');
     if (path === '/auth/refresh') {
+      // A scenario may make the session renewal itself slow (after the sign-in).
+      if (signedIn && api.refresh) return api.refresh(route, json);
       return signedIn
         ? json(route, 200, { accessToken: 'token' })
         : json(route, 401, { error: { code: 'UNAUTHORIZED', message: 'Not signed in' } });
@@ -307,6 +309,27 @@ const SCENARIOS = [
       const waited = Date.now() - started;
       if (waited < ACCEPT_TIMEOUT_MS - 500) throw new Error(`Continue after ${waited} ms`);
       await page.getByText('The server did not answer in time.').waitFor({ timeout: 1_000 });
+      await continueButton(page).click();
+      await expectWorkspace(page);
+    },
+  },
+  {
+    name: 'an expired session whose renewal hangs still offers Continue after the time limit',
+    api: () => ({
+      status: answer(200, ok([doc('1.0')]).body),
+      // The access token expired while the card was open: the accept needs a session renewal,
+      // and the renewal does not answer – the same time limit covers both.
+      accept: answer(401, { error: { code: 'UNAUTHORIZED', message: 'Token expired' } }),
+      refresh: after(ACCEPT_TIMEOUT_MS + 20_000, 200, { accessToken: 'token' }),
+    }),
+    run: async (page, base) => {
+      await signIn(page, base);
+      await expectCard(page);
+      const started = Date.now();
+      await tickAndAccept(page);
+      await continueButton(page).waitFor({ timeout: ACCEPT_TIMEOUT_MS + 5_000 });
+      const waited = Date.now() - started;
+      if (waited < ACCEPT_TIMEOUT_MS - 500) throw new Error(`Continue after ${waited} ms`);
       await continueButton(page).click();
       await expectWorkspace(page);
     },

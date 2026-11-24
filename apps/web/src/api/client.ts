@@ -61,8 +61,9 @@ export interface RequestOptions {
   body?: unknown;
   query?: Query;
   /**
-   * Give up after this many milliseconds (each attempt, response body included). The request then
-   * fails like one that could not reach the server, with a message saying it timed out.
+   * Give up after this many milliseconds – one deadline for the whole request: the first attempt,
+   * a session refresh after a 401, the retry and the response body. The request then fails like
+   * one that could not reach the server, with a message saying it timed out.
    */
   timeoutMs?: number;
 }
@@ -83,7 +84,27 @@ function buildUrl(path: string, query?: Query) {
   return `${API_BASE}${path}${qs ? `?${qs}` : ''}`;
 }
 
-async function send(path: string, opts: RequestOptions): Promise<Response> {
+/** Settles like `promise`, or fails like a timed-out request once `signal` aborts first. */
+function withinDeadline<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(timedOut(signal.reason));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(timedOut(signal.reason));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
+async function send(path: string, opts: RequestOptions, signal?: AbortSignal): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -93,17 +114,19 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
     headers,
     credentials: 'include',
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+    signal,
   }).catch((err: unknown) => {
     throw timedOut(err);
   });
 }
 
 export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<Response> {
-  let res = await send(path, opts);
+  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
+  let res = await send(path, opts, signal);
   if (res.status === 401 && !path.startsWith('/auth/')) {
-    if (await refreshSession()) {
-      res = await send(path, opts);
+    // The refresh is shared with other requests and keeps running; only this request gives up.
+    if (await withinDeadline(refreshSession(), signal)) {
+      res = await send(path, opts, signal);
     } else {
       onSessionExpired?.();
     }

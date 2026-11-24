@@ -125,12 +125,62 @@ describe('a doctor’s worklist', () => {
     const fresh = await workAt(w.otherFacility.id, doctor.id, w.users.outsidePharmacist.id);
     const after = await worklist(await login(doctor.email));
     expect(ids(after.draftNotes)).toEqual([fresh.draft.id]);
-    expect(ids(after.returnedPrescriptions)).toEqual([fresh.rx.id]);
+    // Returned prescriptions are not filtered: the move itself waits until they are handed over.
+    expect(ids(after.returnedPrescriptions)).toEqual(
+      expect.arrayContaining([old.rx.id, fresh.rx.id]),
+    );
     expect(ids(after.imagingToReview)).toEqual([fresh.image.id]);
     const results = ids(after.unacknowledgedResults);
     expect(results).not.toContain(old.ordered.id);
     expect(results).toContain(fresh.ordered.id);
     // A result without a known facility stays listed: an unreviewed result must not disappear.
     expect(results).toEqual(expect.arrayContaining([old.byHand.id, fresh.byHand.id]));
+  });
+
+  it('keeps the work of a doctor who never moved, whatever visit it is linked to', async () => {
+    const doctor = await createUser('DOCTOR', w.facility.id);
+    const patient = await createPatient(w.facility.id);
+    // An earlier visit of the same patient at another facility.
+    const [elsewhere] = await db
+      .insert(encounters)
+      .values({
+        patientId: patient.id,
+        doctorId: w.users.outsideDoctor.id,
+        facilityId: w.otherFacility.id,
+        type: 'OUTPATIENT',
+        reason: 'Earlier visit',
+        noteStatus: 'SIGNED',
+      })
+      .returning();
+    const [result] = await db
+      .insert(labResults)
+      .values({
+        patientId: patient.id,
+        orderedById: doctor.id,
+        encounterId: elsewhere!.id,
+        testName: 'Potassium',
+        value: '6.9',
+        flag: 'CRITICAL',
+      })
+      .returning();
+    const [rx] = await db
+      .insert(prescriptions)
+      .values({
+        patientId: patient.id,
+        doctorId: doctor.id,
+        encounterId: elsewhere!.id,
+        medication: 'Ramipril 5 mg',
+        dosage: '5 mg',
+        frequency: 'once a day',
+        startDate: '2026-11-01',
+        pharmacyStatus: 'RETURNED',
+        pharmacistNote: 'Kidney function to check',
+        verifiedById: w.users.pharmacist.id,
+        verifiedAt: new Date(),
+      })
+      .returning();
+    const list = await worklist(await login(doctor.email));
+    expect(ids(list.unacknowledgedResults)).toContain(result!.id);
+    expect(ids(list.returnedPrescriptions)).toContain(rx!.id);
   });
 });

@@ -340,4 +340,6 @@ export const subscriptions: Record<string, string> = {
     'Datum otkazivanja je prošao: pretplata se završava kako je planirano umesto da se ponovo aktivira.',
   'The subscription was not reactivated: its cancellation date had passed, so it ended as scheduled.':
     'Pretplata nije ponovo aktivirana: datum otkazivanja je prošao, pa je završena kako je planirano.',
+  'Your facility’s trial is no longer suspended':
+    'Probni period vaše ustanove više nije suspendovan',
 };

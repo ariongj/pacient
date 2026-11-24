@@ -338,4 +338,6 @@ export const care: Record<string, string> = {
   'Your two-step sign-in was reset by your facility':
     'Hyrja juaj me dy hapa u rivendos nga institucioni juaj',
   'Two-step sign-in reset by the facility': 'Hyrja me dy hapa u rivendos nga institucioni',
+  'The invitation is sent again by reception or a director, who verify the patient’s identity in person':
+    'Ftesa dërgohet përsëri nga recepsioni ose drejtori, që verifikojnë identitetin e pacientit personalisht',
 };

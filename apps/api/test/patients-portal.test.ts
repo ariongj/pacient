@@ -130,6 +130,12 @@ describe('a portal invitation that was not accepted', () => {
     expect((await invite(p.id, w.tokens.reception)).status).toBe(201);
     const userId = await accountOf(p.id);
     expect((await invite(p.id, w.tokens.otherDirector)).status).toBe(403);
+    // Clinicians send the first invitation only: a new link needs the desk's identity check.
+    const byNurse = await invite(p.id, w.tokens.nurse);
+    expect(byNurse.status).toBe(403);
+    expect(byNurse.body.error.message).toBe(
+      'The invitation is sent again by reception or a director, who verify the patient’s identity in person',
+    );
     await db.update(users).set({ isActive: false }).where(eq(users.id, userId));
     const closed = await invite(p.id, w.tokens.reception);
     expect(closed.status).toBe(409);
@@ -233,6 +239,35 @@ describe('a patient’s two-step sign-in', () => {
         .from(refreshTokens)
         .where(and(eq(refreshTokens.userId, patientUser.id), isNull(refreshTokens.revokedAt))),
     ).toHaveLength(1);
+  });
+});
+
+describe('a closed portal account', () => {
+  it('is neither reset nor offered any portal action', async () => {
+    const patientUser = await createUser('PATIENT');
+    const p = await createPatient(w.facility.id, { userId: patientUser.id });
+    await db
+      .update(users)
+      .set({ isActive: false, mfaEnabledAt: new Date(), mfaSecretEncrypted: 'sealed-test-secret' })
+      .where(eq(users.id, patientUser.id));
+    const reset = await resetTwoStep(p.id, w.tokens.reception, { reason: 'Lost phone' });
+    expect(reset.status).toBe(409);
+    expect(reset.body.error.message).toBe('This patient’s portal account is closed');
+    const [still] = await db.select().from(users).where(eq(users.id, patientUser.id));
+    expect(still!.mfaEnabledAt).not.toBeNull();
+    const entries = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, 'user.mfa_reset'), eq(auditLogs.resourceId, patientUser.id)));
+    expect(entries).toHaveLength(0);
+
+    const list = await api()
+      .get('/api/v1/patients')
+      .query({ scope: 'facility', search: p.lastName })
+      .set(bearer(w.tokens.reception));
+    expect(list.status).toBe(200);
+    const row = list.body.items.find((r: { id: string }) => r.id === p.id);
+    expect(row).toMatchObject({ portalAccount: 'CLOSED', portalTwoStep: false });
   });
 });
 

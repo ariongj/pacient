@@ -28,6 +28,9 @@ export function PortalBadge({ patient }: { patient: PatientWithPortal }) {
   if (patient.portalAccount === 'PENDING') {
     return <Badge tone="warning">{t('Invitation not accepted yet')}</Badge>;
   }
+  if (patient.portalAccount === 'CLOSED') {
+    return <Badge tone="neutral">{t('Closed')}</Badge>;
+  }
   return patient.hasPortalAccount ? (
     <Badge tone="success">{t('Active')}</Badge>
   ) : (

@@ -716,17 +716,22 @@ const PAST_DUE_NOTICE = 'Your facility’s subscription has an overdue invoice';
 
 /**
  * Tells the directors that a suspension was lifted (by a payment or by the administrator). Only
- * an active subscription is "active again"; with an invoice still overdue it is "payment overdue",
- * and the notice says so. That notice also counts as the overdue notice of this past-due period,
+ * an active subscription is "active again"; a trial is told its trial continues; with an invoice
+ * still overdue it is "payment overdue", and the notice says so. That notice also counts as the overdue notice of this past-due period,
  * so the subscription worker does not send a second one.
  */
 export async function notifyLifted(executor: Executor, s: Subscription, now: Date) {
-  if (s.status !== 'PAST_DUE' || !s.pastDueSince) {
+  if (s.status === 'TRIAL') {
+    await notifyDirectors(executor, s.facilityId, 'Your facility’s trial is no longer suspended');
+    return;
+  }
+  if (s.status !== 'PAST_DUE') {
     await notifyDirectors(executor, s.facilityId, 'Your facility’s subscription is active again');
     return;
   }
   const title = 'Your facility’s subscription is no longer suspended, but an invoice is overdue';
   const told = await notifyDirectors(executor, s.facilityId, title, {}, true);
+  if (!s.pastDueSince) return;
   const key = pastDueKey(s.pastDueSince);
   if (told && !(await reminderSent(executor, s.id, key))) {
     await recordEvent(executor, {

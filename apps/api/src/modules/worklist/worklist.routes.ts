@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { aliasedTable, and, asc, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import {
   careAssignments,
@@ -25,24 +25,16 @@ const criticalFirst = sql`CASE ${labResults.flag} WHEN 'CRITICAL' THEN 0 WHEN 'H
  * Defence in depth for a doctor who moved to another facility: sections keyed only on the doctor
  * show what belongs to their current facility. (A role or facility change already waits until
  * results, draft notes and returned prescriptions are handed over.)
+ *
+ * A result belongs to the facility that ordered it. A result without an order (entered by hand)
+ * stays listed, whatever visit it is linked to: the linked visit says which episode the result
+ * belongs to, not where the doctor works, and hiding an unreviewed – possibly critical – result
+ * would be the greater harm. Returned prescriptions are not filtered: the hospital pharmacy only
+ * returns prescriptions of its own facility's prescribers, and a prescriber cannot be moved while
+ * one is outstanding.
  */
-const resultEncounter = aliasedTable(encounters, 'result_encounter');
-const rxEncounter = aliasedTable(encounters, 'rx_encounter');
-const returnedBy = aliasedTable(users, 'returned_by');
-/**
- * A result's facility is that of its laboratory order, or of the visit it was entered in. A result
- * entered by hand outside a visit has none and stays listed: hiding an unreviewed (possibly
- * critical) result would be the greater harm.
- */
-const resultFacility = sql`coalesce(${labOrders.facilityId}, ${resultEncounter.facilityId})`;
 const resultAt = (facilityId: string) =>
-  or(sql`${resultFacility} IS NULL`, sql`${resultFacility} = ${facilityId}`);
-/**
- * A returned prescription belongs to the facility of its visit or, without one, to the facility
- * whose pharmacy returned it (a hospital pharmacy handles its own facility's prescriptions only).
- */
-const returnedAt = (facilityId: string) =>
-  sql`coalesce(${rxEncounter.facilityId}, ${returnedBy.facilityId}) = ${facilityId}`;
+  or(isNull(labOrders.facilityId), eq(labOrders.facilityId, facilityId));
 
 /**
  * A doctor's outstanding work. Follow-up is only "done" when it is explicitly closed – a result
@@ -72,7 +64,6 @@ worklistRouter.get('/', async (req, res) => {
       .from(labResults)
       .innerJoin(patients, eq(patients.id, labResults.patientId))
       .leftJoin(labOrders, eq(labOrders.id, labResults.orderId))
-      .leftJoin(resultEncounter, eq(resultEncounter.id, labResults.encounterId))
       .where(
         and(
           eq(labResults.orderedById, ctx.userId),
@@ -150,14 +141,11 @@ worklistRouter.get('/', async (req, res) => {
     })
     .from(prescriptions)
     .innerJoin(patients, eq(patients.id, prescriptions.patientId))
-    .leftJoin(rxEncounter, eq(rxEncounter.id, prescriptions.encounterId))
-    .leftJoin(returnedBy, eq(returnedBy.id, prescriptions.verifiedById))
     .where(
       and(
         eq(prescriptions.doctorId, ctx.userId),
         eq(prescriptions.pharmacyStatus, 'RETURNED'),
         eq(prescriptions.status, 'ACTIVE'),
-        returnedAt(facilityId),
       ),
     )
     .orderBy(desc(prescriptions.verifiedAt))
@@ -185,7 +173,6 @@ worklistRouter.get('/', async (req, res) => {
         .innerJoin(patients, eq(patients.id, labResults.patientId))
         .innerJoin(users, eq(users.id, labResults.orderedById))
         .leftJoin(labOrders, eq(labOrders.id, labResults.orderId))
-        .leftJoin(resultEncounter, eq(resultEncounter.id, labResults.encounterId))
         .where(
           and(
             inArray(labResults.orderedById, covered),

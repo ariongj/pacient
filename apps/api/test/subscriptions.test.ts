@@ -1081,12 +1081,17 @@ describe('seat limits', () => {
 describe('trials', () => {
   it('returns a suspended trial to the trial; never invoices or counts the trial period', async () => {
     const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
     const body = await subscribe(f.id);
     const id = body.subscription.id as string;
     await adminPost(`/subscriptions/${id}/suspend`, { reason: 'Paused on request' });
     const back = await adminPost(`/subscriptions/${id}/reactivate`, {});
     expect(back.body.subscription.status).toBe('TRIAL');
     expect(back.body.invoices).toHaveLength(0);
+    // The directors are told the trial continues – not that a subscription is "active again".
+    const titles = await titlesOf(director.id);
+    expect(titles).toContain('Your facility’s trial is no longer suspended');
+    expect(titles).not.toContain('Your facility’s subscription is active again');
     expect((await adminPost(`/subscriptions/${id}/invoices`)).status).toBe(409);
     const list = await adminGet(`/organizations?q=${f.code}`);
     expect(list.body.items[0].monthlyValueCents).toBe(0);

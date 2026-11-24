@@ -36,8 +36,9 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   administrator can only disable, enable, unlock, sign out and send a password reset e-mail; the
   two-step reset and a new invitation stay with the facility: reception or a director of the
   patient's facility verifies the patient's identity in person and, on the patient's page, sends
-  the invitation again (only while the account was never activated; earlier links stop working,
-  the link goes to the address on record) or resets the two-step sign-in (reason required; every
+  the invitation again (only while the account was never activated; earlier links stop working;
+  the link goes to the address on record, and the pending account takes that address if it was
+  corrected – which is why clinicians can send only the first invitation) or resets the two-step sign-in (reason required; every
   second factor removed, the patient signed out everywhere and notified). Both are audited in the
   same transaction with the patient, so the patient sees them in their access log and the
   administrator's account history does not. The facility's patient list shows only the account

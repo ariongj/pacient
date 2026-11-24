@@ -954,6 +954,7 @@ describe('administrative audit', () => {
       resourceId: string | null;
       targetName: string | null;
       targetPatientAccount: boolean;
+      metadata: Record<string, unknown> | null;
     };
     const shown = async () => {
       const overview = (await api().get('/api/v1/admin/overview').set(asAdmin())).body;
@@ -996,19 +997,24 @@ describe('administrative audit', () => {
       actor: { userId: admin.id, role: 'ADMIN', facilityId: null },
       resourceType: 'user',
       resourceId: w.users.otherPatientUser.id,
-      metadata: { reason: 'Lost phone' },
+      metadata: { reason: 'Lost phone – patient account audit check' },
     });
     const items = await shown();
-    const revoked = items.filter((i) => i.resourceId === w.users.otherPatientUser.id);
+    const revoked = items.filter(
+      (i) => i.metadata?.reason === 'Lost phone – patient account audit check',
+    );
     expect(revoked).toHaveLength(3);
     for (const i of revoked) {
+      // Neither named nor identified: the id would resolve to the name on the account page.
       expect(i).toMatchObject({
         action: AuditAction.ADMIN_SESSIONS_REVOKED,
+        resourceId: null,
         targetName: null,
         targetPatientAccount: true,
       });
     }
     expect(JSON.stringify(items)).not.toContain(w.users.otherPatientUser.fullName);
+    expect(JSON.stringify(items)).not.toContain(w.users.otherPatientUser.id);
     // Staff accounts keep their names.
     expect(items.find((i) => i.resourceId === w.users.nurse.id)).toMatchObject({
       targetName: w.users.nurse.fullName,

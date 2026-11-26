@@ -35,7 +35,15 @@ import {
   addCycle,
   runSubscriptionLifecycle,
 } from '../src/modules/subscriptions/subscriptions.service.js';
-import { api, bearer, createFacility, createUser, createWorld, login } from './helpers.js';
+import {
+  api,
+  bearer,
+  createFacility,
+  createUser,
+  createWorld,
+  login,
+  PASSWORD,
+} from './helpers.js';
 
 /**
  * Invoices reach the customer: billing readiness, facilities' billing details, invoice and credit
@@ -70,8 +78,13 @@ const setSettings = (values: Partial<typeof platformSettings.$inferInsert>) =>
 const adminGet = (path: string) => api().get(`/api/v1/admin${path}`).set(bearer(admin));
 const adminPost = (path: string, body: Record<string, unknown> = {}) =>
   api().post(`/api/v1/admin${path}`).set(bearer(admin)).send(body);
+/** Changing VAT or bank settings asks for the password again (re-authentication). */
 const adminPut = (path: string, body: Record<string, unknown>) =>
-  api().put(`/api/v1/admin${path}`).set(bearer(admin)).send(body);
+  api()
+    .put(`/api/v1/admin${path}`)
+    .set(bearer(admin))
+    .set('X-Reauth-Password', PASSWORD)
+    .send(body);
 
 /** A response body as bytes (PDFs). */
 const binary = (req: Test) =>

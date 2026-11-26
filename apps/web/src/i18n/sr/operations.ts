@@ -85,7 +85,7 @@ export const operations: Record<string, string> = {
   'No failed e-mails': 'Nema neuspelih e-poruka',
   'Recent e-mail failures': 'Nedavni neuspesi e-pošte',
   'Error from the mail server': 'Greška servera pošte',
-  Queued: 'Stavljeno u red',
+  Queued: 'U redu za slanje',
   Notification: 'Obaveštenje',
   'Test e-mail': 'Probna e-poruka',
   'Invoice or credit note': 'Faktura ili knjižno odobrenje',

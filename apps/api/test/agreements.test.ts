@@ -11,7 +11,15 @@ import {
 } from '../src/db/schema.js';
 import { AuditAction } from '../src/modules/audit/audit.service.js';
 import { REVIEW_NOTES } from '../src/modules/platform/legal-templates.js';
-import { api, bearer, createFacility, createUser, createWorld, login } from './helpers.js';
+import {
+  api,
+  bearer,
+  createFacility,
+  createUser,
+  createWorld,
+  login,
+  PASSWORD,
+} from './helpers.js';
 
 /**
  * The service agreement and the data processing agreement: templates, publishing, acceptance per
@@ -31,8 +39,13 @@ const BODY = 'A text that is long enough to be the body of an agreement for the 
 const asAdmin = () => bearer(admin.token);
 const createDoc = (body: Record<string, unknown>) =>
   api().post('/api/v1/admin/legal').set(asAdmin()).send(body);
+/** Publishing asks for the password again (re-authentication). */
 const publish = (id: string) =>
-  api().post(`/api/v1/admin/legal/${id}/publish`).set(asAdmin()).send({});
+  api()
+    .post(`/api/v1/admin/legal/${id}/publish`)
+    .set(asAdmin())
+    .set('X-Reauth-Password', PASSWORD)
+    .send({});
 const agreementsOf = (token: string, locale?: string) =>
   api()
     .get('/api/v1/subscription/agreements')

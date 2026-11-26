@@ -176,8 +176,8 @@ export function PdfButton({
         loading={busy}
         aria-label={
           kind === 'invoice'
-            ? t('Download invoice {number} as PDF', { number: document.number })
-            : t('Download credit note {number} as PDF', { number: document.number })
+            ? t('Download PDF of invoice {number}', { number: document.number })
+            : t('Download PDF of credit note {number}', { number: document.number })
         }
         onClick={async () => {
           setBusy(true);

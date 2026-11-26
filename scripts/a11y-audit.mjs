@@ -54,6 +54,9 @@ const PAGES = {
     '/open-data',
     '/legal/terms',
     '/legal/privacy',
+    '/legal/service-agreement',
+    '/legal/dpa',
+    '/help',
   ],
   'doctor@pacient.local': [
     '/doctor',
@@ -108,6 +111,7 @@ const PAGES = {
     '/director/reports',
     '/director/staff',
     '/director/subscription',
+    '/operator-requests',
     '/director/units',
     '/director/duplicates',
     '/director/integrations',
@@ -162,7 +166,7 @@ const PAGES = {
     '/support',
   ],
   'lab@pacient.local': ['/lab', '/terminology', '/support'],
-  'it@pacient.local': ['/support'],
+  'it@pacient.local': ['/support', '/operator-requests'],
   'admin@pacient.local': [
     '/admin',
     '/admin/users',
@@ -173,6 +177,7 @@ const PAGES = {
     '/admin/legal',
     '/admin/health',
     '/admin/audit',
+    '/admin/requests',
     '/modules',
   ],
 };

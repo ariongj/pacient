@@ -64,8 +64,9 @@ export const billingdocs: Record<string, string> = {
   'Sent on': 'Poslato',
   'Not sent': 'Nije poslato',
   'Download PDF': 'Preuzmi PDF',
-  'Download invoice {number} as PDF': 'Preuzmi fakturu {number} kao PDF',
-  'Download credit note {number} as PDF': 'Preuzmi knjižno odobrenje {number} kao PDF',
+  // The visible "Download PDF" comes first, so the accessible name contains it.
+  'Download PDF of invoice {number}': 'Preuzmi PDF fakture {number}',
+  'Download PDF of credit note {number}': 'Preuzmi PDF knjižnog odobrenja {number}',
   'Documents to download': 'Dokumenti za preuzimanje',
   'Invoices and credit notes as PDF': 'Fakture i knjižna odobrenja kao PDF',
   'For invoice {number}': 'Za fakturu {number}',

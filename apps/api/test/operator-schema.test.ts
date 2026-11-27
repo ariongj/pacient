@@ -118,6 +118,25 @@ describe('payments', () => {
     ).rejects.toThrow();
     await expect(pay(invoice.id, 0)).rejects.toThrow();
   });
+
+  it('are never recorded already reversed (a settled invoice could reopen without one)', async () => {
+    const invoice = await newInvoice();
+    const err = await db
+      .insert(invoicePayments)
+      .values({
+        invoiceId: invoice.id,
+        amountCents: 10_000,
+        paidAt: new Date(),
+        method: 'CASH',
+        recordedById: adminId,
+        ...reverse(),
+      })
+      .then(
+        () => null,
+        (e: unknown) => e as { cause?: { message?: string } },
+      );
+    expect(err?.cause?.message).toMatch(/recorded first and reversed afterwards/);
+  });
 });
 
 describe('a settled invoice', () => {

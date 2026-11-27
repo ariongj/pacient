@@ -135,7 +135,14 @@ export const guardianRelationshipEnum = pgEnum('guardian_relationship', [
 export const proxyScopeEnum = pgEnum('proxy_scope', ['FULL', 'APPOINTMENTS']);
 export const emailPreferenceEnum = pgEnum('email_preference', ['ALL', 'IMPORTANT', 'OFF']);
 /** Delivery state of queued email and SMS messages. */
-export const emailStatusEnum = pgEnum('email_status', ['PENDING', 'SENDING', 'SENT', 'FAILED']);
+/** CANCELLED: withdrawn before it went out (e.g. the invoice it carried was voided). */
+export const emailStatusEnum = pgEnum('email_status', [
+  'PENDING',
+  'SENDING',
+  'SENT',
+  'FAILED',
+  'CANCELLED',
+]);
 /** SMS costs money and reaches lock screens: opt-in, important notifications only. */
 export const smsPreferenceEnum = pgEnum('sms_preference', ['IMPORTANT', 'OFF']);
 export const labOrderStatusEnum = pgEnum('lab_order_status', [
@@ -1075,6 +1082,8 @@ export const emailOutbox = pgTable(
      */
     attachmentKind: varchar('attachment_kind', { length: 20 }).$type<'invoice' | 'credit_note'>(),
     attachmentId: uuid('attachment_id'),
+    /** The language the message was written in: its attachment is rendered in the same one. */
+    attachmentLocale: varchar('attachment_locale', { length: 2 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -5323,7 +5332,13 @@ export const workerRuns = pgTable(
     summary: jsonb('summary').$type<Record<string, number>>(),
     error: varchar('error', { length: 500 }),
   },
-  (t) => [index('worker_runs_worker_idx').on(t.worker, t.startedAt.desc())],
+  (t) => [
+    index('worker_runs_worker_idx').on(t.worker, t.startedAt.desc()),
+    // The last failure of each worker, without walking its successful runs.
+    index('worker_runs_failed_idx')
+      .on(t.worker, t.startedAt.desc())
+      .where(sql`${t.ok} = false`),
+  ],
 );
 
 /** The last success of jobs that run outside the API (e.g. 'backup'), reported to it. */
@@ -5432,6 +5447,11 @@ export const operatorRequestMessages = pgTable(
     authorId: uuid('author_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
+    /**
+     * Written by the operator (an administrator) or by the facility – fixed when the message is
+     * written, so a later change of the author's role never moves it to the other side.
+     */
+    fromOperator: boolean('from_operator').notNull().default(false),
     body: text('body').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

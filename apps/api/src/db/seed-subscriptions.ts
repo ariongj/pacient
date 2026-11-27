@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm';
 import { db, type Executor } from './client.js';
 import {
   facilities,
+  facilityBillingProfiles,
   invoicePayments,
   invoices,
   subscriptionPlans,
@@ -122,6 +123,68 @@ export async function seedSubscriptions(opts: { adminId: string }) {
           .returning()
       )[0]!;
     await ensureDefaultChannels(dardania.id, tx);
+
+    // Billing details of the customers (clearly synthetic: no real entity, number or address);
+    // copied onto every invoice issued below, as issueInvoice() does.
+    const profiles: [
+      typeof facilities.$inferSelect | undefined,
+      typeof facilityBillingProfiles.$inferInsert,
+    ][] = [
+      [
+        ucc,
+        {
+          facilityId: ucc?.id ?? '',
+          legalName: 'QKUK – entitet ligjor demo',
+          businessNumber: '810000101',
+          fiscalNumber: '600000101',
+          billingAddress: 'Rr. Spitalit 1, 10000 Prishtinë (demo)',
+          billingEmails: ['finance.ucc@pacient.local'],
+          contactName: 'Zyra e financave (demo)',
+          customerReference: 'KONTRATA-DEMO-2026/01',
+        },
+      ],
+      [
+        prizren,
+        {
+          facilityId: prizren?.id ?? '',
+          legalName: 'Spitali Regjional Prizren – entitet ligjor demo',
+          businessNumber: '810000102',
+          fiscalNumber: '600000102',
+          billingEmails: ['finance.prizren@pacient.local'],
+          customerReference: 'POROSIA-DEMO-118',
+        },
+      ],
+      [
+        peja,
+        {
+          facilityId: peja?.id ?? '',
+          legalName: 'QKMF Pejë – entitet ligjor demo',
+          businessNumber: '810000103',
+          fiscalNumber: '600000103',
+          billingEmails: [],
+        },
+      ],
+      [
+        dardania,
+        {
+          facilityId: dardania.id,
+          legalName: 'Poliklinika Dardania SH.P.K. (demo)',
+          businessNumber: '810000104',
+          fiscalNumber: '600000104',
+          vatNumber: '330000104',
+          billingAddress: 'Rr. Bill Clinton 22, 10000 Prishtinë (demo)',
+          billingEmails: ['kontabiliteti.dardania@pacient.local'],
+          contactName: 'Kontabiliteti (demo)',
+        },
+      ],
+    ];
+    for (const [facility, profile] of profiles) {
+      if (!facility) continue;
+      await tx
+        .insert(facilityBillingProfiles)
+        .values({ ...profile, updatedById: opts.adminId })
+        .onConflictDoNothing();
+    }
 
     const invoicesToIssue: InvoiceSpec[] = [];
     const subscribe = async (
@@ -392,6 +455,10 @@ async function issueSeedInvoice(
   admin: { userId: string; role: 'ADMIN'; facilityId: null },
 ) {
   const { subscription: s, plan, facility } = spec;
+  const [profile] = await tx
+    .select()
+    .from(facilityBillingProfiles)
+    .where(eq(facilityBillingProfiles.facilityId, facility.id));
   const number = await nextInvoiceNumber(tx, settings.invoicePrefix, spec.issuedAt);
   const netCents = s.priceCents;
   const taxCents = Math.round((netCents * settings.vatRateBp) / 10_000);
@@ -431,6 +498,12 @@ async function issueSeedInvoice(
         address: facility.address,
         municipality: facility.municipality,
         region: facility.region,
+        legalName: profile?.legalName ?? null,
+        businessNumber: profile?.businessNumber ?? null,
+        fiscalNumber: profile?.fiscalNumber ?? null,
+        vatNumber: profile?.vatNumber ?? null,
+        billingAddress: profile?.billingAddress ?? null,
+        customerReference: profile?.customerReference ?? null,
       },
       createdById: spec.byAdmin ? admin.userId : null,
       createdAt: spec.issuedAt,

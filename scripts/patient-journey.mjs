@@ -216,16 +216,26 @@ await as(
     const d = dialog(page);
     await pick(d.getByLabel('Doctor'), /Gentiana Bytyqi/);
     await d.getByRole('button', { name: 'Other time' }).click();
-    const at = new Date(Date.now() + 15 * 60_000);
-    const pad = (n) => String(n).padStart(2, '0');
-    await d
-      .getByLabel('Date and time')
-      .fill(
-        `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`,
-      );
     await d.getByLabel('Reason for the visit').fill('Cough and fever for three days');
-    await d.getByRole('button', { name: 'Book appointment' }).click();
-    await expectClosed(page, 'booking');
+    const pad = (n) => String(n).padStart(2, '0');
+    // Soon today; if the doctor already has a confirmed appointment then (the demo data places
+    // appointments around today), the front desk picks the next free ten minutes.
+    for (let minutes = 15; ; minutes += 10) {
+      const at = new Date(Date.now() + minutes * 60_000);
+      await d
+        .getByLabel('Date and time')
+        .fill(
+          `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`,
+        );
+      await d.getByRole('button', { name: 'Book appointment' }).click();
+      await settle(page);
+      if (!(await dialog(page).count())) break;
+      const taken = (await text(dialog(page))).includes('already has a confirmed appointment');
+      if (!taken || minutes >= 135) await expectClosed(page, 'booking');
+      // That refusal was the expected answer for a taken slot, not an error of the journey.
+      const i = apiErrors.findLastIndex((e) => e.endsWith('409 POST /appointments'));
+      if (i > -1) apiErrors.splice(i, 1);
+    }
   },
 );
 

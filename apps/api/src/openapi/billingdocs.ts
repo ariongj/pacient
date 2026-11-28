@@ -100,7 +100,7 @@ export const BILLINGDOCS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/invoices/{id}/deliveries', T, 'Who an invoice was e-mailed to', {
     access: ADMIN,
     description:
-      'Each message: why (ISSUED, REMINDER, RESEND), to which address, when it was queued and by whom, and its outbox status (sent, waiting, failed).',
+      'Each message: why (ISSUED, REMINDER, RESEND), to which address, when it was queued and by whom, and its outbox status (sent, waiting, failed, or CANCELLED: not sent because the invoice was voided while it waited).',
   }),
   op('get', '/admin/credit-notes/{id}/deliveries', T, 'Who a credit note was e-mailed to', {
     access: ADMIN,

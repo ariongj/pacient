@@ -18,7 +18,7 @@ import {
   type subscriptionEventTypeEnum,
   type subscriptionStatusEnum,
 } from '../../db/schema.js';
-import { conflict, HttpError } from '../../lib/errors.js';
+import { conflict, HttpError, notFound } from '../../lib/errors.js';
 import type { AuthContext, RequestMeta } from '../../lib/http.js';
 import { logger } from '../../lib/logger.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
@@ -724,8 +724,9 @@ export const endAsScheduled = (
  * subscription or one suspended for non-payment:
  *  - a cancellation scheduled for a date that has passed takes effect (no new period, no invoice);
  *  - with nothing overdue any more it is active again. A suspended one whose period ended starts a
- *    new period now, with its invoice (no back-billing); a past-due one keeps its period and the
- *    subscription worker renews it where it ended;
+ *    new period now, with its invoice (no back-billing) – while billing is not ready, the worker
+ *    starts that period from now and invoices it once it is, and the change is never refused; a
+ *    past-due one keeps its period and the subscription worker renews it where it ended;
  *  - with invoices still overdue the grace period counts from the oldest of them (or from a fresh
  *    grace period an administrator gave on reactivating, if later), and a suspended subscription
  *    whose grace period is then not over is back to "payment overdue".
@@ -760,6 +761,12 @@ export async function restoreStanding(
   }
   const status = since ? 'PAST_DUE' : 'ACTIVE';
   const newPeriod = s.status === 'SUSPENDED' && s.currentPeriodEnd <= now;
+  // Money received is never refused because billing is not ready. When the new period cannot be
+  // invoiced yet (the operator settings are incomplete), the suspension is lifted all the same and
+  // the period that ended is closed now: the subscription worker starts the next one from here –
+  // as it would have started today, without back-billing the suspension – and invoices it once
+  // the settings are complete (it waits and alerts the operator meanwhile).
+  const invoiceNow = newPeriod && missingBillingSettings(settings).length === 0;
   const [updated] = await executor
     .update(subscriptions)
     .set({
@@ -767,7 +774,11 @@ export async function restoreStanding(
       pastDueSince: since,
       suspendedAt: null,
       suspensionCause: null,
-      ...(newPeriod ? periodFrom(s, now, { renewal: false }) : {}),
+      ...(invoiceNow
+        ? periodFrom(s, now, { renewal: false })
+        : newPeriod
+          ? { currentPeriodEnd: now, billingAnchor: now }
+          : {}),
     })
     .where(eq(subscriptions.id, s.id))
     .returning();
@@ -782,7 +793,7 @@ export async function restoreStanding(
   });
   await auditChange(executor, opts.actor, s, { event: 'REACTIVATED', status }, opts.meta);
   await notifyLifted(executor, updated!, now);
-  if (newPeriod) {
+  if (invoiceNow) {
     await recordScheduledCycle(executor, s, updated!, now);
     await issueInvoice(
       executor,
@@ -803,6 +814,32 @@ export async function restoreStanding(
  * happens outside Pacient.
  */
 
+/**
+ * Locks an invoice and its subscription in the one order every change of an invoice takes – the
+ * subscription first, then the invoice, as the subscription worker does – so that two changes of
+ * the same invoice never work from the same figures, and a change and the worker queue up behind
+ * each other instead of deadlocking.
+ */
+export async function lockInvoice(tx: Executor, invoiceId: string) {
+  // Which subscription it belongs to never changes (the invoice trigger), so it is read unlocked.
+  const [found] = await tx
+    .select({ subscriptionId: invoices.subscriptionId })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId));
+  if (!found) throw notFound('Invoice not found');
+  const [subscription] = await tx
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.id, found.subscriptionId))
+    .for('update');
+  const [invoice] = await tx
+    .select()
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .for('update');
+  return { invoice: invoice!, subscription: subscription! };
+}
+
 /** Why an invoice can no longer be voided (a credit note corrects it instead). */
 export type VoidBlock = 'NOT_OPEN' | 'PAYMENTS' | 'CREDIT_NOTES' | 'NOT_THIS_MONTH' | 'EMAILED';
 
@@ -810,9 +847,13 @@ export interface InvoiceAccount {
   /** Payments that were not reversed. */
   paidCents: number;
   creditedCents: number;
+  /** Refunds the administrator recorded (made outside Pacient). */
+  refundedCents: number;
   /** Still owed; 0 once the invoice is settled or voided. */
   balanceCents: number;
-  /** Received and credited beyond the total: to be refunded outside Pacient. */
+  /**
+   * Received and credited beyond the total and not refunded yet: to be refunded outside Pacient.
+   */
   toRefundCents: number;
   /** What a further credit note may still cover: the total less earlier credit notes. */
   creditableCents: number;
@@ -858,13 +899,63 @@ export const VOID_REFUSED: Record<VoidBlock, string> = {
 };
 
 /**
- * Payments, credit notes and balance of invoices, by invoice id. Inside a transaction that locked
- * the invoice, the figures are those the change is about to build on.
+ * A refund the administrator recorded: a NOTE in the subscription history whose data carries the
+ * amount and the invoice it refunds (money is given back outside Pacient).
+ */
+export interface RefundData {
+  refundCents: number;
+  invoiceId: string;
+  number: string;
+  currency: string;
+  /** When the money was given back (the day of the transfer). */
+  refundedAt: string;
+  reference: string | null;
+}
+
+/** The refunds recorded for an invoice, oldest first, with who recorded them. */
+export async function refundsOf(executor: Executor, inv: Pick<Invoice, 'id' | 'subscriptionId'>) {
+  const rows = await executor
+    .select({ event: subscriptionEvents, recordedBy: users.fullName })
+    .from(subscriptionEvents)
+    .leftJoin(users, eq(users.id, subscriptionEvents.actorId))
+    .where(
+      and(
+        eq(subscriptionEvents.subscriptionId, inv.subscriptionId),
+        eq(subscriptionEvents.type, 'NOTE'),
+        sql`${subscriptionEvents.data}->>'refundCents' IS NOT NULL`,
+        sql`${subscriptionEvents.data}->>'invoiceId' = ${inv.id}`,
+      ),
+    )
+    .orderBy(asc(subscriptionEvents.createdAt));
+  return rows.map(({ event, recordedBy }) => {
+    const d = event.data as unknown as RefundData;
+    return {
+      id: event.id,
+      amountCents: Number(d.refundCents),
+      refundedAt: new Date(d.refundedAt),
+      reference: d.reference ?? null,
+      recordedAt: event.createdAt,
+      recordedBy: recordedBy ?? null,
+    };
+  });
+}
+
+/**
+ * Who reads an invoice's account: the operator, or the facility – its directors, and the documents
+ * and e-mails it receives –, which is told nothing about voiding.
+ */
+export type AccountAudience = 'admin' | 'director';
+
+/**
+ * Payments, credit notes, refunds and balance of invoices, by invoice id. Inside a transaction
+ * that locked the invoice, the figures are those the change is about to build on. For a
+ * director, whether the invoice may still be voided is not worked out (voidBlock is null).
  */
 export async function accountsOf(
   executor: Executor,
-  rows: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt'>[],
+  rows: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt' | 'subscriptionId'>[],
   now = new Date(),
+  audience: AccountAudience = 'admin',
 ): Promise<Map<string, InvoiceAccount>> {
   const out = new Map<string, InvoiceAccount>();
   if (!rows.length) return out;
@@ -887,8 +978,26 @@ export async function accountsOf(
     .from(creditNotes)
     .where(inArray(creditNotes.invoiceId, ids))
     .groupBy(creditNotes.invoiceId);
+  // Refunds are found through the subscriptions' history (indexed), then by invoice.
+  const subscriptionIds = [...new Set(rows.map((r) => r.subscriptionId))];
+  const refunded = await executor
+    .select({
+      invoiceId: sql<string>`${subscriptionEvents.data}->>'invoiceId'`,
+      cents: sql<number>`sum((${subscriptionEvents.data}->>'refundCents')::int)::int`,
+    })
+    .from(subscriptionEvents)
+    .where(
+      and(
+        inArray(subscriptionEvents.subscriptionId, subscriptionIds),
+        eq(subscriptionEvents.type, 'NOTE'),
+        sql`${subscriptionEvents.data}->>'refundCents' IS NOT NULL`,
+        inArray(sql<string>`${subscriptionEvents.data}->>'invoiceId'`, ids),
+      ),
+    )
+    .groupBy(sql`${subscriptionEvents.data}->>'invoiceId'`);
   // "Sent" also while the worker is handing the message over: it may be out a moment later.
-  const openIds = rows.filter((r) => r.status === 'OPEN').map((r) => r.id);
+  const openIds =
+    audience === 'admin' ? rows.filter((r) => r.status === 'OPEN').map((r) => r.id) : [];
   const emailed = openIds.length
     ? await executor
         .selectDistinct({ invoiceId: billingDeliveries.invoiceId })
@@ -903,25 +1012,33 @@ export async function accountsOf(
     : [];
   const paidBy = new Map(paid.map((p) => [p.invoiceId, p]));
   const creditedBy = new Map(credited.map((c) => [c.invoiceId, c]));
+  const refundedBy = new Map(refunded.map((r) => [r.invoiceId, r.cents]));
   const emailedIds = new Set(emailed.map((e) => e.invoiceId));
   for (const inv of rows) {
     const p = paidBy.get(inv.id);
     const c = creditedBy.get(inv.id);
     const paidCents = p?.cents ?? 0;
     const creditedCents = c?.cents ?? 0;
+    const refundedCents = refundedBy.get(inv.id) ?? 0;
     out.set(inv.id, {
       paidCents,
       creditedCents,
+      refundedCents,
       balanceCents:
         inv.status === 'OPEN' ? Math.max(0, inv.totalCents - paidCents - creditedCents) : 0,
       toRefundCents:
-        inv.status === 'VOID' ? 0 : Math.max(0, paidCents + creditedCents - inv.totalCents),
+        inv.status === 'VOID'
+          ? 0
+          : Math.max(0, paidCents + creditedCents - inv.totalCents - refundedCents),
       creditableCents: inv.status === 'VOID' ? 0 : Math.max(0, inv.totalCents - creditedCents),
-      voidBlock: voidBlockOf(
-        inv,
-        { payments: p?.n ?? 0, creditNotes: c?.n ?? 0, emailed: emailedIds.has(inv.id) },
-        now,
-      ),
+      voidBlock:
+        audience === 'admin'
+          ? voidBlockOf(
+              inv,
+              { payments: p?.n ?? 0, creditNotes: c?.n ?? 0, emailed: emailedIds.has(inv.id) },
+              now,
+            )
+          : null,
     });
   }
   return out;
@@ -930,20 +1047,43 @@ export async function accountsOf(
 /** The account of one invoice (see accountsOf). */
 export async function accountOf(
   executor: Executor,
-  inv: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt'>,
+  inv: Pick<Invoice, 'id' | 'status' | 'totalCents' | 'issuedAt' | 'subscriptionId'>,
   now = new Date(),
+  audience: AccountAudience = 'admin',
 ) {
-  return (await accountsOf(executor, [inv], now)).get(inv.id)!;
+  return (await accountsOf(executor, [inv], now, audience)).get(inv.id)!;
 }
 
-/** Invoices for display with their account (paid, credited, balance, to refund). */
+/** What a facility's director sees of an invoice's account: nothing about voiding. */
+export type DirectorAccount = Omit<InvoiceAccount, 'voidBlock'>;
+
+/**
+ * Invoices for display with their account (paid, credited, balance, to refund) – for a
+ * director without anything only the operator needs (voidBlock).
+ */
+export async function withAccounts<T extends Invoice>(
+  executor: Executor,
+  items: T[],
+  now?: Date,
+  audience?: 'admin',
+): Promise<(T & { account: InvoiceAccount })[]>;
+export async function withAccounts<T extends Invoice>(
+  executor: Executor,
+  items: T[],
+  now: Date,
+  audience: 'director',
+): Promise<(T & { account: DirectorAccount })[]>;
 export async function withAccounts<T extends Invoice>(
   executor: Executor,
   items: T[],
   now = new Date(),
-): Promise<(T & { account: InvoiceAccount })[]> {
-  const accounts = await accountsOf(executor, items, now);
-  return items.map((i) => ({ ...i, account: accounts.get(i.id)! }));
+  audience: AccountAudience = 'admin',
+): Promise<(T & { account: InvoiceAccount | DirectorAccount })[]> {
+  const accounts = await accountsOf(executor, items, now, audience);
+  return items.map((i) => {
+    const { voidBlock, ...account } = accounts.get(i.id)!;
+    return { ...i, account: audience === 'admin' ? { ...account, voidBlock } : account };
+  });
 }
 
 /** Next credit note number of the year (`<prefix>-CN-2026-00001`); the counter row stays locked. */
@@ -1025,15 +1165,17 @@ export async function settlementOf(
 /**
  * After a payment was reversed and its invoice is owed again: an active subscription with an
  * invoice now overdue is past due again, the grace period counting from the oldest overdue due
- * date, and the directors are told once, as by the subscription worker. It is never suspended
- * here – the worker does that when the grace period is over, as for any overdue invoice. Any
- * other state stays as it is: a past-due subscription keeps its grace period (an administrator
- * may have given a fresh one), and a suspended, cancelled or ended one is not affected.
+ * date. The directors are told, and the reopened invoice is e-mailed as an overdue reminder –
+ * also when they were told of this past-due period before (the invoice was overdue, then paid, and
+ * now its payment is reversed): the reminder is kept per reversal. It is never suspended here –
+ * the worker does that when the grace period is over, as for any overdue invoice. Any other state
+ * stays as it is: a past-due subscription keeps its grace period (an administrator may have given
+ * a fresh one; round-1 rule BILL-4), and a suspended, cancelled or ended one is not affected.
  */
 export async function standingAfterReversal(
   executor: Executor,
   s: Subscription,
-  opts: { actor: Actor; meta?: RequestMeta; now?: Date },
+  opts: { actor: Actor; meta?: RequestMeta; now?: Date; invoiceId: string; paymentId: string },
 ) {
   const now = opts.now ?? new Date();
   if (s.status !== 'ACTIVE') return;
@@ -1060,22 +1202,75 @@ export async function standingAfterReversal(
     { event: 'MARKED_PAST_DUE', reason: 'payment reversed' },
     opts.meta,
   );
-  await remindOnce(
-    executor,
-    updated!,
-    pastDueKey(updated!.pastDueSince!),
-    PAST_DUE_NOTICE,
-    {},
-    now,
-    true,
+  // The notice of this past-due period the first time; after an earlier one (of the same period,
+  // which the worker would not repeat) under a key of this reversal's own.
+  const periodKey = pastDueKey(updated!.pastDueSince!);
+  const key = (await reminderSent(executor, s.id, periodKey))
+    ? `${periodKey}:reversal:${opts.paymentId}`
+    : periodKey;
+  await remindOnce(executor, updated!, key, PAST_DUE_NOTICE, {}, now, true, () =>
+    overdueDocuments(executor, updated!, now, opts.invoiceId),
   );
 }
 
 /* ------------------------------------------------------------------ lifecycle ---------------- */
 
-/** Key of the notice of an overdue invoice: once per past-due period (by when it started). */
+/**
+ * Key of the notice of an overdue invoice: once per past-due period (by when it started). Further
+ * reminders of the same period – an invoice that became overdue later, a reversal – extend it
+ * (`past-due:<since>:…`).
+ */
 const pastDueKey = (since: Date) => `past-due:${since.toISOString()}`;
 const PAST_DUE_NOTICE = 'Your facility’s subscription has an overdue invoice';
+
+/**
+ * The invoices already e-mailed as overdue reminders in a past-due period: those listed by its
+ * reminders (REMINDER_SENT entries under its key). A reminder recorded without the list (when a
+ * suspension was lifted, or before the list was kept) covers the invoices that were overdue when
+ * it was recorded.
+ */
+async function remindedInvoices(executor: Executor, s: Subscription, periodKey: string) {
+  const rows = await executor
+    .select({ data: subscriptionEvents.data, at: subscriptionEvents.createdAt })
+    .from(subscriptionEvents)
+    .where(
+      and(
+        eq(subscriptionEvents.subscriptionId, s.id),
+        eq(subscriptionEvents.type, 'REMINDER_SENT'),
+        sql`(${subscriptionEvents.data}->>'key' = ${periodKey} OR ${subscriptionEvents.data}->>'key' LIKE ${`${periodKey}:%`})`,
+      ),
+    );
+  const ids = new Set<string>();
+  let coveredUntil: Date | null = null;
+  for (const r of rows) {
+    const listed = (r.data as { invoices?: unknown }).invoices;
+    if (Array.isArray(listed)) {
+      for (const id of listed) if (typeof id === 'string') ids.add(id);
+    } else if (!coveredUntil || r.at > coveredUntil) {
+      coveredUntil = r.at;
+    }
+  }
+  return (invoice: Pick<Invoice, 'id' | 'dueAt'>) =>
+    ids.has(invoice.id) || (coveredUntil !== null && invoice.dueAt < coveredUntil);
+}
+
+/**
+ * E-mails the overdue invoices of a past-due subscription as reminders (kind REMINDER, to its
+ * billing e-mails and directors): each invoice once per past-due period – so one that becomes
+ * overdue later in the period is sent too – and `again`, an invoice a reversal made overdue once
+ * more, in any case. Returns the invoices queued (those with someone to send them to).
+ */
+async function overdueDocuments(executor: Executor, s: Subscription, now: Date, again?: string) {
+  const reminded = await remindedInvoices(executor, s, pastDueKey(s.pastDueSince!));
+  const queued: string[] = [];
+  for (const invoice of await overdueInvoices(executor, s.id, now)) {
+    if (invoice.id !== again && reminded(invoice)) continue;
+    if (await queueBillingDocument(executor, { invoiceId: invoice.id, kind: 'REMINDER' })) {
+      queued.push(invoice.id);
+    }
+  }
+  return queued;
+}
 
 /**
  * Tells the directors that a suspension was lifted (by a payment or by the administrator). Only
@@ -1125,8 +1320,8 @@ async function reminderSent(executor: Executor, subscriptionId: string, key: str
 /**
  * Sends a reminder to the facility's directors once per key (REMINDER_SENT in the history).
  * `documents` e-mails the billing documents that go with it (the overdue invoices) and returns
- * how many messages it queued. A reminder that reached no one – no active director yet and no
- * billing e-mail – is not recorded, so a later run sends it once there is one.
+ * the invoices it queued, which the entry lists. A reminder that reached no one – no active
+ * director yet and no billing e-mail – is not recorded, so a later run sends it once there is one.
  */
 async function remindOnce(
   executor: Executor,
@@ -1136,21 +1331,24 @@ async function remindOnce(
   vars: Record<string, string | number | Date>,
   now: Date,
   important = false,
-  documents?: () => Promise<number>,
+  documents?: () => Promise<string[]>,
 ) {
   if (await reminderSent(executor, subscription.id, key)) return false;
   const told = await notifyDirectors(executor, subscription.facilityId, title, vars, important);
-  const sent = documents ? await documents() : 0;
-  if (!told && !sent) return false;
+  const sent = documents ? await documents() : null;
+  if (!told && !sent?.length) return false;
   await recordEvent(executor, {
     subscription,
     type: 'REMINDER_SENT',
     actor: null,
-    data: { key, title },
+    data: { key, title, ...(sent ? { invoices: sent } : {}) },
     at: now,
   });
   return true;
 }
+
+/** Title of the reminder that e-mails an invoice overdue later in a past-due period. */
+const OVERDUE_DOCUMENT = 'Overdue invoice e-mailed again';
 
 export interface LifecycleResult {
   checked: number;
@@ -1181,6 +1379,15 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
       .where(eq(subscriptions.id, subscriptionId))
       .for('update');
     if (!locked) return;
+    // One lock order for every change of an invoice: its subscription first, then the invoice.
+    // A payment, reversal, credit note or void of one of these invoices waits for this run (and
+    // this run for it) instead of each holding what the other needs – the reminders below insert
+    // rows that refer to the invoices, which needs them unlocked by anyone else.
+    await tx
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(and(eq(invoices.subscriptionId, subscriptionId), eq(invoices.status, 'OPEN')))
+      .for('update');
     let s: Subscription = locked;
     const update = async (set: Partial<typeof subscriptions.$inferInsert>) => {
       const [row] = await tx
@@ -1270,29 +1477,32 @@ async function advance(subscriptionId: string, now: Date, result: LifecycleResul
     // 4. The notice of an overdue invoice, once per past-due period – before a suspension in
     //    the same run (e.g. after an outage longer than the grace period), so the directors are
     //    always told of the overdue invoice first. The overdue invoices themselves are e-mailed
-    //    again with it (to the billing e-mails and the directors). Repeated at a later run if no
-    //    one could be told yet.
-    if (
-      s.status === 'PAST_DUE' &&
-      s.pastDueSince &&
-      (await remindOnce(
-        tx,
-        s,
-        pastDueKey(s.pastDueSince),
-        PAST_DUE_NOTICE,
-        {},
-        now,
-        true,
-        async () => {
-          let queued = 0;
-          for (const invoice of await overdueInvoices(tx, s.id, now)) {
-            queued += await queueBillingDocument(tx, { invoiceId: invoice.id, kind: 'REMINDER' });
-          }
-          return queued;
-        },
-      ))
-    ) {
-      result.reminders++;
+    //    again with it (to the billing e-mails and the directors), each once per past-due period:
+    //    one that becomes overdue later in the period is e-mailed when it does, under a key of
+    //    its own. Repeated at a later run if no one could be told yet.
+    if (s.status === 'PAST_DUE' && s.pastDueSince) {
+      const periodKey = pastDueKey(s.pastDueSince);
+      const current = s;
+      if (await reminderSent(tx, s.id, periodKey)) {
+        let later = false;
+        for (const invoiceId of await overdueDocuments(tx, current, now)) {
+          await event('REMINDER_SENT', {
+            data: {
+              key: `${periodKey}:${invoiceId}`,
+              title: OVERDUE_DOCUMENT,
+              invoices: [invoiceId],
+            },
+          });
+          later = true;
+        }
+        if (later) result.reminders++;
+      } else if (
+        await remindOnce(tx, s, periodKey, PAST_DUE_NOTICE, {}, now, true, () =>
+          overdueDocuments(tx, current, now),
+        )
+      ) {
+        result.reminders++;
+      }
     }
 
     // 5. Past due for longer than the grace period: suspended for non-payment (no new staff
@@ -1577,8 +1787,8 @@ export async function invoiceLines(invoiceIds: string[], executor: Executor = db
   return lines;
 }
 
-/** Invoices of a subscription (or facility), newest first, ready for display. */
-export async function invoicesOf(facilityId: string, executor: Executor = db, now = new Date()) {
+/** Invoices of a facility, newest first, ready for display (without their accounts). */
+async function facilityInvoices(facilityId: string, executor: Executor, now: Date) {
   const rows = await executor
     .select()
     .from(invoices)
@@ -1588,9 +1798,34 @@ export async function invoicesOf(facilityId: string, executor: Executor = db, no
     rows.map((r) => r.id),
     executor,
   );
-  return withAccounts(
-    executor,
-    rows.map((r) => presentInvoice(r, lines.get(r.id) ?? null, now)),
+  return rows.map((r) => presentInvoice(r, lines.get(r.id) ?? null, now));
+}
+
+/** Invoices of a facility, newest first, with their accounts (the administrator's view). */
+export async function invoicesOf(facilityId: string, executor: Executor = db, now = new Date()) {
+  return withAccounts(executor, await facilityInvoices(facilityId, executor, now), now);
+}
+
+/**
+ * An invoice as a facility's director sees it: how far the operator's e-mailing of it has got
+ * (sentAt, sending) is the operator's business, like its deliveries.
+ */
+export const forDirector = <T extends { sentAt?: unknown; sending?: unknown }>(invoice: T) => {
+  const { sentAt: _sentAt, sending: _sending, ...rest } = invoice;
+  return rest;
+};
+
+/**
+ * The same for the facility's directors (GET /subscription): nothing that only the operator needs
+ * – not whether an invoice may still be voided (nor the outbox query that finds out), nor how far
+ * its e-mailing has got.
+ */
+export async function directorInvoicesOf(facilityId: string, now = new Date()) {
+  const items = await withAccounts(
+    db,
+    await facilityInvoices(facilityId, db, now),
     now,
+    'director',
   );
+  return items.map(forDirector);
 }

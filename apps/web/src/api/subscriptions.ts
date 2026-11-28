@@ -555,6 +555,8 @@ export const paymentMethodLabel = (m: string | null | undefined) => {
     CASH: t('Cash'),
     CARD: t('Card'),
     OTHER: t('Other'),
+    // An invoice settled by a credit note.
+    CREDIT_NOTE: t('Credit note'),
   };
   return m ? (labels[m] ?? m) : '—';
 };
@@ -587,6 +589,7 @@ export const seatsText = (used: number, limit: number | null) =>
 export function eventLabel(type: SubscriptionEventType, data?: Record<string, unknown>) {
   if (type === 'PAYMENT_RECORDED' && data?.reversal) return t('Payment reversed');
   if (type === 'INVOICE_ISSUED' && data?.creditNote) return t('Credit note issued');
+  if (type === 'NOTE' && typeof data?.refundCents === 'number') return t('Refund recorded');
   return (
     {
       CREATED: t('Subscription created'),
@@ -716,9 +719,25 @@ export function describeEvent(e: SubscriptionEvent): string | null {
         return t('The trial ends on {date}', { date: formatDate(at) });
       if (key.startsWith('renewal:'))
         return t('The subscription renews on {date}', { date: formatDate(at) });
+      // An invoice that became overdue later in the period: e-mailed again on its own.
+      if (/^past-due:.*:[0-9a-f-]{36}$/.test(key) && !key.includes(':reversal:')) {
+        return t('An overdue invoice was e-mailed again');
+      }
       if (key.startsWith('past-due:')) return t('An invoice is overdue');
       if (key.startsWith('suspended:')) return t('New staff accounts cannot be added');
       return null;
+    }
+    case 'NOTE': {
+      // A refund made outside Pacient, recorded by the administrator.
+      if (num(d.refundCents) === null) return reason ? reasonText(reason) : null;
+      return [
+        str(d.number),
+        formatMoney(num(d.refundCents), str(d.currency) ?? 'EUR'),
+        str(d.refundedAt) ? t('refunded on {date}', { date: formatDate(str(d.refundedAt)) }) : null,
+        str(d.reference),
+      ]
+        .filter(Boolean)
+        .join(' · ');
     }
     default:
       return reason ? reasonText(reason) : null;

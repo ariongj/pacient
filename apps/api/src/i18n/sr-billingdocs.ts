@@ -24,6 +24,17 @@ export const srBillingdocs: Record<string, string> = {
   'Please find attached credit note {number} for invoice {invoice}.':
     'U prilogu je knjižno odobrenje {number} za fakturu {invoice}.',
   'Amount credited: {total}.': 'Odobreni iznos: {total}.',
+  // What is still owed when the message is queued.
+  'Still to pay: {balance} of {total}, due by {date}.':
+    'Preostalo za plaćanje: {balance} od {total}, rok plaćanja {date}.',
+  'This invoice is paid – attached for your records.':
+    'Ova faktura je plaćena – u prilogu je za vašu evidenciju.',
+  'Invoice {invoice} was already paid: {balance} will be refunded to you.':
+    'Faktura {invoice} je već plaćena: iznos od {balance} biće vam vraćen.',
+  'Still to pay on invoice {invoice}: {balance}.':
+    'Preostalo za plaćanje po fakturi {invoice}: {balance}.',
+  'Invoice {invoice} is settled: there is nothing more to pay.':
+    'Faktura {invoice} je izmirena: nema više ništa za plaćanje.',
   'You receive this e-mail as a billing contact of a facility that uses Pacient. Billing e-mails never contain health information.':
     'Ovaj e-mail primate kao kontakt za fakturisanje ustanove koja koristi Pacient. E-mailovi o fakturisanju nikada ne sadrže zdravstvene podatke.',
 
@@ -58,6 +69,10 @@ export const srBillingdocs: Record<string, string> = {
   'There is nothing to pay.': 'Nema ništa za plaćanje.',
   'Please pay {amount} by bank transfer by {date}.':
     'Molimo uplatite {amount} bankovnim prenosom do {date}.',
+  'Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.':
+    'Preostalo za plaćanje: {balance} od {total}. Molimo uplatite bankovnim prenosom do {date}.',
+  'This invoice is paid. There is nothing more to pay.':
+    'Ova faktura je plaćena. Nema više ništa za plaćanje.',
   Bank: 'Banka',
   'Payment reference': 'Poziv na broj',
   'Paid on {date}': 'Plaćeno {date}',

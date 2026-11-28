@@ -5,15 +5,16 @@ import { useUser } from '../../../auth/AuthContext';
 import { Button, PageHeader, QueryView } from '../../../components/ui';
 import { formatDate } from '../../../format';
 import { t } from '../../../i18n';
+import { DocumentDeliveries, PdfButton } from './InvoiceDeliveries';
 import { invoicePath } from './InvoiceTable';
-import { INVOICE_PRINT_CSS } from './InvoiceSheet';
+import { CustomerBlock, INVOICE_PRINT_CSS, registeredForVat } from './InvoiceSheet';
 
 const lines = (...parts: (string | null | undefined)[]) =>
   parts.filter((p): p is string => Boolean(p && p.trim()));
 
 /**
  * The printable credit note, from the details it copied from its invoice when it was issued (the
- * same A4 sheet as an invoice: class "invoice-sheet").
+ * same A4 sheet as an invoice: class "invoice-sheet"). It names the customer as the invoice does.
  */
 function CreditNoteSheet({ note: n }: { note: CreditNote }) {
   const issuer = n.issuer ?? {};
@@ -54,18 +55,7 @@ function CreditNoteSheet({ note: n }: { note: CreditNote }) {
       <div className="is-parties">
         <div>
           <div className="is-label">{t('Bill to')}</div>
-          <strong>{customer.legalName || customer.name || n.facilityName}</strong>
-          {/* The customer's billing details when the invoice had them, else the facility. */}
-          {lines(
-            customer.code && `${t('Code')}: ${customer.code}`,
-            (customer.businessNumber || customer.fiscalNumber) &&
-              `${t('Fiscal number (NUI)')}: ${customer.businessNumber || customer.fiscalNumber}`,
-            customer.vatNumber && `${t('VAT number')}: ${customer.vatNumber}`,
-            customer.billingAddress ?? customer.address,
-            lines(customer.municipality, customer.region).join(', '),
-          ).map((l) => (
-            <div key={l}>{l}</div>
-          ))}
+          <CustomerBlock customer={customer} facilityName={n.facilityName} />
         </div>
         <div>
           <div className="is-label">{t('Service period')}</div>
@@ -97,18 +87,23 @@ function CreditNoteSheet({ note: n }: { note: CreditNote }) {
 
       <table className="is-totals">
         <tbody>
-          <tr>
-            <td>{t('Amount without VAT')}</td>
-            <td className="num">{money(n.netCents)}</td>
-          </tr>
-          <tr>
-            <td>
-              {n.vatRateBp > 0
-                ? t('VAT {rate}', { rate: formatRate(n.vatRateBp) })
-                : t('Not registered for VAT')}
-            </td>
-            <td className="num">{money(n.taxCents)}</td>
-          </tr>
+          {/* Without VAT registration (no VAT number) it says so instead of "VAT 0 %". */}
+          {registeredForVat(n.vatRateBp, issuer) ? (
+            <>
+              <tr>
+                <td>{t('Amount without VAT')}</td>
+                <td className="num">{money(n.netCents)}</td>
+              </tr>
+              <tr>
+                <td>{t('VAT {rate}', { rate: formatRate(n.vatRateBp) })}</td>
+                <td className="num">{money(n.taxCents)}</td>
+              </tr>
+            </>
+          ) : (
+            <tr>
+              <td colSpan={2}>{t('Not registered for VAT')}</td>
+            </tr>
+          )}
           <tr className="is-grand">
             <td>{t('Total credited')}</td>
             <td className="num">{money(n.totalCents)}</td>
@@ -129,12 +124,14 @@ function CreditNoteSheet({ note: n }: { note: CreditNote }) {
 
 /**
  * A printable credit note: the administrator's (/admin/credit-notes/:id) or a director's own
- * facility's (/director/subscription/credit-notes/:id), like InvoiceView.
+ * facility's (/director/subscription/credit-notes/:id), like InvoiceView – with "Download PDF",
+ * and for the administrator who it was e-mailed to and "Send again".
  */
 export function CreditNoteView() {
   const { id } = useParams();
   const admin = useUser().role === 'ADMIN';
-  const query = useCreditNote(id, admin ? 'admin' : 'director');
+  const scope = admin ? 'admin' : 'director';
+  const query = useCreditNote(id, scope);
   return (
     <QueryView query={query}>
       {(note) => (
@@ -145,9 +142,10 @@ export function CreditNoteView() {
             subtitle={admin ? note.facilityName : undefined}
             actions={
               <>
-                <Link to={invoicePath(note.invoice.id, admin ? 'admin' : 'director')}>
+                <Link to={invoicePath(note.invoice.id, scope)}>
                   {t('Invoice {number}', { number: note.invoice.number })}
                 </Link>
+                <PdfButton kind="credit_note" document={note} scope={scope} />
                 <Button variant="secondary" onClick={() => window.print()}>
                   {t('Print')}
                 </Button>
@@ -155,6 +153,7 @@ export function CreditNoteView() {
             }
           />
           <CreditNoteSheet note={note} />
+          {admin && <DocumentDeliveries kind="credit_note" document={note} />}
         </>
       )}
     </QueryView>

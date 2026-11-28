@@ -20,6 +20,7 @@ export const subscriptions: Record<string, string> = {
   'An invoice for {period} is issued now: {terms}, plus VAT.':
     'Tani lëshohet fatura për {period}: {terms}, plus TVSH.',
   'An invoice is overdue': 'Një faturë ka afat të kaluar',
+  'An overdue invoice was e-mailed again': 'Një faturë me afat të kaluar u dërgua sërish me e-mail',
   'An invoice remained unpaid after the grace period':
     'Një faturë mbeti e papaguar pas afatit shtesë',
   'At most 10 features, one per line.': 'Së shumti 10 veçori, një për rresht.',
@@ -195,6 +196,10 @@ export const subscriptions: Record<string, string> = {
   'Your plan': 'Plani juaj',
   'as in the plan': 'si në plan',
   'paid on {date}': 'paguar më {date}',
+  'refunded on {date}': 'kthyer më {date}',
+  'Refund recorded': 'U regjistrua një kthim',
+  'Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.':
+    'Mbetet për pagesë: {balance} nga {total}. Ju lutemi paguajeni me transfertë bankare deri më {date}.',
   '{count} invoice': '{count} faturë',
   '{count} invoices': '{count} fatura',
   '{count} open|invoices': '{count} të hapura',

@@ -87,6 +87,7 @@ export const billingdocs: Record<string, string> = {
   'Being sent': 'Šalje se',
   'Sent|e-mail': 'Poslato',
   'Not delivered': 'Nije isporučeno',
+  'Not sent – the invoice was voided': 'Nije poslato – faktura je poništena',
   'Send again': 'Pošalji ponovo',
   'Send invoice {number} again': 'Ponovo pošalji fakturu {number}',
   'Send credit note {number} again': 'Ponovo pošalji knjižno odobrenje {number}',

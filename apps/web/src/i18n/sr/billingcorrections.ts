@@ -22,8 +22,14 @@ export const billingcorrections: Record<string, string> = {
   'Still owed: {amount}': 'Preostalo za plaćanje: {amount}',
   'To refund': 'Za povraćaj',
   'To refund: {amount}': 'Za povraćaj: {amount}',
-  'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record the refund as a note in the subscription history.':
-    'Plaćeno je i odobreno više od ukupnog iznosa fakture. Povraćaj se vrši van Pacienta, bankovnim transferom; evidentirajte povraćaj kao belešku u istoriji pretplate.',
+  'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record each refund here once it is made.':
+    'Plaćeno je i odobreno više od ukupnog iznosa fakture. Povraćaj se vrši van Pacienta, bankovnim transferom; evidentirajte ovde svaki povraćaj kada je izvršen.',
+  'Record refund': 'Evidentiraj povraćaj',
+  'Refunded on {date}: {amount}': 'Vraćeno {date}: {amount}',
+  'Amount refunded (€)': 'Vraćeni iznos (€)',
+  'Refunded on': 'Vraćeno dana',
+  'Record the refund once the money was sent back to the facility. The invoice does not change; its directors see when it was refunded. You will be asked for your password.':
+    'Evidentirajte povraćaj kada je novac vraćen ustanovi. Faktura se ne menja; njeni direktori vide kada je iznos vraćen. Biće zatražena vaša lozinka.',
   'The service operator refunds this amount to your facility.':
     'Operater usluge vraća ovaj iznos vašoj ustanovi.',
   'No payments recorded yet.': 'Još nije evidentirana nijedna uplata.',
@@ -105,5 +111,10 @@ export const billingcorrections: Record<string, string> = {
   'The period ends before it starts': 'Period se završava pre nego što počinje',
   'An export covers at most one year': 'Izvoz obuhvata najviše jednu godinu',
   'Use a date as YYYY-MM-DD': 'Unesite datum kao GGGG-MM-DD',
+  'The refund date cannot be in the future': 'Datum povraćaja ne može biti u budućnosti',
+  'The refund date is before the invoice date': 'Datum povraćaja je pre datuma fakture',
+  'Nothing is to be refunded on this invoice': 'Po ovoj fakturi nema ništa za povraćaj',
+  'A refund cannot be more than what is to be refunded on the invoice':
+    'Povraćaj ne može biti veći od iznosa za povraćaj po fakturi',
   'Not a valid date': 'Datum nije ispravan',
 };

@@ -51,29 +51,45 @@ export async function enqueueEmail(
       htmlSealed: seal(rendered.html),
       attachmentKind: attachment?.kind ?? null,
       attachmentId: attachment?.id ?? null,
+      // The attachment is drawn in the language the message was written in, whenever it is sent.
+      attachmentLocale: attachment ? template.locale : null,
     })
     .returning({ id: emailOutbox.id });
   return row!.id;
 }
 
+type Attachment = Awaited<
+  ReturnType<typeof import('../subscriptions/billing-documents.js').billingAttachment>
+>;
+
 /**
- * The PDF of a billing document, in the language of the account the message goes to (Albanian
- * for a billing address without an account). Loaded on demand: most messages carry nothing.
+ * The PDF of a billing document, in the language the message was written in when it was queued
+ * (for a message queued before that was kept: the account's language, else Albanian) – or why
+ * the message must not go out any more (its invoice was voided). Loaded on demand: most
+ * messages carry nothing.
  */
 async function attachmentOf(row: {
   attachment_kind: string;
   attachment_id: string;
+  attachment_locale: string | null;
   user_id: string | null;
-}) {
-  const { billingAttachment } = await import('../subscriptions/billing-documents.js');
-  const [user] = row.user_id
-    ? await db.select({ locale: users.locale }).from(users).where(eq(users.id, row.user_id))
-    : [];
-  return billingAttachment(
-    row.attachment_kind === 'credit_note' ? 'credit_note' : 'invoice',
-    row.attachment_id,
-    toLocale(user?.locale),
-  );
+}): Promise<{ attachment: Attachment } | { withdrawn: string }> {
+  const { billingAttachment, withdrawnReason } =
+    await import('../subscriptions/billing-documents.js');
+  const kind = row.attachment_kind === 'credit_note' ? 'credit_note' : 'invoice';
+  const withdrawn = await withdrawnReason(kind, row.attachment_id);
+  if (withdrawn) return { withdrawn };
+  const [user] =
+    !row.attachment_locale && row.user_id
+      ? await db.select({ locale: users.locale }).from(users).where(eq(users.id, row.user_id))
+      : [];
+  return {
+    attachment: await billingAttachment(
+      kind,
+      row.attachment_id,
+      toLocale(row.attachment_locale ?? user?.locale),
+    ),
+  };
 }
 
 /** Delivers due messages once. Returns the number delivered. */
@@ -87,6 +103,7 @@ export async function processOutboxOnce(): Promise<number> {
     html_sealed: string;
     attachment_kind: string | null;
     attachment_id: string | null;
+    attachment_locale: string | null;
     attempts: number;
   }>(sql`
     UPDATE email_outbox SET status = 'SENDING', attempts = attempts + 1, next_attempt_at = now()
@@ -99,7 +116,7 @@ export async function processOutboxOnce(): Promise<number> {
       FOR UPDATE SKIP LOCKED
     )
     RETURNING id, to_email, user_id, subject_sealed, text_sealed, html_sealed, attachment_kind,
-      attachment_id, attempts`);
+      attachment_id, attachment_locale, attempts`);
 
   let delivered = 0;
   // Replies go to the operator's support address when it is set, not to the no-reply sender
@@ -111,16 +128,31 @@ export async function processOutboxOnce(): Promise<number> {
     try {
       // A document that cannot be rendered fails the delivery like the mail server would:
       // retried, then marked FAILED – never sent without the document it announces.
-      const attachments =
+      const document =
         row.attachment_kind && row.attachment_id
-          ? [
-              await attachmentOf({
-                attachment_kind: row.attachment_kind,
-                attachment_id: row.attachment_id,
-                user_id: row.user_id,
-              }),
-            ]
-          : undefined;
+          ? await attachmentOf({
+              attachment_kind: row.attachment_kind,
+              attachment_id: row.attachment_id,
+              attachment_locale: row.attachment_locale,
+              user_id: row.user_id,
+            })
+          : null;
+      if (document && 'withdrawn' in document) {
+        // Its invoice was voided after it was queued (the void withdraws such messages itself):
+        // never sent, and not counted as a failure.
+        await db
+          .update(emailOutbox)
+          .set({
+            status: 'CANCELLED',
+            lastError: document.withdrawn,
+            subjectSealed: null,
+            textSealed: null,
+            htmlSealed: null,
+          })
+          .where(and(eq(emailOutbox.id, row.id), eq(emailOutbox.status, 'SENDING')));
+        continue;
+      }
+      const attachments = document ? [document.attachment] : undefined;
       await getTransport().send({
         to: row.to_email,
         replyTo,

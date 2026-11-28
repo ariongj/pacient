@@ -18,14 +18,28 @@ export interface InvoiceAccount {
   /** Payments that were not reversed. */
   paidCents: number;
   creditedCents: number;
+  /** Refunds the administrator recorded (made outside Pacient). */
+  refundedCents: number;
   /** Still owed (0 once settled or voided). */
   balanceCents: number;
-  /** Paid and credited beyond the total: refunded outside Pacient. */
+  /** Paid and credited beyond the total and not refunded yet: refunded outside Pacient. */
   toRefundCents: number;
   /** What a further credit note may still cover. */
   creditableCents: number;
-  /** Null while the invoice may still be voided. */
-  voidBlock: VoidBlock | null;
+  /** Administrators only: null while the invoice may still be voided. */
+  voidBlock?: VoidBlock | null;
+}
+
+/** A refund made outside Pacient, as the administrator recorded it. */
+export interface InvoiceRefund {
+  id: string;
+  amountCents: number;
+  /** The day the money was given back. */
+  refundedAt: string;
+  reference: string | null;
+  recordedAt: string;
+  /** Administrators only. */
+  recordedBy?: string | null;
 }
 
 export interface InvoicePayment {
@@ -92,6 +106,7 @@ export interface InvoiceAccountView extends Omit<InvoiceAccount, 'voidBlock'> {
   voidBlock?: VoidBlock | null;
   payments: InvoicePayment[];
   creditNotes: CreditNoteSummary[];
+  refunds: InvoiceRefund[];
 }
 
 type Scope = 'admin' | 'director';
@@ -147,6 +162,23 @@ export const issueCreditNote = ({
   api<CreditNote>(`/admin/invoices/${invoiceId}/credit-notes`, {
     method: 'POST',
     body: { amountCents, reason },
+  });
+
+/** Records a refund made outside Pacient of what is to refund (the password is asked again). */
+export const recordRefund = ({
+  invoiceId,
+  amountCents,
+  refundedAt,
+  reference,
+}: {
+  invoiceId: string;
+  amountCents: number;
+  refundedAt: string;
+  reference: string | null;
+}) =>
+  api<InvoiceAccountView>(`/admin/invoices/${invoiceId}/refunds`, {
+    method: 'POST',
+    body: { amountCents, refundedAt, reference },
   });
 
 export const creditNotePath = (id: string, scope: Scope) =>

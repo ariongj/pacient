@@ -207,7 +207,7 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/invoices/{id}/payments', T, 'Record a payment', {
     access: ADMIN,
     description:
-      'Records money received (amountCents; default: the balance still owed). A part leaves the invoice open with the rest as its balance; the payment that brings the balance to 0 settles it (PAID). More than the balance is refused. When nothing is overdue any more, a past-due subscription, or one suspended for non-payment, is active again; otherwise the grace period counts from the oldest invoice still overdue. A suspension by the administrator stays until reactivated. A cancellation scheduled for a date that has passed takes effect. Audited as billing.payment_recorded with the amount.',
+      'Records money received (amountCents; default: the balance still owed). A part leaves the invoice open with the rest as its balance; the payment that brings the balance to 0 settles it (PAID). More than the balance is refused. When nothing is overdue any more, a past-due subscription, or one suspended for non-payment, is active again; otherwise the grace period counts from the oldest invoice still overdue. A suspension by the administrator stays until reactivated. A cancellation scheduled for a date that has passed takes effect. Money received is never refused because the operator settings are incomplete: a suspension for non-payment whose period ended is lifted all the same, and the subscription worker starts and invoices the new period once billing is ready. Audited as billing.payment_recorded with the amount.',
     body: obj(
       {
         amountCents: int({ minimum: 1, maximum: 100_000_000 }),
@@ -225,7 +225,7 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('post', '/admin/invoices/{id}/void', T, 'Void an open invoice', {
     access: ADMIN,
     description:
-      'Needs the password again in the X-Reauth-Password header, or a sign-in within the last 10 minutes (otherwise 401 REAUTH_REQUIRED). Only for an invoice without payments (also reversed ones) or credit notes, issued in the current month in Kosovo and not yet e-mailed to the customer; otherwise 409 – issue a credit note instead. Invoices are never deleted. Afterwards the subscription’s standing is checked as after a payment.',
+      'Needs the password again in the X-Reauth-Password header, or a sign-in within the last 10 minutes (otherwise 401 REAUTH_REQUIRED). Only for an invoice without payments (also reversed ones) or credit notes, issued in the current month in Kosovo and not yet e-mailed to the customer; otherwise 409 – issue a credit note instead. Its e-mails still waiting to be sent are withdrawn (outbox status CANCELLED) in the same transaction: a voided invoice is never sent. Invoices are never deleted. Afterwards the subscription’s standing is checked as after a payment.',
     body: reasonBody,
     responses: {
       '200': 'The invoice',
@@ -236,7 +236,7 @@ export const SUBSCRIPTIONS_OPERATIONS: ModuleOperation[] = [
   op('get', '/subscription', T, 'My facility’s subscription', {
     access: 'DIRECTOR (own facility)',
     description:
-      'Plan, status, seats used and limit, history (without the operator’s internal notes; changes by the operator are not attributed to a named person) and invoices.',
+      'Plan, status, seats used and limit, history (without the operator’s internal notes; changes by the operator are not attributed to a named person) and invoices with what was paid, credited and refunded and what is still owed – nothing only the operator needs (whether an invoice may still be voided, how far its e-mailing has got).',
   }),
   op('get', '/subscription/invoices/{id}', T, 'One invoice of my facility (printable)', {
     access: 'DIRECTOR (own facility)',

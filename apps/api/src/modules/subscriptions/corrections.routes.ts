@@ -2,16 +2,9 @@ import { Router, type Request } from 'express';
 import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { db, type Executor } from '../../db/client.js';
-import {
-  creditNotes,
-  facilities,
-  invoicePayments,
-  invoices,
-  subscriptions,
-  users,
-} from '../../db/schema.js';
-import { conflict, forbidden, notFound } from '../../lib/errors.js';
+import { db } from '../../db/client.js';
+import { creditNotes, facilities, invoicePayments, invoices, users } from '../../db/schema.js';
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { parse, requestMeta, requireAuth } from '../../lib/http.js';
 import { paginated, PaginationSchema, toOffset } from '../../lib/pagination.js';
 import { ensureRecentAuth } from '../../middleware/recent-auth.js';
@@ -19,15 +12,19 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { queueBillingDocument } from './billing-documents.js';
 import {
   accountOf,
+  auditChange,
   creditSplit,
+  lockInvoice,
   nextCreditNoteNumber,
   notifyDirectors,
   recordEvent,
+  refundsOf,
   restoreStanding,
   settingsOf,
   settlementOf,
   standingAfterReversal,
   type Invoice,
+  type RefundData,
 } from './subscriptions.service.js';
 
 /**
@@ -46,6 +43,7 @@ import {
  *        trigger (reversed_at is the database clock, sql`now()`).
  *   POST /admin/invoices/:id/credit-notes – amount and reason; numbered per Kosovo year, issuer
  *        and customer copied from the invoice, then queueBillingDocument(ISSUED).
+ *   POST /admin/invoices/:id/refunds – a refund made outside Pacient of what is to refund.
  *   GET  /admin/credit-notes, GET /admin/credit-notes/:id
  *
  * `billingCorrectionsDirectorRouter` is mounted on /subscription (authenticated, DIRECTOR only):
@@ -93,7 +91,8 @@ const reverser = alias(users, 'payment_reverser');
  * sees what the service operator did but not who (as in its history), and nothing about voiding.
  */
 async function accountView(invoice: Invoice, audience: Audience) {
-  const { voidBlock, ...account } = await accountOf(db, invoice);
+  const { voidBlock, ...account } = await accountOf(db, invoice, new Date(), audience);
+  const refunds = await refundsOf(db, invoice);
   const payments = await db
     .select({
       payment: invoicePayments,
@@ -130,6 +129,11 @@ async function accountView(invoice: Invoice, audience: Audience) {
       ...(audience === 'admin' ? { recordedBy, reversedBy } : {}),
     })),
     creditNotes: notes.map(creditNoteSummary),
+    // Money given back outside Pacient, as the administrator recorded it.
+    refunds: refunds.map(({ recordedBy, ...r }) => ({
+      ...r,
+      ...(audience === 'admin' ? { recordedBy } : {}),
+    })),
   };
 }
 
@@ -250,25 +254,6 @@ billingCorrectionsDirectorRouter.get('/credit-notes/:id', async (req, res) => {
 
 /* ------------------------------------------------------------------ changes ------------------ */
 
-/**
- * Locks an invoice and its subscription, in the order every change of an invoice takes (invoice
- * first), so that two corrections of the same invoice never work from the same figures.
- */
-async function lockInvoice(tx: Executor, invoiceId: string) {
-  const [invoice] = await tx
-    .select()
-    .from(invoices)
-    .where(eq(invoices.id, invoiceId))
-    .for('update');
-  if (!invoice) throw notFound('Invoice not found');
-  const [subscription] = await tx
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.id, invoice.subscriptionId))
-    .for('update');
-  return { invoice, subscription: subscription! };
-}
-
 const OPENED = {
   status: 'OPEN',
   paidAt: null,
@@ -361,7 +346,14 @@ billingCorrectionsAdminRouter.post('/payments/:id/reverse', async (req, res) => 
       },
       tx,
     );
-    if (reopened) await standingAfterReversal(tx, subscription, { actor: ctx, meta });
+    if (reopened) {
+      await standingAfterReversal(tx, subscription, {
+        actor: ctx,
+        meta,
+        invoiceId: invoice.id,
+        paymentId: payment!.id,
+      });
+    }
     return invoice.id;
   });
   res.json(await accountView(await invoiceRow(eq(invoices.id, invoiceId)), 'admin'));
@@ -439,7 +431,11 @@ billingCorrectionsAdminRouter.post('/invoices/:id/credit-notes', async (req, res
     }
     const toRefundCents = Math.max(
       0,
-      before.paidCents + before.creditedCents + input.amountCents - invoice.totalCents,
+      before.paidCents +
+        before.creditedCents +
+        input.amountCents -
+        invoice.totalCents -
+        before.refundedCents,
     );
     // Not an invoice, but issued like one: the history shows it as a credit note (no invoiceId,
     // so it is never taken for the invoice's own entry).
@@ -492,4 +488,67 @@ billingCorrectionsAdminRouter.post('/invoices/:id/credit-notes', async (req, res
     return note!.id;
   });
   res.status(201).json(await creditNoteDetail(eq(creditNotes.id, noteId)));
+});
+
+const DAY = 86_400_000;
+const RefundInput = z.object({
+  /** What was given back, in cents; default: everything still to refund. */
+  amountCents: z.number().int().min(1).max(100_000_000).optional(),
+  /** The day of the transfer back; default: now. */
+  refundedAt: z.coerce.date().optional(),
+  reference: z.string().trim().max(120).optional().nullable(),
+});
+
+/**
+ * Records a refund made outside Pacient – the money received and credited beyond an invoice's
+ * total, given back to the facility – of at most what is still to refund. It is a NOTE in the
+ * subscription history (the invoice and its payments do not change), audited in the same
+ * transaction; "to refund" goes down by it, and the facility's directors see when it was
+ * refunded. Needs the password again.
+ */
+billingCorrectionsAdminRouter.post('/invoices/:id/refunds', async (req, res) => {
+  const ctx = requireAuth(req);
+  const { id } = parse(IdParam, req.params);
+  const input = parse(RefundInput, req.body);
+  const now = new Date();
+  const refundedAt = input.refundedAt ?? now;
+  if (refundedAt.getTime() > now.getTime() + DAY) {
+    throw badRequest('The refund date cannot be in the future');
+  }
+  await ensureRecentAuth(req);
+  const meta = requestMeta(req);
+  await db.transaction(async (tx) => {
+    const { invoice, subscription } = await lockInvoice(tx, id);
+    if (refundedAt.getTime() < invoice.issuedAt.getTime() - DAY) {
+      throw badRequest('The refund date is before the invoice date');
+    }
+    const { toRefundCents } = await accountOf(tx, invoice, now);
+    if (toRefundCents <= 0) throw conflict('Nothing is to be refunded on this invoice');
+    const amountCents = input.amountCents ?? toRefundCents;
+    if (amountCents > toRefundCents) {
+      throw conflict('A refund cannot be more than what is to be refunded on the invoice');
+    }
+    const data: RefundData = {
+      refundCents: amountCents,
+      invoiceId: invoice.id,
+      number: invoice.number,
+      currency: invoice.currency,
+      refundedAt: refundedAt.toISOString(),
+      reference: input.reference ?? null,
+    };
+    await recordEvent(tx, { subscription, type: 'NOTE', actor: ctx, data: { ...data } });
+    await auditChange(
+      tx,
+      ctx,
+      subscription,
+      {
+        event: 'REFUND_RECORDED',
+        invoiceId: invoice.id,
+        number: invoice.number,
+        refundCents: amountCents,
+      },
+      meta,
+    );
+  });
+  res.json(await accountView(await invoiceRow(eq(invoices.id, id)), 'admin'));
 });

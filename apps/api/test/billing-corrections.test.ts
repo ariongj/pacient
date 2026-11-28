@@ -1,6 +1,6 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { db } from '../src/db/client.js';
+import { db, pool } from '../src/db/client.js';
 import {
   auditLogs,
   billingDeliveries,
@@ -79,6 +79,20 @@ const titlesOf = async (userId: string) =>
   (await db.select().from(notifications).where(eq(notifications.userId, userId))).map(
     (n) => n.title,
   );
+/** How often an invoice was e-mailed to an address as an overdue reminder. */
+const reminderDeliveries = async (invoiceId: string, recipient: string) =>
+  (
+    await db
+      .select()
+      .from(billingDeliveries)
+      .where(
+        and(
+          eq(billingDeliveries.invoiceId, invoiceId),
+          eq(billingDeliveries.kind, 'REMINDER'),
+          eq(billingDeliveries.recipient, recipient),
+        ),
+      )
+  ).length;
 
 /** A facility with a director and an active subscription whose first invoice is 118,00 €. */
 async function customer(facility?: { id: string }) {
@@ -199,6 +213,25 @@ describe('access', () => {
     expect(theirs.status).toBe(404);
     const operator = await account(invoice.id);
     expect(operator.payments[0].recordedBy).toBe(adminName);
+  });
+
+  it('gives the directors their invoices without anything only the operator needs', async () => {
+    const { director, invoice } = await customer();
+    await pay(invoice.id, { amountCents: 1_000 });
+    const token = await login(director.email);
+    const mine = await api().get('/api/v1/subscription').set(bearer(token));
+    expect(mine.status).toBe(200);
+    const [shown] = mine.body.invoices;
+    expect(shown.account).toMatchObject({ paidCents: 1_000, balanceCents: 10_800 });
+    // Neither whether it may still be voided nor how far its e-mailing has got.
+    expect(shown.account).not.toHaveProperty('voidBlock');
+    expect(shown).not.toHaveProperty('sentAt');
+    expect(shown).not.toHaveProperty('sending');
+    const one = await api().get(`/api/v1/subscription/invoices/${invoice.id}`).set(bearer(token));
+    expect(one.status).toBe(200);
+    expect(one.body).not.toHaveProperty('sending');
+    // The administrator's views keep them.
+    expect((await adminGet(`/invoices/${invoice.id}`)).body.account).toHaveProperty('voidBlock');
   });
 });
 
@@ -355,6 +388,27 @@ describe('reversing a payment', () => {
         .where(eq(invoices.id, invoice.id)),
     ).rejects.toThrow();
     expect((await invoiceRow(invoice.id)).status).toBe('PAID');
+    // Nor with a payment inserted already reversed, which never counted (migration 0029).
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.insert(invoicePayments).values({
+          invoiceId: invoice.id,
+          amountCents: 1,
+          paidAt: new Date(),
+          method: 'OTHER',
+          recordedById: adminId,
+          reversedAt: new Date(),
+          reversedById: adminId,
+          reversalReason: 'Inserted reversed',
+        });
+        await tx
+          .update(invoices)
+          .set({ status: 'OPEN', paidAt: null, paymentMethod: null, paymentReference: null })
+          .where(eq(invoices.id, invoice.id));
+      }),
+    ).rejects.toThrow();
+    expect((await invoiceRow(invoice.id)).status).toBe('PAID');
+    expect(await paymentsOf(invoice.id)).toHaveLength(1);
   });
 
   it('reverses part of an open invoice: it stays open with the larger balance', async () => {
@@ -399,6 +453,8 @@ describe('reversing a payment', () => {
     expect(await titlesOf(director.id)).toContain(
       'Your facility’s subscription has an overdue invoice',
     );
+    // The reopened invoice is e-mailed again as an overdue reminder (once).
+    expect(await reminderDeliveries(old.id, director.email)).toBe(1);
     // The worker suspends as for any overdue invoice – and the notice is not sent twice.
     const r = await runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] });
     expect(r).toMatchObject({ suspended: 1, reminders: 1 });
@@ -409,6 +465,37 @@ describe('reversing a payment', () => {
       .set(bearer(w.tokens.doctor));
     expect(summary.status).toBe(200);
     expect(await login(w.users.doctor.email)).toBeTruthy();
+    expect(await reminderDeliveries(old.id, director.email)).toBe(1);
+  });
+
+  it('tells the directors again and resends the invoice when a reversal reopens one they were told was overdue', async () => {
+    const { facility, director, subscription } = await customer();
+    const old = await earlierInvoice(subscription.id, 20);
+    const notices = async () =>
+      (await titlesOf(director.id)).filter(
+        (t) => t === 'Your facility’s subscription has an overdue invoice',
+      ).length;
+    // Overdue: the worker tells the directors and e-mails the invoice as a reminder.
+    await runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] });
+    expect((await subOf(facility.id)).status).toBe('PAST_DUE');
+    expect(await notices()).toBe(1);
+    expect(await reminderDeliveries(old.id, director.email)).toBe(1);
+    // Paid late, then the bank returns the transfer: past due again, in the same period.
+    await pay(old.id);
+    expect((await subOf(facility.id)).status).toBe('ACTIVE');
+    const [payment] = await paymentsOf(old.id);
+    expect((await reverse(payment!.id)).status).toBe(200);
+    const s = await subOf(facility.id);
+    expect(s.status).toBe('PAST_DUE');
+    expect(s.pastDueSince!.toISOString()).toBe(old.dueAt.toISOString());
+    expect(await notices()).toBe(2);
+    expect(await reminderDeliveries(old.id, director.email)).toBe(2);
+    // The worker repeats neither.
+    expect(
+      (await runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] })).reminders,
+    ).toBe(0);
+    expect(await notices()).toBe(2);
+    expect(await reminderDeliveries(old.id, director.email)).toBe(2);
   });
 
   it('keeps an invoice still settled by a credit note paid, described by the credit note', async () => {
@@ -676,14 +763,228 @@ describe('voiding', () => {
     await queue(sent.invoice.id, 'SENT');
     expect((await account(sent.invoice.id)).voidBlock).toBe('EMAILED');
     expect((await voidInvoice(sent.invoice.id)).body.error.message).toMatch(/already e-mailed/);
-    // Still waiting to be sent: not e-mailed yet.
+    // Still waiting to be sent: not e-mailed yet – and withdrawn by the void, never sent.
     const pending = await customer();
     await queue(pending.invoice.id, 'PENDING');
     expect((await voidInvoice(pending.invoice.id)).status).toBe(200);
+    const waiting = await db
+      .select({ status: emailOutbox.status, lastError: emailOutbox.lastError })
+      .from(emailOutbox)
+      .innerJoin(billingDeliveries, eq(billingDeliveries.emailOutboxId, emailOutbox.id))
+      .where(eq(billingDeliveries.invoiceId, pending.invoice.id));
+    // The one queued above and the one to the director on issue.
+    expect(waiting).toEqual([
+      { status: 'CANCELLED', lastError: 'Not sent: the invoice was voided' },
+      { status: 'CANCELLED', lastError: 'Not sent: the invoice was voided' },
+    ]);
 
     for (const c of [paid, credited, sent]) {
       expect((await invoiceRow(c.invoice.id)).status).toBe('OPEN');
     }
+  });
+});
+
+describe('money received while billing is not ready', () => {
+  it('is recorded and lifts the suspension; the worker starts and invoices the new period later', async () => {
+    const { facility, director, subscription } = await customer();
+    const old = await earlierInvoice(subscription.id, 60);
+    // Suspended for non-payment, its period over.
+    const periodStart = new Date(Date.now() - 31 * DAY);
+    await db
+      .update(subscriptions)
+      .set({
+        status: 'SUSPENDED',
+        suspensionCause: 'NON_PAYMENT',
+        suspendedAt: new Date(Date.now() - 2 * DAY),
+        pastDueSince: old.dueAt,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: new Date(Date.now() - DAY),
+        billingAnchor: periodStart,
+      })
+      .where(eq(subscriptions.id, subscription.id));
+    const count = async () =>
+      (await db.select().from(invoices).where(eq(invoices.facilityId, facility.id))).length;
+    const before = await count();
+    await db.update(platformSettings).set({ operatorIban: null }).where(eq(platformSettings.id, 1));
+    let lifted: Date;
+    try {
+      const res = await pay(old.id);
+      expect(res.status).toBe(200);
+      expect(await paymentsOf(old.id)).toHaveLength(1);
+      const s = await subOf(facility.id);
+      expect(s).toMatchObject({ status: 'ACTIVE', suspendedAt: null, suspensionCause: null });
+      // The ended period is closed now; nothing is invoiced yet.
+      lifted = s.currentPeriodEnd;
+      expect(Math.abs(lifted.getTime() - Date.now())).toBeLessThan(60_000);
+      expect(s.billingAnchor!.toISOString()).toBe(lifted.toISOString());
+      expect(await count()).toBe(before);
+      expect(await titlesOf(director.id)).toContain('Your facility’s subscription is active again');
+      // The worker waits for the settings.
+      const waiting = await runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] });
+      expect(waiting).toMatchObject({ renewed: 0, waiting: 1 });
+    } finally {
+      await db
+        .update(platformSettings)
+        .set({ operatorIban: 'XK051212012345678906' })
+        .where(eq(platformSettings.id, 1));
+    }
+    // Once billing is ready the new period starts where the suspension was lifted, invoiced.
+    const ready = await runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] });
+    expect(ready).toMatchObject({ renewed: 1, waiting: 0 });
+    expect(await count()).toBe(before + 1);
+    const s = await subOf(facility.id);
+    expect(s.currentPeriodStart.toISOString()).toBe(lifted!.toISOString());
+    const [newest] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.facilityId, facility.id))
+      .orderBy(desc(invoices.issuedAt))
+      .limit(1);
+    expect(newest!.periodStart.toISOString()).toBe(lifted!.toISOString());
+  });
+});
+
+describe('changes of the same invoice at once', () => {
+  it('record only one of two payments that together are more than what is owed', async () => {
+    const { invoice } = await customer();
+    const results = await Promise.all([
+      pay(invoice.id, { amountCents: 8_000 }),
+      pay(invoice.id, { amountCents: 8_000 }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect((await paymentsOf(invoice.id)).map((p) => p.amountCents)).toEqual([8_000]);
+    expect(await account(invoice.id)).toMatchObject({ paidCents: 8_000, balanceCents: 3_800 });
+  });
+
+  it('end a payment and a reversal at once with the same figures, whichever goes first', async () => {
+    const { invoice } = await customer();
+    await pay(invoice.id, { amountCents: 5_000 });
+    const [first] = await paymentsOf(invoice.id);
+    const [reversed, paid] = await Promise.all([
+      reverse(first!.id),
+      pay(invoice.id, { amountCents: 6_800 }),
+    ]);
+    expect([reversed.status, paid.status]).toEqual([200, 200]);
+    expect(await account(invoice.id)).toMatchObject({
+      status: 'OPEN',
+      paidCents: 6_800,
+      balanceCents: 5_000,
+    });
+    expect(await invoiceRow(invoice.id)).toMatchObject({ status: 'OPEN', paidAt: null });
+  });
+
+  it('wait for the subscription worker sending an overdue reminder instead of deadlocking', async () => {
+    const { facility, director, subscription } = await customer();
+    const old = await earlierInvoice(subscription.id, 20);
+    /** The backend that waits for a lock `pid` holds. */
+    const waitingFor = async (pid: number) => {
+      for (let i = 0; i < 400; i++) {
+        const r = await db.execute<{ pid: number }>(
+          sql`SELECT pid FROM pg_stat_activity WHERE ${pid}::int = ANY(pg_blocking_pids(pid))`,
+        );
+        if (r.rows[0]) return Number(r.rows[0].pid);
+        await new Promise((done) => setTimeout(done, 25));
+      }
+      throw new Error(`Nothing waited for backend ${pid}`);
+    };
+    // Holding the director's account row stops the worker at its notice, with the subscription
+    // (and the invoices) locked and the reminder's insert still to come.
+    const holder = await pool.connect();
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [director.id]);
+      const holderPid = Number((await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
+      const worker = runSubscriptionLifecycle(new Date(), { facilityIds: [facility.id] });
+      const workerPid = await waitingFor(holderPid);
+      // The payment of the overdue invoice comes in meanwhile and waits for the worker.
+      const payment = pay(old.id).then((r) => r);
+      await waitingFor(workerPid);
+      await holder.query('ROLLBACK');
+      const [run, paid] = await Promise.all([worker, payment]);
+      expect(run).toMatchObject({ pastDue: 1, reminders: 1 });
+      expect(paid.status).toBe(200);
+      expect(await reminderDeliveries(old.id, director.email)).toBe(1);
+      expect((await invoiceRow(old.id)).status).toBe('PAID');
+      expect((await subOf(facility.id)).status).toBe('ACTIVE');
+    } finally {
+      holder.release();
+    }
+  });
+});
+
+describe('refunds', () => {
+  it('records a refund of what is to refund, with the password, and shows it to the facility', async () => {
+    const { director, invoice, subscription } = await customer();
+    await pay(invoice.id);
+    await credit(invoice.id, 3_000);
+    expect(await account(invoice.id)).toMatchObject({ toRefundCents: 3_000, refundedCents: 0 });
+    const path = `/invoices/${invoice.id}/refunds`;
+    const none = await adminPost(path, { amountCents: 1_000 });
+    expect(none.status).toBe(401);
+    expect(none.body.error.code).toBe('REAUTH_REQUIRED');
+    expect((await adminPostSure(path, { amountCents: 3_001 })).status).toBe(409);
+    const future = new Date(Date.now() + 3 * DAY).toISOString();
+    expect((await adminPostSure(path, { amountCents: 1_000, refundedAt: future })).status).toBe(
+      400,
+    );
+    const part = await adminPostSure(path, { amountCents: 1_000, reference: 'REFUND-1' });
+    expect(part.status).toBe(200);
+    expect(part.body).toMatchObject({ refundedCents: 1_000, toRefundCents: 2_000 });
+    expect(part.body.refunds).toEqual([
+      expect.objectContaining({ amountCents: 1_000, reference: 'REFUND-1', recordedBy: adminName }),
+    ]);
+    // Without an amount: everything still to refund.
+    const rest = await adminPostSure(path, {});
+    expect(rest.body).toMatchObject({ refundedCents: 3_000, toRefundCents: 0 });
+    expect((await adminPostSure(path, { amountCents: 1 })).status).toBe(409);
+    // The invoice and its payments do not change.
+    expect(await invoiceRow(invoice.id)).toMatchObject({ status: 'PAID' });
+    expect(await paymentsOf(invoice.id)).toHaveLength(1);
+    // Audited with the change, and noted in the history.
+    const audited = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.action, 'billing.subscription.changed'),
+          eq(auditLogs.resourceId, subscription.id),
+          sql`${auditLogs.metadata}->>'event' = 'REFUND_RECORDED'`,
+        ),
+      );
+    expect(audited.map((a) => a.metadata)).toMatchObject([
+      { refundCents: 1_000, invoiceId: invoice.id },
+      { refundCents: 2_000, invoiceId: invoice.id },
+    ]);
+    // The facility sees when it was refunded, not who recorded it; never the internal note.
+    const token = await login(director.email);
+    const mine = await api()
+      .get(`/api/v1/subscription/invoices/${invoice.id}/account`)
+      .set(bearer(token));
+    expect(mine.body).toMatchObject({ refundedCents: 3_000, toRefundCents: 0 });
+    expect(mine.body.refunds).toHaveLength(2);
+    expect(mine.body.refunds[0]).not.toHaveProperty('recordedBy');
+    expect(mine.body.refunds[0].refundedAt).toBeTruthy();
+    const sub = await api().get('/api/v1/subscription').set(bearer(token));
+    const listed = sub.body.invoices.find((i: { id: string }) => i.id === invoice.id);
+    expect(listed.account).toMatchObject({ refundedCents: 3_000, toRefundCents: 0 });
+    expect(sub.body.events.some((e: { type: string }) => e.type === 'NOTE')).toBe(false);
+    // Only the administrator records one.
+    expect(
+      (
+        await api()
+          .post(`/api/v1/admin${path}`)
+          .set(bearer(token))
+          .set(REAUTH, PASSWORD)
+          .send({ amountCents: 1 })
+      ).status,
+    ).toBe(403);
+  });
+
+  it('is refused when nothing is to be refunded', async () => {
+    const { invoice } = await customer();
+    expect((await adminPostSure(`/invoices/${invoice.id}/refunds`, {})).status).toBe(409);
+    await pay(invoice.id);
+    expect((await adminPostSure(`/invoices/${invoice.id}/refunds`, {})).status).toBe(409);
   });
 });
 
@@ -904,6 +1205,56 @@ describe('exports for the accountant', () => {
     for (const i of [9, 11, 12]) {
       expect(cents(grand[i]!)).toBe(documents.reduce((sum, r) => sum + cents(r[i]!), 0));
     }
+  });
+
+  it('date documents and payments by the calendar day in Kosovo, across midnight and the clocks', async () => {
+    const { subscription } = await customer();
+    // 31 March 2026, 22:30 UTC is already 1 April, 00:30 in Kosovo (summer time).
+    const aprilFirst = new Date('2026-03-31T22:30:00Z');
+    const invoice = await db.transaction(async (tx) =>
+      issueInvoice(
+        tx,
+        (await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)))[0]!,
+        { start: aprilFirst, end: new Date('2026-04-30T22:00:00Z') },
+        { actor: null, now: aprilFirst },
+      ),
+    );
+    const payments = {
+      // 29 March 2026 has 23 hours: the clocks go forward from 02:00 to 03:00.
+      startOf29March: '2026-03-28T23:30:00Z', // 29 March, 00:30 (winter time)
+      endOf29March: '2026-03-29T21:30:00Z', // 29 March, 23:30 (summer time)
+      startOf30March: '2026-03-29T22:30:00Z', // 30 March, 00:30
+      aprilFirst: aprilFirst.toISOString(), // 1 April, 00:30
+      // 25 October 2026 has 25 hours: the clocks go back from 03:00 to 02:00.
+      startOf25October: '2026-10-24T22:30:00Z', // 25 October, 00:30 (summer time)
+      endOf25October: '2026-10-25T22:30:00Z', // 25 October, 23:30 (winter time)
+      startOf26October: '2026-10-25T23:30:00Z', // 26 October, 00:30
+    };
+    for (const [reference, paidAt] of Object.entries(payments)) {
+      expect((await pay(invoice.id, { amountCents: 100, paidAt, reference })).status).toBe(200);
+    }
+    const paid = async (from: string, to: string) =>
+      parseCsv((await exportCsv('payments.csv', { from, to })).body as string)
+        .filter((r) => r[2] === invoice.number)
+        .map((r) => [r[0], r[5]]);
+    expect(await paid('2026-03-29', '2026-03-29')).toEqual([
+      ['2026-03-29', 'startOf29March'],
+      ['2026-03-29', 'endOf29March'],
+    ]);
+    expect(await paid('2026-03-30', '2026-03-31')).toEqual([['2026-03-30', 'startOf30March']]);
+    expect(await paid('2026-04-01', '2026-04-30')).toEqual([['2026-04-01', 'aprilFirst']]);
+    expect(await paid('2026-10-25', '2026-10-25')).toEqual([
+      ['2026-10-25', 'startOf25October'],
+      ['2026-10-25', 'endOf25October'],
+    ]);
+    expect(await paid('2026-10-26', '2026-10-26')).toEqual([['2026-10-26', 'startOf26October']]);
+    // The invoice belongs to April, as its issue date says – not to March.
+    const issued = async (from: string, to: string) =>
+      parseCsv((await exportCsv('invoices.csv', { from, to })).body as string)
+        .filter((r) => r[0] === invoice.number)
+        .map((r) => r[1]);
+    expect(await issued('2026-03-01', '2026-03-31')).toEqual([]);
+    expect(await issued('2026-04-01', '2026-04-30')).toEqual(['2026-04-01']);
   });
 });
 

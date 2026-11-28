@@ -182,25 +182,40 @@ Every invoice is **e-mailed when it is issued** – by an administrator's action
 subscription worker – to each billing e-mail of the facility's billing details and to each of its
 active directors, every address once (the same address in other letters counts once). The PDF is
 attached when the message is sent: it is drawn from the issued invoice at that moment, so nothing
-PDF-shaped is stored, and the PDF always shows the invoice exactly as it was issued. The e-mail
-says the number, the period, the amount, the due date, the IBAN and the payment reference – never
-anything clinical. A director reads it in their own language; a billing address without an
-account reads Albanian.
+PDF-shaped is stored. Its lines, amounts and parties are always those it was issued with; the
+payment box and the status line say what is owed when it is drawn (sent or downloaded): the
+total, **Still to pay** with the rest of an invoice paid or credited in part, **This invoice is
+paid** once it is settled (with the day), nothing to pay on a voided one. The e-mail says the
+number, the period, what is owed as it is queued – **Amount to pay** with the due date, **Still to
+pay: X of Y**, or **This invoice is paid – attached for your records** (no request to pay, no
+IBAN) – and, while something is owed, the IBAN and the payment reference; never anything
+clinical. A director reads it in their own language, and the attached PDF is in the same language
+even if the director changes it before the message goes out; a billing address without an account
+reads Albanian.
 
 When an invoice becomes overdue, the **overdue reminder** to the directors also sends the invoice
-again to the same addresses (once per overdue period; it reaches the billing e-mails even when the
-facility has no director yet).
+again to the same addresses – each overdue invoice once per overdue period, so an invoice that
+becomes overdue later in the same period is sent when it does (it reaches the billing e-mails even
+when the facility has no director yet).
+
+**A voided invoice is never sent.** Voiding withdraws its e-mails that are still waiting (for
+example while the mail server is unreachable, or before SMTP is configured): they are not sent,
+and the list shows them as **Not sent – the invoice was voided**. The e-mail worker checks again
+before it sends.
 
 On the invoice page, **Sent by e-mail** lists every message: when it was queued, why (on issue,
 overdue reminder, sent again – with who sent it), the address and whether it went out (sent, waiting,
-not delivered with the mail server's answer). The invoices list shows **Sent on**: when the invoice
-first reached the mail server. **Send again** e-mails it once more to the current addresses (useful
-after correcting a billing e-mail); it is audited (`billing.invoice_sent`). A voided invoice is not
-sent, and with no billing e-mail and no active director there is nobody to send to: the page says
-so. **Download PDF** gives the invoice as a file in your own language; directors download their
-facility's invoices and credit notes from **Documents to download**.
+not delivered with the mail server's answer, not sent because the invoice was voided). The
+invoices list shows **Sent on**: when the invoice first reached the mail server. **Send again**
+e-mails it once more to the current addresses (useful after correcting a billing e-mail); it is
+audited (`billing.invoice_sent`). A voided invoice is not sent, and with no billing e-mail and no
+active director there is nobody to send to: the page says so. **Download PDF** gives the invoice
+as a file in your own language; directors download their facility's invoices and credit notes from
+**Documents to download** or from the document's own page. A credit note's page has the same
+**Download PDF**, **Sent by e-mail** and **Send again**.
 
-Invoices without VAT say **Not registered for VAT** instead of "VAT 0 %".
+An operator without a VAT number prints **Not registered for VAT** instead of "VAT 0 %". With a
+VAT number and a rate of 0, documents print "VAT 0 %" and the VAT number.
 
 ## Billing details
 
@@ -213,8 +228,13 @@ settings** has the operator's name, address, fiscal number (NUI), IBAN and – w
 - the **Overview** shows **Billing is not ready** with the missing settings and a link to them;
 - starting a paid subscription, **End the trial now** and **Invoice the current period** are not
   offered (a trial can still be started), and the server refuses any action that would issue an
-  invoice with the list of missing settings – also recording a payment or reactivating when that
-  would start a new period with its invoice;
+  invoice with the list of missing settings – also **Reactivate** when that would start a new
+  period with its invoice;
+- money received is never refused: recording a payment, a credit note that settles an invoice and
+  a void always go through. When that lifts a suspension for non-payment whose period ended, the
+  subscription is active (or "payment overdue") again at once, and its next period – starting on
+  that day, as it would have – is started and invoiced by the subscription worker once the
+  settings are complete;
 - the subscription worker leaves a trial that ended, or a period that ended, as it is (nothing is
   invoiced and the status does not change) and raises the operator alert
   `billing.settings_incomplete`; at its next run after the settings are complete it issues the
@@ -260,9 +280,13 @@ recorded on the wrong invoice – is reversed from the invoice page with a reaso
 deleted. It stays in the list, struck through, with who reversed it, when and why. A settled
 invoice that is no longer paid in full opens again. If it is past its due date, an active
 subscription is "payment overdue" again, with the grace period counting from the oldest overdue due
-date, and its directors are told; it is never suspended by the reversal itself – the subscription
-worker does that once the grace period is over, as for any overdue invoice. Clinical work, sign-in
-and existing accounts are never affected (hazard H74).
+date; its directors are told and the invoice is e-mailed again as an overdue reminder – also when
+they had been told of that overdue invoice before it was paid. It is never suspended by the
+reversal itself – the subscription worker does that once the grace period is over, as for any
+overdue invoice. A subscription that is already "payment overdue" keeps its grace period (it never
+gets shorter: an administrator may have given a fresh one on reactivating), and the reopened
+invoice is e-mailed with the next overdue reminder if it was not sent in that period yet.
+Clinical work, sign-in and existing accounts are never affected (hazard H74).
 
 **Credit notes.** To reduce or cancel what an invoice charges after it was sent – a discount
 agreed later, days without service, an invoice issued twice – issue a **credit note** from the
@@ -278,22 +302,30 @@ a reason, which is printed on it. A credit note:
   as the method, with the credit note's number), and the subscription's standing is checked as after
   a payment;
 - on an invoice already paid, leaves the invoice paid and shows the amount **to refund**. Refunds
-  are made outside Pacient, by bank transfer; record the refund as a note in the subscription
-  history (_Add note_ on the organisation page);
-- is e-mailed with the invoice's recipients, and the facility's directors are notified and see it
-  next to their invoices (**Subscription and invoices › Credit notes**), printable like an
-  invoice;
+  are made outside Pacient, by bank transfer; once it is made, **Record refund** on the invoice
+  page (amount – at most what is to refund –, day and bank reference; your password is asked
+  again). It is kept in the facility's internal history and audited, "to refund" goes down by it,
+  and the facility's directors see **Refunded on …** on the invoice. The invoice and its payments
+  do not change;
+- is e-mailed with the invoice's recipients – the e-mail says what the invoice asks for afterwards:
+  what is still to pay, that it is settled, or the amount to be refunded (only while some is) –
+  and the facility's directors are notified and see it next to their invoices (**Subscription and
+  invoices › Credit notes**), printable like an invoice and as a PDF;
 - can never be changed or deleted (the database refuses). A mistake in a credit note is corrected
   by another document, never by editing it.
 
 **Voiding** is only for a mistake noticed straight away: an invoice issued in the current month in
 Kosovo, without any payment (also one reversed since) or credit note, and not yet e-mailed to the
 customer (no e-mail with it went out). Otherwise Pacient refuses and asks for a credit note
-instead. An e-mail with the invoice still waiting to be sent does not prevent the void.
+instead. An e-mail with the invoice still waiting to be sent does not prevent the void: it is
+withdrawn with it and never sent.
 
-Reversing a payment, issuing a credit note and voiding ask for your password again (in a dialog
-that appears by itself). Every payment, reversal and credit note is recorded in the administrative
-audit with its amount, in the same transaction as the change.
+Reversing a payment, issuing a credit note, recording a refund and voiding ask for your password
+again (in a dialog that appears by itself). Every payment, reversal, credit note and refund is
+recorded in the administrative audit with its amount, in the same transaction as the change.
+Changes of the same invoice made at the same moment – two payments, a payment and a reversal, or a
+payment while the subscription worker sends an overdue reminder – wait for each other and never
+work from the same figures.
 
 ## Exports for the accountant
 
@@ -317,6 +349,9 @@ comma-separated with every cell in quotes; dates are calendar days in Kosovo (20
 amounts are euros with a decimal point (149.00, -50.00). Text that a spreadsheet would run as a
 formula (starting with `=`, `+`, `-` or `@`) is kept as text with a leading apostrophe. Column
 headers follow your language, except in the sales book.
+
+Refunds recorded on invoices are not in these files (they are money given back outside Pacient,
+in the bank's records); the invoices file shows what was paid and credited on each invoice.
 
 The files hold business data of the operator's customers only – never anything about patients.
 Each download asks for your password again and is recorded in the administrative audit with the

@@ -57,7 +57,8 @@ function DeliveryTable({ items, caption }: { items: BillingDelivery[]; caption: 
             <td>
               <Badge tone={DELIVERY_TONE[d.status]}>{deliveryStatusLabel(d.status)}</Badge>
               {d.sentAt && <div className="muted">{formatDateTime(d.sentAt)}</div>}
-              {d.status !== 'SENT' && d.lastError && (
+              {/* A withdrawn message says why in its label; the mail server's answer otherwise. */}
+              {d.status !== 'SENT' && d.status !== 'CANCELLED' && d.lastError && (
                 <div className="muted">
                   {t('Attempts: {count}', { count: d.attempts })} · {d.lastError}
                 </div>
@@ -71,8 +72,8 @@ function DeliveryTable({ items, caption }: { items: BillingDelivery[]; caption: 
 }
 
 /**
- * The deliveries of an invoice or a credit note with "Send again" (administrators): the credit
- * note page (B2) uses it with kind 'credit_note'.
+ * The deliveries of an invoice or a credit note with "Send again" (administrators): the invoice
+ * page with kind 'invoice', the credit note page with kind 'credit_note'.
  */
 export function DocumentDeliveries({
   kind,

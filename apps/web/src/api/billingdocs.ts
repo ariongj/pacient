@@ -43,7 +43,8 @@ export interface BillingProfile {
 export type BillingProfileInput = Omit<BillingProfile, 'facilityId' | 'updatedAt' | 'updatedBy'>;
 
 export type DeliveryKind = 'ISSUED' | 'REMINDER' | 'RESEND';
-export type DeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
+/** CANCELLED: withdrawn before it went out, because the invoice was voided. */
+export type DeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
 
 export interface BillingDelivery {
   id: string;
@@ -203,6 +204,7 @@ export const deliveryStatusLabel = (s: DeliveryStatus) =>
     SENDING: t('Being sent'),
     SENT: t('Sent|e-mail'),
     FAILED: t('Not delivered'),
+    CANCELLED: t('Not sent – the invoice was voided'),
   })[s] ?? s;
 
 export const DELIVERY_TONE: Record<DeliveryStatus, Tone> = {
@@ -210,6 +212,7 @@ export const DELIVERY_TONE: Record<DeliveryStatus, Tone> = {
   SENDING: 'info',
   SENT: 'success',
   FAILED: 'danger',
+  CANCELLED: 'neutral',
 };
 
 /** Billing e-mails typed in one field, separated by commas, semicolons or spaces. */

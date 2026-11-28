@@ -39,8 +39,16 @@ export interface BillingDocumentEmail {
   iban: string | null;
   /** The payment reference (the invoice number); null for a credit note. */
   reference: string | null;
-  /** An invoice with nothing to pay (issued as paid). */
-  nothingToPay: boolean;
+  /**
+   * What is owed as the message is queued. An invoice: its whole total (`FULL`), the rest of one
+   * paid or credited in part (`REST`, with `balance`), nothing because it is settled (`PAID`) or
+   * because it charges nothing (`NONE`, issued as paid). A credit note, for the invoice it
+   * corrects: the rest still to pay (`REST`), money to be refunded (`REFUND`, `balance` is the
+   * amount) or nothing more (`PAID`).
+   */
+  owed: 'FULL' | 'REST' | 'PAID' | 'NONE' | 'REFUND';
+  /** With REST: what is still to pay; with REFUND: what is to be refunded. */
+  balance: string | null;
   /** Credit notes: the invoice they correct. */
   invoiceNumber: string | null;
 }
@@ -107,8 +115,16 @@ function billingDocument(t: BillingDocumentEmail & { locale: Locale }, hello: st
     iban: t.iban,
     reference: t.reference,
     invoice: t.invoiceNumber,
+    balance: t.balance,
   };
   if (t.document === 'credit_note') {
+    // What the invoice asks for afterwards: "to refund" only while money is to be given back.
+    const after =
+      t.owed === 'REFUND'
+        ? tr(l, 'Invoice {invoice} was already paid: {balance} will be refunded to you.', vars)
+        : t.owed === 'REST'
+          ? tr(l, 'Still to pay on invoice {invoice}: {balance}.', vars)
+          : tr(l, 'Invoice {invoice} is settled: there is nothing more to pay.', vars);
     return {
       subject: tr(l, 'Credit note {number} from {operator}', vars),
       heading: tr(l, 'Credit note {number}', vars),
@@ -116,6 +132,7 @@ function billingDocument(t: BillingDocumentEmail & { locale: Locale }, hello: st
         hello,
         tr(l, 'Please find attached credit note {number} for invoice {invoice}.', vars),
         tr(l, 'Amount credited: {total}.', vars),
+        after,
       ],
     };
   }
@@ -134,10 +151,18 @@ function billingDocument(t: BillingDocumentEmail & { locale: Locale }, hello: st
           vars,
         ),
   ];
-  if (t.nothingToPay) {
+  // What is actually owed: no request to pay a settled invoice (sent again as a copy), and only
+  // the rest of one paid or credited in part.
+  if (t.owed === 'NONE') {
     paragraphs.push(tr(l, 'There is nothing to pay: the invoice is for your records.'));
+  } else if (t.owed === 'PAID' || t.owed === 'REFUND') {
+    paragraphs.push(tr(l, 'This invoice is paid – attached for your records.'));
   } else {
-    paragraphs.push(tr(l, 'Amount to pay: {total}, due by {date}.', vars));
+    paragraphs.push(
+      t.owed === 'REST'
+        ? tr(l, 'Still to pay: {balance} of {total}, due by {date}.', vars)
+        : tr(l, 'Amount to pay: {total}, due by {date}.', vars),
+    );
     if (t.iban) {
       paragraphs.push(
         tr(l, 'Please pay by bank transfer to IBAN {iban} with the reference {reference}.', vars),

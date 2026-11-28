@@ -52,10 +52,54 @@ export const INVOICE_PRINT_CSS = `
 const lines = (...parts: (string | null | undefined)[]) =>
   parts.filter((p): p is string => Boolean(p && p.trim()));
 
+/**
+ * "Not registered for VAT" only for an issuer without a VAT number: a registered operator that
+ * charges 0 % prints "VAT 0 %" with its VAT number (as on the PDF).
+ */
+export const registeredForVat = (rateBp: number, issuer: Invoice['issuer']) =>
+  rateBp > 0 || Boolean(issuer.vatNumber?.trim());
+
+/**
+ * The customer as frozen on an invoice or credit note, under "Bill to": the legal entity of the
+ * facility's billing details when it had them (with the facility's own name beside a different
+ * one), else the facility – then its address, numbers and reference, as on the PDF.
+ */
+export function CustomerBlock({
+  customer,
+  facilityName,
+}: {
+  customer: Invoice['customer'];
+  facilityName: string | null;
+}) {
+  return (
+    <>
+      <strong>{customer.legalName || customer.name || facilityName}</strong>
+      {lines(
+        customer.legalName && customer.name && customer.legalName !== customer.name
+          ? `${t('Facility')}: ${customer.name}`
+          : null,
+        ...(customer.billingAddress
+          ? [customer.billingAddress]
+          : [customer.address, lines(customer.municipality, customer.region).join(', ')]),
+        customer.businessNumber && `${t('Business number (NUI)')}: ${customer.businessNumber}`,
+        customer.fiscalNumber && `${t('Fiscal number')}: ${customer.fiscalNumber}`,
+        customer.vatNumber && `${t('VAT number')}: ${customer.vatNumber}`,
+        customer.code && `${t('Code')}: ${customer.code}`,
+        customer.customerReference && `${t('Your reference')}: ${customer.customerReference}`,
+      ).map((l) => (
+        <div key={l}>{l}</div>
+      ))}
+    </>
+  );
+}
+
 /** The printable invoice, from the details frozen when it was issued. */
 export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
   const issuer = i.issuer ?? {};
   const customer = i.customer ?? {};
+  const a = i.account;
+  // Paid or credited in part: the box asks only for the rest (as the PDF does).
+  const rest = a && a.paidCents + a.creditedCents > 0 && a.balanceCents > 0 ? a : null;
   return (
     <article className="invoice-sheet" aria-label={t('Invoice {number}', { number: i.number })}>
       {i.status === 'PAID' && <div className="is-stamp is-paid">{t('PAID')}</div>}
@@ -90,23 +134,7 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
       <div className="is-parties">
         <div>
           <div className="is-label">{t('Bill to')}</div>
-          {/* The legal entity of the facility's billing details, when it had them at issue. */}
-          <strong>{customer.legalName || customer.name || i.facilityName}</strong>
-          {lines(
-            customer.legalName && customer.name && customer.legalName !== customer.name
-              ? `${t('Facility')}: ${customer.name}`
-              : null,
-            ...(customer.billingAddress
-              ? [customer.billingAddress]
-              : [customer.address, lines(customer.municipality, customer.region).join(', ')]),
-            customer.businessNumber && `${t('Business number (NUI)')}: ${customer.businessNumber}`,
-            customer.fiscalNumber && `${t('Fiscal number')}: ${customer.fiscalNumber}`,
-            customer.vatNumber && `${t('VAT number')}: ${customer.vatNumber}`,
-            customer.code && `${t('Code')}: ${customer.code}`,
-            customer.customerReference && `${t('Your reference')}: ${customer.customerReference}`,
-          ).map((l) => (
-            <div key={l}>{l}</div>
-          ))}
+          <CustomerBlock customer={customer} facilityName={i.facilityName} />
         </div>
         <div>
           <div className="is-label">{t('Service period')}</div>
@@ -137,8 +165,8 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
 
       <table className="is-totals">
         <tbody>
-          {/* Without VAT registration the invoice says so instead of "VAT 0 %". */}
-          {i.taxRateBp > 0 ? (
+          {/* Without VAT registration (no VAT number) the invoice says so instead of "VAT 0 %". */}
+          {registeredForVat(i.taxRateBp, issuer) ? (
             <>
               <tr>
                 <td>{t('Amount without VAT')}</td>
@@ -165,10 +193,16 @@ export function InvoiceSheet({ invoice: i }: { invoice: Invoice }) {
         <div className="is-pay">
           <div className="is-label">{t('Payment')}</div>
           <div>
-            {t('Please pay {amount} by bank transfer by {date}.', {
-              amount: formatMoney(i.totalCents, i.currency),
-              date: formatDate(i.dueAt),
-            })}
+            {rest
+              ? t('Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.', {
+                  balance: formatMoney(rest.balanceCents, i.currency),
+                  total: formatMoney(i.totalCents, i.currency),
+                  date: formatDate(i.dueAt),
+                })
+              : t('Please pay {amount} by bank transfer by {date}.', {
+                  amount: formatMoney(i.totalCents, i.currency),
+                  date: formatDate(i.dueAt),
+                })}
           </div>
           {issuer.bank && (
             <div>

@@ -20,6 +20,8 @@ export const subscriptions: Record<string, string> = {
   'An invoice for {period} is issued now: {terms}, plus VAT.':
     'Sada se izdaje faktura za {period}: {terms}, uz PDV.',
   'An invoice is overdue': 'Jednoj fakturi je istekao rok plaćanja',
+  'An overdue invoice was e-mailed again':
+    'Faktura kojoj je istekao rok ponovo je poslata e-mailom',
   'An invoice remained unpaid after the grace period':
     'Faktura je ostala neplaćena posle dodatnog roka',
   'At most 10 features, one per line.': 'Najviše 10 mogućnosti, jedna po redu.',
@@ -194,6 +196,10 @@ export const subscriptions: Record<string, string> = {
   'Your plan': 'Vaš plan',
   'as in the plan': 'kao u planu',
   'paid on {date}': 'plaćeno {date}',
+  'refunded on {date}': 'vraćeno {date}',
+  'Refund recorded': 'Evidentiran je povraćaj',
+  'Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.':
+    'Preostalo za plaćanje: {balance} od {total}. Molimo uplatite bankovnim prenosom do {date}.',
   '{count} invoice': 'Faktura: {count}',
   '{count} invoices': 'Faktura: {count}',
   '{count} open|invoices': 'Otvorenih: {count}',

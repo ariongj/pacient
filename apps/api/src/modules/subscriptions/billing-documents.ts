@@ -1,10 +1,11 @@
 import { createRequire } from 'node:module';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { db, type Executor } from '../../db/client.js';
 import {
   billingDeliveries,
   creditNotes,
+  emailOutbox,
   facilityBillingProfiles,
   invoices,
   subscriptionEvents,
@@ -15,7 +16,7 @@ import { notFound } from '../../lib/errors.js';
 import type { AuthContext } from '../../lib/http.js';
 import { enqueueEmail } from '../email/outbox.js';
 import type { BillingDocumentEmail } from '../email/templates.js';
-import { lastDayOf } from './subscriptions.service.js';
+import { accountOf, lastDayOf, type InvoiceAccount } from './subscriptions.service.js';
 
 /**
  * Billing documents: the PDF of an issued invoice or credit note, and e-mailing it to the
@@ -122,6 +123,13 @@ const present = (...parts: (string | null | undefined)[]) =>
 
 type Translate = (text: string, vars?: TrVars) => string;
 
+/**
+ * "Not registered for VAT" only for an issuer without a VAT number: a registered operator that
+ * charges 0 % prints "VAT 0 %" with its VAT number, never both statements on one document.
+ */
+export const registeredForVat = (rateBp: number, issuer: Record<string, string | null>) =>
+  rateBp > 0 || Boolean(issuer.vatNumber?.trim());
+
 function issuerLines(issuer: Record<string, string | null>, L: Translate) {
   return [
     issuer.name || '—',
@@ -192,9 +200,27 @@ async function loadCreditNote(executor: Executor, id: string) {
   return { creditNote, invoice };
 }
 
+/**
+ * What an invoice still asks the customer to pay: the whole total (`FULL`), the rest of one paid
+ * or credited in part (`REST`), nothing because it is settled (`PAID`) or voided (`VOID`), or
+ * nothing because it charges nothing (`NONE`, issued as paid).
+ */
+export type Owed = 'FULL' | 'REST' | 'PAID' | 'VOID' | 'NONE';
+
+export function owedOf(
+  inv: Pick<InvoiceRow, 'status' | 'totalCents'>,
+  account: Pick<InvoiceAccount, 'paidCents' | 'creditedCents' | 'balanceCents'>,
+): Owed {
+  if (inv.totalCents === 0) return 'NONE';
+  if (inv.status === 'VOID') return 'VOID';
+  if (inv.status === 'PAID' || account.balanceCents === 0) return 'PAID';
+  return account.paidCents + account.creditedCents > 0 ? 'REST' : 'FULL';
+}
+
 function invoiceContent(
   inv: InvoiceRow,
   line: { planName: string; yearly: boolean } | null,
+  account: InvoiceAccount,
   locale: Locale,
 ): BillingDocumentContent {
   const L: Translate = (text, vars) => tr(locale, text, vars);
@@ -207,20 +233,39 @@ function invoiceContent(
         }),
       })
     : inv.description;
-  const vat = inv.taxRateBp > 0;
+  const vat = registeredForVat(inv.taxRateBp, inv.issuer);
   const iban = inv.issuer.iban;
+  // The box says what is owed when the PDF is drawn (sent or downloaded): the issued lines and
+  // amounts above it never change.
+  const howToPay = (first: string) =>
+    present(
+      first,
+      inv.issuer.bank && `${L('Bank')}: ${inv.issuer.bank}`,
+      `IBAN: ${iban || '—'}`,
+      `${L('Payment reference')}: ${inv.number}`,
+    );
+  const owed = owedOf(inv, account);
   const payment =
-    inv.totalCents === 0
+    owed === 'NONE'
       ? [L('There is nothing to pay.')]
-      : present(
-          L('Please pay {amount} by bank transfer by {date}.', {
-            amount: money(inv.totalCents),
-            date: documentDate(inv.dueAt),
-          }),
-          inv.issuer.bank && `${L('Bank')}: ${inv.issuer.bank}`,
-          `IBAN: ${iban || '—'}`,
-          `${L('Payment reference')}: ${inv.number}`,
-        );
+      : owed === 'PAID'
+        ? [L('This invoice is paid. There is nothing more to pay.')]
+        : owed === 'VOID'
+          ? []
+          : owed === 'REST'
+            ? howToPay(
+                L('Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.', {
+                  balance: money(account.balanceCents),
+                  total: money(inv.totalCents),
+                  date: documentDate(inv.dueAt),
+                }),
+              )
+            : howToPay(
+                L('Please pay {amount} by bank transfer by {date}.', {
+                  amount: money(inv.totalCents),
+                  date: documentDate(inv.dueAt),
+                }),
+              );
   let status: string | null = null;
   if (inv.status === 'PAID' && inv.totalCents > 0 && inv.paidAt) {
     status = L('Paid on {date}', { date: documentDate(inv.paidAt) });
@@ -249,7 +294,7 @@ function invoiceContent(
       head: [L('Description'), L('Period'), L('Amount')],
       rows: [[description, period, money(inv.netCents)]],
     },
-    // Without VAT registration the document says so instead of printing "VAT 0 %".
+    // Without VAT registration (no VAT number) the document says so instead of "VAT 0 %".
     totals: vat
       ? [
           [L('Amount without VAT'), money(inv.netCents)],
@@ -274,7 +319,7 @@ function creditNoteContent(
   const L: Translate = (text, vars) => tr(locale, text, vars);
   const money = (cents: number) => documentMoney(cents, cn.currency, locale);
   const period = documentPeriod(inv.periodStart, inv.periodEnd);
-  const vat = cn.vatRateBp > 0;
+  const vat = registeredForVat(cn.vatRateBp, cn.issuer);
   return {
     filename: `${cn.number}.pdf`,
     title: L('CREDIT NOTE'),
@@ -319,10 +364,19 @@ function creditNoteContent(
   };
 }
 
-/** What the PDF of an invoice says, in `locale`. Throws notFound for an unknown id. */
+/**
+ * What the PDF of an invoice says, in `locale`, with what is owed on it now. Throws notFound for
+ * an unknown id.
+ */
 export async function invoiceDocumentContent(id: string, locale: Locale, executor: Executor = db) {
   const invoice = await loadInvoice(executor, id);
-  return invoiceContent(invoice, await lineOf(executor, id), locale);
+  return invoiceContent(
+    invoice,
+    await lineOf(executor, id),
+    // The customer's document: nothing about voiding is worked out.
+    await accountOf(executor, invoice, new Date(), 'director'),
+    locale,
+  );
 }
 
 /** What the PDF of a credit note says, in `locale`. Throws notFound for an unknown id. */
@@ -575,8 +629,13 @@ async function recipientsOf(executor: Executor, facilityId: string): Promise<Rec
 
 type EmailFields = Omit<BillingDocumentEmail, 'template' | 'name' | 'kind'>;
 
-/** The facts the e-mail states about the document, written in the recipient's language. */
-function invoiceEmailFields(inv: InvoiceRow, locale: Locale): EmailFields {
+/**
+ * The facts the e-mail states about the invoice, written in the recipient's language: what is
+ * still to pay as the message is queued – the total, the rest of an invoice paid or credited in
+ * part, or nothing (settled, or nothing charged).
+ */
+function invoiceEmailFields(inv: InvoiceRow, account: InvoiceAccount, locale: Locale): EmailFields {
+  const owed = owedOf(inv, account);
   return {
     document: 'invoice',
     number: inv.number,
@@ -586,22 +645,47 @@ function invoiceEmailFields(inv: InvoiceRow, locale: Locale): EmailFields {
     dueDate: documentDate(inv.dueAt),
     iban: inv.issuer.iban ?? null,
     reference: inv.number,
-    nothingToPay: inv.totalCents === 0,
+    // A voided invoice is never e-mailed (queueBillingDocument, the void, the e-mail worker).
+    owed: owed === 'VOID' ? 'PAID' : owed,
+    balance: owed === 'REST' ? documentMoney(account.balanceCents, inv.currency, locale) : null,
     invoiceNumber: null,
   };
 }
 
-function creditNoteEmailFields(cn: CreditNoteRow, inv: InvoiceRow, locale: Locale): EmailFields {
+/**
+ * The facts of a credit note, and what the invoice it corrects asks for afterwards: the rest still
+ * to pay, money to be refunded (only while some is – a refund recorded since is not announced
+ * again), or nothing more.
+ */
+function creditNoteEmailFields(
+  cn: CreditNoteRow,
+  inv: InvoiceRow,
+  account: InvoiceAccount,
+  locale: Locale,
+): EmailFields {
+  const money = (cents: number) => documentMoney(cents, cn.currency, locale);
+  const owed =
+    account.toRefundCents > 0
+      ? 'REFUND'
+      : inv.status === 'OPEN' && account.balanceCents > 0
+        ? 'REST'
+        : 'PAID';
   return {
     document: 'credit_note',
     number: cn.number,
     operator: cn.issuer.name || 'Pacient',
     period: documentPeriod(inv.periodStart, inv.periodEnd),
-    total: documentMoney(cn.totalCents, cn.currency, locale),
+    total: money(cn.totalCents),
     dueDate: null,
     iban: null,
     reference: null,
-    nothingToPay: false,
+    owed,
+    balance:
+      owed === 'REFUND'
+        ? money(account.toRefundCents)
+        : owed === 'REST'
+          ? money(account.balanceCents)
+          : null,
     invoiceNumber: inv.number,
   };
 }
@@ -619,9 +703,13 @@ function creditNoteEmailFields(cn: CreditNoteRow, inv: InvoiceRow, locale: Local
  *  - one billing_deliveries row per message (kind, recipient, email_outbox_id, queued_by_id =
  *    actor's user id or null).
  *
- * Returns the number of messages queued (0 when there is nobody to send to; never throws for
- * that). Throws for an unknown document. It does not audit: a route that resends audits
- * billing.invoice_sent itself, in the same transaction.
+ * The message says what is owed as it is queued (the caller's change included): an invoice its
+ * total, the rest still to pay or that it is paid; a credit note what its invoice asks for
+ * afterwards.
+ *
+ * Returns the number of messages queued (0 when there is nobody to send to, or for a voided
+ * invoice, which is never sent; never throws for that). Throws for an unknown document. It does
+ * not audit: a route that resends audits billing.invoice_sent itself, in the same transaction.
  */
 export async function queueBillingDocument(
   tx: Executor,
@@ -633,11 +721,14 @@ export async function queueBillingDocument(
   const document = input.invoiceId
     ? { invoice: await loadInvoice(tx, input.invoiceId), creditNote: null }
     : await loadCreditNote(tx, input.creditNoteId!);
+  if (!document.creditNote && document.invoice.status === 'VOID') return 0;
+  // The figures as the facility sees them (nothing about voiding is worked out).
+  const account = await accountOf(tx, document.invoice, new Date(), 'director');
   const recipients = await recipientsOf(tx, document.invoice.facilityId);
   for (const r of recipients) {
     const fields = document.creditNote
-      ? creditNoteEmailFields(document.creditNote, document.invoice, r.locale)
-      : invoiceEmailFields(document.invoice, r.locale);
+      ? creditNoteEmailFields(document.creditNote, document.invoice, account, r.locale)
+      : invoiceEmailFields(document.invoice, account, r.locale);
     const emailOutboxId = await enqueueEmail(tx, {
       to: r.email,
       userId: r.userId,
@@ -660,6 +751,67 @@ export async function queueBillingDocument(
     });
   }
   return recipients.length;
+}
+
+/** Why a message with a voided invoice was not sent (kept as the message's last error). */
+export const VOIDED_NOT_SENT = 'Not sent: the invoice was voided';
+
+/** The outbox messages that carry an invoice (its deliveries'). */
+const invoiceMessages = (executor: Executor, invoiceId: string) =>
+  inArray(
+    emailOutbox.id,
+    executor
+      .select({ id: billingDeliveries.emailOutboxId })
+      .from(billingDeliveries)
+      .where(eq(billingDeliveries.invoiceId, invoiceId)),
+  );
+
+/**
+ * Locks the outbox messages that carry an invoice until the transaction ends. The e-mail worker
+ * claims messages with SKIP LOCKED, so none of them is handed to the mail server meanwhile, and
+ * whether the invoice was e-mailed cannot change under the caller (a message the worker had
+ * claimed before is seen as being sent).
+ */
+export async function lockInvoiceEmails(tx: Executor, invoiceId: string) {
+  await tx
+    .select({ id: emailOutbox.id })
+    .from(emailOutbox)
+    .where(invoiceMessages(tx, invoiceId))
+    .for('update');
+}
+
+/**
+ * Withdraws the messages with a voided invoice that are still waiting to be sent (also those
+ * retrying after an error): CANCELLED, with the reason as their last error and their content
+ * erased. Their deliveries stay (they are append-only), so the invoice page shows them as not
+ * sent. Returns how many were withdrawn. In the void's transaction, after lockInvoiceEmails.
+ */
+export async function withdrawInvoiceEmails(tx: Executor, invoiceId: string) {
+  const rows = await tx
+    .update(emailOutbox)
+    .set({
+      status: 'CANCELLED',
+      lastError: VOIDED_NOT_SENT,
+      subjectSealed: null,
+      textSealed: null,
+      htmlSealed: null,
+    })
+    .where(and(eq(emailOutbox.status, 'PENDING'), invoiceMessages(tx, invoiceId)))
+    .returning({ id: emailOutbox.id });
+  return rows.length;
+}
+
+/**
+ * Why a message the e-mail worker claimed must not go out any more, or null: its invoice was
+ * voided after it was queued. The void withdraws such messages itself; this is the second guard.
+ */
+export async function withdrawnReason(kind: 'invoice' | 'credit_note', id: string) {
+  if (kind !== 'invoice') return null;
+  const [row] = await db
+    .select({ status: invoices.status })
+    .from(invoices)
+    .where(eq(invoices.id, id));
+  return row?.status === 'VOID' ? VOIDED_NOT_SENT : null;
 }
 
 const require = createRequire(import.meta.url);

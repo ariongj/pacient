@@ -24,6 +24,17 @@ export const sqBillingdocs: Record<string, string> = {
   'Please find attached credit note {number} for invoice {invoice}.':
     'Bashkëngjitur gjeni notën e kreditit {number} për faturën {invoice}.',
   'Amount credited: {total}.': 'Shuma e kredituar: {total}.',
+  // What is still owed when the message is queued.
+  'Still to pay: {balance} of {total}, due by {date}.':
+    'Mbetet për pagesë: {balance} nga {total}, me afat deri më {date}.',
+  'This invoice is paid – attached for your records.':
+    'Kjo faturë është paguar – e bashkëngjitur për evidencën tuaj.',
+  'Invoice {invoice} was already paid: {balance} will be refunded to you.':
+    'Fatura {invoice} ishte paguar tashmë: shuma prej {balance} do t’ju kthehet.',
+  'Still to pay on invoice {invoice}: {balance}.':
+    'Mbetet për pagesë për faturën {invoice}: {balance}.',
+  'Invoice {invoice} is settled: there is nothing more to pay.':
+    'Fatura {invoice} është shlyer: nuk ka më asgjë për të paguar.',
   'You receive this e-mail as a billing contact of a facility that uses Pacient. Billing e-mails never contain health information.':
     'E merrni këtë e-mail si kontakt për faturim i një institucioni që përdor Pacient. E-mailet e faturimit nuk përmbajnë kurrë informacion shëndetësor.',
 
@@ -58,6 +69,10 @@ export const sqBillingdocs: Record<string, string> = {
   'There is nothing to pay.': 'Nuk ka asgjë për të paguar.',
   'Please pay {amount} by bank transfer by {date}.':
     'Ju lutemi paguani {amount} me transfertë bankare deri më {date}.',
+  'Still to pay: {balance} of {total}. Please pay it by bank transfer by {date}.':
+    'Mbetet për pagesë: {balance} nga {total}. Ju lutemi paguajeni me transfertë bankare deri më {date}.',
+  'This invoice is paid. There is nothing more to pay.':
+    'Kjo faturë është paguar. Nuk ka më asgjë për të paguar.',
   Bank: 'Banka',
   'Payment reference': 'Referenca e pagesës',
   'Paid on {date}': 'Paguar më {date}',

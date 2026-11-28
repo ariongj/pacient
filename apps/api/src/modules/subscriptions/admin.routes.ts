@@ -20,6 +20,7 @@ import { audit, AuditAction } from '../audit/audit.service.js';
 import { createInvitedUser } from '../auth/invitations.js';
 import { ensureDefaultChannels } from '../channels/channels.routes.js';
 import { FacilityInput } from '../facilities/facilities.routes.js';
+import { lockInvoiceEmails, withdrawInvoiceEmails } from './billing-documents.js';
 import { BillingProfileInput, saveBillingProfile } from './profile.routes.js';
 import {
   accountOf,
@@ -35,6 +36,7 @@ import {
   invoiceLines,
   invoicesOf,
   issueInvoice,
+  lockInvoice,
   monthlyValueCents,
   notifyDirectors,
   notifyLifted,
@@ -1070,7 +1072,10 @@ const PaymentInput = z.object({
   reference: z.string().trim().max(120).optional().nullable(),
 });
 
-/** Runs a change on an open invoice and its subscription, both locked. */
+/**
+ * Runs a change on an open invoice and its subscription, both locked – the subscription first,
+ * then the invoice, the order of every change of an invoice and of the subscription worker.
+ */
 async function withOpenInvoice(
   req: Request,
   change: (
@@ -1085,8 +1090,7 @@ async function withOpenInvoice(
   const { id } = parse(IdParam, req.params);
   const meta = requestMeta(req);
   await db.transaction(async (tx) => {
-    const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, id)).for('update');
-    if (!invoice) throw notFound('Invoice not found');
+    const { invoice, subscription } = await lockInvoice(tx, id);
     if (invoice.status !== 'OPEN') {
       throw conflict(
         invoice.status === 'PAID'
@@ -1094,12 +1098,7 @@ async function withOpenInvoice(
           : 'This invoice was voided and cannot be changed',
       );
     }
-    const [s] = await tx
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.id, invoice.subscriptionId))
-      .for('update');
-    await change(tx, invoice, s!, ctx, meta);
+    await change(tx, invoice, subscription, ctx, meta);
   });
   return loadInvoice(id);
 }
@@ -1197,24 +1196,34 @@ adminBillingRouter.post('/invoices/:id/payments', async (req, res) => {
 /**
  * Voids an invoice issued by mistake: it keeps its number and is no longer owed. Only while
  * nothing has happened to it yet (see VOID_REFUSED); otherwise a credit note corrects it. Needs
- * the password again (or a recent sign-in), asked after the reason is checked.
+ * the password again (or a recent sign-in), asked after the reason is checked. Its e-mails still
+ * waiting to be sent are withdrawn in the same transaction: a voided invoice is never sent.
  */
 adminBillingRouter.post('/invoices/:id/void', async (req, res) => {
   const { reason } = parse(ReasonInput, req.body);
   await ensureRecentAuth(req);
   res.json(
     await withOpenInvoice(req, async (tx, invoice, s, ctx, meta) => {
+      // Its messages are locked before it is checked: none can go out between the check that the
+      // invoice was not e-mailed yet and the void.
+      await lockInvoiceEmails(tx, invoice.id);
       const { voidBlock } = await accountOf(tx, invoice);
       if (voidBlock) throw conflict(VOID_REFUSED[voidBlock]);
       await tx
         .update(invoices)
         .set({ status: 'VOID', voidedAt: new Date(), voidReason: reason })
         .where(eq(invoices.id, invoice.id));
+      const emailsWithdrawn = await withdrawInvoiceEmails(tx, invoice.id);
       await recordEvent(tx, {
         subscription: s,
         type: 'INVOICE_VOIDED',
         actor: ctx,
-        data: { invoiceId: invoice.id, number: invoice.number, totalCents: invoice.totalCents },
+        data: {
+          invoiceId: invoice.id,
+          number: invoice.number,
+          totalCents: invoice.totalCents,
+          emailsWithdrawn,
+        },
         note: reason,
       });
       await audit(
@@ -1224,7 +1233,12 @@ adminBillingRouter.post('/invoices/:id/void', async (req, res) => {
           resourceType: 'invoice',
           resourceId: invoice.id,
           meta,
-          metadata: { number: invoice.number, reason, facilityId: invoice.facilityId },
+          metadata: {
+            number: invoice.number,
+            reason,
+            facilityId: invoice.facilityId,
+            emailsWithdrawn,
+          },
         },
         tx,
       );

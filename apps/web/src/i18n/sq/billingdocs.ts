@@ -87,6 +87,7 @@ export const billingdocs: Record<string, string> = {
   'Being sent': 'Po dërgohet',
   'Sent|e-mail': 'Dërguar',
   'Not delivered': 'Nuk u dorëzua',
+  'Not sent – the invoice was voided': 'Nuk u dërgua – fatura u anulua',
   'Send again': 'Dërgo sërish',
   'Send invoice {number} again': 'Dërgo sërish faturën {number}',
   'Send credit note {number} again': 'Dërgo sërish notën e kreditit {number}',

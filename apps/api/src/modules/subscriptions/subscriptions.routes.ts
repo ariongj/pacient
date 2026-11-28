@@ -11,12 +11,14 @@ import { billingCorrectionsDirectorRouter } from './corrections.routes.js';
 import { billingDocumentsDirectorRouter } from './documents.routes.js';
 import { billingProfileDirectorRouter } from './profile.routes.js';
 import {
+  directorInvoicesOf,
   eventsOf,
+  forDirector,
   invoiceLines,
-  invoicesOf,
   presentInvoice,
   seatLimitOf,
   seatsUsed,
+  withAccounts,
 } from './subscriptions.service.js';
 
 /**
@@ -88,7 +90,7 @@ subscriptionRouter.get('/', async (req, res) => {
         byOperator: e.actor !== null,
         data: e.type === 'REMINDER_SENT' ? { key: e.data.key } : e.data,
       })),
-    invoices: await invoicesOf(facilityId),
+    invoices: await directorInvoicesOf(facilityId),
   });
 });
 
@@ -103,7 +105,15 @@ subscriptionRouter.get('/invoices/:id', async (req, res) => {
     .where(and(eq(invoices.id, id), eq(invoices.facilityId, facilityId)));
   if (!row) throw notFound('Invoice not found');
   const lines = await invoiceLines([id]);
-  res.json(presentInvoice(row, lines.get(id) ?? null));
+  const now = new Date();
+  // With what is still owed, so that the printed invoice asks only for that (as the PDF does).
+  const [invoice] = await withAccounts(
+    db,
+    [presentInvoice(row, lines.get(id) ?? null, now)],
+    now,
+    'director',
+  );
+  res.json(forDirector(invoice!));
 });
 
 // Going live (round 2): billing details, PDFs, credit notes and agreements of the own facility.

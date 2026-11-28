@@ -53,9 +53,10 @@ export const RETENTION_CATEGORIES: RetentionCategory[] = [
     legalBasis: BASIS_OPERATIONAL,
     table: 'email_outbox',
     // Messages that carried an invoice or credit note stay: their delivery records are billing
-    // records, kept for the statutory accounting period (see docs/PRIVACY.md).
+    // records, kept for the statutory accounting period (see docs/PRIVACY.md). A message
+    // withdrawn before it went out (CANCELLED) is done with, like a failed one.
     where: (c) =>
-      sql`status IN ('SENT', 'FAILED') AND created_at < ${c} AND NOT ${userOnHold(sql`email_outbox.user_id`)}
+      sql`status IN ('SENT', 'FAILED', 'CANCELLED') AND created_at < ${c} AND NOT ${userOnHold(sql`email_outbox.user_id`)}
         AND NOT EXISTS (SELECT 1 FROM billing_deliveries bd WHERE bd.email_outbox_id = email_outbox.id)`,
   },
   {

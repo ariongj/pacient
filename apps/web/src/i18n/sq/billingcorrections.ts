@@ -22,8 +22,14 @@ export const billingcorrections: Record<string, string> = {
   'Still owed: {amount}': 'Mbetja për pagesë: {amount}',
   'To refund': 'Për t’u kthyer',
   'To refund: {amount}': 'Për t’u kthyer: {amount}',
-  'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record the refund as a note in the subscription history.':
-    'Është paguar dhe kredituar më shumë se totali i faturës. Kthimet e parave bëhen jashtë Pacient-it, me transfer bankar; regjistrojeni kthimin si shënim në historikun e abonimit.',
+  'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record each refund here once it is made.':
+    'Është paguar dhe kredituar më shumë se totali i faturës. Kthimet e parave bëhen jashtë Pacient-it, me transfer bankar; regjistroni këtu çdo kthim pasi të jetë bërë.',
+  'Record refund': 'Regjistro kthimin',
+  'Refunded on {date}: {amount}': 'Kthyer më {date}: {amount}',
+  'Amount refunded (€)': 'Shuma e kthyer (€)',
+  'Refunded on': 'Kthyer më',
+  'Record the refund once the money was sent back to the facility. The invoice does not change; its directors see when it was refunded. You will be asked for your password.':
+    'Regjistrojeni kthimin pasi paratë t’i jenë dërguar institucionit. Fatura nuk ndryshon; drejtorët e saj shohin kur u kthye shuma. Do t’ju kërkohet fjalëkalimi.',
   'The service operator refunds this amount to your facility.':
     'Operatori i shërbimit ia kthen këtë shumë institucionit tuaj.',
   'No payments recorded yet.': 'Ende nuk është regjistruar asnjë pagesë.',
@@ -107,4 +113,9 @@ export const billingcorrections: Record<string, string> = {
   'An export covers at most one year': 'Një eksport mbulon më së shumti një vit',
   'Use a date as YYYY-MM-DD': 'Shkruani datën si VVVV-MM-DD',
   'Not a valid date': 'Data nuk është e vlefshme',
+  'The refund date cannot be in the future': 'Data e kthimit nuk mund të jetë në të ardhmen',
+  'The refund date is before the invoice date': 'Data e kthimit është para datës së faturës',
+  'Nothing is to be refunded on this invoice': 'Për këtë faturë nuk ka asgjë për t’u kthyer',
+  'A refund cannot be more than what is to be refunded on the invoice':
+    'Një kthim nuk mund të jetë më i madh se shuma për t’u kthyer e faturës',
 };

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import {
+  recordRefund,
   reversePayment,
   useInvoiceAccount,
   voidBlockText,
@@ -7,7 +8,9 @@ import {
   type InvoicePayment,
 } from '../../../api/billingcorrections';
 import {
+  centsToInput,
   formatMoney,
+  inputToCents,
   paymentMethodLabel,
   useBillingMutation,
   type Invoice,
@@ -25,12 +28,24 @@ import {
   Stat,
   Table,
   TextAreaField,
+  TextField,
 } from '../../../components/ui';
 import { formatDate } from '../../../format';
 import { t } from '../../../i18n';
 
-/** Total, paid, credited, still owed and – beyond the total – to refund. */
-function Balance({ account: a, admin }: { account: InvoiceAccountView; admin: boolean }) {
+/**
+ * Total, paid, credited, still owed and – beyond the total – to refund, less the refunds
+ * recorded (each shown with its day); the administrator records a refund once it is made.
+ */
+function Balance({
+  account: a,
+  admin,
+  onRefund,
+}: {
+  account: InvoiceAccountView;
+  admin: boolean;
+  onRefund: () => void;
+}) {
   const money = (cents: number) => formatMoney(cents, a.currency);
   return (
     <>
@@ -51,12 +66,119 @@ function Balance({ account: a, admin }: { account: InvoiceAccountView; admin: bo
         <Alert tone="info" title={t('To refund: {amount}', { amount: money(a.toRefundCents) })}>
           {admin
             ? t(
-                'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record the refund as a note in the subscription history.',
+                'More was paid and credited than the invoice total. Refunds are made outside Pacient, by bank transfer; record each refund here once it is made.',
               )
             : t('The service operator refunds this amount to your facility.')}
+          {admin && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <Button size="sm" variant="secondary" onClick={onRefund}>
+                {t('Record refund')}
+              </Button>
+            </div>
+          )}
         </Alert>
       )}
+      {a.refunds.length > 0 && (
+        <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {a.refunds.map((r) => (
+            <li key={r.id}>
+              {t('Refunded on {date}: {amount}', {
+                date: formatDate(r.refundedAt),
+                amount: money(r.amountCents),
+              })}
+              {r.reference && ` · ${r.reference}`}
+              {admin && r.recordedBy && (
+                <span className="muted"> · {t('Recorded by {name}', { name: r.recordedBy })}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </>
+  );
+}
+
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Records a refund made outside Pacient: at most what is to refund (administrator). */
+function RefundForm({ account: a, onDone }: { account: InvoiceAccountView; onDone: () => void }) {
+  const mutation = useBillingMutation(recordRefund);
+  const [amountError, setAmountError] = useState<string>();
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const v = formValues(e.currentTarget);
+    const amountCents = inputToCents(v.amount ?? '');
+    if (!amountCents || Number.isNaN(amountCents) || amountCents > a.toRefundCents) {
+      setAmountError(
+        t('Enter an amount above 0 and at most {max}.', {
+          max: formatMoney(a.toRefundCents, a.currency),
+        }),
+      );
+      return;
+    }
+    setAmountError(undefined);
+    mutation.mutate(
+      {
+        invoiceId: a.invoiceId,
+        amountCents,
+        // Today: the moment of recording; an earlier day: midday of that day.
+        refundedAt:
+          v.refundedAt && v.refundedAt !== today()
+            ? new Date(`${v.refundedAt}T12:00:00`).toISOString()
+            : new Date().toISOString(),
+        reference: v.reference || null,
+      },
+      { onSuccess: onDone },
+    );
+  }
+  return (
+    <form onSubmit={onSubmit}>
+      <p>
+        {t('Invoice {number}', { number: a.number })} ·{' '}
+        {t('To refund: {amount}', { amount: formatMoney(a.toRefundCents, a.currency) })}
+      </p>
+      <div className="form-grid">
+        <TextField
+          label={t('Amount refunded (€)')}
+          name="amount"
+          inputMode="decimal"
+          required
+          defaultValue={centsToInput(a.toRefundCents)}
+          error={amountError}
+        />
+        <TextField
+          label={t('Refunded on')}
+          name="refundedAt"
+          type="date"
+          required
+          defaultValue={today()}
+          max={today()}
+        />
+        <TextField
+          label={t('Payment reference')}
+          name="reference"
+          maxLength={120}
+          hint={t('E.g. the bank statement entry')}
+        />
+      </div>
+      <p className="muted">
+        {t(
+          'Record the refund once the money was sent back to the facility. The invoice does not change; its directors see when it was refunded. You will be asked for your password.',
+        )}
+      </p>
+      <ErrorAlert error={mutation.error} />
+      <div className="form-actions">
+        <Button variant="secondary" onClick={onDone}>
+          {t('Cancel')}
+        </Button>
+        <Button type="submit" loading={mutation.isPending}>
+          {t('Record refund')}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -197,6 +319,7 @@ function PaymentTable({
 export function InvoicePayments({ invoice, admin }: { invoice: Invoice; admin: boolean }) {
   const query = useInvoiceAccount(invoice.id, admin ? 'admin' : 'director');
   const [reversing, setReversing] = useState<InvoicePayment | null>(null);
+  const [refunding, setRefunding] = useState(false);
   // A voided invoice is not owed: there is nothing to show unless money was recorded on it.
   if (invoice.status === 'VOID' && !query.data?.payments.length) return null;
   return (
@@ -205,7 +328,7 @@ export function InvoicePayments({ invoice, admin }: { invoice: Invoice; admin: b
         <QueryView query={query}>
           {(account) => (
             <div className="stack">
-              <Balance account={account} admin={admin} />
+              <Balance account={account} admin={admin} onRefund={() => setRefunding(true)} />
               <PaymentTable account={account} admin={admin} onReverse={setReversing} />
               {admin && account.status === 'OPEN' && account.voidBlock && (
                 <p className="muted">
@@ -231,6 +354,11 @@ export function InvoicePayments({ invoice, admin }: { invoice: Invoice; admin: b
               onDone={() => setReversing(null)}
             />
           )}
+        </Dialog>
+      )}
+      {admin && query.data && (
+        <Dialog open={refunding} onClose={() => setRefunding(false)} title={t('Record refund')}>
+          <RefundForm account={query.data} onDone={() => setRefunding(false)} />
         </Dialog>
       )}
     </div>

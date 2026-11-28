@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Test } from 'supertest';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -20,11 +20,13 @@ import {
   platformSettings,
   subscriptionEvents,
   subscriptions,
+  users,
 } from '../src/db/schema.js';
 import { render } from '../src/modules/email/templates.js';
 import { processOutboxOnce } from '../src/modules/email/outbox.js';
 import { sentEmails } from '../src/modules/email/transport.js';
 import { raiseOperatorAlert, resolveOperatorAlert } from '../src/modules/platform/alerts.js';
+import { categoryByName } from '../src/modules/privacy/retention.js';
 import {
   creditNoteDocumentContent,
   documentMoney,
@@ -613,7 +615,8 @@ describe('e-mailing billing documents', () => {
       dueDate: '15.12.2026',
       iban: 'XK05 1212 0123 4567 8906',
       reference: 'DOC-2026-00042',
-      nothingToPay: false,
+      owed: 'FULL' as const,
+      balance: null,
       invoiceNumber: null,
     };
     const en = render({ ...base, locale: 'en' });
@@ -638,9 +641,57 @@ describe('e-mailing billing documents', () => {
     });
     expect(credit.subject).toBe('Nota e kreditit DOC-CN-2026-00001 nga Operator Docs SH.P.K.');
     expect(credit.text).toContain('për faturën DOC-2026-00042');
-    const free = render({ ...base, locale: 'en', kind: 'ISSUED', nothingToPay: true });
+    const free = render({ ...base, locale: 'en', kind: 'ISSUED', owed: 'NONE' });
     expect(free.text).toContain('There is nothing to pay');
     expect(free.text).not.toContain('IBAN');
+  });
+
+  it('states what is actually owed: the rest of a part-paid invoice, nothing on a paid one', () => {
+    const base = {
+      template: 'billing_document' as const,
+      name: null,
+      document: 'invoice' as const,
+      number: 'DOC-2026-00043',
+      operator: 'Operator Docs SH.P.K.',
+      period: '01.12.2026 – 31.12.2026',
+      total: '€118.00',
+      dueDate: '15.12.2026',
+      iban: 'XK05 1212 0123 4567 8906',
+      reference: 'DOC-2026-00043',
+      balance: null,
+      invoiceNumber: null,
+      locale: 'en' as const,
+    };
+    const rest = render({ ...base, kind: 'REMINDER', owed: 'REST', balance: '€18.00' });
+    expect(rest.text).toContain('Still to pay: €18.00 of €118.00, due by 15.12.2026.');
+    expect(rest.text).not.toContain('Amount to pay');
+    expect(rest.text).toContain('IBAN XK05 1212 0123 4567 8906');
+    const paid = render({ ...base, kind: 'RESEND', owed: 'PAID' });
+    expect(paid.text).toContain('This invoice is paid – attached for your records.');
+    expect(paid.text).not.toMatch(/Amount to pay|Still to pay|IBAN|Please pay/);
+    // A credit note mentions a refund only when money is to be refunded.
+    const credit = { ...base, document: 'credit_note' as const, kind: 'ISSUED' as const };
+    const refund = render({
+      ...credit,
+      number: 'DOC-CN-2026-00002',
+      invoiceNumber: 'DOC-2026-00043',
+      owed: 'REFUND',
+      balance: '€30.00',
+    });
+    expect(refund.text).toContain(
+      'Invoice DOC-2026-00043 was already paid: €30.00 will be refunded',
+    );
+    const settled = render({ ...credit, invoiceNumber: 'DOC-2026-00043', owed: 'PAID' });
+    expect(settled.text).toContain('is settled: there is nothing more to pay');
+    expect(settled.text).not.toContain('refund');
+    const owing = render({
+      ...credit,
+      invoiceNumber: 'DOC-2026-00043',
+      owed: 'REST',
+      balance: '€88.00',
+    });
+    expect(owing.text).toContain('Still to pay on invoice DOC-2026-00043: €88.00.');
+    expect(owing.text).not.toContain('refund');
   });
 
   it('sends the overdue invoice again with the reminder, once, also without a director', async () => {
@@ -745,6 +796,201 @@ describe('e-mailing billing documents', () => {
     await expect(
       db.transaction((tx) => queueBillingDocument(tx, { invoiceId: randomUUID(), kind: 'ISSUED' })),
     ).rejects.toThrow('Invoice not found');
+  });
+
+  it('withdraws the e-mails of a voided invoice still waiting to be sent: none goes out', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id);
+    await adminPut(`/organizations/${f.id}/billing-profile`, profileOf('909'));
+    const invoice = await startPaid(f.id);
+    expect((await deliveriesOf(invoice.id)).map((r) => r.outbox.status)).toEqual([
+      'PENDING',
+      'PENDING',
+    ]);
+    const voided = await adminPost(`/invoices/${invoice.id}/void`, {
+      reason: 'Issued by mistake',
+    }).set('X-Reauth-Password', PASSWORD);
+    expect(voided.status).toBe(200);
+    // Withdrawn in the void's transaction, content erased; the deliveries stay.
+    const rows = await deliveriesOf(invoice.id);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.outbox).toMatchObject({
+        status: 'CANCELLED',
+        lastError: 'Not sent: the invoice was voided',
+        subjectSealed: null,
+        textSealed: null,
+        htmlSealed: null,
+      });
+    }
+    sentEmails.length = 0;
+    await deliverAll();
+    const addresses = [director.email, 'accounts-909@clinic.test'];
+    expect(sentEmails.filter((m) => addresses.includes(m.to))).toEqual([]);
+    const listed = await adminGet(`/invoices/${invoice.id}/deliveries`);
+    expect(listed.body.items.map((d: { status: string }) => d.status)).toEqual([
+      'CANCELLED',
+      'CANCELLED',
+    ]);
+    expect((await adminGet(`/invoices/${invoice.id}`)).body).toMatchObject({
+      sentAt: null,
+      sending: false,
+    });
+    const [audit] = await auditsOf('billing.invoice.voided', invoice.id);
+    expect(audit!.metadata).toMatchObject({ emailsWithdrawn: 2 });
+    // Not owed: its PDF asks for nothing.
+    const content = await invoiceDocumentContent(invoice.id, 'en');
+    expect(content.payment).toEqual([]);
+    expect(content.status).toMatch(/^Voided on .* · Issued by mistake$/);
+    // And it is never queued again.
+    expect(
+      await db.transaction((tx) =>
+        queueBillingDocument(tx, { invoiceId: invoice.id, kind: 'REMINDER' }),
+      ),
+    ).toBe(0);
+  });
+
+  it('never sends a waiting e-mail whose invoice was voided otherwise (the e-mail worker checks)', async () => {
+    const f = await createFacility();
+    await adminPut(`/organizations/${f.id}/billing-profile`, profileOf('910'));
+    const invoice = await startPaid(f.id);
+    await db
+      .update(invoices)
+      .set({ status: 'VOID', voidedAt: new Date(), voidReason: 'Voided by hand' })
+      .where(eq(invoices.id, invoice.id));
+    sentEmails.length = 0;
+    for (let i = 0; i < 20; i++) {
+      const [row] = await deliveriesOf(invoice.id);
+      if (row!.outbox.status !== 'PENDING') break;
+      await processOutboxOnce();
+    }
+    expect(sentEmails.filter((m) => m.to === 'accounts-910@clinic.test')).toEqual([]);
+    const [row] = await deliveriesOf(invoice.id);
+    expect(row!.outbox).toMatchObject({
+      status: 'CANCELLED',
+      lastError: 'Not sent: the invoice was voided',
+      textSealed: null,
+    });
+  });
+
+  it('asks only for what is still owed: the rest after a part payment, nothing once paid', async () => {
+    const f = await createFacility();
+    await adminPut(`/organizations/${f.id}/billing-profile`, profileOf('911'));
+    const invoice = await startPaid(f.id);
+    await deliverAll();
+    const pay = (body: Record<string, unknown>) =>
+      adminPost(`/invoices/${invoice.id}/payments`, { method: 'BANK_TRANSFER', ...body });
+    expect((await pay({ amountCents: 10_000 })).status).toBe(200);
+
+    // The overdue reminder asks for the rest, with where to pay it.
+    sentEmails.length = 0;
+    const overdue = new Date(new Date(invoice.dueAt).getTime() + DAY);
+    expect(await runSubscriptionLifecycle(overdue, { facilityIds: [f.id] })).toMatchObject({
+      pastDue: 1,
+      reminders: 1,
+    });
+    await deliverAll();
+    const reminder = sentEmails.find((m) => m.to === 'accounts-911@clinic.test')!;
+    expect(reminder.subject).toBe(`Kujtesë: fatura ${invoice.number} ka kaluar afatin`);
+    expect(reminder.text).toContain(
+      `Mbetet për pagesë: ${documentMoney(1_800, 'EUR', 'sq')} nga ${documentMoney(11_800, 'EUR', 'sq')}`,
+    );
+    expect(reminder.text).not.toContain('Shuma për pagesë');
+    expect(reminder.text).toContain('XK05 1212 0123 4567 8906');
+    expect((await invoiceDocumentContent(invoice.id, 'en')).payment[0]).toMatch(
+      /^Still to pay: €18\.00 of €118\.00\. Please pay it by bank transfer by /,
+    );
+
+    // Paid in full: a copy sent again asks for nothing, and its PDF says it is paid.
+    expect((await pay({})).status).toBe(200);
+    sentEmails.length = 0;
+    expect((await adminPost(`/invoices/${invoice.id}/send`)).status).toBe(200);
+    await deliverAll();
+    const copy = sentEmails.find((m) => m.to === 'accounts-911@clinic.test')!;
+    expect(copy.text).toContain('Kjo faturë është paguar – e bashkëngjitur për evidencën tuaj.');
+    expect(copy.text).not.toMatch(/Shuma për pagesë|Mbetet për pagesë|IBAN|paguani/);
+    const en = await invoiceDocumentContent(invoice.id, 'en');
+    expect(en.payment).toEqual(['This invoice is paid. There is nothing more to pay.']);
+    expect(en.status).toMatch(/^Paid on /);
+  });
+
+  it('sends an invoice that becomes overdue later in the same overdue period as well', async () => {
+    await setSettings({ graceDays: 90 });
+    try {
+      const f = await createFacility();
+      await adminPut(`/organizations/${f.id}/billing-profile`, profileOf('912'));
+      const first = await startPaid(f.id);
+      const periodEnd = (await subOf(f.id)).currentPeriodEnd;
+      const run = (at: Date) => runSubscriptionLifecycle(at, { facilityIds: [f.id] });
+      const reminders = async (invoiceId: string) =>
+        (await deliveriesOf(invoiceId)).filter((r) => r.delivery.kind === 'REMINDER').length;
+      expect(await run(new Date(new Date(first.dueAt).getTime() + DAY))).toMatchObject({
+        pastDue: 1,
+        reminders: 1,
+      });
+      // Still past due when the period ends: renewed with the next invoice, overdue 14 days on.
+      expect((await run(new Date(periodEnd.getTime() + HOUR))).renewed).toBe(1);
+      const second = (await invoicesOf(f.id))[1]!;
+      expect(await reminders(second.id)).toBe(0);
+      const later = new Date(second.dueAt.getTime() + HOUR);
+      expect(await run(later)).toMatchObject({ pastDue: 0, reminders: 1 });
+      expect(await reminders(second.id)).toBe(1);
+      expect(await reminders(first.id)).toBe(1);
+      // Each once.
+      expect((await run(new Date(later.getTime() + HOUR))).reminders).toBe(0);
+      expect(await reminders(second.id)).toBe(1);
+    } finally {
+      await setSettings(READY);
+    }
+  });
+
+  it('attaches the PDF in the language the e-mail was written in, even if the account changed since', async () => {
+    const f = await createFacility();
+    const director = await createUser('DIRECTOR', f.id, { locale: 'sr' });
+    const invoice = await startPaid(f.id);
+    const [row] = await deliveriesOf(invoice.id);
+    expect(row!.outbox.attachmentLocale).toBe('sr');
+    await db.update(users).set({ locale: 'en' }).where(eq(users.id, director.id));
+    sentEmails.length = 0;
+    await deliverAll();
+    const mail = sentEmails.find((m) => m.to === director.email)!;
+    expect(mail.subject).toBe(`Faktura ${invoice.number} od Operator Docs SH.P.K.`);
+    const pdf = mail.attachments![0]!.content.toString('latin1');
+    expect(pdf).toContain('/Lang (sr)');
+    expect(pdf).toContain(`(FAKTURA ${invoice.number})`);
+  });
+
+  it('lets the retention job purge withdrawn messages like failed ones', async () => {
+    const old = new Date(Date.now() - 400 * DAY);
+    const rows = await db
+      .insert(emailOutbox)
+      .values(
+        (['CANCELLED', 'FAILED', 'PENDING'] as const).map((status) => ({
+          toEmail: `${status.toLowerCase()}@retention.test`,
+          template: 'notification',
+          status,
+          createdAt: old,
+        })),
+      )
+      .returning();
+    try {
+      const where = categoryByName('EMAIL_OUTBOX')!.where(new Date(Date.now() - 90 * DAY));
+      const ids = sql.join(
+        rows.map((r) => sql`${r.id}`),
+        sql`, `,
+      );
+      const due = await db.execute<{ status: string }>(
+        sql`SELECT status::text FROM email_outbox WHERE ${where} AND id IN (${ids}) ORDER BY 1`,
+      );
+      expect(due.rows.map((r) => r.status)).toEqual(['CANCELLED', 'FAILED']);
+    } finally {
+      await db.delete(emailOutbox).where(
+        inArray(
+          emailOutbox.id,
+          rows.map((r) => r.id),
+        ),
+      );
+    }
   });
 });
 
@@ -878,8 +1124,11 @@ describe('PDFs', () => {
       ['VAT 18 %', '€18.00'],
       ['Total to pay', '€118.00'],
     ]);
+    // What is still owed: the credit note of 11,80 € on it is taken into account.
     expect(en.payment).toEqual([
-      expect.stringContaining('Please pay €118.00 by bank transfer by'),
+      expect.stringContaining(
+        'Still to pay: €106.20 of €118.00. Please pay it by bank transfer by',
+      ),
       'Bank: Demo Bank',
       'IBAN: XK05 1212 0123 4567 8906',
       `Payment reference: ${invoice.number}`,
@@ -921,6 +1170,35 @@ describe('PDFs', () => {
       );
       const res = await binary(adminGet(`/invoices/${free.id}/pdf`));
       expect(res.status).toBe(200);
+    } finally {
+      await setSettings(READY);
+    }
+  });
+
+  it('say "VAT 0 %" with the VAT number for a registered operator that charges no VAT', async () => {
+    await setSettings({ vatRateBp: 0, operatorVatNumber: '330000019' });
+    try {
+      const g = await createFacility();
+      const zero = await startPaid(g.id);
+      const en = await invoiceDocumentContent(zero.id, 'en');
+      expect(en.issuer).toContain('VAT number: 330000019');
+      expect(en.totals).toEqual([
+        ['Amount without VAT', '€100.00'],
+        ['VAT 0 %', '€0.00'],
+        ['Total to pay', '€100.00'],
+      ]);
+      expect(JSON.stringify(en)).not.toContain('Not registered for VAT');
+      const note = await adminPost(`/invoices/${zero.id}/credit-notes`, {
+        amountCents: 1_000,
+        reason: 'Discount agreed later',
+      }).set('X-Reauth-Password', PASSWORD);
+      expect(note.status).toBe(201);
+      const credit = await creditNoteDocumentContent(note.body.id, 'en');
+      expect(credit.totals).toEqual([
+        ['Amount without VAT', '€10.00'],
+        ['VAT 0 %', '€0.00'],
+        ['Total credited', '€10.00'],
+      ]);
     } finally {
       await setSettings(READY);
     }

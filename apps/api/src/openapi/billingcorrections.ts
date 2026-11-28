@@ -1,4 +1,4 @@
-import { date, int, obj, op, q, str, uuid, type ModuleOperation } from './modules.js';
+import { date, dateTime, int, obj, op, q, str, uuid, type ModuleOperation } from './modules.js';
 
 /**
  * OpenAPI entries: payment reversals, credit notes and exports for the accountant (/admin, /subscription).
@@ -40,11 +40,11 @@ export const BILLINGCORRECTIONS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/invoices/{id}/account', T, 'Payments, credit notes and balance of an invoice', {
     access: ADMIN,
     description:
-      'Payments (also reversed ones, with who recorded and reversed them), credit notes, what was paid and credited, the balance still owed, the amount to refund (paid and credited beyond the total) and whether the invoice may still be voided (voidBlock: NOT_OPEN, PAYMENTS, CREDIT_NOTES, NOT_THIS_MONTH, EMAILED).',
+      'Payments (also reversed ones, with who recorded and reversed them), credit notes, refunds recorded, what was paid, credited and refunded, the balance still owed, the amount to refund (paid and credited beyond the total, less the refunds recorded) and whether the invoice may still be voided (voidBlock: NOT_OPEN, PAYMENTS, CREDIT_NOTES, NOT_THIS_MONTH, EMAILED).',
   }),
   op('post', '/admin/payments/{id}/reverse', T, 'Reverse a payment', {
     access: ADMIN,
-    description: `${REAUTH} The payment stays on record, marked reversed with the reason. A settled invoice that is no longer paid in full opens again; an active subscription with an invoice then overdue is past due again (the grace period counts from the oldest overdue due date) – never suspended directly. Audited as billing.payment_reversed.`,
+    description: `${REAUTH} The payment stays on record, marked reversed with the reason. A settled invoice that is no longer paid in full opens again; an active subscription with an invoice then overdue is past due again (the grace period counts from the oldest overdue due date) – never suspended directly – and its directors are told and the invoice is e-mailed as an overdue reminder, also when they were told of that past-due period before. A subscription already past due keeps its grace period. Audited as billing.payment_reversed.`,
     body: obj({ reason }, ['reason']),
     responses: {
       '200': 'The invoice’s account',
@@ -64,6 +64,21 @@ export const BILLINGCORRECTIONS_OPERATIONS: ModuleOperation[] = [
       '201': 'The credit note',
       '401': 'REAUTH_REQUIRED',
       '409': 'Voided invoice, or more than is left to credit',
+    },
+  }),
+  op('post', '/admin/invoices/{id}/refunds', T, 'Record a refund', {
+    access: ADMIN,
+    description: `${REAUTH} A refund made outside Pacient (by bank transfer) of money received and credited beyond the invoice total: amountCents (default: everything still to refund) of at most what is to refund, the day it was made (refundedAt; default now, not in the future) and the bank reference. Kept as a note in the subscription history; the invoice and its payments do not change. "To refund" goes down by it, and the facility's directors see when it was refunded. Audited as billing.subscription.changed (event REFUND_RECORDED).`,
+    body: obj({
+      amountCents: int({ minimum: 1, maximum: 100_000_000 }),
+      refundedAt: dateTime,
+      reference: str({ maxLength: 120 }),
+    }),
+    responses: {
+      '200': 'The invoice’s account',
+      '400': 'A date in the future or before the invoice',
+      '401': 'REAUTH_REQUIRED',
+      '409': 'Nothing to refund, or more than is to refund',
     },
   }),
   op('get', '/admin/credit-notes', T, 'Credit notes', {

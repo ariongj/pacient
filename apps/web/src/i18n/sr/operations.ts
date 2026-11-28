@@ -5,18 +5,20 @@
 export const operations: Record<string, string> = {
   // Background jobs (System health).
   'Background jobs': 'Pozadinski poslovi',
-  'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run.':
-    'Podsetnici, eskalacije, e-pošta i drugi poslovi koji se izvršavaju u pozadini. Posao je zastao posle tri svoja intervala bez uspešnog izvršavanja.',
+  'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run, and never sooner than 5 minutes.':
+    'Podsetnici, eskalacije, e-pošta i drugi poslovi koji se izvršavaju u pozadini. Posao je zastao posle tri svoja intervala bez uspešnog izvršavanja, a nikada pre isteka 5 minuta.',
   '{count} background job has stopped': '{count} pozadinski posao je stao',
   '{count} background jobs have stopped': 'Broj pozadinskih poslova koji su stali: {count}',
-  'No successful run for three of its intervals. The administrators are alerted; check the API log and restart the API if it does not recover.':
-    'Nema uspešnog izvršavanja tokom tri njegova intervala. Administratori su obavešteni; proverite dnevnik API-ja i ponovo pokrenite API ako se ne oporavi.',
+  'No successful run for three of its intervals, and for at least 5 minutes. The administrators are alerted; check the API log and restart the API if it does not recover.':
+    'Nema uspešnog izvršavanja tokom tri njegova intervala i najmanje 5 minuta. Administratori su obavešteni; proverite dnevnik API-ja i ponovo pokrenite API ako se ne oporavi.',
+  'Not started by this instance: switched off on the API instance that answered, or run by another one. Its last run and error are shown, but only an instance that runs a job judges whether it has stalled.':
+    'Nije pokrenut na ovoj instanci: isključen je na instanci API-ja koja je odgovorila ili ga izvršava druga instanca. Prikazani su poslednje izvršavanje i greška, ali samo instanca koja izvršava posao procenjuje da li je zastao.',
   'No background job has run yet': 'Nijedan pozadinski posao se još nije izvršio',
   Job: 'Posao',
   'Last success': 'Poslednji uspeh',
   'Last error': 'Poslednja greška',
   'None in 7 days': 'Nijedna u 7 dana',
-  'Not started here': 'Nije pokrenut ovde',
+  'Not started by this instance': 'Nije pokrenut na ovoj instanci',
   Stalled: 'Zastao',
   'Last run failed': 'Poslednje izvršavanje nije uspelo',
   'every {n} s': 'svakih {n} s',

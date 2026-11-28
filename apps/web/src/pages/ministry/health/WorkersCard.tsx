@@ -12,8 +12,13 @@ function every(seconds: number): string {
   return seconds === 86_400 ? t('once a day') : t('every {n} days', { n: seconds / 86_400 });
 }
 
+/**
+ * A job the answering API instance does not run is neither "running" nor "stalled" for it: it is
+ * switched off there, or another instance runs it, and only that one can tell (the server sends
+ * stale: null).
+ */
 function State({ w }: { w: WorkerStatus }) {
-  if (!w.running) return <Badge tone="neutral">{t('Not started here')}</Badge>;
+  if (!w.running) return <Badge tone="neutral">{t('Not started by this instance')}</Badge>;
   if (w.stale) return <Badge tone="danger">{t('Stalled')}</Badge>;
   if (w.lastRunOk === false) return <Badge tone="warning">{t('Last run failed')}</Badge>;
   return <Badge tone="success">{t('Running')}</Badge>;
@@ -22,12 +27,14 @@ function State({ w }: { w: WorkerStatus }) {
 /**
  * System health (shared by the Ministry and the platform administrator): Background jobs: each
  * worker with its last run, last success, last error and whether it is stale (no successful run
- * for three of its intervals). The error texts never name a person (the server masks them).
+ * for three of its intervals, and at least 5 minutes). The error texts give the error's class and
+ * cause, never the data it failed on, and never name a person (the server cleans them).
  */
 export function WorkersCard({ health }: { health: SystemHealthReport }) {
   const workers = health.workers;
   if (!workers) return null;
   const stalled = workers.filter((w) => w.stale);
+  const elsewhere = workers.some((w) => !w.running);
   return (
     <Card title={t('Background jobs')}>
       {stalled.length > 0 ? (
@@ -40,13 +47,20 @@ export function WorkersCard({ health }: { health: SystemHealthReport }) {
           )}
         >
           {t(
-            'No successful run for three of its intervals. The administrators are alerted; check the API log and restart the API if it does not recover.',
+            'No successful run for three of its intervals, and for at least 5 minutes. The administrators are alerted; check the API log and restart the API if it does not recover.',
           )}
         </Alert>
       ) : (
         <p className="muted">
           {t(
-            'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run.',
+            'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run, and never sooner than 5 minutes.',
+          )}
+        </p>
+      )}
+      {elsewhere && (
+        <p className="muted">
+          {t(
+            'Not started by this instance: switched off on the API instance that answered, or run by another one. Its last run and error are shown, but only an instance that runs a job judges whether it has stalled.',
           )}
         </p>
       )}

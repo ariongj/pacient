@@ -11,7 +11,8 @@
  * public. Frontend: served over HTTPS, built for this API, links opened directly still load the
  * app, the app manifest and offline support are present, no source maps. E-mail (--mail-domain,
  * the domain of EMAIL_FROM): exactly one SPF record that does not allow everyone, and a DMARC
- * record with a policy – without them activation and reset e-mails land in spam or are refused.
+ * record with a policy (the domain's own, or that of a parent domain, which receivers apply to a
+ * subdomain) – without them activation and reset e-mails land in spam or are refused.
  * DKIM needs the provider's selector and is checked with a test e-mail (docs/GO-LIVE.md, E-mail).
  * Touches no data and signs nobody in. Exits with 1 if anything fails. Needs Node 18 or newer.
  */
@@ -78,19 +79,44 @@ if (MAIL_DOMAIN) {
     return spf[0].length > 80 ? `${spf[0].slice(0, 77)}…` : spf[0];
   });
   await check(`DMARC record of ${MAIL_DOMAIN}`, async () => {
-    // A domain without DMARC usually has no _dmarc name at all.
-    const records = (await txt(`_dmarc.${MAIL_DOMAIN}`)) ?? [];
-    const dmarc = records.filter((r) => /^v=DMARC1\s*(;|$)/i.test(r));
-    expect(dmarc.length, `no TXT record "v=DMARC1; p=…" at _dmarc.${MAIL_DOMAIN}`);
-    expect(dmarc.length === 1, `${dmarc.length} DMARC records – keep exactly one`);
-    const policy = /(?:^|;)\s*p\s*=\s*(\w+)/i.exec(dmarc[0])?.[1]?.toLowerCase();
+    // Without a record at _dmarc.<domain>, receivers use the one of the organizational domain
+    // (RFC 7489 §6.6.3), with its sp= policy for subdomains: so a subdomain such as
+    // pacienti.itdks.tech is covered by _dmarc.itdks.tech. Look up the parents too, down to the
+    // last two labels.
+    const labels = MAIL_DOMAIN.split('.');
+    let found = null;
+    for (let i = 0; i <= Math.max(0, labels.length - 2) && !found; i++) {
+      const name = `_dmarc.${labels.slice(i).join('.')}`;
+      // A domain without DMARC usually has no _dmarc name at all.
+      const records = ((await txt(name)) ?? []).filter((r) => /^v=DMARC1\s*(;|$)/i.test(r));
+      if (records.length) found = { name, records, parent: i > 0 };
+    }
     expect(
-      ['none', 'quarantine', 'reject'].includes(policy),
-      'no valid policy (p=none, quarantine or reject)',
+      found,
+      `no TXT record "v=DMARC1; p=…" at _dmarc.${MAIL_DOMAIN}` +
+        (labels.length > 2 ? ' or at its parent domains' : ''),
     );
-    return policy === 'none'
-      ? 'p=none: reports only; move to quarantine once the reports are clean'
-      : `p=${policy}`;
+    expect(
+      found.records.length === 1,
+      `${found.records.length} DMARC records at ${found.name} – keep exactly one`,
+    );
+    const POLICIES = ['none', 'quarantine', 'reject'];
+    const tag = (t) =>
+      new RegExp(`(?:^|;)\\s*${t}\\s*=\\s*(\\w+)`, 'i').exec(found.records[0])?.[1]?.toLowerCase();
+    const policy = tag('p');
+    expect(
+      POLICIES.includes(policy),
+      `no valid policy (p=none, quarantine or reject) at ${found.name}`,
+    );
+    // For a subdomain the organizational domain's sp= applies, or its p= without one.
+    const sp = found.parent ? tag('sp') : undefined;
+    const applies = POLICIES.includes(sp) ? sp : policy;
+    const note = found.parent
+      ? `${POLICIES.includes(sp) ? 'sp' : 'p'}=${applies} (from ${found.name})`
+      : `p=${applies}`;
+    return applies === 'none'
+      ? `${note}: reports only; move to quarantine once the reports are clean`
+      : note;
   });
 }
 if (!WEB) finish();

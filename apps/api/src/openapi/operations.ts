@@ -31,7 +31,7 @@ export const OPERATIONS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/platform/alerts', T, 'Open operator alerts', {
     access: ADMIN,
     description:
-      'Conditions raised by the watchdog and the subscription worker (a stalled background job, failing or late e-mail and SMS, no recent backup, incomplete billing settings), critical first. Condition keys, counts and times only.',
+      'Conditions raised by the watchdog and the subscription worker (a stalled background job, failing or late e-mail and SMS, no recent backup, incomplete billing settings), critical first. Condition keys, counts, times, job names and the class of a job’s last error (e.g. `DatabaseError 40P01`) only; never patient data, e-mail addresses or record ids.',
   }),
   op('post', '/ops/heartbeat/backup', T, 'Report a successful backup', {
     auth: 'none',

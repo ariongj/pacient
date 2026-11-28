@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { env } from '../src/config/env.js';
 import { db } from '../src/db/client.js';
 import {
@@ -13,10 +15,15 @@ import {
   smsOutbox,
   workerRuns,
 } from '../src/db/schema.js';
-import { recordRun, registerWorker } from '../src/lib/worker-runs.js';
+import { recordRun, registerWorker, type WorkerName } from '../src/lib/worker-runs.js';
 import { enqueueEmail, processOutboxOnce } from '../src/modules/email/outbox.js';
 import { sentEmails } from '../src/modules/email/transport.js';
-import { clearWorkerStatusCache } from '../src/modules/monitoring/operations.service.js';
+import {
+  clearWorkerStatusCache,
+  lastRunsQuery,
+  PROCESS_STARTED_AT,
+  workerStatuses,
+} from '../src/modules/monitoring/operations.service.js';
 import {
   ALERT_NOTIFY_EVERY_MS,
   raiseOperatorAlert,
@@ -24,7 +31,9 @@ import {
 } from '../src/modules/platform/alerts.js';
 import { maskEmail, maskErrorText } from '../src/modules/platform/operations.routes.js';
 import {
+  abandonedWorkerAlerts,
   checkBackup,
+  checkBillingSettings,
   checkOutbox,
   checkWorkers,
   runWatchdogOnce,
@@ -55,7 +64,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // The watchdog's conditions this file raised on purpose; the next pass decides again anyway.
-  for (const worker of ['dialysis', 'sepsis', 'maternity', 'proms', 'licences']) {
+  for (const worker of [
+    'dialysis',
+    'sepsis',
+    'maternity',
+    'proms',
+    'licences',
+    'equipment',
+    'email',
+    'infection',
+  ]) {
     await resolveOperatorAlert(`worker.stale:${worker}`);
   }
   if (testKeys.length) {
@@ -79,6 +97,17 @@ const notificationsOf = (userId: string) =>
     .from(notifications)
     .where(and(eq(notifications.userId, userId), eq(notifications.type, 'operator_alert')))
     .orderBy(desc(notifications.createdAt));
+
+const notificationMailsTo = (email: string) =>
+  db
+    .select()
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.toEmail, email), eq(emailOutbox.template, 'notification')));
+
+/** A successful run of `worker` at `at` (tests that judge staleness at a later time). */
+async function insertRun(worker: WorkerName, at: Date) {
+  await db.insert(workerRuns).values({ worker, startedAt: at, finishedAt: at, ok: true });
+}
 
 /** Delivers every e-mail and SMS that is due (memory transports in tests). */
 async function drain() {
@@ -168,7 +197,47 @@ describe('operator alerts', () => {
     testKeys.push(key);
     await raiseOperatorAlert(key, { severity: 'WARNING', message: 'No run for a while.' });
     const [n] = await notificationsOf(admin.id);
-    expect(n!.title).toBe(`Warning: The background job ${key.slice(13)} has stopped`);
+    expect(n!.title).toBe(`Warning: The background job “${key.slice(13)}” has stopped`);
+  });
+
+  it('names a stalled job by what it does, in each administrator’s language, not by its id', async () => {
+    const key = 'worker.stale:email';
+    // Told less than 6 hours ago by an earlier run of this file: tell again.
+    await resolveOperatorAlert(key);
+    await db
+      .update(operatorAlerts)
+      .set({ lastNotifiedAt: null })
+      .where(eq(operatorAlerts.conditionKey, key));
+    await raiseOperatorAlert(key, { severity: 'CRITICAL', message: 'No run for a while.' });
+    const [english] = await notificationsOf(admin.id);
+    expect(english!.title).toBe('Critical: The background job “E-mail delivery” has stopped');
+    const [albanian] = await notificationsOf(albanianAdmin.id);
+    expect(albanian!.title).toBe('Kritik: Puna në sfond „Dërgimi i e-mailit” është ndalur');
+    await resolveOperatorAlert(key);
+  });
+
+  it('e-mails every active administrator once, also those who turned e-mail off (cross-6)', async () => {
+    const off = await createUser('ADMIN', null, { emailNotifications: 'OFF', locale: 'sr' });
+    const before = (await notificationMailsTo(admin.email)).length;
+    const key = testKey();
+    testKeys.push(key);
+    await raiseOperatorAlert(key, { severity: 'WARNING', message: 'Backups are late.' });
+    expect(await notificationsOf(off.id)).toHaveLength(1);
+    expect(await notificationMailsTo(off.email)).toHaveLength(1);
+    // Exactly one each: notifyUsers e-mails those whose preference covers it, not again here.
+    expect(await notificationMailsTo(admin.email)).toHaveLength(before + 1);
+    await drain();
+    const mail = sentEmails.find((m) => m.to === off.email)!;
+    expect(mail.text).toContain('Upozorenje: Pacient traži pažnju operatera');
+    // Not a disabled administrator.
+    const inactive = await createUser('ADMIN', null, {
+      emailNotifications: 'OFF',
+      isActive: false,
+    });
+    const again = testKey();
+    testKeys.push(again);
+    await raiseOperatorAlert(again, { severity: 'WARNING', message: 'Again.' });
+    expect(await notificationMailsTo(inactive.email)).toHaveLength(0);
   });
 
   it('updates an open alert without repeating it, and reminds after 6 hours', async () => {
@@ -317,12 +386,15 @@ describe('operator alerts', () => {
 describe('watchdog', () => {
   it('raises an alert for a worker without success for three intervals, and resolves it', async () => {
     registerWorker('dialysis', MINUTE);
-    // Ten minutes from now nothing has succeeded for over three minutes.
+    // Ten minutes from now nothing has succeeded for over three minutes (and over five, the
+    // least a worker is given).
     const later = new Date(Date.now() + 10 * MINUTE);
     const stale = (await checkWorkers(later)).find((d) => d.key === 'worker.stale:dialysis')!;
     expect(stale.alert).toMatchObject({ severity: 'WARNING' });
     expect(stale.alert!.message).toContain('"dialysis"');
-    expect(stale.alert!.message).toContain('expected every 1 minute;');
+    expect(stale.alert!.message).toContain(
+      'expected every 1 minute; stalled after 5 minutes without one',
+    );
 
     // A successful run a minute before: fine again.
     await db.insert(workerRuns).values({
@@ -349,8 +421,94 @@ describe('watchdog', () => {
       'CRITICAL',
     );
     expect(decisions.some((d) => d.key === 'worker.stale:watchdog')).toBe(false);
-    // A worker this process did not start (switched off) is not expected to run.
-    expect(decisions.find((d) => d.key === 'worker.stale:proms')!.alert).toBeNull();
+    // A worker this process did not start (switched off here, or run by another instance) is
+    // not decided on at all: neither raised nor resolved.
+    expect(decisions.some((d) => d.key === 'worker.stale:proms')).toBe(false);
+  });
+
+  it('gives a worker at least 5 minutes, and says so with its real interval (ops-2, ops-6)', async () => {
+    // Like the e-mail and SMS workers: due every 5 seconds.
+    registerWorker('equipment', 5_000);
+    const at = new Date(Date.now() + 2 * HOUR);
+    await insertRun('equipment', new Date(at.getTime() - 18_000));
+    try {
+      // 18 seconds after its last success (a long batch is still being sent): not stalled.
+      const busy = (await checkWorkers(at)).find((d) => d.key === 'worker.stale:equipment')!;
+      expect(busy.alert).toBeNull();
+      // 5 minutes 18 seconds after it: stalled, with the interval and threshold it really has.
+      const stalled = (await checkWorkers(new Date(at.getTime() + 5 * MINUTE))).find(
+        (d) => d.key === 'worker.stale:equipment',
+      )!;
+      expect(stalled.alert!.message).toContain(
+        '(expected every 5 seconds; stalled after 5 minutes without one).',
+      );
+      // No failure since the last success: no error class in the message.
+      expect(stalled.alert!.message).not.toContain('Last error');
+
+      // A failure since then names its class and code only, not its text.
+      await db.insert(workerRuns).values({
+        worker: 'equipment',
+        startedAt: new Date(at.getTime() - 10_000),
+        finishedAt: new Date(at.getTime() - 10_000),
+        ok: false,
+        error: 'DatabaseError 40P01: deadlock detected (table equipment)',
+      });
+      const failed = (await checkWorkers(new Date(at.getTime() + 5 * MINUTE))).find(
+        (d) => d.key === 'worker.stale:equipment',
+      )!;
+      expect(failed.alert!.message).toContain(
+        'Last error: DatabaseError 40P01 (System health › Background jobs).',
+      );
+      expect(failed.alert!.message).not.toContain('deadlock');
+
+      const health = (await workerStatuses({ now: at, fresh: true })).find(
+        (s) => s.name === 'equipment',
+      )!;
+      expect(health).toMatchObject({ intervalSeconds: 5, staleAfterSeconds: 300, stale: false });
+    } finally {
+      await db
+        .delete(workerRuns)
+        .where(
+          and(
+            eq(workerRuns.worker, 'equipment'),
+            sql`${workerRuns.startedAt} > now() + interval '1 hour'`,
+          ),
+        );
+    }
+  });
+
+  it('resolves incomplete billing settings once they are complete, never raising them (cross-5)', async () => {
+    const key = 'billing.settings_incomplete';
+    const [saved] = await db.select().from(platformSettings).where(eq(platformSettings.id, 1));
+    try {
+      await db
+        .update(platformSettings)
+        .set({ operatorName: '', operatorIban: null })
+        .where(eq(platformSettings.id, 1));
+      await raiseOperatorAlert(key, { severity: 'CRITICAL', message: 'Missing: Operator name.' });
+      // Still incomplete: left to the subscription worker, which knows whether invoices wait.
+      expect(await checkBillingSettings()).toEqual([]);
+      await runWatchdogOnce();
+      expect((await alertRow(key))!.resolvedAt).toBeNull();
+
+      // Completed: resolved by the next pass, not at the worker's next run (every 6 hours).
+      await db
+        .update(platformSettings)
+        .set({
+          operatorName: 'Operator Ops SH.P.K.',
+          operatorAddress: 'Rr. Operacionet 1, Prishtinë',
+          operatorFiscalNumber: '810000009',
+          operatorIban: 'XK05 1212 0123 4567 8906',
+          vatRateBp: 0,
+        })
+        .where(eq(platformSettings.id, 1));
+      expect(await checkBillingSettings()).toEqual([{ key, alert: null }]);
+      await runWatchdogOnce();
+      expect((await alertRow(key))!.resolvedAt).not.toBeNull();
+    } finally {
+      await db.update(platformSettings).set(saved!).where(eq(platformSettings.id, 1));
+      await resolveOperatorAlert(key);
+    }
   });
 
   it('counts e-mail given up in the last 24 hours, never naming the recipient', async () => {
@@ -457,12 +615,24 @@ describe('watchdog', () => {
   });
 
   it('applies its decisions in one recorded run: raises, then resolves only what is open', async () => {
-    // An alert of a worker that is not started here, left open: resolved by the next pass.
+    // Another API instance runs proms and raised its alert; this one does not run proms, so it
+    // cannot judge it and leaves it as it is – resolving it would make it come and go (ops-4).
     await raiseOperatorAlert('worker.stale:proms', { severity: 'WARNING', message: 'Stopped' });
+    const raised = (await alertRow('worker.stale:proms'))!;
+    const resolvedBefore = (await auditFor('platform.alert_resolved', raised.id)).length;
     const since = new Date();
     const result = await recordRun('watchdog', () => runWatchdogOnce());
     expect(result).toMatchObject({ checked: expect.any(Number) });
-    expect((await alertRow('worker.stale:proms'))!.resolvedAt).not.toBeNull();
+    const kept = (await alertRow('worker.stale:proms'))!;
+    expect(kept.resolvedAt).toBeNull();
+    expect(kept.firstSeenAt).toEqual(raised.firstSeenAt);
+    expect(await auditFor('platform.alert_resolved', raised.id)).toHaveLength(resolvedBefore);
+    // A worker this process runs is resolved here once it succeeds again.
+    registerWorker('infection', HOUR);
+    await raiseOperatorAlert('worker.stale:infection', { severity: 'WARNING', message: 'Stopped' });
+    await runWatchdogOnce();
+    expect((await alertRow('worker.stale:infection'))!.resolvedAt).not.toBeNull();
+    await resolveOperatorAlert('worker.stale:proms');
 
     const [run] = await db
       .select()
@@ -479,6 +649,51 @@ describe('watchdog', () => {
     expect((await alertRow('worker.stale:maternity'))!.resolvedAt).toBeNull();
     await resolveOperatorAlert('worker.stale:maternity');
   });
+
+  it('resolves a stalled job’s alert that no instance raises any more, never one that is raised', async () => {
+    // mental-health is not started in this process. Another instance that runs it and finds it
+    // stalled raises the alert again at every pass (every 10 minutes).
+    const key = 'worker.stale:mental-health';
+    await raiseOperatorAlert(key, { severity: 'WARNING', message: 'Stopped' });
+    const raised = (await alertRow(key))!;
+    const lastSeen = (minutesAgo: number) =>
+      db
+        .update(operatorAlerts)
+        .set({ lastSeenAt: new Date(Date.now() - minutesAgo * MINUTE) })
+        .where(eq(operatorAlerts.id, raised.id));
+    try {
+      // Raised just now, or 50 minutes ago: still that instance's to judge.
+      await runWatchdogOnce();
+      expect((await alertRow(key))!.resolvedAt).toBeNull();
+      await lastSeen(50);
+      await runWatchdogOnce();
+      expect((await alertRow(key))!.resolvedAt).toBeNull();
+
+      // Nobody has raised it for over an hour (the job was switched off everywhere): resolved,
+      // so that it does not stay on the Overview for good.
+      await lastSeen(61);
+      await runWatchdogOnce();
+      expect((await alertRow(key))!.resolvedAt).not.toBeNull();
+      const [resolved] = await auditFor('platform.alert_resolved', raised.id);
+      expect(resolved!.metadata).toMatchObject({ conditionKey: key });
+    } finally {
+      await resolveOperatorAlert(key);
+    }
+
+    // Only stalled-job alerts this process did not decide on: its own workers and the other
+    // conditions are decided by their checks.
+    const old = new Date(Date.now() - 2 * HOUR);
+    expect(
+      abandonedWorkerAlerts(
+        [
+          { conditionKey: 'worker.stale:mental-health', lastSeenAt: old },
+          { conditionKey: 'worker.stale:sepsis', lastSeenAt: old },
+          { conditionKey: 'backup.stale', lastSeenAt: old },
+        ],
+        [{ key: 'worker.stale:sepsis', alert: { severity: 'CRITICAL', message: 'Stopped' } }],
+      ),
+    ).toEqual([{ key: 'worker.stale:mental-health', alert: null }]);
+  });
 });
 
 /* ------------------------------------------------------------------ health and metrics ------ */
@@ -489,36 +704,71 @@ describe('workers and backups on System health and /metrics', () => {
   it('shows the national view each worker’s last run, success, error and whether it is stale', async () => {
     registerWorker('proms', HOUR);
     await recordRun('proms', async () => ({ reminded: 2 }));
+    // The next run starts later (two runs started in the same millisecond tie on started_at).
+    await new Promise((resolve) => setTimeout(resolve, 5));
     const recordId = randomUUID();
     await recordRun('proms', async () => {
       throw new Error(`Could not reach mail for person@example.org about row ${recordId}`);
     });
-    // Due every millisecond: stale at once.
+    // Due every millisecond, but every worker is given at least 5 minutes (ops-2).
     registerWorker('licences', 1);
+    // A run recorded before failed queries were unwrapped: it holds the SQL and a patient's
+    // name. charge-capture is not started in this process (another instance's worker).
+    const old = new Date(Date.now() - MINUTE);
+    const [legacy] = await db
+      .insert(workerRuns)
+      .values({
+        worker: 'charge-capture',
+        startedAt: old,
+        finishedAt: old,
+        ok: false,
+        error: `Failed query: select "first_name" from "patients" where "id" = $1\nparams: ${recordId},Arben Krasniqi`,
+      })
+      .returning({ id: workerRuns.id });
     clearWorkerStatusCache();
 
-    for (const token of [admin.token, w.tokens.ministry]) {
-      const res = await api().get('/api/v1/monitoring/health').set(bearer(token));
-      expect(res.status).toBe(200);
-      const proms = (res.body.workers as Record<string, unknown>[]).find(
-        (x) => x.name === 'proms',
-      )!;
-      expect(proms).toMatchObject({
-        running: true,
-        intervalSeconds: 3600,
-        lastRunOk: false,
-        stale: false,
-      });
-      expect(proms.lastOkAt).toEqual(expect.any(String));
-      expect((proms.lastError as { text: string }).text).toContain('Could not reach mail');
-      expect((proms.lastError as { text: string }).text).not.toContain('person@example.org');
-      expect((proms.lastError as { text: string }).text).not.toContain(recordId);
-      const licences = (res.body.workers as { name: string; stale: boolean }[]).find(
-        (x) => x.name === 'licences',
-      )!;
-      expect(licences.stale).toBe(true);
-      expect(res.body.backups).toMatchObject({ maxAgeHours: 26 });
+    try {
+      for (const token of [admin.token, w.tokens.ministry]) {
+        const res = await api().get('/api/v1/monitoring/health').set(bearer(token));
+        expect(res.status).toBe(200);
+        const workers = res.body.workers as Record<string, unknown>[];
+        const proms = workers.find((x) => x.name === 'proms')!;
+        expect(proms).toMatchObject({
+          running: true,
+          intervalSeconds: 3600,
+          staleAfterSeconds: 10_800,
+          lastRunOk: false,
+          stale: false,
+        });
+        expect(proms.lastOkAt).toEqual(expect.any(String));
+        expect((proms.lastError as { text: string }).text).toBe(
+          'Error: Could not reach mail for …@… about row …',
+        );
+        expect(workers.find((x) => x.name === 'licences')).toMatchObject({
+          staleAfterSeconds: 300,
+          stale: false,
+        });
+        // Not run by this instance: shown with its last run and error, but not judged.
+        expect(workers.find((x) => x.name === 'charge-capture')).toMatchObject({
+          running: false,
+          intervalSeconds: null,
+          staleAfterSeconds: null,
+          stale: null,
+          lastRunOk: false,
+          lastError: {
+            text: 'DrizzleQueryError: a database query failed (its cause was not recorded)',
+          },
+        });
+        expect(JSON.stringify(res.body)).not.toContain('Arben');
+        expect(JSON.stringify(res.body)).not.toContain(recordId);
+        expect(res.body.backups).toMatchObject({ maxAgeHours: 26 });
+      }
+    } finally {
+      await db.delete(workerRuns).where(eq(workerRuns.id, legacy!.id));
     }
+    // Six minutes on, licences is stalled.
+    const later = await workerStatuses({ now: new Date(Date.now() + 6 * MINUTE), fresh: true });
+    expect(later.find((s) => s.name === 'licences')!.stale).toBe(true);
 
     // A director sees their facility's indicators, not the service's workers or backups.
     const own = await api().get('/api/v1/monitoring/health').set(bearer(w.tokens.director));
@@ -527,18 +777,85 @@ describe('workers and backups on System health and /metrics', () => {
     expect(own.body.backups).toBeNull();
   });
 
-  it('exports the last success and the expected interval of each worker for Prometheus', async () => {
+  it('exports the real last success, the threshold and the process start for Prometheus (ops-7)', async () => {
     registerWorker('proms', HOUR);
-    await recordRun('proms', async () => 1);
+    // An hour after the process started, so that it cannot be mistaken for the process start.
+    const finishedAt = new Date(PROCESS_STARTED_AT.getTime() + HOUR + 1234);
+    await insertRun('proms', finishedAt);
+    // Never ran (no test records it): no last success, whatever the process start.
+    registerWorker('screening', HOUR);
+    registerWorker('equipment', 5_000);
     clearWorkerStatusCache();
-    const res = await api().get('/metrics');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('# TYPE pacient_worker_last_success_timestamp_seconds gauge');
-    const m = /pacient_worker_last_success_timestamp_seconds\{worker="proms"\} (\d+)/.exec(
-      res.text,
-    );
-    expect(Math.abs(Number(m![1]) - Date.now() / 1000)).toBeLessThan(120);
-    expect(res.text).toContain('pacient_worker_expected_interval_seconds{worker="proms"} 3600');
+    try {
+      const res = await api().get('/metrics');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('# TYPE pacient_worker_last_success_timestamp_seconds gauge');
+      expect(res.text).toContain(
+        `pacient_worker_last_success_timestamp_seconds{worker="proms"} ${Math.floor(finishedAt.getTime() / 1000)}\n`,
+      );
+      expect(res.text).toContain(
+        'pacient_worker_last_success_timestamp_seconds{worker="screening"} 0\n',
+      );
+      expect(res.text).toContain(
+        `pacient_process_start_time_seconds ${Math.floor(PROCESS_STARTED_AT.getTime() / 1000)}\n`,
+      );
+      expect(res.text).toContain('pacient_worker_expected_interval_seconds{worker="proms"} 3600');
+      expect(res.text).toContain('pacient_worker_stale_after_seconds{worker="proms"} 10800');
+      // Every 5 seconds, but given 5 minutes.
+      expect(res.text).toContain('pacient_worker_stale_after_seconds{worker="equipment"} 300');
+      // Workers this process does not run are not exported (the rule judges per instance).
+      expect(res.text).not.toContain('{worker="charge-capture"}');
+    } finally {
+      await db
+        .delete(workerRuns)
+        .where(and(eq(workerRuns.worker, 'proms'), eq(workerRuns.finishedAt, finishedAt)));
+    }
+  });
+
+  it('judges a cached answer at the time it was read, not when it is served (ops-2)', async () => {
+    registerWorker('complaints', MINUTE);
+    const at = new Date(Date.now() + 3 * HOUR);
+    // 4 minutes 55 seconds before `at`: 5 seconds short of stalled.
+    await insertRun('complaints', new Date(at.getTime() - 5 * MINUTE + 5_000));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(at);
+      clearWorkerStatusCache();
+      const fresh = await workerStatuses();
+      expect(fresh.find((s) => s.name === 'complaints')!.stale).toBe(false);
+      // Served from the cache 14 seconds later: still what was true when it was read.
+      vi.setSystemTime(at.getTime() + 14_000);
+      const cached = await workerStatuses();
+      expect(cached.find((s) => s.name === 'complaints')!.stale).toBe(false);
+      // Read again then: stalled.
+      const reread = await workerStatuses({ fresh: true });
+      expect(reread.find((s) => s.name === 'complaints')!.stale).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      await db
+        .delete(workerRuns)
+        .where(
+          and(
+            eq(workerRuns.worker, 'complaints'),
+            sql`${workerRuns.startedAt} > now() + interval '1 hour'`,
+          ),
+        );
+    }
+  });
+
+  it('reads the runs through the indexes, without sorting them (ops-3)', async () => {
+    const plan = await db.transaction(async (tx) => {
+      // On a small table a scan is cheaper; what matters is that no sort is needed.
+      await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+      await tx.execute(sql`SET LOCAL enable_bitmapscan = off`);
+      const { rows } = await tx.execute<Record<string, unknown>>(
+        sql`EXPLAIN (FORMAT JSON) ${lastRunsQuery()}`,
+      );
+      return JSON.stringify(rows[0]);
+    });
+    expect(plan).toContain('worker_runs_worker_idx');
+    expect(plan).toContain('worker_runs_failed_idx');
+    expect(plan).not.toMatch(/"Node Type":\s*"(Incremental )?Sort"/);
   });
 });
 
@@ -773,5 +1090,59 @@ describe('recent e-mail failures', () => {
         (await api().get('/api/v1/admin/platform/email-failures').set(bearer(token))).status,
       ).toBe(403);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ smoke test -------------- */
+
+describe('deploy/smoke-test.mjs --mail-domain', () => {
+  const script = fileURLToPath(new URL('../../../deploy/smoke-test.mjs', import.meta.url));
+
+  /** Runs the e-mail checks against a made-up zone (the script's DNS look-ups are replaced). */
+  async function smokeTest(domain: string, zone: Record<string, string[]>) {
+    const mock = `import { Resolver } from 'node:dns/promises';
+      const zone = ${JSON.stringify(zone)};
+      Resolver.prototype.resolveTxt = async (name) => {
+        if (zone[name]) return zone[name].map((r) => [r]);
+        throw Object.assign(new Error('queryTxt ENOTFOUND ' + name), { code: 'ENOTFOUND' });
+      };`;
+    const args = ['--import', `data:text/javascript,${encodeURIComponent(mock)}`, script];
+    return new Promise<{ code: number; out: string }>((resolve) => {
+      execFile(process.execPath, [...args, '--mail-domain', domain], (err, stdout) => {
+        resolve({ code: err ? Number(err.code) : 0, out: stdout });
+      });
+    });
+  }
+
+  it('accepts the DMARC record of the parent domain for a subdomain, with its sp= policy (ops-5)', async () => {
+    const spf = 'v=spf1 include:_spf.provider.example -all';
+    const parent = await smokeTest('pacienti.example.tech', {
+      'pacienti.example.tech': [spf],
+      '_dmarc.example.tech': ['v=DMARC1; p=reject; sp=quarantine'],
+    });
+    expect(parent.out).toContain(
+      'OK    DMARC record of pacienti.example.tech – sp=quarantine (from _dmarc.example.tech)',
+    );
+    expect(parent.code).toBe(0);
+
+    // Without sp= the parent's p= applies; the subdomain's own record comes first.
+    const policy = await smokeTest('pacienti.example.tech', {
+      'pacienti.example.tech': [spf],
+      '_dmarc.example.tech': ['v=DMARC1; p=none'],
+    });
+    expect(policy.out).toContain('p=none (from _dmarc.example.tech): reports only');
+    const own = await smokeTest('pacienti.example.tech', {
+      'pacienti.example.tech': [spf],
+      '_dmarc.pacienti.example.tech': ['v=DMARC1; p=quarantine'],
+      '_dmarc.example.tech': ['v=DMARC1; p=none'],
+    });
+    expect(own.out).toContain('OK    DMARC record of pacienti.example.tech – p=quarantine\n');
+
+    // No record anywhere: still a failure.
+    const none = await smokeTest('pacienti.example.tech', { 'pacienti.example.tech': [spf] });
+    expect(none.out).toContain(
+      'FAIL  DMARC record of pacienti.example.tech – no TXT record "v=DMARC1; p=…" at _dmarc.pacienti.example.tech or at its parent domains',
+    );
+    expect(none.code).toBe(1);
   });
 });

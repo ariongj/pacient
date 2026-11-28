@@ -43,14 +43,15 @@ SSE streams are excluded):
 
 Runtime and database:
 
-| Metric                             | Labels                                              |
-| ---------------------------------- | --------------------------------------------------- |
-| `pacient_process_uptime_seconds`   |                                                     |
-| `pacient_process_memory_bytes`     | `type` = rss, heap_used, heap_total, external       |
-| `pacient_event_loop_delay_seconds` | `stat` = mean, p99, max (since the previous scrape) |
-| `pacient_db_pool_connections`      | `state` = total, idle, waiting                      |
-| `pacient_db_up`                    |                                                     |
-| `pacient_db_latency_seconds`       |                                                     |
+| Metric                               | Labels                                              |
+| ------------------------------------ | --------------------------------------------------- |
+| `pacient_process_uptime_seconds`     |                                                     |
+| `pacient_process_start_time_seconds` | (Unix time the process, and its workers, started)   |
+| `pacient_process_memory_bytes`       | `type` = rss, heap_used, heap_total, external       |
+| `pacient_event_loop_delay_seconds`   | `stat` = mean, p99, max (since the previous scrape) |
+| `pacient_db_pool_connections`        | `state` = total, idle, waiting                      |
+| `pacient_db_up`                      |                                                     |
+| `pacient_db_latency_seconds`         |                                                     |
 
 Queues and clinical safety (cheap `COUNT` queries, cached for 15 s so frequent scrapes do not load
 the database; all aggregate, no patient data):
@@ -73,10 +74,18 @@ the database; all aggregate, no patient data):
 Background workers (every interval worker the API process started – outbox senders,
 escalations, reminders, the watchdog; each run is recorded in `worker_runs`, counts only):
 
-| Metric                                                  | Meaning                                                                                 |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `pacient_worker_last_success_timestamp_seconds{worker}` | Last successful run (the process start if later, so a restart is not a stall)           |
-| `pacient_worker_expected_interval_seconds{worker}`      | How often it should succeed; `PacientWorkerStalled` fires after three intervals without |
+| Metric                                                  | Meaning                                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `pacient_worker_last_success_timestamp_seconds{worker}` | Last successful run, by any instance (0 when none in the last 30 days)                            |
+| `pacient_worker_expected_interval_seconds{worker}`      | How often it should succeed                                                                       |
+| `pacient_worker_stale_after_seconds{worker}`            | How long it may go without a successful run before it is stalled: three intervals, at least 5 min |
+
+`PacientWorkerStalled` fires when `time()` minus the later of the last success and
+`pacient_process_start_time_seconds` (so a restart is not a stall; the recording rule
+`pacient:worker_success_reference_timestamp_seconds` computes it) exceeds
+`pacient_worker_stale_after_seconds` – the same judgement as the API's watchdog. The floor of 5
+minutes keeps the e-mail and SMS workers (every 5 seconds) from paging on a long batch, the scrape
+interval and the rule evaluation adding up.
 
 Not yet exported (planned): the number of open SSE connections (`pacient_sse_connections`).
 

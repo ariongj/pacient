@@ -1,11 +1,15 @@
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
-import { describe, expect, it } from 'vitest';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { describe, expect, it, vi } from 'vitest';
 import { db } from '../src/db/client.js';
 import { workerRuns } from '../src/db/schema.js';
+import { logger } from '../src/lib/logger.js';
 import {
+  errorClassOf,
+  errorText,
   recordRun,
   registeredWorkers,
   registerWorker,
+  storedErrorText,
   WORKER_NAMES,
   type WorkerName,
 } from '../src/lib/worker-runs.js';
@@ -87,6 +91,98 @@ describe('recordRun', () => {
       recordRun('equipment', () => Promise.reject('plain text reason')),
     ).resolves.toBeUndefined();
     expect((await lastRun('equipment', since)).error).toBe('plain text reason');
+  });
+
+  it('records why a query failed, never its SQL or the values it was given (ops-1)', async () => {
+    const since = new Date();
+    const name = 'Arbenita Krasniqi';
+    const logged = vi.spyOn(logger, 'error');
+    try {
+      // A patient's name as a parameter: PostgreSQL refuses it as a number and echoes it back.
+      await recordRun('registers', () => db.execute(sql`SELECT ${name}::int AS n`));
+      expect((await lastRun('registers', since)).error).toBe(
+        'DatabaseError 22P02: invalid input syntax for type integer: "…"',
+      );
+
+      // A long statement: the cause is kept, not the first 500 characters of the SQL.
+      const columns = Array.from({ length: 40 }, (_, i) => `'x' AS column_number_${i}`).join(', ');
+      await recordRun('registers', () =>
+        db.execute(sql`SELECT ${sql.raw(columns)}, 1 / 0 AS n WHERE ${name} <> ''`),
+      );
+      expect((await lastRun('registers', since)).error).toBe(
+        'DatabaseError 22012: division by zero',
+      );
+
+      // A constraint names what failed; pg's detail ("Key (name)=(Arbenita Krasniqi) already
+      // exists.") is left out.
+      await recordRun('registers', () =>
+        db.execute(
+          sql`INSERT INTO ops_heartbeats (name, last_ok_at) VALUES (${name}, now()), (${name}, now())`,
+        ),
+      );
+      const duplicate = (await lastRun('registers', since)).error!;
+      expect(duplicate).toBe(
+        'DatabaseError 23505: duplicate key value violates unique constraint "…" ' +
+          '(constraint ops_heartbeats_pkey, table ops_heartbeats)',
+      );
+      expect(errorClassOf(duplicate)).toBe('DatabaseError 23505');
+
+      // A missing value names its column; the row it was refused in is left out.
+      await recordRun('registers', () =>
+        db.execute(
+          sql`INSERT INTO ops_heartbeats (name, last_ok_at) VALUES (${name}, now()), (NULL, now())`,
+        ),
+      );
+      expect((await lastRun('registers', since)).error).toBe(
+        'DatabaseError 23502: null value in column "…" of relation "…" violates not-null ' +
+          'constraint (table ops_heartbeats, column name)',
+      );
+
+      // Neither the trail nor the API log has the name or the SQL.
+      const runs = await db
+        .select({ error: workerRuns.error })
+        .from(workerRuns)
+        .where(and(eq(workerRuns.worker, 'registers'), gte(workerRuns.startedAt, since)));
+      const everything = JSON.stringify([runs, logged.mock.calls]);
+      expect(logged).toHaveBeenCalledTimes(4);
+      expect(everything).not.toContain('Arbenita');
+      expect(everything).not.toMatch(/SELECT|INSERT INTO|params/);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('keeps an error’s class and message, without quoted values or identifiers', () => {
+    const id = '2b1c0a6e-3f0d-4c55-9a51-0d4f1c2e7b9a';
+    expect(errorText(new TypeError("Cannot read properties of undefined (reading 'name')"))).toBe(
+      "TypeError: Cannot read properties of undefined (reading '…')",
+    );
+    expect(errorText(new Error(`Can't remind "Arben Krasniqi" about row ${id} (1234567890)`))).toBe(
+      `Error: Can't remind "…" about row … (…)`,
+    );
+    expect(errorClassOf('TypeError: x')).toBe('TypeError');
+    expect(errorClassOf('plain text reason')).toBeNull();
+
+    // A system error keeps Node's code, which says what went wrong.
+    const refused = Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), {
+      code: 'ECONNREFUSED',
+    });
+    expect(errorText(refused)).toBe('Error ECONNREFUSED: connect ECONNREFUSED 10.0.0.5:5432');
+    expect(errorClassOf(errorText(refused))).toBe('Error ECONNREFUSED');
+
+    // A worker that wraps a failed query in its own error repeats the SQL and its values.
+    expect(
+      errorText(
+        new Error(
+          `Could not plan the sessions: Failed query: select $1::int\nparams: Arben Krasniqi,${id}`,
+        ),
+      ),
+    ).toBe('Error: Could not plan the sessions: a database query failed');
+
+    // Runs recorded before failed queries were unwrapped show only that a query failed.
+    expect(storedErrorText(`Failed query: select $1::int AS n\nparams: Arben Krasniqi,${id}`)).toBe(
+      'DrizzleQueryError: a database query failed (its cause was not recorded)',
+    );
   });
 
   it('registers the workers started in this process with their interval', () => {

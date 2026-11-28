@@ -47,16 +47,18 @@ export interface SystemHealthReport {
 
 export interface WorkerStatus {
   name: string;
-  /** Started by the API process that answered (switched-off workers are not). */
+  /** Started by the API process that answered (switched-off workers and other instances' are not). */
   running: boolean;
   intervalSeconds: number | null;
+  /** How long it may go without a successful run: three intervals, at least 5 minutes. */
+  staleAfterSeconds: number | null;
   lastRunAt: string | null;
   lastRunOk: boolean | null;
   lastOkAt: string | null;
-  /** The most recent failure in the last 7 days. */
+  /** The most recent failure in the last 7 days: the error's class and cause, never data. */
   lastError: { at: string; text: string | null } | null;
-  /** No successful run for three intervals. */
-  stale: boolean;
+  /** No successful run for staleAfterSeconds; null when the answering process does not run it. */
+  stale: boolean | null;
 }
 
 export interface BackupStatus {

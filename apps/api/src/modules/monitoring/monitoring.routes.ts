@@ -15,7 +15,7 @@ import {
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
 import { dbLatencyMs, indicators, poolStats, versionInfo } from './monitoring.service.js';
-import { backupStatus, successReference, workerStatuses } from './operations.service.js';
+import { backupStatus, PROCESS_STARTED_AT, workerStatuses } from './operations.service.js';
 
 /* ------------------------------------------------------------------ /metrics (Prometheus) */
 
@@ -43,7 +43,8 @@ export async function metricsHandler(req: Request, res: Response) {
     dbLatencyMs(),
     workerStatuses().catch(() => []),
   ]);
-  // Workers started by this process only: the rule compares the two series per worker.
+  // Workers started by this process only: the rule compares their series per worker, with the
+  // process start (a restart is not a stall).
   const running = workers.filter((w) => w.running);
   const mem = process.memoryUsage();
   const loop = eventLoopDelaySeconds();
@@ -53,6 +54,11 @@ export async function metricsHandler(req: Request, res: Response) {
   const body = [
     renderHttpMetrics(),
     g('process_uptime_seconds', 'Process uptime in seconds.', Math.round(process.uptime())),
+    g(
+      'process_start_time_seconds',
+      'Unix time when this API process started (and its background workers with it).',
+      Math.floor(PROCESS_STARTED_AT.getTime() / 1000),
+    ),
     renderGauge('pacient_process_memory_bytes', 'Process memory by type.', [
       { labels: { type: 'rss' }, value: mem.rss },
       { labels: { type: 'heap_used' }, value: mem.heapUsed },
@@ -121,16 +127,21 @@ export async function metricsHandler(req: Request, res: Response) {
     g('facilities_in_downtime', 'Facilities currently in downtime mode.', ind.facilitiesInDowntime),
     renderGauge(
       'pacient_worker_last_success_timestamp_seconds',
-      'Unix time of the last successful run of each background worker started by this process, or of the process start if later (a restart is not a stall).',
+      'Unix time of the last successful run of each background worker started by this process (by any instance; 0 when none in the last 30 days).',
       running.map((w) => ({
         labels: { worker: w.name },
-        value: Math.floor(successReference(w.lastOkAt).getTime() / 1000),
+        value: w.lastOkAt ? Math.floor(w.lastOkAt.getTime() / 1000) : 0,
       })),
     ),
     renderGauge(
       'pacient_worker_expected_interval_seconds',
-      'How often each background worker should succeed; it is stalled after three intervals without success.',
+      'How often each background worker should succeed.',
       running.map((w) => ({ labels: { worker: w.name }, value: w.intervalSeconds ?? 0 })),
+    ),
+    renderGauge(
+      'pacient_worker_stale_after_seconds',
+      'How long each background worker may go without a successful run, counted from the process start if later, before it is stalled: three intervals, at least 5 minutes.',
+      running.map((w) => ({ labels: { worker: w.name }, value: w.staleAfterSeconds ?? 0 })),
     ),
   ].join('\n');
   res.type('text/plain; version=0.0.4; charset=utf-8').set('Cache-Control', 'no-store');

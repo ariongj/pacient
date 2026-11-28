@@ -184,7 +184,8 @@ servers trust yours. With the relay of an e-mail provider (step 3), in the DNS o
    `<selector>._domainkey.<domain>`, from the provider's domain settings. Turn signing on there.
 3. **DMARC** – a TXT record at `_dmarc.<domain>`, to start with
    `v=DMARC1; p=none; rua=mailto:dmarc@<domain>`; once the reports show only your provider, move
-   to `p=quarantine`.
+   to `p=quarantine`. For a subdomain (`pacienti.itdks.tech`) the record of the parent domain
+   (`_dmarc.itdks.tech`) covers it too, with its `sp=` policy if it has one.
 4. **PTR (reverse DNS)** – only if the server sends mail itself instead of through a relay: the
    server's address must resolve back to its host name (ask the hosting company). With a relay,
    the provider takes care of it.
@@ -196,20 +197,23 @@ node deploy/smoke-test.mjs --mail-domain pacienti.itdks.tech
 ```
 
 It checks that there is exactly one SPF record that does not allow everyone (`+all`) and a DMARC
-record with a policy. DKIM needs the provider's selector, so check it with a real message: in the
-portal, **Platform › System health › Send a test e-mail** sends one to your own address through
-the same queue as every other e-mail. It should arrive within a minute and not in spam. For a
-score, send a password reset or an invitation to the address that
-[mail-tester.com](https://www.mail-tester.com) shows and aim for 9/10 or more; it names what is
-missing. **Recent failures** on the same page shows what the mail server refused (addresses
-shortened, never the contents). Replies to Pacient's e-mails go to the **support e-mail** of
-**Operator settings** – set it, so that answers reach a person and not the no-reply sender.
+record with a policy – the domain's own, or else its parent domain's, as receivers look it up
+(it then names where it found it and the policy that applies to the subdomain). DKIM needs the
+provider's selector, so check it with a real message: in the portal, **Platform › System health ›
+Send a test e-mail** sends one to your own address through the same queue as every other e-mail.
+It should arrive within a minute and not in spam. For a score, send a password reset or an
+invitation to the address that [mail-tester.com](https://www.mail-tester.com) shows and aim for
+9/10 or more; it names what is missing. **Recent failures** on the same page shows what the mail
+server refused (addresses shortened, never the contents). Replies to Pacient's e-mails go to the
+**support e-mail** of **Operator settings** – set it, so that answers reach a person and not the
+no-reply sender.
 
 ## Monitoring and heartbeats
 
 The API watches itself: every 10 minutes it checks that its background jobs still succeed, that
 e-mail and SMS go out, and that backups are reported, and alerts the administrators (notification
-and e-mail; [OPERATOR.md › Alerts and background jobs](OPERATOR.md#alerts-and-background-jobs)).
+and e-mail, to every administrator, also those who turned e-mail notifications off;
+[OPERATOR.md › Alerts and background jobs](OPERATOR.md#alerts-and-background-jobs)).
 Two things it cannot see on its own:
 
 **Backups.** The nightly backup runs outside the API. Give it a token to report with:

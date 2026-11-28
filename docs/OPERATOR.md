@@ -500,31 +500,46 @@ says to call 112 in an emergency and what the operator can and cannot see.
 
 The API runs about 25 **background jobs** – e-mail and SMS delivery, escalation of unanswered
 results, reminders, the subscription lifecycle, data retention and others. Each run is recorded
-(when, whether it worked, counts and a short error that never names a person; kept 30 days).
-**System health › Background jobs** lists every job with its last run, last success and last
-error. A job is **stalled** when it has had no successful run for three of its intervals (counted
-from the start of the API if that is later, so a restart is not a stall); "Not started here" means
-it is switched off on this server (for example SMS without a provider).
+(when, whether it worked, counts and a short error; kept 30 days). The error says what failed and
+why – the kind of error with its code (a database error's SQLSTATE such as `40P01`, a network
+error's such as `ECONNREFUSED`), its message without the values it quotes, and the constraint,
+table or column – never the data it failed on: not the query, not its values, no names, e-mail
+addresses, long numbers or record ids. **System health › Background jobs** lists
+every job with its last run, last success and the last error **of the last 7 days** ("None in 7
+days" otherwise). A job is **stalled** when it has had no successful run for three of its
+intervals, and never sooner than 5 minutes (the e-mail and SMS jobs run every 5 seconds, and one
+batch can take longer than that); it is counted from the start of the API if that is later, so a
+restart is not a stall. "Not started by this instance" means the API process that answered does
+not run the job: it is switched off there (for example SMS without a provider), or, with more than
+one API instance, another instance runs it. Only an instance that runs a job judges whether it has
+stalled, so such a job is shown with its last run and error but never as running or stalled.
 
 A **watchdog** looks every 10 minutes and raises an **alert** for each condition the operator must
 act on, and resolves it by itself once the condition is gone:
 
-| Alert                          | When                                                                          | What to do                                                                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A background job has stopped   | No successful run for three intervals (critical for e-mail, SMS, escalations) | Read its last error on System health, check the API log (`docker compose --env-file .env.vps -f deploy/compose.vps.yml logs api`), restart the API |
-| E-mails could not be delivered | A message was given up in the last 24 hours                                   | **System health › Recent failures**: a wrong address, or the mail server refusing                                                                  |
-| E-mails are waiting to be sent | A message due for more than 30 minutes has not gone out (critical)            | Check `SMTP_URL` and the mail provider; without e-mail nobody can be invited or reset a password                                                   |
-| Text messages – the same two   | As for e-mail (a warning only while no SMS provider is configured)            | Check the SMS provider account, or stop collecting phone numbers                                                                                   |
-| No recent database backup      | No backup reported for 26 hours (only with `OPS_HEARTBEAT_TOKEN`)             | `systemctl status pacienti-backup.timer`, `journalctl -u pacienti-backup`                                                                          |
-| Invoices cannot be issued      | The subscription worker could not invoice: operator settings incomplete       | Complete **Operator settings**; the waiting invoices are issued at its next run                                                                    |
+| Alert                          | When                                                                                              | What to do                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A background job has stopped   | No successful run for three intervals, at least 5 minutes (critical for e-mail, SMS, escalations) | Read its last error on System health, check the API log (`docker compose --env-file .env.vps -f deploy/compose.vps.yml logs api`), restart the API |
+| E-mails could not be delivered | A message was given up in the last 24 hours                                                       | **System health › Recent failures**: a wrong address, or the mail server refusing                                                                  |
+| E-mails are waiting to be sent | A message due for more than 30 minutes has not gone out (critical)                                | Check `SMTP_URL` and the mail provider; without e-mail nobody can be invited or reset a password                                                   |
+| Text messages – the same two   | As for e-mail (a warning only while no SMS provider is configured)                                | Check the SMS provider account, or stop collecting phone numbers                                                                                   |
+| No recent database backup      | No backup reported for 26 hours (only with `OPS_HEARTBEAT_TOKEN`)                                 | `systemctl status pacienti-backup.timer`, `journalctl -u pacienti-backup`                                                                          |
+| Invoices cannot be issued      | The subscription worker could not invoice: operator settings incomplete                           | Complete **Operator settings**: the alert goes at the watchdog's next pass, the waiting invoices are issued at the worker's next run               |
 
-Open alerts are listed at the top of the **Overview**, critical first, with what to do. When an
-alert is raised every active administrator gets an important notification and an e-mail – at most
-once per condition every 6 hours while it stays open, so a lasting problem is repeated, a
-flickering one is not. Raising and resolving are recorded under **Administrative actions ›
-Platform** (by the system). Alerts carry counts, times and job names only – never patient data or
-e-mail addresses. The HTTPS certificate is not watched by the API (the proxy holds it): let the
-external uptime check watch it ([GO-LIVE.md](GO-LIVE.md#monitoring-and-heartbeats)).
+A stalled job's alert is raised and resolved only by an API instance that runs the job: with more
+than one instance, one that does not run it leaves the alert alone instead of resolving it at
+every pass. An instance that runs a stalled job raises its alert again at every pass; once no
+instance has raised it for an hour (the job was switched off everywhere), the watchdog resolves
+it. Open alerts are listed at the top of the **Overview**, critical first, with what to do.
+When an alert is raised every active administrator gets an important notification and an e-mail,
+also those who turned e-mail notifications off (alerts are operations and security notices) – at
+most once per condition every 6 hours while it stays open, so a lasting problem is repeated, a
+flickering one is not. The notification names the job by what it does, in each administrator's
+language. Raising and resolving are recorded under **Administrative actions › Platform** (by the
+system). Alerts carry counts, times, job names and the kind of the last error (for example
+`DatabaseError 40P01`; its text stays on System health) only – never patient data or e-mail
+addresses. The HTTPS certificate is not watched by the API (the proxy holds it): let the external
+uptime check watch it ([GO-LIVE.md](GO-LIVE.md#monitoring-and-heartbeats)).
 
 **Backups** on System health shows the last backup the server reported, with its size and
 duration, once `OPS_HEARTBEAT_TOKEN` is set ([GO-LIVE.md](GO-LIVE.md#6-backups--the-same-day));
@@ -539,8 +554,9 @@ failures** lists the last 50 messages given up or being retried, with the addres
 subject or the text. Replies to any e-mail of Pacient go to the support address of the
 **Operator settings** (when set), not to the no-reply sender.
 
-With Prometheus, `pacient_worker_last_success_timestamp_seconds` and the `PacientWorkerStalled`
-rule report the same stalls, also when the watchdog itself has stopped
+With Prometheus, `pacient_worker_last_success_timestamp_seconds`,
+`pacient_worker_stale_after_seconds`, `pacient_process_start_time_seconds` and the
+`PacientWorkerStalled` rule report the same stalls, also when the watchdog itself has stopped
 ([deploy/monitoring/README.md](../deploy/monitoring/README.md)).
 
 ## Recovering an administrator

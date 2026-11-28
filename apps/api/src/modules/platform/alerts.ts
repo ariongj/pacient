@@ -1,10 +1,17 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { operatorAlerts, users } from '../../db/schema.js';
+import { toLocale } from '../../i18n/index.js';
 import { logger } from '../../lib/logger.js';
+import type { WorkerName } from '../../lib/worker-runs.js';
 import { audit, AuditAction } from '../audit/audit.service.js';
+import { enqueueEmail } from '../email/outbox.js';
 import { withoutIdentifiers } from '../monitoring/operations.service.js';
-import { notifyUsers } from '../notifications/notifications.service.js';
+import {
+  notifyUsers,
+  renderTitle,
+  type NotificationInput,
+} from '../notifications/notifications.service.js';
 
 /**
  * Operator alerts: conditions the operator of the service must look at, one per condition key
@@ -43,15 +50,50 @@ export function alertMessage(message: string): string {
 }
 
 /**
- * The notification title of a condition, translated for each administrator (src/i18n), with the
- * worker's name for a stalled worker. The details stay in the message, which is in English like
- * the rest of the operator's technical texts.
+ * What each background job does, as on System health (the web app's WORKER_LABELS), translated
+ * in the administrators' notifications and e-mails (src/i18n). The watchdog never reports itself.
  */
-export function alertTitle(key: string): { title: string; vars?: Record<string, string> } {
+const WORKER_LABELS: Record<Exclude<WorkerName, 'watchdog'>, string> = {
+  email: 'E-mail delivery',
+  sms: 'SMS delivery',
+  'cover-escalation': 'Escalation of unanswered results',
+  'appointment-reminders': 'Appointment reminders',
+  'vaccination-reminders': 'Vaccination reminders',
+  'early-warning': 'Early warning scores',
+  retention: 'Data retention',
+  'downtime-packs': 'Downtime packs',
+  'waiting-lists': 'Waiting list warnings',
+  registers: 'Disease registers',
+  complaints: 'Complaint deadlines',
+  licences: 'Licence expiry',
+  subscriptions: 'Subscriptions and invoices',
+  maternity: 'Antenatal reminders',
+  screening: 'Screening invitations',
+  sepsis: 'Sepsis escalation',
+  equipment: 'Equipment maintenance',
+  infection: 'Infection control',
+  'remote-monitoring': 'Remote monitoring digests',
+  dialysis: 'Dialysis sessions',
+  'mental-health': 'Mental health deadlines',
+  proms: 'Questionnaire reminders',
+  'access-reviews': 'Access reviews',
+  'charge-capture': 'Charge capture',
+  surveillance: 'Disease surveillance',
+};
+
+/**
+ * The notification title of a condition, translated for each administrator (src/i18n). For a
+ * stalled worker the title is the job's label (translated like every title) wrapped in "The
+ * background job “…” has stopped", so that the job is named in the reader's language and not by
+ * its id. The details stay in the message, which is in English like the rest of the operator's
+ * technical texts.
+ */
+export function alertTitle(key: string): Pick<NotificationInput, 'title' | 'wrap'> {
   if (key.startsWith('worker.stale:')) {
+    const worker = key.slice('worker.stale:'.length);
     return {
-      title: 'The background job {worker} has stopped',
-      vars: { worker: key.slice('worker.stale:'.length) },
+      title: WORKER_LABELS[worker as keyof typeof WORKER_LABELS] ?? worker,
+      wrap: [{ text: 'The background job “{title}” has stopped' }],
     };
   }
   const titles: Record<string, string> = {
@@ -76,11 +118,40 @@ async function activeAdministrators(executor: Executor): Promise<string[]> {
 }
 
 /**
+ * Notifies every active administrator of an alert, and e-mails each of them. Alerts are security
+ * and operations notices, so also those who turned e-mail notifications off get the e-mail:
+ * notifyUsers() e-mails those whose preference covers important notifications, the others get it
+ * here, so each gets exactly one (as for a security incident, requests.service notifyAdmins).
+ */
+async function notifyAdministrators(executor: Executor, notification: NotificationInput) {
+  const admins = await activeAdministrators(executor);
+  if (!admins.length) return;
+  await notifyUsers(admins, notification, executor);
+  const optedOut = await executor
+    .select({ id: users.id, email: users.email, fullName: users.fullName, locale: users.locale })
+    .from(users)
+    .where(and(inArray(users.id, admins), eq(users.emailNotifications, 'OFF')));
+  for (const a of optedOut) {
+    const locale = toLocale(a.locale);
+    await enqueueEmail(executor, {
+      to: a.email,
+      userId: a.id,
+      template: 'notification',
+      locale,
+      name: a.fullName,
+      title: renderTitle(notification, locale),
+      link: notification.link ?? null,
+    });
+  }
+}
+
+/**
  * Raises (or keeps raised) the alert for `key`: creates it, or updates its severity, message and
  * last-seen time; reopens it if it was resolved. Every active ADMIN is notified (important
- * notification and e-mail) at most once per key per 6 hours. Audited as platform.alert_raised when
- * it is created or reopened. Runs on its own (not in the caller's transaction) and never throws:
- * a failure is logged, so a worker that raises an alert is never broken by it.
+ * notification and e-mail, whatever their e-mail preference) at most once per key per 6 hours.
+ * Audited as platform.alert_raised when it is created or reopened. Runs on its own (not in the
+ * caller's transaction) and never throws: a failure is logged, so a worker that raises an alert
+ * is never broken by it.
  */
 export async function raiseOperatorAlert(key: string, alert: OperatorAlertInput): Promise<void> {
   try {
@@ -142,20 +213,18 @@ export async function raiseOperatorAlert(key: string, alert: OperatorAlertInput)
         !row.lastNotifiedAt ||
         now.getTime() - row.lastNotifiedAt.getTime() >= ALERT_NOTIFY_EVERY_MS;
       if (!due) return;
-      const { title, vars } = alertTitle(key);
-      await notifyUsers(
-        await activeAdministrators(tx),
-        {
-          type: 'operator_alert',
-          title,
-          vars,
-          wrap: [{ text: severity === 'CRITICAL' ? 'Critical: {title}' : 'Warning: {title}' }],
-          body: message,
-          link: '/admin',
-          important: true,
-        },
-        tx,
-      );
+      const { title, wrap = [] } = alertTitle(key);
+      await notifyAdministrators(tx, {
+        type: 'operator_alert',
+        title,
+        wrap: [
+          ...wrap,
+          { text: severity === 'CRITICAL' ? 'Critical: {title}' : 'Warning: {title}' },
+        ],
+        body: message,
+        link: '/admin',
+        important: true,
+      });
       await tx
         .update(operatorAlerts)
         .set({ lastNotifiedAt: now })

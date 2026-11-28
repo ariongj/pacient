@@ -5,18 +5,20 @@
 export const operations: Record<string, string> = {
   // Background jobs (System health).
   'Background jobs': 'Punët në sfond',
-  'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run.':
-    'Kujtesat, përshkallëzimet, e-maili dhe punët e tjera që kryhen në sfond. Një punë konsiderohet e ngecur pas tri intervaleve të saj pa asnjë ekzekutim të suksesshëm.',
+  'Reminders, escalations, e-mail and the other jobs that run in the background. A job is stalled after three of its intervals without a successful run, and never sooner than 5 minutes.':
+    'Kujtesat, përshkallëzimet, e-maili dhe punët e tjera që kryhen në sfond. Një punë konsiderohet e ngecur pas tri intervaleve të saj pa asnjë ekzekutim të suksesshëm, dhe kurrë më herët se pas 5 minutash.',
   '{count} background job has stopped': '{count} punë në sfond është ndalur',
   '{count} background jobs have stopped': '{count} punë në sfond janë ndalur',
-  'No successful run for three of its intervals. The administrators are alerted; check the API log and restart the API if it does not recover.':
-    'Asnjë ekzekutim i suksesshëm për tri intervale të saj. Administratorët janë njoftuar; kontrolloni regjistrin e API-së dhe rinisni API-në nëse nuk rikuperohet.',
+  'No successful run for three of its intervals, and for at least 5 minutes. The administrators are alerted; check the API log and restart the API if it does not recover.':
+    'Asnjë ekzekutim i suksesshëm për tri intervale të saj dhe për të paktën 5 minuta. Administratorët janë njoftuar; kontrolloni regjistrin e API-së dhe rinisni API-në nëse nuk rikuperohet.',
+  'Not started by this instance: switched off on the API instance that answered, or run by another one. Its last run and error are shown, but only an instance that runs a job judges whether it has stalled.':
+    'Nuk është nisur nga kjo instancë: është e çaktivizuar në instancën e API-së që u përgjigj, ose e kryen një instancë tjetër. Ekzekutimi dhe gabimi i fundit tregohen, por vetëm një instancë që e kryen punën gjykon nëse ajo ka ngecur.',
   'No background job has run yet': 'Asnjë punë në sfond nuk është ekzekutuar ende',
   Job: 'Puna',
   'Last success': 'Suksesi i fundit',
   'Last error': 'Gabimi i fundit',
   'None in 7 days': 'Asnjë në 7 ditë',
-  'Not started here': 'Nuk është nisur këtu',
+  'Not started by this instance': 'Nuk është nisur nga kjo instancë',
   Stalled: 'E ngecur',
   'Last run failed': 'Ekzekutimi i fundit dështoi',
   'every {n} s': 'çdo {n} s',

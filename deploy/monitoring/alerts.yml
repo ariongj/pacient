@@ -86,16 +86,29 @@ groups:
           summary: '{{ $labels.channel }} delivery failures are increasing'
           description: More than 10 messages failed permanently in the last hour; check the provider.
 
-  # Background workers: stalled after three intervals without a successful run. The timestamp is
-  # the start of the API process when that is later, so a restart is not a stall. The API's own
-  # watchdog raises the same condition as an operator alert (OPERATOR.md, Alerts and background
-  # jobs); this rule also catches a stuck watchdog.
+  # Background workers: stalled after pacient_worker_stale_after_seconds without a successful run
+  # (three intervals, at least 5 minutes – the e-mail and SMS workers run every 5 seconds), counted
+  # from the start of the API process when that is later, so a restart is not a stall. The API's
+  # own watchdog raises the same condition as an operator alert (OPERATOR.md, Alerts and
+  # background jobs); this rule also catches a stuck watchdog.
   - name: pacient-workers
     rules:
+      # The later of the last success (0 when none) and the process start, per worker:
+      # max(a, b) = a + clamp_min(b - a, 0), the process start of each instance matched to every
+      # worker it runs.
+      - record: pacient:worker_success_reference_timestamp_seconds
+        expr: |
+          pacient_worker_last_success_timestamp_seconds
+            + clamp_min(
+                (0 * pacient_worker_last_success_timestamp_seconds
+                  + on(instance, job) group_left() pacient_process_start_time_seconds)
+                - pacient_worker_last_success_timestamp_seconds,
+                0)
+
       - alert: PacientWorkerStalled
         expr: |
-          time() - pacient_worker_last_success_timestamp_seconds{worker=~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
-            > 3 * pacient_worker_expected_interval_seconds
+          time() - pacient:worker_success_reference_timestamp_seconds{worker=~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
+            > pacient_worker_stale_after_seconds
         for: 5m
         labels: { severity: page }
         annotations:
@@ -107,8 +120,8 @@ groups:
 
       - alert: PacientWorkerStalled
         expr: |
-          time() - pacient_worker_last_success_timestamp_seconds{worker!~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
-            > 3 * pacient_worker_expected_interval_seconds
+          time() - pacient:worker_success_reference_timestamp_seconds{worker!~"email|sms|cover-escalation|early-warning|sepsis|watchdog"}
+            > pacient_worker_stale_after_seconds
         for: 15m
         labels: { severity: ticket }
         annotations:

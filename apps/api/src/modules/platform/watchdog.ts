@@ -2,14 +2,14 @@ import { sql } from 'drizzle-orm';
 import { env, isTest } from '../../config/env.js';
 import { db } from '../../db/client.js';
 import { logger } from '../../lib/logger.js';
-import { recordRun, registerWorker, WORKER_NAMES, type WorkerName } from '../../lib/worker-runs.js';
+import { errorClassOf, recordRun, registerWorker, type WorkerName } from '../../lib/worker-runs.js';
 import {
   backupStatus,
   BACKUP_MAX_AGE_MS,
   clearWorkerStatusCache,
-  STALE_FACTOR,
   workerStatuses,
 } from '../monitoring/operations.service.js';
+import { missingBillingSettings, settingsOf } from '../subscriptions/subscriptions.service.js';
 import {
   openOperatorAlerts,
   raiseOperatorAlert,
@@ -21,12 +21,12 @@ import {
  * The watchdog: every 10 minutes it looks at what the operator would otherwise only notice when a
  * customer complains – a background worker that stopped, e-mail or SMS that does not go out, a
  * backup that was not reported – and raises or resolves an operator alert per condition
- * (alerts.ts notifies the administrators). Counts, times and worker names only.
+ * (alerts.ts notifies the administrators). Counts, times, worker names and error classes only.
  *
- * 'billing.settings_incomplete' is raised and resolved by the subscription worker itself, which
- * knows when it could not invoice. TLS certificate expiry is not checked: the API does not know
- * the certificate (the proxy in front of it holds it), so the external uptime check watches it
- * (GO-LIVE.md).
+ * 'billing.settings_incomplete' is raised by the subscription worker, which knows when it could
+ * not invoice; the watchdog only resolves it once the settings are complete. TLS certificate
+ * expiry is not checked: the API does not know the certificate (the proxy in front of it holds
+ * it), so the external uptime check watches it (GO-LIVE.md).
  */
 
 export const WATCHDOG_INTERVAL_MS = 10 * 60_000;
@@ -49,32 +49,90 @@ type Decision = { key: string; alert: OperatorAlertInput | null };
 const hours = (ms: number) => Math.max(1, Math.round(ms / 3_600_000));
 const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
 const duration = (ms: number) =>
-  ms < 2 * 3_600_000
-    ? plural(Math.max(1, Math.round(ms / 60_000)), 'minute')
-    : plural(hours(ms), 'hour');
+  ms < 60_000
+    ? plural(Math.max(1, Math.round(ms / 1000)), 'second')
+    : ms < 2 * 3_600_000
+      ? plural(Math.round(ms / 60_000), 'minute')
+      : plural(hours(ms), 'hour');
 
-/** Stale workers started by this process; every other worker's alert is resolved. */
+/**
+ * The workers started by this process: raised when stale, resolved otherwise. A worker this
+ * process does not run (switched off here, or run by another API instance only) is not decided
+ * on at all: it cannot judge it, and resolving another instance's alert at every pass would make
+ * the alert come and go (only an alert nobody raises any more is resolved, abandonedWorkerAlerts).
+ */
 export async function checkWorkers(now = new Date()): Promise<Decision[]> {
   clearWorkerStatusCache();
-  const statuses = new Map((await workerStatuses({ now, fresh: true })).map((s) => [s.name, s]));
-  return WORKER_NAMES.filter((name) => name !== 'watchdog').map((name) => {
-    const key = `worker.stale:${name}`;
-    const s = statuses.get(name);
-    // A worker switched off in this process is not expected to run, so its alert is resolved.
-    if (!s?.running || !s.stale || s.intervalSeconds === null) return { key, alert: null };
-    const since = s.lastOkAt ? `since ${s.lastOkAt.toISOString()}` : 'since the API started';
-    const error = s.lastError?.text ? ` Last error: ${s.lastError.text}` : '';
-    return {
-      key,
-      alert: {
-        severity: CRITICAL_WORKERS.has(name) ? 'CRITICAL' : 'WARNING',
-        message:
-          `The background job "${name}" has had no successful run ${since} (expected every ` +
-          `${duration(s.intervalSeconds * 1000)}; stalled after ${STALE_FACTOR} intervals).` +
-          `${error} Check the API log and restart the API if it does not recover.`,
-      },
-    };
-  });
+  const statuses = await workerStatuses({ now, fresh: true });
+  return statuses
+    .filter((s) => s.running && s.name !== 'watchdog')
+    .map((s) => {
+      const key = `worker.stale:${s.name}`;
+      if (!s.stale || s.intervalSeconds === null || s.staleAfterSeconds === null) {
+        return { key, alert: null };
+      }
+      const since = s.lastOkAt ? `since ${s.lastOkAt.toISOString()}` : 'since the API started';
+      // Only the class and code of a failure since the last success: the text stays on System
+      // health, the alert goes to every administrator's notifications.
+      const failed =
+        s.lastError && (!s.lastOkAt || s.lastError.at > s.lastOkAt)
+          ? errorClassOf(s.lastError.text)
+          : null;
+      const error = failed ? ` Last error: ${failed} (System health › Background jobs).` : '';
+      return {
+        key,
+        alert: {
+          severity: CRITICAL_WORKERS.has(s.name) ? 'CRITICAL' : 'WARNING',
+          message:
+            `The background job "${s.name}" has had no successful run ${since} (expected every ` +
+            `${duration(s.intervalSeconds * 1000)}; stalled after ` +
+            `${duration(s.staleAfterSeconds * 1000)} without one).` +
+            `${error} Check the API log and restart the API if it does not recover.`,
+        },
+      };
+    });
+}
+
+/**
+ * An instance that runs a stalled job raises its alert again at every pass (every 10 minutes),
+ * which moves the alert's last-seen time. An open alert that no instance has raised for this long
+ * is therefore not judged stale by any instance that runs the job: the job was switched off
+ * everywhere (or renamed). checkWorkers leaves it alone in a process that does not run the job,
+ * so without this it would stay open for good.
+ */
+export const ABANDONED_WORKER_ALERT_MS = 6 * WATCHDOG_INTERVAL_MS;
+
+/**
+ * Resolves the open stalled-job alerts that this process did not decide on (it does not run the
+ * job) and that nobody has raised for ABANDONED_WORKER_ALERT_MS. An alert another instance keeps
+ * raising is never touched, so it cannot come and go.
+ */
+export function abandonedWorkerAlerts(
+  open: { conditionKey: string; lastSeenAt: Date }[],
+  decided: Decision[],
+  now = new Date(),
+): Decision[] {
+  const keys = new Set(decided.map((d) => d.key));
+  return open
+    .filter(
+      (a) =>
+        a.conditionKey.startsWith('worker.stale:') &&
+        !keys.has(a.conditionKey) &&
+        now.getTime() - a.lastSeenAt.getTime() > ABANDONED_WORKER_ALERT_MS,
+    )
+    .map((a) => ({ key: a.conditionKey, alert: null }));
+}
+
+const BILLING_SETTINGS_ALERT = 'billing.settings_incomplete';
+
+/**
+ * Resolves 'billing.settings_incomplete' once the operator settings are complete, so that the
+ * alert goes within 10 minutes instead of at the subscription worker's next run (every 6 hours).
+ * Raising it stays with that worker, which knows whether invoices wait.
+ */
+export async function checkBillingSettings(): Promise<Decision[]> {
+  const missing = missingBillingSettings(await settingsOf());
+  return missing.length ? [] : [{ key: BILLING_SETTINGS_ALERT, alert: null }];
 }
 
 /**
@@ -165,8 +223,11 @@ export async function runWatchdogOnce(now = new Date()) {
     ...(await checkOutbox('email', now)),
     ...(await checkOutbox('sms', now)),
     ...(await checkBackup(now)),
+    ...(await checkBillingSettings()),
   ];
-  const open = new Set((await openOperatorAlerts()).map((a) => a.conditionKey));
+  const openAlerts = await openOperatorAlerts();
+  decisions.push(...abandonedWorkerAlerts(openAlerts, decisions, now));
+  const open = new Set(openAlerts.map((a) => a.conditionKey));
   let raised = 0;
   let resolved = 0;
   for (const d of decisions) {

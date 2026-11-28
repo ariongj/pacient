@@ -164,6 +164,9 @@ const author = alias(users, 'message_author');
 /**
  * The conversation of a request, oldest first. Facilities see the operator's answers as from "the
  * operator": the administrator's name stays with the operator, as in the subscription history.
+ * Who wrote for the operator is recorded with each message (from_operator), never taken from the
+ * author's role today: an administrator who later changes role still answered for the operator,
+ * and a facility user who later becomes an administrator still wrote for the facility.
  */
 export async function messagesOf(requestId: string, audience: 'admin' | 'facility') {
   const rows = await db
@@ -171,25 +174,22 @@ export async function messagesOf(requestId: string, audience: 'admin' | 'facilit
       id: operatorRequestMessages.id,
       body: operatorRequestMessages.body,
       createdAt: operatorRequestMessages.createdAt,
+      fromOperator: operatorRequestMessages.fromOperator,
       authorId: operatorRequestMessages.authorId,
       authorName: author.fullName,
-      authorRole: author.role,
     })
     .from(operatorRequestMessages)
     .innerJoin(author, eq(author.id, operatorRequestMessages.authorId))
     .where(eq(operatorRequestMessages.requestId, requestId))
     .orderBy(asc(operatorRequestMessages.createdAt), asc(operatorRequestMessages.id));
-  return rows.map((m) => {
-    const fromOperator = m.authorRole === 'ADMIN';
-    return {
-      id: m.id,
-      body: m.body,
-      createdAt: m.createdAt,
-      fromOperator,
-      authorId: audience === 'facility' && fromOperator ? null : m.authorId,
-      authorName: audience === 'facility' && fromOperator ? null : m.authorName,
-    };
-  });
+  return rows.map((m) => ({
+    id: m.id,
+    body: m.body,
+    createdAt: m.createdAt,
+    fromOperator: m.fromOperator,
+    authorId: audience === 'facility' && m.fromOperator ? null : m.authorId,
+    authorName: audience === 'facility' && m.fromOperator ? null : m.authorName,
+  }));
 }
 
 /** Facilities that have asked something, for the administrator's filter. */

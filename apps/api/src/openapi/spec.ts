@@ -988,7 +988,7 @@ export function openApiDocument(serverUrl = '/api/v1') {
       version: '1.0.0',
       summary: 'National electronic health record – Kosovo',
       description:
-        'One API over one database for every part of Pacient. Staff and patients use a short-lived bearer token from /auth/login; laboratories and partner systems use a scoped API key (Authorization: Bearer pk_…). Clinical data is only returned to callers with a legitimate relationship or stated purpose, respects the patient\'s consent and is audited. Errors use { "error": { "code", "message", "details" } }. Rate limits: 300 requests/minute per user or key (stricter on sign-in).',
+        'One API over one database for every part of Pacient. Staff and patients use a short-lived bearer token from /auth/login; laboratories and partner systems use a scoped API key (Authorization: Bearer pk_…). Clinical data is only returned to callers with a legitimate relationship or stated purpose, respects the patient\'s consent and is audited. Errors use { "error": { "code", "message", "details" } }. A sensitive action answered with 401 REAUTH_REQUIRED is sent again with the password in the X-Reauth-Password header, as `b64:` followed by the base64 of its UTF-8 bytes (any other form is refused with 400). Rate limits: 300 requests/minute per user or key (stricter on sign-in).',
       contact: { name: 'Ministry of Health – Pacient' },
     },
     servers: [{ url: serverUrl }],

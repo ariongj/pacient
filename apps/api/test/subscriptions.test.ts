@@ -44,7 +44,10 @@ const adminPost = (path: string, body: Record<string, unknown> = {}) =>
   api().post(`/api/v1/admin${path}`).set(bearer(admin)).send(body);
 /** Voiding asks for the password again (requireRecentAuth). */
 const voidInvoice = (invoiceId: string, reason: string) =>
-  adminPost(`/invoices/${invoiceId}/void`, { reason }).set('X-Reauth-Password', PASSWORD);
+  adminPost(`/invoices/${invoiceId}/void`, { reason }).set(
+    'X-Reauth-Password',
+    `b64:${Buffer.from(PASSWORD).toString('base64')}`,
+  );
 
 async function subscribe(facilityId: string, body: Record<string, unknown> = {}) {
   const res = await adminPost(`/organizations/${facilityId}/subscription`, {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { refreshSession } from '../api/client';
+import { readLastInput, writeLastInput } from '../auth/adminIdle';
 import { useAuth } from '../auth/AuthContext';
 import { formatTime } from '../format';
 import { t } from '../i18n';
@@ -9,10 +11,14 @@ import { Alert, Button, Dialog } from './ui';
 export const ADMIN_IDLE_MS = 30 * 60_000;
 /** "Are you still there?" this long after the last input (five minutes before). */
 export const ADMIN_IDLE_WARNING_MS = 25 * 60_000;
-/** Shared by the administrator's tabs: input in any of them keeps all of them signed in. */
-const STORAGE_KEY = 'pacient.admin.lastInput';
 /** Input is noted at most this often (each note writes to storage). */
 const NOTE_EVERY_MS = 5_000;
+/**
+ * While there is input, the session is refreshed at least this often: the server ends an
+ * administrator's session that was not refreshed for 30 minutes (ADMIN_IDLE_MINUTES), and someone
+ * writing a long text on one page sends no request that would refresh it.
+ */
+const KEEP_ALIVE_MS = 10 * 60_000;
 const INPUT_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll'];
 /**
  * Set when this page signed the administrator out for inactivity, so the sign-in page can say why
@@ -20,21 +26,6 @@ const INPUT_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchst
  * before this component could pass anything along.
  */
 let signedOutForInactivity = false;
-
-const readShared = () => {
-  try {
-    return Number(localStorage.getItem(STORAGE_KEY)) || 0;
-  } catch {
-    return 0;
-  }
-};
-const writeShared = (at: number) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, String(at));
-  } catch {
-    /* storage unavailable: this tab counts on its own */
-  }
-};
 
 const countdown = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -47,15 +38,22 @@ const countdown = (ms: number) => {
  * a screen left signed in must not stay usable by whoever passes by. Input in any of the
  * administrator's tabs counts for all of them; while the warning is open only "Stay signed in"
  * does (a nudged mouse is not someone answering). The check runs again when the tab comes back
- * into view, so a computer that slept through the deadline signs out at once. The server ends an
- * administrator's session 12 hours after signing in whatever the activity (ADMIN_SESSION_HOURS).
- * Placed in Layout for ADMIN only; other roles are never signed out for being idle.
+ * into view, so a computer that slept through the deadline signs out at once, and a page opened
+ * again later – a reload, a reopened browser, a tab the browser discarded – reads the last input
+ * before anything else and signs out at once when it is 30 minutes old (a fresh sign-in has just
+ * written it: auth/adminIdle.ts). Signing out ends the session on the server too (logout revokes
+ * it). The server itself refuses to refresh an administrator's session nobody used for 30 minutes
+ * (ADMIN_IDLE_MINUTES), so a closed browser cannot bring one back, and ends it 12 hours after
+ * signing in whatever the activity (ADMIN_SESSION_HOURS). Placed in Layout for ADMIN only; other
+ * roles are never signed out for being idle.
  */
 export function AdminIdleSignOut() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const lastInput = useRef(Date.now());
+  /** When this page last refreshed the session for input (KEEP_ALIVE_MS). */
+  const keptAlive = useRef(Date.now());
   /** Whether the warning is open; the dialog's close event must not count as an answer. */
   const warned = useRef(false);
   const signingOut = useRef(false);
@@ -69,7 +67,11 @@ export function AdminIdleSignOut() {
 
   const note = useCallback((at: number) => {
     lastInput.current = Math.max(lastInput.current, at);
-    writeShared(lastInput.current);
+    writeLastInput(lastInput.current);
+    if (at - keptAlive.current >= KEEP_ALIVE_MS) {
+      keptAlive.current = at;
+      void refreshSession();
+    }
   }, []);
 
   const signOut = useCallback(
@@ -100,7 +102,15 @@ export function AdminIdleSignOut() {
   }, [note]);
 
   useEffect(() => {
-    note(Date.now());
+    // Read before anything is written: a page opened again after the limit must not start anew.
+    const stored = readLastInput();
+    const start = Date.now();
+    if (stored && start - stored >= ADMIN_IDLE_MS) {
+      void signOut(true);
+      return;
+    }
+    lastInput.current = stored ? Math.min(stored, start) : start;
+    writeLastInput(lastInput.current);
     let noted = 0;
     const onInput = () => {
       if (warned.current) return;
@@ -111,7 +121,7 @@ export function AdminIdleSignOut() {
     };
     const check = () => {
       const at = Date.now();
-      lastInput.current = Math.max(lastInput.current, readShared());
+      lastInput.current = Math.max(lastInput.current, readLastInput());
       const idle = at - lastInput.current;
       if (idle >= ADMIN_IDLE_MS) {
         void signOut(true);

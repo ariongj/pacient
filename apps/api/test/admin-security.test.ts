@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/client.js';
@@ -30,7 +30,9 @@ import { api, bearer, createUser, createWorld, login, PASSWORD } from './helpers
  * all files share, are put back at the end.
  */
 
-const REAUTH = { 'X-Reauth-Password': PASSWORD };
+/** The password as X-Reauth-Password carries it: b64: and the base64 of its UTF-8 bytes. */
+const encoded = (password: string) => `b64:${Buffer.from(password, 'utf8').toString('base64')}`;
+const REAUTH = { 'X-Reauth-Password': encoded(PASSWORD) };
 const tag = `s1${randomUUID().slice(0, 6)}`;
 const NEW_PASSWORD = 'Recovered-Passw0rd-2026!';
 
@@ -102,7 +104,7 @@ describe('the password again for administrator accounts', () => {
     const wrong = await api()
       .post(usersApi)
       .set(bearer(adminToken))
-      .set('X-Reauth-Password', 'not-the-password')
+      .set('X-Reauth-Password', encoded('not-the-password'))
       .send(body);
     expectReauth(wrong);
     expect(wrong.body.error.message).toBe('Password is incorrect');
@@ -244,7 +246,8 @@ describe('the password again for administrator accounts', () => {
     expect(after!.mfaEnabledAt).toBeNull();
     expect(await auditOf('admin.user.disabled', director.id)).toHaveLength(1);
 
-    // Enabling, unlocking and password reset e-mails do not ask.
+    // Enabling, unlocking and password reset e-mails do not ask for a director (they do for an
+    // administrator: below).
     expect(
       (
         await api()
@@ -285,7 +288,7 @@ describe('the password again for administrator accounts', () => {
       api()
         .post(`${usersApi}/${target.id}/revoke-sessions`)
         .set(bearer(token))
-        .set('X-Reauth-Password', password);
+        .set('X-Reauth-Password', encoded(password));
 
     // A confirmed password clears earlier mistakes.
     for (let i = 0; i < 4; i++) expectReauth(await attempt(`wrong-${i}`));
@@ -313,6 +316,92 @@ describe('the password again for administrator accounts', () => {
         ),
       );
     expect(denied).toHaveLength(1);
+  });
+
+  it('never lets a session lift its own lockout: unlocking yourself is refused', async () => {
+    const guesser = await createUser('ADMIN', null);
+    const token = await login(guesser.email);
+    const target = await createUser('MINISTRY', null);
+    const guess = (password: string) =>
+      api()
+        .post(`${usersApi}/${target.id}/revoke-sessions`)
+        .set(bearer(token))
+        .set('X-Reauth-Password', encoded(password));
+    for (let i = 0; i < 5; i++) expectReauth(await guess(`wrong-${i}`));
+
+    // Before anything is looked at, with or without the password.
+    for (const headers of [{}, REAUTH]) {
+      const self = await api()
+        .post(`${usersApi}/${guesser.id}/unlock`)
+        .set(bearer(token))
+        .set(headers)
+        .send({});
+      expect(self.status).toBe(403);
+      expect(self.body.error.message).toBe('Ask another administrator to unlock your account');
+    }
+    const [still] = await db.select().from(users).where(eq(users.id, guesser.id));
+    expect(still!.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    expect(await auditOf('admin.user.unlocked', guesser.id)).toHaveLength(0);
+    expect((await guess(PASSWORD)).status).toBe(429);
+
+    // Another administrator unlocks it, with their own password: the account is an administrator's.
+    expectReauth(
+      await api().post(`${usersApi}/${guesser.id}/unlock`).set(bearer(adminToken)).send({}),
+    );
+    const unlocked = await api()
+      .post(`${usersApi}/${guesser.id}/unlock`)
+      .set(bearer(adminToken))
+      .set(REAUTH)
+      .send({});
+    expect(unlocked.status).toBe(200);
+    expect(unlocked.body.user.locked).toBe(false);
+    expect((await guess(PASSWORD)).status).toBe(200);
+  });
+
+  it('asks before enabling or unlocking an administrator, not for other accounts', async () => {
+    const away = await createUser('ADMIN', null, { isActive: false });
+    expectReauth(
+      await api()
+        .post(`${usersApi}/${away.id}/enable`)
+        .set(bearer(adminToken))
+        .send({ reason: 'Back to work' }),
+    );
+    expect((await db.select().from(users).where(eq(users.id, away.id)))[0]!.isActive).toBe(false);
+    expect(await auditOf('admin.user.enabled', away.id)).toHaveLength(0);
+    const enabled = await api()
+      .post(`${usersApi}/${away.id}/enable`)
+      .set(bearer(adminToken))
+      .set(REAUTH)
+      .send({ reason: 'Back to work' });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.user.isActive).toBe(true);
+
+    const lockedAdmin = await createUser('ADMIN', null, {
+      lockedUntil: new Date(Date.now() + 10 * 60_000),
+      failedLoginAttempts: 0,
+    });
+    expectReauth(
+      await api().post(`${usersApi}/${lockedAdmin.id}/unlock`).set(bearer(adminToken)).send({}),
+    );
+    expect(await auditOf('admin.user.unlocked', lockedAdmin.id)).toHaveLength(0);
+
+    // A Ministry official: neither asks.
+    const official = await createUser('MINISTRY', null, {
+      isActive: false,
+      lockedUntil: new Date(Date.now() + 10 * 60_000),
+    });
+    expect(
+      (await api().post(`${usersApi}/${official.id}/unlock`).set(bearer(adminToken)).send({}))
+        .status,
+    ).toBe(200);
+    expect(
+      (
+        await api()
+          .post(`${usersApi}/${official.id}/enable`)
+          .set(bearer(adminToken))
+          .send({ reason: 'Back to work' })
+      ).status,
+    ).toBe(200);
   });
 
   it('keeps the endpoints to the platform administrator', async () => {
@@ -370,7 +459,9 @@ describe('bank details, VAT and invoice numbering', () => {
       { invoicePrefix: 'TST' },
     ];
     for (const change of changes) expectReauth(await putSettings(change));
-    expectReauth(await putSettings(changes[0]!).set('X-Reauth-Password', 'not-the-password'));
+    expectReauth(
+      await putSettings(changes[0]!).set('X-Reauth-Password', encoded('not-the-password')),
+    );
     const [after] = await db.select().from(platformSettings).where(eq(platformSettings.id, 1));
     expect(after).toEqual(before);
 
@@ -418,6 +509,10 @@ describe('bank details, VAT and invoice numbering', () => {
     const actor = await createUser('ADMIN', null, { fullName: `${tag} Bank Changer` });
     const actorToken = await login(actor.email);
     const colleague = await createUser('ADMIN', null, { fullName: `${tag} Colleague` });
+    const quiet = await createUser('ADMIN', null, {
+      fullName: `${tag} Quiet Colleague`,
+      emailNotifications: 'OFF',
+    });
     const disabled = await createUser('ADMIN', null, { isActive: false });
     const invited = await createUser('ADMIN', null, { passwordHash: null });
     const official = await createUser('MINISTRY', null);
@@ -430,14 +525,21 @@ describe('bank details, VAT and invoice numbering', () => {
       new RegExp(`^The bank details on invoices were changed by ${actor.fullName} at `),
     );
     expect(notice!.body).toContain('Operator settings');
-    // An important notification: e-mailed too (the colleague's preference is the default).
-    const mails = await db
-      .select()
-      .from(emailOutbox)
-      .where(and(eq(emailOutbox.userId, colleague.id), eq(emailOutbox.template, 'notification')));
-    expect(mails).toHaveLength(1);
+    // A security notice: e-mailed too, once, whatever the colleague's e-mail preference (the
+    // default one, or e-mail switched off altogether).
+    for (const u of [colleague, quiet]) {
+      const mails = await db
+        .select()
+        .from(emailOutbox)
+        .where(and(eq(emailOutbox.userId, u.id), eq(emailOutbox.template, 'notification')));
+      expect(mails).toHaveLength(1);
+    }
+    expect(await bankNotices(quiet.id)).toHaveLength(1);
     for (const u of [actor, disabled, invited, official]) {
       expect(await bankNotices(u.id)).toHaveLength(0);
+      expect(await db.select().from(emailOutbox).where(eq(emailOutbox.userId, u.id))).toHaveLength(
+        0,
+      );
     }
     const [audited] = await db
       .select()
@@ -524,7 +626,7 @@ describe('publishing a legal text', () => {
     const publish = () =>
       api().post(`/api/v1/admin/legal/${randomUUID()}/publish`).set(bearer(adminToken)).send({});
     expectReauth(await publish());
-    expectReauth(await publish().set('X-Reauth-Password', 'not-the-password'));
+    expectReauth(await publish().set('X-Reauth-Password', encoded('not-the-password')));
     // With the password the request reaches the document (none with this id).
     const confirmed = await publish().set(REAUTH);
     expect(confirmed.status).toBe(404);
@@ -536,6 +638,11 @@ describe('publishing a legal text', () => {
 
 describe('administrator sessions', () => {
   const HOUR = 3_600_000;
+
+  const cookieOf = (res: { headers: Record<string, unknown> }) =>
+    (res.headers['set-cookie'] as string[])
+      .find((c) => c.startsWith('pacient_rt='))!
+      .split(';')[0]!;
 
   async function familyOf(userId: string) {
     return db
@@ -557,12 +664,24 @@ describe('administrator sessions', () => {
     const expires = /Expires=([^;]+)/.exec(first.setCookie)![1]!;
     expect(Math.abs(new Date(expires).getTime() - token!.expiresAt.getTime())).toBeLessThan(2_000);
 
-    // Signed in 11 h 50 min ago: refreshing keeps the end of the session where it was.
+    // Signed in 11 h 50 min ago and in use since (the sign-in's token was refreshed a minute
+    // ago): refreshing keeps the end of the session where it was.
     await db
       .update(refreshTokens)
-      .set({ createdAt: new Date(Date.now() - 12 * HOUR + 10 * 60_000) })
+      .set({
+        createdAt: new Date(Date.now() - 12 * HOUR + 10 * 60_000),
+        revokedAt: new Date(Date.now() - 60_000),
+      })
       .where(eq(refreshTokens.userId, operator.id));
-    const second = await refresh(first.cookie);
+    const latest = `${tag}-latest-${randomUUID()}`;
+    await db.insert(refreshTokens).values({
+      userId: operator.id,
+      tokenHash: hashToken(latest),
+      familyId: token!.familyId,
+      expiresAt: token!.expiresAt,
+      createdAt: new Date(Date.now() - 60_000),
+    });
+    const second = await refresh(`pacient_rt=${latest}`);
     expect(second.status).toBe(200);
     const deadline = Date.now() + 10 * 60_000;
     const tokens = await familyOf(operator.id);
@@ -574,15 +693,13 @@ describe('administrator sessions', () => {
     const { exp } = jwt.decode(second.body.accessToken) as { exp: number };
     expect(exp * 1000).toBeLessThanOrEqual(deadline + 5_000);
 
-    // Past 12 hours: refused, even with a token that has not expired itself.
+    // Past 12 hours: refused, even with a token that has not expired itself (and was issued
+    // just now, so the session is not idle).
     await db
       .update(refreshTokens)
       .set({ createdAt: new Date(Date.now() - 13 * HOUR) })
-      .where(eq(refreshTokens.userId, operator.id));
-    const cookie = (second.headers['set-cookie'] as unknown as string[])
-      .find((c) => c.startsWith('pacient_rt='))!
-      .split(';')[0]!;
-    const third = await refresh(cookie);
+      .where(and(eq(refreshTokens.userId, operator.id), ne(refreshTokens.id, newest.id)));
+    const third = await refresh(cookieOf(second));
     expect(third.status).toBe(401);
     expect(third.body.error.message).toBe('Session expired');
     // Nothing of the session is left that could be refreshed.
@@ -600,7 +717,37 @@ describe('administrator sessions', () => {
     ).toHaveLength(0);
   });
 
-  it('leave other roles as they were (7 days, extended by each refresh)', async () => {
+  it('end when nobody used them for 30 minutes (ADMIN_IDLE_MINUTES), a closed browser too', async () => {
+    const operator = await createUser('ADMIN', null);
+    const first = await signIn(operator.email);
+    // The last refresh (here: the sign-in) 29 minutes ago: still in use.
+    await db
+      .update(refreshTokens)
+      .set({ createdAt: new Date(Date.now() - 29 * 60_000) })
+      .where(eq(refreshTokens.userId, operator.id));
+    const second = await refresh(first.cookie);
+    expect(second.status).toBe(200);
+
+    // Then 31 minutes without one – the browser was closed and opened again: refused, and the
+    // session is over (the cookie would have worked until the 12-hour deadline).
+    await db
+      .update(refreshTokens)
+      .set({ createdAt: new Date(Date.now() - 31 * 60_000) })
+      .where(and(eq(refreshTokens.userId, operator.id), isNull(refreshTokens.revokedAt)));
+    const third = await refresh(cookieOf(second));
+    expect(third.status).toBe(401);
+    expect(third.body.error.message).toBe('Session expired');
+    expect(
+      await db
+        .select()
+        .from(refreshTokens)
+        .where(and(eq(refreshTokens.userId, operator.id), isNull(refreshTokens.revokedAt))),
+    ).toHaveLength(0);
+    // Signing in again starts a new session.
+    expect((await refresh((await signIn(operator.email)).cookie)).status).toBe(200);
+  });
+
+  it('leave other roles as they were (7 days, extended by each refresh, no idle limit)', async () => {
     const director = await createUser('DIRECTOR', w.facility.id);
     const first = await signIn(director.email);
     expect(first.expiresIn).toBe(900);

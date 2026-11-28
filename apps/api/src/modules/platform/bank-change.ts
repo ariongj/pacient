@@ -1,8 +1,14 @@
 import { and, desc, eq, gt, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/client.js';
 import { auditLogs, platformSettings, users } from '../../db/schema.js';
+import { toLocale } from '../../i18n/index.js';
 import { AuditAction } from '../audit/audit.service.js';
-import { notifyUsers } from '../notifications/notifications.service.js';
+import { enqueueEmail } from '../email/outbox.js';
+import {
+  notifyUsers,
+  renderTitle,
+  type NotificationInput,
+} from '../notifications/notifications.service.js';
 import type { Settings } from './platform.service.js';
 
 /**
@@ -42,11 +48,13 @@ export function changedAmong(
 }
 
 /**
- * Tells every other active administrator, in the app and by e-mail (an important notification,
- * so e-mailed unless they switched e-mail off altogether), that the bank details on invoices were
- * changed, by whom and when. In the transaction of the change: no change without the notice.
- * Diverting payments by changing the IBAN is the obvious misuse of a stolen administrator
- * session, and the colleagues are the ones who would notice.
+ * Tells every other active administrator, in the app and by e-mail, that the bank details on
+ * invoices were changed, by whom and when. A security notice: e-mailed to each of them whatever
+ * their e-mail preference (notifyUsers() e-mails those whose preference covers important
+ * notifications, the others get it here, so each gets exactly one e-mail). In the transaction of
+ * the change: no change without the notice. Diverting payments by changing the IBAN is the
+ * obvious misuse of a stolen administrator session, and the colleagues are the ones who would
+ * notice.
  */
 export async function notifyBankDetailsChanged(tx: Executor, actor: { userId: string }, at: Date) {
   const [me] = await tx
@@ -54,7 +62,13 @@ export async function notifyBankDetailsChanged(tx: Executor, actor: { userId: st
     .from(users)
     .where(eq(users.id, actor.userId));
   const others = await tx
-    .select({ id: users.id })
+    .select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+      locale: users.locale,
+      emailNotifications: users.emailNotifications,
+    })
     .from(users)
     .where(
       and(
@@ -64,18 +78,31 @@ export async function notifyBankDetailsChanged(tx: Executor, actor: { userId: st
         ne(users.id, actor.userId),
       ),
     );
+  const notice: NotificationInput = {
+    type: 'security',
+    title: 'The bank details on invoices were changed by {name} at {time}',
+    body: 'Check the IBAN and bank under Operator settings. If nobody expected this change, correct them before the next invoice is issued.',
+    vars: { name: me?.name ?? '—', time: at },
+    link: '/admin/settings',
+    important: true,
+  };
   await notifyUsers(
     others.map((u) => u.id),
-    {
-      type: 'security',
-      title: 'The bank details on invoices were changed by {name} at {time}',
-      body: 'Check the IBAN and bank under Operator settings. If nobody expected this change, correct them before the next invoice is issued.',
-      vars: { name: me?.name ?? '—', time: at },
-      link: '/admin/settings',
-      important: true,
-    },
+    notice,
     tx,
   );
+  for (const u of others.filter((o) => o.emailNotifications === 'OFF')) {
+    const locale = toLocale(u.locale);
+    await enqueueEmail(tx, {
+      to: u.email,
+      userId: u.id,
+      template: 'notification',
+      locale,
+      name: u.fullName,
+      title: renderTitle(notice, locale),
+      link: notice.link ?? null,
+    });
+  }
   return others.length;
 }
 

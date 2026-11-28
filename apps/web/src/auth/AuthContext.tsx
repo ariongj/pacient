@@ -17,6 +17,7 @@ import {
   setSessionExpiredHandler,
 } from '../api/client';
 import type { Dependant, Profile } from '../api/types';
+import { writeLastInput } from './adminIdle';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
@@ -102,9 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return items;
   }, []);
 
+  /**
+   * After signing in (password, two-step or passkey) or an account change. An administrator's idle
+   * clock starts here, before the portal mounts: a value an earlier session left behind must not
+   * sign out a fresh sign-in. Restoring a session on page load does not come through here.
+   */
   const loadProfile = useCallback(async () => {
     setActingFor(null);
     const me = await api<Profile>('/auth/me');
+    if (me.role === 'ADMIN') writeLastInput(Date.now());
     await loadDependants(me);
     setUser(me);
     setStatus('authenticated');

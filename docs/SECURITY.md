@@ -106,6 +106,10 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   it must be delivered through the notifier (`modules/notifications/notifier.ts`).
 - Login: generic error for unknown user / wrong password / locked account; timing equalised with a
   dummy hash; lockout for 15 minutes after 5 failures; per-IP rate limit on credential endpoints.
+  Each failure (password, second factor, or the password asked again) is counted in one database
+  statement, so attempts sent in parallel all count, and the lock is read again after a right
+  password or code was checked: one sent among wrong ones that locked the account meanwhile is
+  refused too.
 - Rate limits are **per user** for authenticated traffic (600 requests/min) because hospital
   networks usually share one public IP; anonymous and credential endpoints fall back to per-IP
   limits sized for a facility behind NAT (100 failed sign-ins / 15 min), with per-account lockout
@@ -145,30 +149,48 @@ The policy lives in one place: `apps/api/src/modules/access/policy.ts`.
   immediately.
 - **Re-authentication for sensitive actions** (`requireRecentAuth`, `middleware/recent-auth.ts`):
   the password again in the `X-Reauth-Password` header (checked, never stored or logged), or a
-  sign-in within the last 10 minutes (the refresh-token family, via the cookie); otherwise 401
-  `REAUTH_REQUIRED`, and with a wrong password the same code with "Password is incorrect". A wrong
-  password counts toward the account lockout like one at sign-in (five lock sign-in and this check
-  for 15 minutes, 429 meanwhile), so a stolen access token cannot be used to guess the password;
-  a confirmed one clears the count. The web app asks for the password in
-  one shared dialog and sends the request once more; the cookie reaches only `/api/v1/auth`, so
-  outside it the browser always asks. Confirmations and wrong passwords are audited
-  (`auth.reauthenticated`). It guards what would hand someone the operator's powers or its
+  sign-in within the last 10 minutes (the refresh-token family, via the cookie, and only while
+  that token is valid: a session that was signed out, signed out everywhere, revoked by an
+  administrator or has expired proves nothing); otherwise 401 `REAUTH_REQUIRED`, and with a wrong
+  password the same code with "Password is incorrect". The header carries the password as `b64:`
+  followed by the base64 of its UTF-8 bytes, and only so: a header value holds only Latin-1
+  characters (č, ć, đ, š, ž and Cyrillic could not be sent) and loses spaces at either end. Any
+  other form is refused with 400 and is not counted as a wrong password. A wrong password counts
+  toward the account lockout like one at sign-in (five lock sign-in and this check for 15 minutes,
+  429 meanwhile; counted atomically, as above), and an administrator cannot unlock their own
+  account (another administrator does, with their own password), so a stolen access token cannot
+  be used to guess the password; a confirmed one clears the count. The web app asks for the
+  password in one shared dialog and sends the request once more; while it is on its way the
+  dialog cannot be cancelled (the action may be going through). The cookie reaches only
+  `/api/v1/auth`, so outside it the browser always asks. Confirmations and wrong passwords are
+  audited (`auth.reauthenticated`). It guards what would hand someone the operator's powers or its
   customers' money: inviting an administrator, any change to an administrator's account or making
-  someone one, resetting two-step sign-in, disabling an account, signing an account out
-  everywhere, changing the IBAN, bank, VAT rate or number or invoice prefix, publishing a legal
-  text, and the billing corrections and exports. It is asked before anything is checked or
-  changed, so a stolen session cannot even probe.
+  someone one (enabling and unlocking one included), resetting two-step sign-in, disabling an
+  account, signing an account out everywhere, changing the IBAN, bank, VAT rate or number or
+  invoice prefix, publishing a legal text, and the billing corrections and exports. It is asked
+  before anything is changed. The request is validated first, and for user accounts the target is
+  loaded first, to know whether it is an administrator: a request without the password can learn
+  that an id does not exist (404) or that its input is invalid (400) – nothing a signed-in
+  administrator cannot read anyway.
 - **Platform administrators' sessions** end `ADMIN_SESSION_HOURS` (default 12) after signing in,
   however active: the refresh tokens of the family, the cookie and the last access token all
   expire at that moment, and refreshing never moves it (the sign-in time is the family's first
-  token). In the browser an administrator is signed out after 30 minutes without keyboard, mouse
-  or touch input in any of their tabs, with a warning and "Stay signed in" at 25 minutes. Other
+  token). They also end on the server when nobody used them for `ADMIN_IDLE_MINUTES` (default
+  30): a refresh more than that after the previous one (or the sign-in) is refused and the family
+  revoked, so a browser that was closed, or a tab the browser discarded, and opened again later
+  does not come back signed in (the cookie itself lives until the 12-hour deadline). The web app
+  refreshes at least every 15 minutes while it is used (when its access token runs out, and every
+  10 minutes while the administrator types or clicks). In the browser an administrator is signed
+  out after 30 minutes without keyboard, mouse or touch input in any of their tabs, with a warning
+  and "Stay signed in" at 25 minutes; a page opened again reads the time of the last input before
+  anything else and signs out at once when it is that old, and every fresh sign-in sets it.
+  Signing out for inactivity ends the session on the server (logout revokes the family). Other
   roles keep `REFRESH_TOKEN_TTL_DAYS` (7 days, extended by each refresh) and no idle sign-out: a
   clinician is never thrown out in the middle of care.
 - **Bank details changed**: a new IBAN or bank in the operator settings is announced to every other
-  active administrator (important notification and e-mail, unless they switched e-mail off
-  altogether) in the transaction of the change, and the platform overview shows "Bank details
-  changed on …", by whom, for 14 days.
+  active administrator (important notification, and an e-mail whatever their e-mail preference: it
+  is a security notice) in the transaction of the change, and the platform overview shows "Bank
+  details changed on …", by whom, for 14 days.
 - **Recovering an administrator** who lost both the password and the authenticator:
   `deploy/recover-admin.sh` on the server (the owner of the installation) – the old password stops
   working, the second factors are removed, every session ends and a 24-hour reset link is written

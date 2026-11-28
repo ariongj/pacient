@@ -104,7 +104,11 @@ async function changeStatus(
   return true;
 }
 
-/** Adds a message to a request in the caller's transaction (audited, ids only). */
+/**
+ * Adds a message to a request in the caller's transaction (audited, ids only). Its side – the
+ * operator's or the facility's – is fixed now, from the role the author has when writing: a later
+ * change of that role must not move what they wrote to the other side.
+ */
 async function addMessage(
   tx: Executor,
   request: OperatorRequest,
@@ -112,9 +116,10 @@ async function addMessage(
   ctx: AuthContext,
   req: Request,
 ) {
+  const fromOperator = ctx.role === 'ADMIN';
   const [message] = await tx
     .insert(operatorRequestMessages)
-    .values({ requestId: request.id, authorId: ctx.userId, body })
+    .values({ requestId: request.id, authorId: ctx.userId, fromOperator, body })
     .returning({ id: operatorRequestMessages.id });
   await audit(
     {
@@ -126,7 +131,7 @@ async function addMessage(
       metadata: {
         reference: request.reference,
         messageId: message!.id,
-        fromOperator: ctx.role === 'ADMIN',
+        fromOperator,
       },
     },
     tx,

@@ -45,7 +45,7 @@ const NEW_PASSWORD = 'Activated-Passw0rd-2026!';
 const base = '/api/v1/admin/users';
 // Disabling, two-step resets, signing out and changes to administrators ask for the password
 // again (requireRecentAuth): these tests always confirm it; admin-security.test.ts tests asking.
-const REAUTH = { 'X-Reauth-Password': PASSWORD };
+const REAUTH = { 'X-Reauth-Password': `b64:${Buffer.from(PASSWORD).toString('base64')}` };
 const get = (path = '', token = adminToken) => api().get(`${base}${path}`).set(bearer(token));
 const post = (path: string, body: object = {}, token = adminToken) =>
   api().post(`${base}${path}`).set(bearer(token)).set(REAUTH).send(body);

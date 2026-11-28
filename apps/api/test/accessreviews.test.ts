@@ -331,7 +331,7 @@ describe('accounts that moved since the review opened', () => {
       api()
         .patch(`/api/v1/admin/users/${id}`)
         .set(adminAuth)
-        .set('X-Reauth-Password', PASSWORD)
+        .set('X-Reauth-Password', `b64:${Buffer.from(PASSWORD).toString('base64')}`)
         .send(body);
     expect(
       (await change(promoted.id, { role: 'ADMIN', reason: 'Joins the operator' })).status,

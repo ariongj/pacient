@@ -92,15 +92,18 @@ const CATEGORY_FILTERS: Record<AuditCategory, SQL> = {
     ]),
   )!,
   // The operator's customers and their billing (facilities created for a customer, plans,
-  // subscriptions, invoices, billing details, payments, credit notes, exports, agreements,
-  // requests to the operator): the facilities' own patient billing (co-payments, claims) also
-  // writes billing.* actions and is not administration, so the new billing actions are listed.
+  // subscriptions, invoices, billing details, payments, credit notes, exports) and the
+  // administrators' answers and status changes on requests to the operator: the facilities' own
+  // patient billing (co-payments, claims) also writes billing.* actions and is not
+  // administration, so the new billing actions are listed. What a facility does – a director
+  // accepting an agreement, a new request or a facility's message – is not an administrator's
+  // action (BY_OPERATOR leaves it out anyway): acceptances are on the facility's page and on Terms
+  // and privacy, requests in the Requests inbox.
   billing: or(
     like(auditLogs.action, 'facility.%'),
     like(auditLogs.action, 'billing.plan.%'),
     like(auditLogs.action, 'billing.subscription.%'),
     like(auditLogs.action, 'billing.invoice.%'),
-    like(auditLogs.action, 'operator_request.%'),
     inArray(auditLogs.action, [
       AuditAction.BILLING_PROFILE_CHANGED,
       AuditAction.BILLING_INVOICE_SENT,
@@ -108,7 +111,8 @@ const CATEGORY_FILTERS: Record<AuditCategory, SQL> = {
       AuditAction.BILLING_PAYMENT_REVERSED,
       AuditAction.BILLING_CREDIT_NOTE_ISSUED,
       AuditAction.BILLING_EXPORTED,
-      AuditAction.LEGAL_ORGANIZATION_ACCEPTED,
+      AuditAction.OPERATOR_REQUEST_MESSAGE,
+      AuditAction.OPERATOR_REQUEST_STATUS_CHANGED,
     ]),
   )!,
   // Acceptances by users (legal.accepted) are not administrative actions: see /legal/acceptances.

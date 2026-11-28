@@ -28,8 +28,16 @@ const reason = (required: boolean) =>
 const account = 'The account page: user, active sessions, sign-ins and administrative history';
 /** requireRecentAuth: the password in X-Reauth-Password, or a sign-in in the last 10 minutes. */
 const REAUTH =
-  'REAUTH_REQUIRED: confirm the password (header X-Reauth-Password) or sign in again; “Password is incorrect” for a wrong one';
-const reauthHeader = [{ name: 'X-Reauth-Password', in: 'header' as const, schema: str() }];
+  'REAUTH_REQUIRED: confirm the password (header X-Reauth-Password) or sign in again; “Password is incorrect” for a wrong one (five lock the account for 15 minutes, 429 meanwhile)';
+const reauthHeader = [
+  {
+    name: 'X-Reauth-Password',
+    in: 'header' as const,
+    description:
+      'The password again, as `b64:` followed by the base64 of its UTF-8 bytes (a header cannot carry other characters than Latin-1, and HTTP strips spaces at either end); any other form is refused with 400. Never stored or logged.',
+    schema: str({ pattern: '^b64:[A-Za-z0-9+/]+={0,2}$' }),
+  },
+];
 
 export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/users', T, 'Accounts', {
@@ -95,12 +103,20 @@ export const ADMINUSERS_OPERATIONS: ModuleOperation[] = [
     responses: { '200': account, '401': REAUTH },
   }),
   op('post', '/admin/users/{id}/enable', T, 'Enable an account', {
-    access: ADMIN,
+    access: `${ADMIN}; enabling an administrator needs the password again`,
     description:
       'Facility staff need a free seat of the facility’s subscription. A patient account closed when a death was registered is refused (409): it comes back only if the death registration is withdrawn.',
     body: reason(false),
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH },
   }),
-  op('post', '/admin/users/{id}/unlock', T, 'Unlock after failed sign-ins', { access: ADMIN }),
+  op('post', '/admin/users/{id}/unlock', T, 'Unlock after failed sign-ins', {
+    access: `${ADMIN}; ${SELF} (another administrator unlocks it); unlocking an administrator needs the password again`,
+    description:
+      'Clears the lockout and the count of wrong passwords. Never on your own account (403): the lockout is what stops a stolen session from guessing the password it is asked for.',
+    params: reauthHeader,
+    responses: { '200': account, '401': REAUTH, '403': 'Your own account', '409': 'Not locked' },
+  }),
   op('post', '/admin/users/{id}/password-reset', T, 'Send a password reset e-mail', {
     access: ADMIN,
     description:

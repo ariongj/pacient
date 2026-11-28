@@ -7,6 +7,7 @@ import {
   notifications,
   operatorRequestMessages,
   operatorRequests,
+  users,
 } from '../src/db/schema.js';
 import { AuditAction } from '../src/modules/audit/audit.service.js';
 import { looksLikePersonalNumber } from '../src/modules/requests/requests.service.js';
@@ -457,5 +458,81 @@ describe('the administrator’s inbox', () => {
     expect(
       (await api().get(`/api/v1/admin/requests/${w.facility.id}`).set(bearer(admin.token))).status,
     ).toBe(404);
+  });
+});
+
+describe('who wrote a message', () => {
+  it('is recorded when it is written: a later change of the author’s role moves nothing', async () => {
+    // An administrator who answers and an IT support colleague who asks; their roles change later.
+    const answering = await account('ADMIN', null);
+    const asking = await account('IT_SUPPORT', w.facility.id);
+    const created = await create(asking.token, {
+      category: 'TECHNICAL',
+      subject: 'The printer of reception',
+      body: 'Labels print empty since this morning.',
+    });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    const answered = await answer(
+      id,
+      { body: 'Please restart the label service.' },
+      answering.token,
+    );
+    expect(answered.status).toBe(201);
+    const stored = await db
+      .select({
+        authorId: operatorRequestMessages.authorId,
+        fromOperator: operatorRequestMessages.fromOperator,
+      })
+      .from(operatorRequestMessages)
+      .where(eq(operatorRequestMessages.requestId, id))
+      .orderBy(operatorRequestMessages.createdAt);
+    expect(stored).toEqual([
+      { authorId: asking.id, fromOperator: false },
+      { authorId: answering.id, fromOperator: true },
+    ]);
+
+    // The administrator moves to a facility, the IT support colleague becomes an administrator.
+    await db
+      .update(users)
+      .set({ role: 'IT_SUPPORT', facilityId: w.otherFacility.id })
+      .where(eq(users.id, answering.id));
+    await db.update(users).set({ role: 'ADMIN', facilityId: null }).where(eq(users.id, asking.id));
+
+    const facilityView = await api()
+      .get(`/api/v1/operator-requests/${id}`)
+      .set(bearer(w.tokens.director));
+    expect(facilityView.body.messages).toEqual([
+      expect.objectContaining({ fromOperator: false, authorId: asking.id }),
+      expect.objectContaining({ fromOperator: true, authorId: null, authorName: null }),
+    ]);
+    const adminView = await api().get(`/api/v1/admin/requests/${id}`).set(bearer(admin.token));
+    expect(adminView.body.messages).toEqual([
+      expect.objectContaining({ fromOperator: false, authorId: asking.id }),
+      expect.objectContaining({ fromOperator: true, authorId: answering.id }),
+    ]);
+  });
+
+  it('lists the administrators’ answers under administrative actions, not what the facility wrote', async () => {
+    const created = await create(w.tokens.director, {
+      category: 'ACCOUNT',
+      subject: 'A new reception colleague',
+      body: 'Can the account be ready on Monday?',
+    });
+    const id = created.body.id as string;
+    expect((await reply(w.tokens.director, id, 'It is for the morning shift.')).status).toBe(201);
+    expect((await answer(id, { body: 'Yes, it is ready.', status: 'RESOLVED' })).status).toBe(201);
+    const trail = await api()
+      .get('/api/v1/admin/audit')
+      .query({ category: 'billing', pageSize: 100 })
+      .set(bearer(admin.token));
+    expect(trail.status).toBe(200);
+    const listed = (trail.body.items as { resourceId: string; action: string }[])
+      .filter((i) => i.resourceId === id)
+      .map((i) => i.action)
+      .sort();
+    expect(listed).toEqual(
+      [AuditAction.OPERATOR_REQUEST_MESSAGE, AuditAction.OPERATOR_REQUEST_STATUS_CHANGED].sort(),
+    );
   });
 });

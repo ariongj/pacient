@@ -13,6 +13,11 @@ const EnvSchema = z.object({
    * administrators and published texts, so a forgotten or stolen session must not live for days.
    */
   ADMIN_SESSION_HOURS: z.coerce.number().int().min(1).max(72).default(12),
+  /**
+   * …and ends when it was not refreshed for this many minutes (the web app refreshes at least
+   * every 15 minutes while it is in use, so at least 20).
+   */
+  ADMIN_IDLE_MINUTES: z.coerce.number().int().min(20).max(720).default(30),
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:5173')

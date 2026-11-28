@@ -8,7 +8,7 @@ import { t } from '../i18n';
  *   retries. Concurrent refreshes would otherwise trip the server's token-reuse detection.
  * - A 401 with code REAUTH_REQUIRED (a sensitive action needs the password again) opens the
  *   shared ReauthDialog instead; the request is sent once more with the password in the
- *   X-Reauth-Password header, which is never stored.
+ *   X-Reauth-Password header (encoded, see reauthHeaderValue), which is never stored.
  */
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 
@@ -35,6 +35,17 @@ let onSessionExpired: (() => void) | null = null;
 
 /** Header that carries the password, once, for an action the server wants re-confirmed. */
 export const REAUTH_HEADER = 'X-Reauth-Password';
+
+/**
+ * The password as the server takes it in the header: `b64:` and the base64 of its UTF-8 bytes. A
+ * header value can carry only Latin-1 characters (fetch refuses č, ć, đ, š, ž or Cyrillic), and
+ * spaces at either end would be stripped on the way.
+ */
+export function reauthHeaderValue(password: string): string {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(password)) binary += String.fromCharCode(byte);
+  return `b64:${btoa(binary)}`;
+}
 
 /**
  * What the shared ReauthDialog does when the server answers 401 REAUTH_REQUIRED: ask for the
@@ -184,7 +195,8 @@ export async function apiRaw(path: string, opts: RequestOptions = {}): Promise<R
   let res = await sendWithSession(path, opts, signal);
   if (reauthHandler && (await needsReauth(res))) {
     res = await reauthHandler({
-      retry: (password) => sendWithSession(path, opts, signal, { [REAUTH_HEADER]: password }),
+      retry: (password) =>
+        sendWithSession(path, opts, signal, { [REAUTH_HEADER]: reauthHeaderValue(password) }),
       refused: res,
     });
   }

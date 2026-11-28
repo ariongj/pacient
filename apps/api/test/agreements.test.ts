@@ -44,7 +44,7 @@ const publish = (id: string) =>
   api()
     .post(`/api/v1/admin/legal/${id}/publish`)
     .set(asAdmin())
-    .set('X-Reauth-Password', PASSWORD)
+    .set('X-Reauth-Password', `b64:${Buffer.from(PASSWORD).toString('base64')}`)
     .send({});
 const agreementsOf = (token: string, locale?: string) =>
   api()
@@ -87,7 +87,10 @@ type KindView = {
 const kindOf = (body: { agreements: KindView[] }, kind: string) =>
   body.agreements.find((a) => a.kind === kind)!;
 
-async function customer(facilityId: string, status: 'TRIAL' | 'ACTIVE' | 'CANCELLED' = 'ACTIVE') {
+async function customer(
+  facilityId: string,
+  status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED' = 'ACTIVE',
+) {
   const [plan] = await db
     .insert(subscriptionPlans)
     .values({
@@ -103,6 +106,7 @@ async function customer(facilityId: string, status: 'TRIAL' | 'ACTIVE' | 'CANCEL
     planId: plan!.id,
     status,
     priceCents: 1000,
+    ...(status === 'SUSPENDED' ? { suspensionCause: 'NON_PAYMENT' as const } : {}),
     currentPeriodStart: now,
     currentPeriodEnd: new Date(now.getTime() + 30 * 86_400_000),
   });
@@ -315,6 +319,53 @@ describe('acceptance by the facility', () => {
     expect((await api().get('/api/v1/auth/me').set(bearer(w.tokens.doctor))).status).toBe(200);
     const chart = await api().get(`/api/v1/patients/${w.patient.id}`).set(bearer(w.tokens.doctor));
     expect(chart.status).toBe(200);
+  });
+
+  it('asks only customers, as the administrator’s list does; any facility may still accept', async () => {
+    const directorOf = async (status: Parameters<typeof customer>[1] | null) => {
+      const facility = await createFacility({ name: `AAA ${status ?? 'NONE'} ${run}` });
+      if (status) await customer(facility.id, status);
+      const director = await createUser('DIRECTOR', facility.id);
+      return { facility, token: await login(director.email) };
+    };
+    // Not customers: no subscription yet, or one that was cancelled or has expired.
+    for (const status of [null, 'CANCELLED', 'EXPIRED'] as const) {
+      const { facility, token } = await directorOf(status);
+      const mine = await agreementsOf(token);
+      expect(mine.status).toBe(200);
+      expect(mine.body).toMatchObject({ asked: false, pending: 0 });
+      // Still not accepted, and offered for acceptance on the subscription page.
+      expect(kindOf(mine.body, 'SERVICE_AGREEMENT')).toMatchObject({ pending: true });
+      const adminView = await api()
+        .get(`/api/v1/admin/organizations/${facility.id}/agreements`)
+        .set(asAdmin());
+      expect(adminView.body).toMatchObject({ asked: false, pending: 0 });
+      if (status === 'CANCELLED') {
+        // (The Albanian text: the English one's audit entries are counted below.)
+        const accepted = await accept(token, serviceSq, SIGNER);
+        expect(accepted.status).toBe(201);
+        expect(kindOf(accepted.body, 'SERVICE_AGREEMENT').acceptedCurrent).toMatchObject({
+          version: v('1.0'),
+        });
+      }
+    }
+    // Customers, also while suspended or past due: asked.
+    for (const status of ['SUSPENDED', 'PAST_DUE'] as const) {
+      const { token } = await directorOf(status);
+      expect((await agreementsOf(token)).body).toMatchObject({ asked: true, pending: 2 });
+    }
+    expect((await agreementsOf(w.tokens.director)).body).toMatchObject({ asked: true });
+
+    // A director's acceptance is the facility's doing, not an administrator's action.
+    const trail = await api()
+      .get('/api/v1/admin/audit')
+      .query({ category: 'billing', pageSize: 100 })
+      .set(asAdmin());
+    expect(
+      (trail.body.items as { action: string }[]).some(
+        (i) => i.action === AuditAction.LEGAL_ORGANIZATION_ACCEPTED,
+      ),
+    ).toBe(false);
   });
 
   it('validates the signer and accepts only a published, current agreement', async () => {

@@ -35,6 +35,8 @@ import {
 
 const DAY = 86_400_000;
 const REAUTH = 'X-Reauth-Password';
+/** The password as that header carries it: b64: and the base64 of its UTF-8 bytes. */
+const encoded = (password: string) => `b64:${Buffer.from(password).toString('base64')}`;
 
 let w: Awaited<ReturnType<typeof createWorld>>;
 let admin: string;
@@ -48,7 +50,7 @@ const adminPost = (path: string, body: Record<string, unknown> = {}) =>
   api().post(`/api/v1/admin${path}`).set(bearer(admin)).send(body);
 /** The same, with the password confirmed again (requireRecentAuth). */
 const adminPostSure = (path: string, body: Record<string, unknown> = {}) =>
-  adminPost(path, body).set(REAUTH, PASSWORD);
+  adminPost(path, body).set(REAUTH, encoded(PASSWORD));
 const pay = (invoiceId: string, body: Record<string, unknown> = {}) =>
   adminPost(`/invoices/${invoiceId}/payments`, { method: 'BANK_TRANSFER', ...body });
 const reverse = (paymentId: string, reason = 'The bank returned the transfer') =>
@@ -180,7 +182,7 @@ describe('access', () => {
           await api()
             .post(`/api/v1/admin/payments/${paymentId}/reverse`)
             .set(bearer(token))
-            .set(REAUTH, PASSWORD)
+            .set(REAUTH, encoded(PASSWORD))
             .send({ reason: 'Not mine to reverse' })
         ).status,
       ).toBe(403);
@@ -189,7 +191,7 @@ describe('access', () => {
           await api()
             .post(`/api/v1/admin/invoices/${invoice.id}/credit-notes`)
             .set(bearer(token))
-            .set(REAUTH, PASSWORD)
+            .set(REAUTH, encoded(PASSWORD))
             .send({ amountCents: 100, reason: 'Not mine to credit' })
         ).status,
       ).toBe(403);
@@ -320,7 +322,7 @@ describe('reversing a payment', () => {
     expect(none.body.error.code).toBe('REAUTH_REQUIRED');
     const wrong = await adminPost(`/payments/${payment!.id}/reverse`, {
       reason: 'Bounced back',
-    }).set(REAUTH, 'not-the-password');
+    }).set(REAUTH, encoded('not-the-password'));
     expect(wrong.status).toBe(401);
     expect(wrong.body.error.message).toBe('Password is incorrect');
     expect((await paymentsOf(invoice.id))[0]!.reversedAt).toBeNull();
@@ -1026,7 +1028,7 @@ const exportCsv = (
       res.on('data', (chunk: string) => (data += chunk));
       res.on('end', () => cb(null, data));
     });
-  return reauth ? req.set(REAUTH, PASSWORD) : req;
+  return reauth ? req.set(REAUTH, encoded(PASSWORD)) : req;
 };
 
 describe('exports for the accountant', () => {
@@ -1037,7 +1039,7 @@ describe('exports for the accountant', () => {
       .get('/api/v1/admin/exports/sales-book.csv')
       .query(PERIOD)
       .set(bearer(w.tokens.director))
-      .set(REAUTH, PASSWORD);
+      .set(REAUTH, encoded(PASSWORD));
     expect(director.status).toBe(403);
     for (const period of [
       { from: '2026-02-01', to: '2026-01-31' },

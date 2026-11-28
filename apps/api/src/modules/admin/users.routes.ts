@@ -64,8 +64,9 @@ import {
  *
  * What would hand someone the operator's powers, or lock its people out, asks for the password
  * again (or a sign-in in the last 10 minutes; see middleware/recent-auth.ts): inviting an
- * administrator, any change to an administrator's account or making someone one, resetting
- * two-step sign-in, disabling an account and signing it out everywhere.
+ * administrator, any change to an administrator's account (enabling and unlocking one included)
+ * or making someone one, resetting two-step sign-in, disabling an account and signing it out
+ * everywhere. An administrator's own lockout is lifted by another administrator only.
  */
 export const adminUsersRouter = Router();
 
@@ -484,6 +485,9 @@ adminUsersRouter.post('/:id/enable', async (req, res) => {
   const { id } = parse(IdParam, req.params);
   const { reason } = parse(OptionalReasonBody, req.body ?? {});
   const target = await loadAccount(id);
+  // Enabling an administrator hands the operator's powers back to an account (perhaps one whose
+  // credentials left with its owner), so a stolen session must not do it.
+  if (target.role === 'ADMIN') await ensureRecentAuth(req);
   if (target.isActive) throw conflict('The account is already enabled');
   await db.transaction(async (tx) => {
     if (target.role === 'PATIENT') {
@@ -514,7 +518,11 @@ adminUsersRouter.post('/:id/enable', async (req, res) => {
 adminUsersRouter.post('/:id/unlock', async (req, res) => {
   const ctx = requireAuth(req);
   const { id } = parse(IdParam, req.params);
+  // The lockout is what stops a stolen session from guessing the password it is asked for
+  // (middleware/recent-auth.ts): the same session must not be able to lift it.
+  notOnYourself(ctx, id, 'Ask another administrator to unlock your account');
   const target = await loadAccount(id);
+  if (target.role === 'ADMIN') await ensureRecentAuth(req);
   const locked = Boolean(target.lockedUntil && target.lockedUntil > new Date());
   if (!locked && target.failedLoginAttempts === 0) throw conflict('The account is not locked');
   await db.transaction(async (tx) => {

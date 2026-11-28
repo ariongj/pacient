@@ -38,13 +38,19 @@ export interface AgreementState {
 export interface MyAgreements {
   facility: { id: string; name: string } | null;
   agreements: (AgreementState & { document: LegalText | null })[];
-  /** How many agreements the facility still has to accept. */
+  /**
+   * The facility is a customer (its subscription has not ended): only then are its directors
+   * shown a notice while an agreement is pending. Any facility may accept.
+   */
+  asked: boolean;
+  /** How many agreements the facility still has to accept (0 when it is not asked). */
   pending: number;
 }
 
 export interface OrganizationAgreements {
   facility: { id: string; name: string };
   agreements: AgreementState[];
+  asked: boolean;
   pending: number;
 }
 

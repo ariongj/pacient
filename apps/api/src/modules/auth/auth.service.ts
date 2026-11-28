@@ -146,30 +146,65 @@ export type LoginResult =
   /** Password accepted; a second factor is required before any session is issued. */
   | { kind: 'mfa'; mfaToken: string; methods: SecondFactor[] };
 
-/** Counts a failed credential (password or second factor) and locks the account if needed. */
-export async function recordFailedAttempt(user: {
-  id: string;
-  failedLoginAttempts: number;
-  lockedUntil: Date | null;
-}) {
-  const attempts = user.failedLoginAttempts + 1;
-  const lock = attempts >= MAX_FAILED_ATTEMPTS;
-  await db
+/**
+ * Counts a failed credential (password, second factor or the password asked again) and locks the
+ * account at the fifth, in one statement on the current row: concurrent wrong attempts each count.
+ * (Counting from a value read before the slow password check let a burst of parallel guesses all
+ * write the same count, so the lock was never reached.) The count starts again from zero with the
+ * lock. Returns whether this attempt locked the account.
+ */
+export async function recordFailedAttempt(user: { id: string }): Promise<boolean> {
+  const reached = sql`${users.failedLoginAttempts} + 1 >= ${MAX_FAILED_ATTEMPTS}`;
+  const [row] = await db
     .update(users)
     .set({
-      failedLoginAttempts: lock ? 0 : attempts,
-      lockedUntil: lock ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
+      failedLoginAttempts: sql`CASE WHEN ${reached} THEN 0 ELSE ${users.failedLoginAttempts} + 1 END`,
+      lockedUntil: sql`CASE WHEN ${reached} THEN now() + make_interval(mins => ${LOCKOUT_MINUTES}) ELSE ${users.lockedUntil} END`,
     })
-    .where(eq(users.id, user.id));
-  return lock;
+    .where(eq(users.id, user.id))
+    .returning({ attempts: users.failedLoginAttempts });
+  // Zero after the increment only when this attempt reached the limit.
+  return row?.attempts === 0;
 }
 
-/** Final step of any successful sign-in: reset counters, issue the session, audit. */
+/** Whether the account is locked now (read again, after a slow check of a credential). */
+export async function isLocked(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ locked: sql<boolean>`coalesce(${users.lockedUntil} > now(), false)` })
+    .from(users)
+    .where(eq(users.id, userId));
+  return Boolean(row?.locked);
+}
+
+/**
+ * Final step of any successful sign-in: reset counters, issue the session, audit. Refused when
+ * wrong attempts made at the same time locked the account while this one was being checked: the
+ * counters are reset only if it is not locked, in the same statement.
+ */
 export async function completeLogin(userId: string, meta: RequestMeta, factors: string[]) {
-  await db
+  const [unlocked] = await db
     .update(users)
     .set({ failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() })
-    .where(eq(users.id, userId));
+    .where(
+      and(
+        eq(users.id, userId),
+        sql`(${users.lockedUntil} IS NULL OR ${users.lockedUntil} <= now())`,
+      ),
+    )
+    .returning({ id: users.id });
+  if (!unlocked) {
+    const [u] = await db
+      .select({ role: users.role, facilityId: users.facilityId })
+      .from(users)
+      .where(eq(users.id, userId));
+    await auditSafe({
+      action: AuditAction.LOGIN_LOCKED,
+      actor: u ? { userId, role: u.role, facilityId: u.facilityId } : null,
+      outcome: 'DENIED',
+      meta,
+    });
+    throw unauthorized(GENERIC_LOGIN_ERROR);
+  }
   const ctx = await buildContext(userId);
   const session = await issueSession(ctx, meta);
   await auditSafe({ action: AuditAction.LOGIN_SUCCESS, actor: ctx, meta, metadata: { factors } });
@@ -217,6 +252,12 @@ export async function login(
     });
     throw unauthorized(GENERIC_LOGIN_ERROR);
   }
+  // Wrong passwords sent at the same time may have locked the account during the check: the
+  // right one among them must not get through (nor tell that it was right).
+  if (await isLocked(user.id)) {
+    await auditSafe({ action: AuditAction.LOGIN_LOCKED, actor, outcome: 'DENIED', meta });
+    throw unauthorized(GENERIC_LOGIN_ERROR);
+  }
 
   if (user.mfaEnabledAt) {
     const methods: SecondFactor[] = [];
@@ -229,6 +270,24 @@ export async function login(
     };
   }
   return { kind: 'session', session: await completeLogin(user.id, meta, ['password']) };
+}
+
+/**
+ * Whether this is a platform administrator's session nobody used for ADMIN_IDLE_MINUTES: the
+ * presented token was issued at the previous refresh (or at sign-in), and the web app refreshes
+ * at least every 15 minutes while it is in use (when its access token runs out, and while the
+ * administrator types or clicks; components/AdminIdleSignOut.tsx). The browser's idle sign-out
+ * holds only while the page stays open; this ends the session for a browser that was closed, or a
+ * tab that was discarded, and opened again later – the refresh cookie lives until the 12-hour
+ * deadline.
+ */
+async function idleAdminSession(token: { userId: string; createdAt: Date }) {
+  if (token.createdAt.getTime() > Date.now() - env.ADMIN_IDLE_MINUTES * 60_000) return false;
+  const [user] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, token.userId));
+  return user?.role === 'ADMIN';
 }
 
 /**
@@ -260,6 +319,13 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Sess
     throw unauthorized('Session revoked');
   }
   if (existing.expiresAt <= new Date()) throw unauthorized('Session expired');
+  if (await idleAdminSession(existing)) {
+    await db
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshTokens.familyId, existing.familyId), isNull(refreshTokens.revokedAt)));
+    throw unauthorized('Session expired');
+  }
 
   // Atomically consume the token; a concurrent refresh with the same token loses the race.
   const consumed = await db

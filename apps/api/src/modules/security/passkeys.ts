@@ -84,7 +84,11 @@ async function loadUser(userId: string) {
   return user;
 }
 
-/** Signed in within the last 10 minutes (this session), or the password was just confirmed. */
+/**
+ * Signed in within the last 10 minutes (this session), or the password was just confirmed. The
+ * session's cookie counts only while its token is valid: after signing out, "Sign out everywhere"
+ * or an administrator's revoke-sessions, a copied cookie proves nothing any more.
+ */
 export async function assertRecentAuthentication(
   ctx: AuthContext,
   opts: { password?: string; refreshToken?: string },
@@ -104,6 +108,8 @@ export async function assertRecentAuthentication(
         and(
           eq(refreshTokens.tokenHash, hashToken(opts.refreshToken)),
           eq(refreshTokens.userId, ctx.userId),
+          isNull(refreshTokens.revokedAt),
+          gt(refreshTokens.expiresAt, new Date()),
         ),
       );
     if (token) {

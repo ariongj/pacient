@@ -36,7 +36,7 @@ beforeAll(async () => {
 const asAdmin = () => bearer(admin.token);
 // Bank details, VAT, the invoice prefix and publishing ask for the password again
 // (requireRecentAuth): these tests always confirm it; admin-security.test.ts tests asking.
-const REAUTH = { 'X-Reauth-Password': PASSWORD };
+const REAUTH = { 'X-Reauth-Password': `b64:${Buffer.from(PASSWORD).toString('base64')}` };
 const putSettings = (body: Record<string, unknown>, token = admin.token) =>
   api().put('/api/v1/admin/settings').set(bearer(token)).set(REAUTH).send(body);
 const createDoc = (body: Record<string, unknown>) =>

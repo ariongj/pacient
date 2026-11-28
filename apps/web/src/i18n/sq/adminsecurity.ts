@@ -6,6 +6,9 @@ export const adminsecurity: Record<string, string> = {
   // The password asked again (server message): five wrong ones lock the account for 15 minutes.
   'Too many wrong passwords. Try again in 15 minutes.':
     'Shumë fjalëkalime të gabuara. Provoni përsëri pas 15 minutash.',
+  // Server message: an administrator cannot lift their own lockout.
+  'Ask another administrator to unlock your account':
+    'Kërkojini një administratori tjetër ta zhbllokojë llogarinë tuaj',
   // Platform overview: the bank details were changed in the last 14 days.
   'Bank details changed on {date}': 'Të dhënat bankare u ndryshuan më {date}',
   'You changed the bank details printed on invoices ({time}).':

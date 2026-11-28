@@ -431,17 +431,24 @@ language, records nothing new. A new version that asks for acceptance is asked a
 information only is not asked of facilities that accepted an earlier version, but a facility that
 never accepted accepts the current one – the same rule as for the terms of use.
 
-**Nothing is blocked by a missing acceptance.** Until one of them accepts, the facility's directors
-see a notice with a link; nobody else sees anything, and the agreements are never part of the check
-of the terms of use at sign-in (hazards H74 and H75 in [CLINICAL-SAFETY.md](CLINICAL-SAFETY.md)).
+**Nothing is blocked by a missing acceptance.** The agreements are asked of the operator's
+**customers** – active facilities whose subscription has not ended (trial, active, past due or
+suspended): until one of its directors accepts, a customer's directors see a notice with a link.
+A facility without a subscription, or whose subscription was cancelled or has expired, is not asked
+and sees no notice (it can still accept on its subscription page); nobody else sees anything, and
+the agreements are never part of the check of the terms of use at sign-in (hazards H74 and H75 in
+[CLINICAL-SAFETY.md](CLINICAL-SAFETY.md)).
 
-You see:
+You see, for the same customers:
 
-- on the **Overview**, the customers (active facilities whose subscription has not ended) that have
-  not accepted the current agreements, or a reminder while an agreement is not published;
+- on the **Overview**, the customers that have not accepted the current agreements, or a reminder
+  while an agreement is not published;
 - on **Terms and privacy**, per agreement, how many customers are up to date, which have not
   accepted yet, and which facilities accepted a version (who signed, with which title, when);
-- on each **facility's page**, its acceptances.
+- on each **facility's page**, its acceptances (whether or not it is a customer).
+
+The acceptances are seen there, not under **Administrative actions**: accepting is the facility's
+doing, not an administrator's (it stays in the audit trail).
 
 ## Administrative actions and system health
 
@@ -480,7 +487,10 @@ be changed on its own (the person who asked is told when it is resolved). The fi
 recorded as the time of the first response. When the facility writes again, a request that was
 waiting for it or resolved is open again, and the administrators are notified. Every request,
 message and status change is audited in the same transaction, with the reference, category and
-statuses only – not the text.
+statuses only – not the text. **Administrative actions** lists the administrators' answers and
+status changes; new requests and the facility's messages are in **Requests** only. Whether a
+message is the operator's or the facility's is recorded when it is written: an answer stays the
+operator's (without your name for the facility) even if your role changes later.
 
 The support e-mail, phone and **support hours** (operator settings) are shown in the footer, on the
 sign-in page, in the directors' subscription notices and on the public help page `/help`, which also
@@ -534,6 +544,11 @@ rule report the same stalls, also when the watchdog itself has stopped
 ([deploy/monitoring/README.md](../deploy/monitoring/README.md)).
 
 ## Recovering an administrator
+
+An administrator locked out after five wrong passwords (at sign-in or when the password is asked
+again) waits 15 minutes, or another administrator unlocks the account under **Users**, confirming
+their own password: nobody can unlock their own account, since the lockout is what stops a stolen
+session from guessing the password.
 
 An administrator who lost the password **and** the authenticator app and recovery codes cannot be
 helped in the portal by themselves; another administrator can reset their two-step sign-in under

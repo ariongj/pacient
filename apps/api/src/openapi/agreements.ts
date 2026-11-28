@@ -23,7 +23,7 @@ export const AGREEMENTS_OPERATIONS: ModuleOperation[] = [
   op('get', '/subscription/agreements', T, 'The agreements of my facility', {
     access: DIRECTOR,
     description:
-      'For each agreement: the current published text in the requested language (else the director’s), whether the facility still has to accept it (it accepted neither the latest version that asked for acceptance nor a later one), and the facility’s acceptances with signer name and title. Nothing is blocked while one is pending.',
+      'For each agreement: the current published text in the requested language (else the director’s), whether the facility still has to accept it (it accepted neither the latest version that asked for acceptance nor a later one), and the facility’s acceptances with signer name and title. `asked` says whether the facility is a customer (an active facility whose subscription is TRIAL, ACTIVE, PAST_DUE or SUSPENDED, as in /admin/agreements/missing): only then are its directors shown a notice, and only then does `pending` count the agreements still to accept (0 otherwise). Any facility may accept. Nothing is blocked while one is pending.',
     params: [q('locale', localeEnum)],
   }),
   op(
@@ -54,7 +54,7 @@ export const AGREEMENTS_OPERATIONS: ModuleOperation[] = [
   op('get', '/admin/organizations/{facilityId}/agreements', T, 'A facility’s agreements', {
     access: ADMIN,
     description:
-      'Per agreement: the current version, whether the facility still has to accept it, and its acceptances (version, language, signer name and title, the director’s account, time).',
+      'Per agreement: the current version, whether the facility still has to accept it, and its acceptances (version, language, signer name and title, the director’s account, time). `asked` and `pending` as for the director: a facility that is not a customer is not asked.',
   }),
   op('get', '/admin/agreements/missing', T, 'Customers without the current agreements', {
     access: ADMIN,
@@ -66,7 +66,7 @@ export const AGREEMENTS_OPERATIONS: ModuleOperation[] = [
     description: 'The number of facilities that accepted it and the latest 50 acceptances.',
     params: [
       q('kind', kindEnum),
-      q('version', str({ pattern: '^[0-9A-Za-z][0-9A-Za-z._-]{0,19}$' })),
+      q('version', str({ minLength: 1, maxLength: 20 }), 'Trimmed; an unknown version gives 0'),
     ],
   }),
 ];

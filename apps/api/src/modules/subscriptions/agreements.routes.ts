@@ -25,7 +25,7 @@ import {
 /**
  * The service agreement and the data processing agreement, accepted once per facility by a
  * director (organization_acceptances). Nothing is ever blocked by a missing acceptance: directors
- * see a notice, the administrator a list (H74). Round 2, builder G.
+ * of a customer see a notice, the administrator a list (H74). Round 2, builder G.
  *
  * `agreementsDirectorRouter` is mounted on /subscription (authenticated, DIRECTOR only):
  *   GET  /subscription/agreements
@@ -43,10 +43,29 @@ export const agreementsAdminRouter = Router();
 
 /**
  * The operator's customers: active facilities whose subscription has not ended. They are the
- * ones the agreements are with; a facility without a subscription (say, one the Ministry runs) is
- * not asked.
+ * ones the agreements are with and the only ones asked to accept them: the directors' notice and
+ * the administrator's list and counts follow this one rule. A facility without a subscription
+ * (say, one the Ministry runs, or one whose subscription has not started yet), or whose
+ * subscription was cancelled or expired, is not asked, but may still accept on its subscription
+ * page.
  */
 const CUSTOMER_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED'] as const;
+
+const isCustomer = and(
+  eq(facilities.isActive, true),
+  inArray(subscriptions.status, [...CUSTOMER_STATUSES]),
+);
+
+/** Whether a facility is a customer now (see CUSTOMER_STATUSES). */
+async function customer(facilityId: string) {
+  const [row] = await db
+    .select({ id: facilities.id })
+    .from(facilities)
+    .innerJoin(subscriptions, eq(subscriptions.facilityId, facilities.id))
+    .where(and(eq(facilities.id, facilityId), isCustomer))
+    .limit(1);
+  return Boolean(row);
+}
 
 const acceptedBy = sql<string>`(SELECT full_name FROM users u WHERE u.id = ${organizationAcceptances.acceptedById})`;
 const acceptanceColumns = {
@@ -129,11 +148,15 @@ async function acceptancesOf(facilityId: string) {
 /**
  * Where a facility stands with each agreement: the current version, whether the facility still
  * has to accept it, and its acceptances (newest first). With `locale`, the current text in that
- * language for the director to read.
+ * language for the director to read. `asked`: the facility is a customer, so its directors see
+ * the notice while an agreement is pending; `pending` counts the agreements still to accept, for a
+ * customer only (as in the administrator's list). Any facility can accept on its subscription
+ * page.
  */
 async function facilityAgreements(facilityId: string, locale?: string) {
   const settings = locale ? await getSettings() : null;
   const history = await acceptancesOf(facilityId);
+  const asked = await customer(facilityId);
   const agreements = [];
   for (const kind of ORGANIZATION_LEGAL_KINDS) {
     const version = await currentVersion(kind);
@@ -153,7 +176,7 @@ async function facilityAgreements(facilityId: string, locale?: string) {
         : {}),
     });
   }
-  return { agreements, pending: agreements.filter((a) => a.pending).length };
+  return { agreements, asked, pending: asked ? agreements.filter((a) => a.pending).length : 0 };
 }
 
 /* ------------------------------------------------------------------ directors ---------------- */
@@ -297,9 +320,7 @@ agreementsAdminRouter.get('/agreements/missing', async (_req, res) => {
     })
     .from(facilities)
     .innerJoin(subscriptions, eq(subscriptions.facilityId, facilities.id))
-    .where(
-      and(eq(facilities.isActive, true), inArray(subscriptions.status, [...CUSTOMER_STATUSES])),
-    )
+    .where(isCustomer)
     .orderBy(asc(facilities.name));
   const ids = customers.map((c) => c.facilityId);
   const kinds = [];

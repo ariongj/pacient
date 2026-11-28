@@ -85,7 +85,7 @@ const adminPut = (path: string, body: Record<string, unknown>) =>
   api()
     .put(`/api/v1/admin${path}`)
     .set(bearer(admin))
-    .set('X-Reauth-Password', PASSWORD)
+    .set('X-Reauth-Password', `b64:${Buffer.from(PASSWORD).toString('base64')}`)
     .send(body);
 
 /** A response body as bytes (PDFs). */

@@ -77,7 +77,12 @@ function AccountView({ page }: { page: AccountPage }) {
       label: t('Send password reset e-mail'),
       show: u.activated && u.isActive,
     },
-    { action: 'unlock', label: t('Unlock account'), show: u.locked || u.failedLoginAttempts > 0 },
+    {
+      action: 'unlock',
+      label: t('Unlock account'),
+      // Another administrator unlocks yours: the lockout stops a stolen session guessing.
+      show: !self && (u.locked || u.failedLoginAttempts > 0),
+    },
     {
       action: 'mfa-reset',
       label: t('Reset two-step sign-in'),

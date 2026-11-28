@@ -809,7 +809,7 @@ describe('e-mailing billing documents', () => {
     ]);
     const voided = await adminPost(`/invoices/${invoice.id}/void`, {
       reason: 'Issued by mistake',
-    }).set('X-Reauth-Password', PASSWORD);
+    }).set('X-Reauth-Password', `b64:${Buffer.from(PASSWORD).toString('base64')}`);
     expect(voided.status).toBe(200);
     // Withdrawn in the void's transaction, content erased; the deliveries stay.
     const rows = await deliveriesOf(invoice.id);
@@ -1191,7 +1191,7 @@ describe('PDFs', () => {
       const note = await adminPost(`/invoices/${zero.id}/credit-notes`, {
         amountCents: 1_000,
         reason: 'Discount agreed later',
-      }).set('X-Reauth-Password', PASSWORD);
+      }).set('X-Reauth-Password', `b64:${Buffer.from(PASSWORD).toString('base64')}`);
       expect(note.status).toBe(201);
       const credit = await creditNoteDocumentContent(note.body.id, 'en');
       expect(credit.totals).toEqual([

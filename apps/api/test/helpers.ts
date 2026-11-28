@@ -8,6 +8,12 @@ import { hashPassword } from '../src/lib/password.js';
 export const app = createApp();
 export const api = () => request(app);
 export const PASSWORD = 'correct-horse-battery-staple';
+/**
+ * The X-Reauth-Password value for a password: b64: and the base64 of its UTF-8 bytes – the only
+ * form the API accepts (a raw value is refused with 400).
+ */
+export const reauthHeader = (password = PASSWORD) =>
+  `b64:${Buffer.from(password, 'utf8').toString('base64')}`;
 
 let passwordHash: Promise<string> | undefined;
 const uniq = () => randomUUID().slice(0, 8);

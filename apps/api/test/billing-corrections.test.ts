@@ -976,7 +976,7 @@ describe('refunds', () => {
         await api()
           .post(`/api/v1/admin${path}`)
           .set(bearer(token))
-          .set(REAUTH, PASSWORD)
+          .set(REAUTH, encoded(PASSWORD))
           .send({ amountCents: 1 })
       ).status,
     ).toBe(403);
